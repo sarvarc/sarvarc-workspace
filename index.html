@@ -20,9 +20,9 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
-<title>Free Online File Converter | SARVARC Workspace</title>  
-  <meta name="description" content="Free online file conversion tools by SARVARC Workspace. Convert files securely, quickly and privately in your browser.">
-  <meta name="keywords" content="file converter, online file converter, PDF converter, JPG to PDF, PDF to JPG, merge PDF, compress PDF, Word to PDF, Excel to PDF, SARVARC Workspace">
+<title>Free Online File &amp; Text Converter | SARVARC Workspace</title>  
+  <meta name="description" content="Free online file conversion and text tools by SARVARC Workspace. Convert files, switch text case (UPPERCASE, lowercase, camelCase, snake_case &amp; more) — securely, privately, right in your browser.">
+  <meta name="keywords" content="file converter, online file converter, PDF converter, JPG to PDF, PDF to JPG, merge PDF, compress PDF, Word to PDF, Excel to PDF, case converter, online case converter, uppercase converter, lowercase converter, title case converter, camelCase converter, snake_case converter, kebab-case converter, PascalCase converter, text case changer, SARVARC Workspace">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -500,6 +500,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         'xml-json': { label: 'XML → JSON',        accept: '.xml',  multi: false, outFmts: ['JSON'], desc: 'Parse an XML file and convert its structure to JSON.', pasteInput: true, pastePlaceholder: '<person>\n  <name>Alice</name>\n  <age>30</age>\n</person>', pasteLabel: 'XML content' },
         'json-xml': { label: 'JSON → XML',        accept: '.json', multi: false, outFmts: ['XML'],  desc: 'Convert a JSON object or array into XML format.', pasteInput: true, pastePlaceholder: '{"name":"Alice","age":30,"city":"Mumbai"}', pasteLabel: 'JSON content' },
       }
+    },
+    text: {
+      label: 'Case Converter',
+      formats: {
+        'case-converter': { label: 'Case Converter', accept: null, multi: false, customUI: 'caseConverter', desc: 'Free online case converter — instantly switch text between UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, aLtErNaTiNg, and Inverse Case. No upload, no signup, works entirely in your browser.' },
+      }
     }
   };
 
@@ -539,6 +545,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     image:    SVG_OPEN + '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
     video:    SVG_OPEN + '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
     data:     SVG_OPEN + '<path d="M21 8V7l-3-4H6L3 7v1"/><path d="M3 8h18l-1 13H4z"/><line x1="9" y1="12" x2="15" y2="12"/></svg>',
+    text:     SVG_OPEN + '<text x="3" y="17" font-family="serif" font-size="15" font-weight="bold" fill="currentColor">A</text><text x="12" y="17" font-family="serif" font-size="11" fill="currentColor">a</text></svg>',
     refresh:  SVG_OPEN + '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
     download: SVG_OPEN + '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
     folder:   SVG_OPEN + '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
@@ -556,6 +563,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     image:       { icon: ICONS.image },
     video:       { icon: ICONS.video },
     data:        { icon: ICONS.data },
+    text:        { icon: ICONS.text },
   };
   const BRAND_GRADIENT = 'linear-gradient(120deg,var(--primary),var(--blue-cyan))';
 
@@ -792,6 +800,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
     if (cfg.customUI === 'splitPdf') {
       renderSplitPdfUI(main, cfg);
+      return;
+    }
+
+    if (cfg.customUI === 'caseConverter') {
+      renderCaseConverterUI(main);
       return;
     }
 
@@ -1961,6 +1974,117 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     recommended: { quality: 0.62, maxDim: 1600, label: 'Recommended',      sub: 'Balanced quality and file size' },
     high:        { quality: 0.40, maxDim: 1100, label: 'High compression', sub: 'Smallest file, lower image quality' },
   };
+
+  function renderCaseConverterUI(main) {
+    const caseLabels = {
+      upper:'UPPERCASE', lower:'lowercase', title:'Title Case',
+      camel:'camelCase', pascal:'PascalCase', snake:'snake_case',
+      kebab:'kebab-case', constant:'CONSTANT_CASE', alternating:'aLtErNaTiNg', inverse:'Inverse Case'
+    };
+    const CaseEngine = {
+      splitWords(s) { return s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_\-]+/g,' ').trim().split(/\s+/).filter(Boolean); },
+      upper: s => s.toUpperCase(),
+      lower: s => s.toLowerCase(),
+      title: s => s.toLowerCase().replace(/(^|\s)(\S)/g,(m,p1,p2)=>p1+p2.toUpperCase()),
+      camel(s){ const w=this.splitWords(s).map(x=>x.toLowerCase()); return w.map((x,i)=>i===0?x:x.charAt(0).toUpperCase()+x.slice(1)).join(''); },
+      pascal(s){ const w=this.splitWords(s).map(x=>x.toLowerCase()); return w.map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(''); },
+      snake(s){ return this.splitWords(s).map(x=>x.toLowerCase()).join('_'); },
+      kebab(s){ return this.splitWords(s).map(x=>x.toLowerCase()).join('-'); },
+      constant(s){ return this.splitWords(s).map(x=>x.toUpperCase()).join('_'); },
+      alternating(s){ let o='',t=false; for(const c of s){ if(/[a-zA-Z]/.test(c)){o+=t?c.toUpperCase():c.toLowerCase();t=!t;}else o+=c; } return o; },
+      inverse(s){ return Array.from(s).map(c=>{if(c>='A'&&c<='Z')return c.toLowerCase();else if(c>='a'&&c<='z')return c.toUpperCase();return c;}).join(''); }
+    };
+
+    const btnRows = Object.entries(caseLabels).map(([k,label])=>`
+      <button data-case="${k}" style="
+        border:1px solid var(--border);background:var(--surface2);color:var(--text);
+        border-radius:var(--radius);padding:10px 12px;font-family:inherit;
+        font-size:12px;font-weight:600;cursor:pointer;text-align:center;line-height:1.3;
+        transition:all 0.15s;" onmouseover="if(!this.classList.contains('cc-active')){this.style.borderColor='var(--primary)';this.style.background='var(--blue-glow)';this.style.color='var(--primary)';}" onmouseout="if(!this.classList.contains('cc-active')){this.style.borderColor='var(--border)';this.style.background='var(--surface2)';this.style.color='var(--text)';}">
+        ${label}
+      </button>`).join('');
+
+    main.innerHTML = `
+      <div class="conv-card" style="margin-top:8px;max-width:720px;">
+        <h2 style="margin-bottom:4px;">Case Converter</h2>
+        <p style="margin-bottom:18px;">Convert text between 10 case styles — UPPERCASE, camelCase, snake_case and more. Fully local, nothing leaves your browser.</p>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:16px;">
+          ${btnRows}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 28px 1fr;gap:12px;align-items:start;margin-bottom:14px;">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:7px;">Input</div>
+            <textarea id="cc-input" placeholder="Paste or type your text here…" spellcheck="false" style="width:100%;min-height:180px;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-family:inherit;font-size:13px;line-height:1.6;background:var(--surface2);color:var(--text);outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;" id="cc-char-count">0 characters · 0 words</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;padding-top:44px;color:var(--text3);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;">
+              Output
+              <span id="cc-active-tag" style="font-size:10px;font-weight:600;color:var(--primary);background:var(--blue-glow);border:1px solid var(--primary-mid);border-radius:999px;padding:2px 8px;text-transform:none;letter-spacing:0;">Select a style</span>
+            </div>
+            <textarea id="cc-output" readonly placeholder="Converted text will appear here…" spellcheck="false" style="width:100%;min-height:180px;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-family:inherit;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text);outline:none;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;cursor:default;transition:opacity 0.12s;"></textarea>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;" id="cc-out-count">0 characters</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button id="cc-copy" style="padding:9px 20px;background:var(--primary);color:white;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--primary-glow)'" onmouseout="this.style.background='var(--primary)'">Copy Result</button>
+          <button id="cc-swap" style="padding:9px 16px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Use as Input</button>
+          <button id="cc-clear" style="padding:9px 16px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Clear</button>
+        </div>
+      </div>`;
+
+    // Wire up
+    const inp = main.querySelector('#cc-input');
+    const out = main.querySelector('#cc-output');
+    const charCount = main.querySelector('#cc-char-count');
+    const outCount = main.querySelector('#cc-out-count');
+    const activeTag = main.querySelector('#cc-active-tag');
+    let activeCase = null;
+
+    function updateCount() {
+      const v = inp.value;
+      const w = v.trim() ? v.trim().split(/\s+/).length : 0;
+      charCount.textContent = `${v.length} characters · ${w} words`;
+    }
+    function reapply() {
+      if (!activeCase) return;
+      out.value = CaseEngine[activeCase].call(CaseEngine, inp.value);
+      outCount.textContent = `${out.value.length} characters`;
+    }
+    inp.addEventListener('input', () => { updateCount(); reapply(); });
+
+    main.querySelectorAll('[data-case]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        main.querySelectorAll('[data-case]').forEach(b => {
+          b.classList.remove('cc-active');
+          b.style.cssText = 'border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:var(--radius);padding:10px 12px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center;line-height:1.3;transition:all 0.15s;';
+        });
+        btn.classList.add('cc-active');
+        btn.style.cssText = 'border:1px solid var(--primary);background:linear-gradient(120deg,var(--primary),var(--blue-cyan));color:#fff;border-radius:var(--radius);padding:10px 12px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center;line-height:1.3;transition:all 0.15s;';
+        activeCase = btn.dataset.case;
+        activeTag.textContent = caseLabels[activeCase];
+        reapply();
+      });
+    });
+
+    main.querySelector('#cc-clear').addEventListener('click', () => { inp.value = ''; out.value = ''; updateCount(); outCount.textContent = '0 characters'; });
+    main.querySelector('#cc-swap').addEventListener('click', () => { inp.value = out.value; updateCount(); reapply(); });
+    main.querySelector('#cc-copy').addEventListener('click', () => {
+      if (!out.value) return;
+      navigator.clipboard.writeText(out.value).then(() => {
+        const btn = main.querySelector('#cc-copy');
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => btn.textContent = orig, 1800);
+      });
+    });
+  }
 
   function formatBytes(n) {
     if (!isFinite(n)) return '—';
@@ -4379,7 +4503,7 @@ window.showConverter();
   <div class="lp-hero">
     <p class="lp-eyebrow">SARVARC Workspace</p>
     <h1 class="lp-headline">Convert anything.<br><em>Right in your browser.</em></h1>
-    <p class="lp-sub">27 free tools across PDF, Spreadsheet, Image, Video &amp; Data — no sign-up, no server, no data leaving your device.</p>
+    <p class="lp-sub">28 free tools across PDF, Spreadsheet, Image, Video, Data &amp; Text — including a brand-new Case Converter. No sign-up, no server, no data leaving your device.</p>
     <button class="lp-hero-btn" id="backToToolBtn" onclick="scrollToTool()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><polyline points="18 15 12 9 6 15"/></svg>
       Open the Tool
@@ -4394,7 +4518,7 @@ window.showConverter();
       <div>
         <p class="lp-eyebrow-sm">About</p>
         <h2 class="lp-section-title">What is SARVARC Workspace?</h2>
-        <p class="lp-section-body">SARVARC Workspace is a browser-based productivity suite with 27 file conversion tools across 5 categories — all running locally on your device. No installation, no account, no waiting. Just open and convert.</p>
+        <p class="lp-section-body">SARVARC Workspace is a browser-based productivity suite with 28 file conversion and text tools across 6 categories — all running locally on your device. No installation, no account, no waiting. Just open and convert.</p>
         <p class="lp-section-body" style="margin-top:12px;">Most tools support both file upload and direct paste, so you can go from raw text or data to a finished file in seconds.</p>
       </div>
       <div class="lp-what-visual">
@@ -4403,6 +4527,7 @@ window.showConverter();
         <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Image</strong> — PNG / JPEG / WebP conversion, SVG → PNG, GIF &amp; WebP frame extraction</div>
         <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Video</strong> — Capture still frames, Trim clips with live preview, Extract audio as WAV or WebM</div>
         <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Data</strong> — JSON ↔ XML, JSON → Plain Text, with paste-to-convert on every tool</div>
+        <div class="lp-what-pill" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.06);"><div class="lp-what-dot" style="background:var(--lp-blue-bright);box-shadow:0 0 6px var(--lp-blue-bright);"></div><strong>Case Converter</strong> <span style="font-size:11px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;">NEW</span> — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case &amp; more</div>
       </div>
     </div>
   </div>
@@ -4473,6 +4598,11 @@ window.showConverter();
         <span class="lp-feature-num">12</span>
         <div class="lp-feature-title">Merge PDF</div>
         <div class="lp-feature-body">Combine two or more PDFs into one. Reorder files exactly how you want before merging — all done locally, with no file size cap.</div>
+      </div>
+      <div class="lp-feature-cell" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.04);">
+        <span class="lp-feature-num" style="background:linear-gradient(135deg,var(--lp-blue-deep),var(--lp-blue-bright));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">13</span>
+        <div class="lp-feature-title">Case Converter <span style="font-size:10px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;vertical-align:middle;">NEW</span></div>
+        <div class="lp-feature-body">Instantly switch text between 10 case formats — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, aLtErNaTiNg, and Inverse Case. Paste any text and convert in one click, entirely in your browser.</div>
       </div>
     </div>
   </div>
@@ -4772,8 +4902,10 @@ function scrollToTool() {
       a: "Select Split PDF from the sidebar, upload your file, and choose from three modes: split by page ranges (e.g. 1-3, 5-7), split every N pages, or hand-pick individual pages from a visual thumbnail grid. Single-page extractions download as PDF; multi-part splits come as a ZIP." },
     { q: "The conversion failed or the output looks wrong — what do I do?",
       a: "Try refreshing the page and repeating the conversion. For HTML to PDF, the file is rendered and downloaded automatically with no print dialog. For video trimming, make sure you are using Chrome or Edge. Still stuck? Reach out at sarvarcworkspace@gmail.com." },
+    { q: "What case formats does the Case Converter support?",
+      a: "The Case Converter supports 10 formats: UPPERCASE, lowercase, Title Case (every word capitalised), camelCase (first word lower, rest capitalised, no spaces), PascalCase (every word capitalised, no spaces), snake_case (words joined with underscores), kebab-case (words joined with hyphens), CONSTANT_CASE (snake_case all caps), aLtErNaTiNg (alternates upper and lower on every character), and Inverse Case (flips the existing case of each letter). Just paste your text, pick a format, and copy the result — no file upload needed." },
     { q: "Will more tools be added in the future?",
-      a: "Yes! We are actively expanding SARVARC Workspace with new conversion types and utilities. Follow us on LinkedIn and Instagram (@sarvarc_) to stay updated." }
+      a: "Yes! We are actively expanding SARVARC Workspace with new conversion types and utilities. Our latest addition is the Case Converter — switch text between UPPERCASE, lowercase, Title Case, camelCase, snake_case, and more in one click. Follow us on LinkedIn and Instagram (@sarvarc_) to stay updated." }
   ];
 
   var list = document.getElementById('lpFaqList');
