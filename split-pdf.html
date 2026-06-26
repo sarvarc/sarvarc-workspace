@@ -109,6 +109,21 @@
       "@type": "Question",
       "name": "Can I split a large PDF into multiple files without Adobe?",
       "acceptedAnswer": { "@type": "Answer", "text": "Absolutely. SARVARC Split PDF requires no Adobe software, no plugins, and no desktop download. Just open the page in any modern browser." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I remove pages from a PDF for free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Use 'Pick Pages' mode to select only the pages you want to keep, then download that selection as a new PDF — effectively removing any pages you didn't choose. No account or payment required." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I separate a scanned PDF into individual pages?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Load the scanned PDF, switch to 'Every N Pages' mode and set the chunk size to 1. This creates one PDF per page. Alternatively, use 'Pick Pages' to select and download any individual page." }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the difference between splitting and extracting pages from a PDF?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Splitting usually means dividing a PDF into multiple output files — by ranges or chunk size. Extracting pages means pulling a specific subset into a new single PDF. SARVARC Split PDF supports both: use 'Page Ranges' or 'Every N Pages' to split, and 'Pick Pages' to extract." }
     }
   ]
 }
@@ -196,14 +211,16 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .conv-footer-link:hover{color:var(--primary);}
 
 /* SEO sections */
-.seo-section{max-width:680px;margin:48px auto 0;padding:0 4px;}
-.seo-section h2{font-size:17px;font-weight:700;color:var(--text);margin-bottom:14px;}
-.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:32px;}
-.feature-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
-.feature-card strong{display:block;font-size:13px;font-weight:700;color:var(--text);margin-bottom:5px;}
-.feature-card p{font-size:12px;color:var(--text2);line-height:1.6;margin:0;}
+.seo-section{max-width:1200px;margin:56px auto 0;padding:0 24px;}
+.seo-section h2{font-size:20px;font-weight:700;color:var(--text);margin-bottom:18px;}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:40px;}
+.feature-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;}
+.feature-card strong{display:block;font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.feature-card p{font-size:12px;color:var(--text2);line-height:1.65;margin:0;}
+@media(max-width:600px){.seo-section{padding:0 16px;}.feature-grid{grid-template-columns:1fr 1fr;gap:12px;}}
+.seo-section p{font-size:13px;color:var(--text2);line-height:1.8;margin-bottom:0;max-width:860px;}
 /* FAQ accordion — matches index.html lp-faq style */
-.faq-accordion { display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
+.faq-accordion { display: flex; flex-direction: column; gap: 10px; margin-bottom: 40px; max-width:860px; }
 .faq-accordion-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color 0.15s; }
 .faq-accordion-item.open { border-color: var(--border-2); }
 .faq-accordion-q { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; cursor: pointer; user-select: none; }
@@ -237,7 +254,7 @@ footer a{color:var(--text3);text-decoration:none;} footer a:hover{color:var(--pr
   <!-- TOOL -->
   <div class="conv-card">
     <h1>Split PDF</h1>
-    <p class="sub">Split a PDF into separate files — by page ranges, every N pages, or by picking individual pages. Preview thumbnails before you split.</p>
+    <p class="sub">Split a PDF into separate files — by page ranges, every N pages, or by picking individual pages from a visual thumbnail grid. 100% free, no upload, runs in your browser.</p>
 
     <div id="spUploadSection">
       <div class="conv-dropzone" id="spDropzone" onclick="document.getElementById('spFileInput').click()">
@@ -309,38 +326,90 @@ footer a{color:var(--text3);text-decoration:none;} footer a:hover{color:var(--pr
 
   <!-- SEO CONTENT -->
   <section class="seo-section">
-    <h2>Three ways to split your PDF</h2>
-    <div class="feature-grid">
-      <div class="feature-card">
-        <strong>Page Ranges</strong>
-        <p>Type ranges like <code>1-3</code>, <code>4-6</code>, <code>7</code> — one per line. Each line becomes a separate PDF file.</p>
+
+    <!-- SECTION 1: How to split in 3 steps -->
+    <h2>How to split a PDF in 3 steps</h2>
+    <div class="feature-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:40px;">
+      <div class="feature-card" style="position:relative;padding-top:22px;">
+        <span style="position:absolute;top:-1px;left:18px;width:24px;height:24px;background:var(--primary);color:#fff;border-radius:6px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</span>
+        <strong>Upload Your PDF</strong>
+        <p>Drag and drop or click to select any PDF file. No file size limit — the tool runs entirely in your browser with no uploads to any server.</p>
       </div>
-      <div class="feature-card">
-        <strong>Every N Pages</strong>
-        <p>Split into equal chunks automatically. Set the chunk size and get a preview before downloading.</p>
+      <div class="feature-card" style="position:relative;padding-top:22px;">
+        <span style="position:absolute;top:-1px;left:18px;width:24px;height:24px;background:var(--primary);color:#fff;border-radius:6px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</span>
+        <strong>Choose a Split Method</strong>
+        <p>Select Page Ranges to type custom ranges, Every N Pages to split into equal chunks, or Pick Pages to hand-select pages from visual thumbnails.</p>
       </div>
-      <div class="feature-card">
-        <strong>Pick Pages</strong>
-        <p>Browse visual thumbnails of every page, click to select the ones you want, extract into a single PDF.</p>
-      </div>
-      <div class="feature-card">
-        <strong>100% Private</strong>
-        <p>Your PDF never leaves your device. All processing runs in the browser using pdf-lib and PDF.js.</p>
-      </div>
-      <div class="feature-card">
-        <strong>ZIP or PDF output</strong>
-        <p>Single-part splits download as PDF. Multi-part splits are packaged as a ZIP for easy saving.</p>
-      </div>
-      <div class="feature-card">
-        <strong>No account needed</strong>
-        <p>Completely free, no sign-up, no watermarks, no file size limits imposed by the tool.</p>
+      <div class="feature-card" style="position:relative;padding-top:22px;">
+        <span style="position:absolute;top:-1px;left:18px;width:24px;height:24px;background:var(--primary);color:#fff;border-radius:6px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">3</span>
+        <strong>Download Your Files</strong>
+        <p>Click "Split PDF" and download instantly. Single-part splits save as a PDF; multi-part splits are packaged as a ZIP file ready to share or store.</p>
       </div>
     </div>
+
+    <!-- SECTION 2: Why split a PDF -->
+    <h2>Why would you need to split a PDF?</h2>
+    <div style="margin-bottom:40px;">
+      <p style="font-size:13px;color:var(--text2);line-height:1.8;">PDFs often come as large, all-in-one files — but you rarely need the whole thing at once. Splitting a PDF lets you work with only the pages that matter, making it easier to share, email, archive, or present specific content without sending an unnecessarily large file. Whether you're extracting a single invoice from a 50-page report, separating scanned book chapters, or pulling out just the pages a client needs to sign — splitting saves time and protects information you don't need to share.</p>
+    </div>
+
+    <!-- SECTION 3: Where splitting matters most -->
+    <h2>Where splitting a PDF matters most</h2>
+    <div class="feature-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:40px;">
+      <div class="feature-card">
+        <strong>Sharing specific sections</strong>
+        <p>Extract just the invoice, contract clause, or results page from a large document before emailing — so the recipient only sees what's relevant.</p>
+      </div>
+      <div class="feature-card">
+        <strong>Breaking up scanned books</strong>
+        <p>Large scanned PDFs of books or manuals can be split chapter by chapter, making them easier to navigate, store on a device, or share with others.</p>
+      </div>
+      <div class="feature-card">
+        <strong>Separating multi-page forms</strong>
+        <p>Government forms, tax documents, and applications often bundle multiple sub-forms into one PDF. Split them to fill each section independently or attach only what's required.</p>
+      </div>
+      <div class="feature-card">
+        <strong>Client-ready deliverables</strong>
+        <p>Freelancers and agencies can extract client-specific sections from a master report or proposal — no need to create separate files from scratch.</p>
+      </div>
+    </div>
+
+    <!-- SECTION 4: What this splitter supports -->
+    <h2>What this PDF splitter supports</h2>
+    <div class="feature-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:40px;">
+      <div class="feature-card">
+        <strong>Split by Page Range</strong>
+        <p>Type ranges like <code>1-3</code>, <code>4-6</code>, <code>7</code> — one per line. Each line becomes a separate PDF. Extract any subset of pages in one go.</p>
+      </div>
+      <div class="feature-card">
+        <strong>Split Every N Pages</strong>
+        <p>Divide a PDF into equal chunks automatically. Preview how many output files will be created before you split — perfect for reports, booklets, and scanned documents.</p>
+      </div>
+      <div class="feature-card">
+        <strong>Pick Pages (Thumbnail Mode)</strong>
+        <p>Browse thumbnails of every page, click to select, and extract exactly what you need into a new PDF. The easiest way to remove unwanted pages.</p>
+      </div>
+      <div class="feature-card">
+        <strong>ZIP or PDF Output</strong>
+        <p>Single-part splits download as a PDF. Multi-part splits are automatically packaged as a ZIP containing all your output files.</p>
+      </div>
+      <div class="feature-card">
+        <strong>100% Private — No Upload</strong>
+        <p>All processing runs locally in your browser using pdf-lib and PDF.js. Your file never leaves your device — safe for confidential or legally-restricted documents.</p>
+      </div>
+      <div class="feature-card">
+        <strong>Works on Every Device</strong>
+        <p>No software or plugin needed. Works on Mac, Windows, Linux, iPhone, and Android — just open the page in any modern browser and split.</p>
+      </div>
+    </div>
+
+
 
     <h2>Frequently Asked Questions</h2>
     <div class="faq-accordion" id="faqList"></div>
 
     <h2>Other PDF tools</h2>
+    <p style="font-size:13px;color:var(--text2);line-height:1.8;margin-bottom:14px;">Need to do more with your PDFs? SARVARC Workspace has you covered — all free, all browser-based, all private.</p>
     <div class="tools-row">
       <a href="https://sarvarc.com/merge-pdf" class="tool-chip">Merge PDF</a>
       <a href="https://sarvarc.com/compress-pdf" class="tool-chip">Compress PDF</a>
@@ -625,7 +694,7 @@ footer a{color:var(--text3);text-decoration:none;} footer a:hover{color:var(--pr
       { q: "Is SARVARC Split PDF free to use?",
         a: "Yes — completely free with no account required, no watermarks on output files, and no file size limits imposed by the tool." },
       { q: "Does my PDF get uploaded to a server?",
-        a: "No. The tool runs entirely in your browser using pdf-lib and PDF.js. Your file never leaves your device — nothing is sent to any server." },
+        a: "No. The tool runs entirely in your browser using pdf-lib and PDF.js. Your file never leaves your device — nothing is sent to any server. This makes it safe for confidential, sensitive, or legally-restricted documents." },
       { q: "How do I split a PDF by page range?",
         a: "Select 'Page Ranges' mode, type your ranges one per line (e.g. <code>1-3</code>, <code>4-6</code>, <code>7</code>). Each line becomes a separate PDF file. You can extract a single page by entering just its number." },
       { q: "Can I split a PDF into equal chunks automatically?",
@@ -639,7 +708,13 @@ footer a{color:var(--text3);text-decoration:none;} footer a:hover{color:var(--pr
       { q: "Is there a file size limit when splitting a PDF?",
         a: "There is no server-side file size cap because all processing is local. Very large files may take longer depending on your device's memory, but there is no hard limit." },
       { q: "Can I split a large PDF into multiple files without Adobe?",
-        a: "Absolutely. SARVARC Split PDF requires no Adobe software, no plugins, and no desktop download. Just open the page in any modern browser and split away." }
+        a: "Absolutely. SARVARC Split PDF requires no Adobe software, no plugins, and no desktop download. Just open the page in any modern browser and split away." },
+      { q: "How do I remove pages from a PDF for free?",
+        a: "Use 'Pick Pages' mode to select only the pages you want to keep, then download that selection as a new PDF — effectively removing any pages you didn't choose. No account or payment required." },
+      { q: "Can I separate a scanned PDF into individual pages?",
+        a: "Yes. Load the scanned PDF, switch to 'Every N Pages' mode and set the chunk size to 1. This creates one PDF per page. Alternatively, use 'Pick Pages' to select and download any individual page." },
+      { q: "What is the difference between splitting and extracting pages from a PDF?",
+        a: "Splitting usually means dividing a PDF into multiple output files — by ranges or chunk size. Extracting pages typically means pulling a specific subset of pages into a new single PDF. SARVARC Split PDF supports both workflows: use 'Page Ranges' or 'Every N Pages' to split, and 'Pick Pages' to extract." }
     ];
     var list = document.getElementById('faqList');
     if (!list) return;
