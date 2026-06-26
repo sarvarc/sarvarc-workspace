@@ -20,9 +20,30 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
-<title>Free Online File &amp; Text Converter | SARVARC Workspace</title>  
-  <meta name="description" content="Free online file conversion and text tools by SARVARC Workspace. Convert files, switch text case (UPPERCASE, lowercase, camelCase, snake_case &amp; more) — securely, privately, right in your browser.">
-  <meta name="keywords" content="file converter, online file converter, PDF converter, JPG to PDF, PDF to JPG, merge PDF, compress PDF, Word to PDF, Excel to PDF, case converter, online case converter, uppercase converter, lowercase converter, title case converter, camelCase converter, snake_case converter, kebab-case converter, PascalCase converter, text case changer, SARVARC Workspace">
+<title>Free Online File Converter, Image Compressor &amp; Text Tools | SARVARC Workspace</title>  
+  <meta name="description" content="Free online file conversion, image compression, and text tools by SARVARC Workspace. Compress JPG/PNG/WebP images, convert PDFs, switch text case (UPPERCASE, lowercase, camelCase, snake_case &amp; more) — 29 tools, 100% private, no upload required.">
+  <meta name="keywords" content="image compressor, compress images online, compress JPG online, compress PNG online, compress WebP online, bulk image compressor, file converter, online file converter, PDF converter, JPG to PDF, PDF to JPG, merge PDF, compress PDF, Word to PDF, Excel to PDF, case converter, online case converter, uppercase converter, lowercase converter, title case converter, camelCase converter, snake_case converter, kebab-case converter, PascalCase converter, text case changer, SARVARC Workspace, free online tools, browser-based file converter">
+  <link rel="canonical" href="https://sarvarc.com/">
+  <!-- Open Graph -->
+  <meta property="og:title" content="Free Online File Converter, Image Compressor &amp; Text Tools | SARVARC Workspace">
+  <meta property="og:description" content="29 free tools: compress images, convert PDFs, change text case and more — 100% private, runs in your browser, no upload required.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://sarvarc.com/">
+  <!-- Schema.org WebSite -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "SARVARC Workspace",
+    "url": "https://sarvarc.com/",
+    "description": "Free browser-based file conversion and productivity tools — PDF, Image Compressor, Spreadsheet, Video, Data, and Case Converter.",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://sarvarc.com/?tool={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -480,7 +501,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     image: {
       label: 'Image',
       formats: {
-        'img-img': { label: 'Change Image Format', accept: 'image/*', multi: true,  outFmts: ['PNG','JPEG','WebP'], desc: 'Convert images between PNG, JPEG, and WebP formats.' },
+        'img-img':      { label: 'Change Image Format', accept: 'image/*', multi: true,  outFmts: ['PNG','JPEG','WebP'], desc: 'Convert images between PNG, JPEG, and WebP formats.' },
+        'img-compress': { label: 'Compress Images', accept: 'image/*', multi: true, customUI: 'imgCompress', desc: 'Compress JPG, PNG, WebP, and SVG images in bulk. Adjust quality, resize, set a max file size target, and download as a ZIP — all in your browser, no upload required.' },
         'svg-png': { label: 'SVG → PNG',           accept: '.svg',   multi: false, outFmts: ['PNG'],              desc: 'Render an SVG vector file and export as a PNG image.' },
         'gif-img': { label: 'Motion Image → PNG/JPEG/JPG', accept: '.gif,.webp', multi: false, outFmts: ['PNG','JPEG','JPG'], desc: 'Extract frames from an animated GIF or WebP and save as PNG, JPEG, or JPG. Multi-frame files are packaged as a ZIP (full frame extraction works in Chromium-based browsers like Chrome/Edge; other browsers will export only the first frame).' },
       }
@@ -805,6 +827,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
     if (cfg.customUI === 'caseConverter') {
       renderCaseConverterUI(main);
+      return;
+    }
+
+    if (cfg.customUI === 'imgCompress') {
+      renderImgCompressUI(main, cfg);
       return;
     }
 
@@ -2092,6 +2119,344 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
     return (n / (1024 * 1024)).toFixed(2) + ' MB';
   }
+
+  // ── Image Compressor: custom UI ─────────────────────
+  let icFiles = [], icResults = [];
+
+  function renderImgCompressUI(main, cfg) {
+    icFiles = []; icResults = [];
+    main.innerHTML = `
+      <div class="conv-card" style="margin-top:8px;" id="ic-upload-card">
+        <h2 style="margin-bottom:4px;">${cfg.label}</h2>
+        <p style="margin-bottom:18px;">${cfg.desc}</p>
+
+        <!-- Dropzone -->
+        <div class="conv-dropzone" id="ic-dropzone" onclick="document.getElementById('ic-file-input').click()" style="position:relative;">
+          <input type="file" id="ic-file-input" accept="image/*" multiple style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;" />
+          <div class="conv-dropzone-icon">${ICONS.image}</div>
+          <p>Click to browse, or drag &amp; drop images here</p>
+          <small>JPG, PNG, WebP, SVG supported · Multiple files OK</small>
+        </div>
+
+        <!-- Thumbnail strip -->
+        <div id="ic-strip" style="display:none;flex-wrap:wrap;gap:8px;margin-top:14px;"></div>
+
+        <!-- Upload summary (collapsed state) -->
+        <div id="ic-summary" style="display:none;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-top:14px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0;"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="ic-summary-text">Images ready</span>
+          </div>
+          <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;" onclick="document.getElementById('ic-upload-card').classList.remove('ic-collapsed');">Edit images</button>
+        </div>
+
+        <!-- Controls -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 0;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+              Quality <span id="ic-quality-val" style="font-family:monospace;color:var(--primary);font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;">80%</span>
+            </div>
+            <input type="range" id="ic-quality" min="1" max="100" value="80" style="-webkit-appearance:none;width:100%;height:4px;background:var(--border-2);border-radius:2px;outline:none;cursor:pointer;" oninput="document.getElementById('ic-quality-val').textContent=this.value+'%'" />
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Output Format</div>
+            <select id="ic-format" style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;cursor:pointer;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238896B0' d='M6 8L1 3h10z'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center;">
+              <option value="original">Same as original</option>
+              <option value="image/jpeg">JPEG</option>
+              <option value="image/png">PNG</option>
+              <option value="image/webp">WebP</option>
+            </select>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Resize</div>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;margin-bottom:8px;">
+              <input type="checkbox" id="ic-resize-enable" style="width:14px;height:14px;accent-color:var(--primary);cursor:pointer;" />
+              <span style="font-size:12px;color:var(--text2);">Enable resize</span>
+            </label>
+            <div id="ic-size-row" style="display:flex;gap:8px;align-items:center;opacity:.4;pointer-events:none;">
+              <input type="number" id="ic-resize-w" placeholder="Width" min="1" style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;width:100%;" />
+              <span style="color:var(--text3);font-size:12px;">×</span>
+              <input type="number" id="ic-resize-h" placeholder="Height" min="1" style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;width:100%;" />
+            </div>
+            <label id="ic-aspect-wrap" style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;margin-top:8px;opacity:.4;pointer-events:none;">
+              <input type="checkbox" id="ic-keep-aspect" checked style="width:14px;height:14px;accent-color:var(--primary);cursor:pointer;" />
+              <span style="font-size:12px;color:var(--text2);">Keep aspect ratio</span>
+            </label>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+              Max Output Size
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;text-transform:none;letter-spacing:0;margin:0;">
+                <input type="checkbox" id="ic-maxsize-enable" style="width:14px;height:14px;accent-color:var(--primary);cursor:pointer;" />
+                <span style="font-size:11px;color:var(--text2);">Enable</span>
+              </label>
+            </div>
+            <div id="ic-maxsize-row" style="opacity:.4;pointer-events:none;">
+              <input type="number" id="ic-max-kb" placeholder="e.g. 200 KB" min="1" style="width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;" />
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--text3);">Auto-reduces quality to hit target.</div>
+          </div>
+        </div>
+
+        <!-- Action bar -->
+        <div style="display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;">
+          <button id="ic-btn-compress" class="conv-btn-convert" style="flex:1;min-width:140px;padding:11px 20px;font-size:13px;" disabled onclick="icCompressAll()">Compress Images →</button>
+          <button id="ic-btn-clear" class="btn btn-ghost" style="font-size:12px;padding:9px 16px;" disabled onclick="icClear()">Clear All</button>
+          <div id="ic-progress-status" style="display:none;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--primary);margin-left:auto;">
+            <div style="width:12px;height:12px;border:2px solid var(--border-2);border-top-color:var(--primary);border-radius:50%;animation:ic-spin 0.6s linear infinite;flex-shrink:0;"></div>
+            <span id="ic-progress-text">Processing…</span>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        @keyframes ic-spin{to{transform:rotate(360deg);}}
+        @keyframes ic-dlpulse{0%,100%{box-shadow:0 0 0 0 rgba(26,79,216,0);}50%{box-shadow:0 0 0 7px var(--primary-mid);}}
+        .ic-pre-thumb{position:relative;width:88px;height:88px;border-radius:10px;overflow:hidden;border:1px solid var(--border-2);background:var(--surface2);flex-shrink:0;}
+        .ic-pre-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+        .ic-pre-name{position:absolute;bottom:0;left:0;right:0;font-size:9px;color:#fff;background:rgba(0,0,0,0.55);padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .ic-pre-remove{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.65);border:none;color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+        .ic-pre-remove:hover{background:var(--danger);}
+        #ic-upload-card.ic-collapsed #ic-dropzone, #ic-upload-card.ic-collapsed #ic-strip{display:none!important;}
+        #ic-upload-card.ic-collapsed #ic-summary{display:flex;}
+        .ic-result-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:grid;grid-template-columns:56px 1fr auto;gap:14px;align-items:center;transition:border-color 0.15s;margin-bottom:8px;}
+        .ic-result-card:hover{border-color:var(--border-2);}
+        .ic-thumb{width:56px;height:56px;border-radius:6px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);}
+        .ic-thumb-ph{width:56px;height:56px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);display:grid;place-items:center;font-size:20px;}
+        .ic-rname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;margin-bottom:5px;}
+        .ic-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2);}
+        .ic-sz-before{text-decoration:line-through;color:var(--text3);}
+        .ic-sz-after{color:var(--text);font-weight:600;}
+        .ic-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;}
+        .ic-badge-pos{background:rgba(16,185,129,0.08);color:var(--success);}
+        .ic-badge-neg{background:rgba(239,68,68,0.08);color:var(--danger);}
+        .ic-pbar{width:100%;height:3px;background:var(--border);border-radius:2px;margin-top:7px;overflow:hidden;}
+        .ic-pfill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--primary),var(--blue-cyan));transition:width 0.4s;}
+        .ic-processing{opacity:0.5;}
+      </style>
+
+      <!-- Results section -->
+      <div id="ic-results" style="display:none;margin-top:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-size:14px;font-weight:700;color:var(--text);">Compressed Images</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="ic-pill-count" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);"></span>
+            <span id="ic-pill-saved" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(16,185,129,0.08);color:var(--success);border:1px solid rgba(16,185,129,0.2);"></span>
+          </div>
+        </div>
+        <div id="ic-results-list"></div>
+        <button id="ic-btn-dl-all" class="conv-btn-convert" style="width:100%;margin-top:12px;font-size:13px;" disabled onclick="icDownloadAll()">⬇ Download All as ZIP</button>
+      </div>
+    `;
+
+    // Wire up dropzone
+    const dz = document.getElementById('ic-dropzone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); icHandleFiles([...e.dataTransfer.files]); });
+    document.getElementById('ic-file-input').addEventListener('change', function() { icHandleFiles([...this.files]); });
+
+    // Wire up resize toggle
+    document.getElementById('ic-resize-enable').addEventListener('change', function() {
+      const on = this.checked;
+      document.getElementById('ic-size-row').style.opacity = on ? '1' : '.4';
+      document.getElementById('ic-size-row').style.pointerEvents = on ? 'auto' : 'none';
+      document.getElementById('ic-aspect-wrap').style.opacity = on ? '1' : '.4';
+      document.getElementById('ic-aspect-wrap').style.pointerEvents = on ? 'auto' : 'none';
+    });
+    document.getElementById('ic-maxsize-enable').addEventListener('change', function() {
+      const on = this.checked;
+      document.getElementById('ic-maxsize-row').style.opacity = on ? '1' : '.4';
+      document.getElementById('ic-maxsize-row').style.pointerEvents = on ? 'auto' : 'none';
+    });
+  }
+
+  function icHandleFiles(newFiles) {
+    const imgs = newFiles.filter(f => f.type.startsWith('image/') || /\.(svg|ico|bmp|tiff?|heic|avif)$/i.test(f.name));
+    if (!imgs.length) return;
+    icFiles = [...icFiles, ...imgs];
+    document.getElementById('ic-upload-card').classList.remove('ic-collapsed');
+    icRenderStrip();
+    icUpdateButtons();
+  }
+
+  function icRenderStrip() {
+    const strip = document.getElementById('ic-strip');
+    const dz = document.getElementById('ic-dropzone');
+    strip.innerHTML = '';
+    if (!icFiles.length) {
+      strip.style.display = 'none';
+      dz.classList.remove('has-files');
+      return;
+    }
+    strip.style.display = 'flex';
+    icFiles.forEach((f, i) => {
+      const url = URL.createObjectURL(f);
+      const div = document.createElement('div');
+      div.className = 'ic-pre-thumb';
+      div.innerHTML = `<img src="${url}" onload="URL.revokeObjectURL(this.src)"/><span class="ic-pre-name">${f.name}</span><button class="ic-pre-remove" onclick="icRemoveFile(${i})" title="Remove">✕</button>`;
+      strip.appendChild(div);
+    });
+  }
+
+  window.icRemoveFile = function(idx) {
+    icFiles.splice(idx, 1);
+    document.getElementById('ic-upload-card').classList.remove('ic-collapsed');
+    icRenderStrip();
+    icUpdateButtons();
+    if (!icFiles.length) {
+      document.getElementById('ic-results').style.display = 'none';
+      document.getElementById('ic-results-list').innerHTML = '';
+    }
+  };
+
+  function icUpdateButtons() {
+    const has = icFiles.length > 0;
+    document.getElementById('ic-btn-compress').disabled = !has;
+    document.getElementById('ic-btn-clear').disabled = !has;
+  }
+
+  window.icClear = function() {
+    icFiles = []; icResults = [];
+    const fi = document.getElementById('ic-file-input'); if (fi) fi.value = '';
+    const rl = document.getElementById('ic-results-list'); if (rl) rl.innerHTML = '';
+    const rs = document.getElementById('ic-results'); if (rs) rs.style.display = 'none';
+    const uc = document.getElementById('ic-upload-card'); if (uc) uc.classList.remove('ic-collapsed');
+    icRenderStrip(); icUpdateButtons();
+  };
+
+  window.icCompressAll = async function() {
+    if (!icFiles.length) return;
+    icResults = [];
+    const rl = document.getElementById('ic-results-list'); rl.innerHTML = '';
+    const rs = document.getElementById('ic-results'); rs.style.display = 'block';
+    const dlBtn = document.getElementById('ic-btn-dl-all');
+    dlBtn.disabled = true;
+    document.getElementById('ic-btn-compress').disabled = true;
+    document.getElementById('ic-btn-clear').disabled = true;
+    const ps = document.getElementById('ic-progress-status'); ps.style.display = 'flex';
+    const pt = document.getElementById('ic-progress-text');
+
+    const total = icFiles.length;
+    for (let i = 0; i < icFiles.length; i++) {
+      pt.textContent = `${i}/${total} processed`;
+      const card = icMakePendingCard(icFiles[i], i); rl.appendChild(card);
+      const result = await icCompressFile(icFiles[i]);
+      icResults.push(result);
+      icUpdateCard(card, result, icResults.length - 1);
+      pt.textContent = `${i + 1}/${total} processed`;
+    }
+
+    const tb = icResults.reduce((s, r) => s + r.originalSize, 0);
+    const ta = icResults.reduce((s, r) => s + r.compressedSize, 0);
+    const sp = ((1 - ta / tb) * 100).toFixed(1);
+    document.getElementById('ic-pill-count').textContent = `${icResults.length} file${icResults.length > 1 ? 's' : ''}`;
+    document.getElementById('ic-pill-saved').textContent = sp > 0 ? `↓ ${sp}% saved` : `↑ ${Math.abs(sp)}% increase`;
+
+    ps.style.display = 'none';
+    document.getElementById('ic-summary-text').textContent = `${icFiles.length} image${icFiles.length > 1 ? 's' : ''} compressed`;
+    document.getElementById('ic-upload-card').classList.add('ic-collapsed');
+    document.getElementById('ic-btn-clear').disabled = false;
+    dlBtn.disabled = false;
+
+    dlBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    dlBtn.style.animation = 'ic-dlpulse 0.9s ease-in-out 2';
+    setTimeout(() => dlBtn.style.animation = '', 1900);
+  };
+
+  async function icCompressFile(file) {
+    const isSVG = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+    if (isSVG) {
+      return new Promise(resolve => {
+        const r = new FileReader();
+        r.onload = e => {
+          let s = e.target.result, orig = file.size;
+          s = s.replace(/<!--[\s\S]*?-->/g, '').replace(/\s{2,}/g, ' ').replace(/>\s+</g, '><').trim();
+          const b = new Blob([s], { type: 'image/svg+xml' });
+          resolve({ name: file.name, originalSize: orig, compressedSize: b.size, blob: b, previewUrl: URL.createObjectURL(b) });
+        };
+        r.readAsText(file);
+      });
+    }
+    return new Promise(resolve => {
+      const img = new Image(), objUrl = URL.createObjectURL(file);
+      img.onload = async () => {
+        URL.revokeObjectURL(objUrl);
+        let { width, height } = img;
+        const re = document.getElementById('ic-resize-enable');
+        if (re && re.checked) {
+          const tw = parseInt(document.getElementById('ic-resize-w').value) || 0;
+          const th = parseInt(document.getElementById('ic-resize-h').value) || 0;
+          if (tw || th) {
+            const ka = document.getElementById('ic-keep-aspect').checked;
+            if (ka) {
+              const asp = width / height;
+              if (tw && th) { if (tw / th > asp) { height = th; width = Math.round(th * asp); } else { width = tw; height = Math.round(tw / asp); } }
+              else if (tw) { width = tw; height = Math.round(tw / asp); }
+              else { height = th; width = Math.round(th * asp); }
+            } else { if (tw) width = tw; if (th) height = th; }
+          }
+        }
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const fmtSel = document.getElementById('ic-format');
+        let mime = fmtSel.value === 'original' ? (file.type || 'image/jpeg') : fmtSel.value;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) mime = 'image/jpeg';
+        const ext = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
+        let quality = parseInt(document.getElementById('ic-quality').value) / 100;
+        const mse = document.getElementById('ic-maxsize-enable');
+        const mkb = document.getElementById('ic-max-kb');
+        if (mse && mse.checked && mkb && mkb.value) {
+          const tgt = parseInt(mkb.value) * 1024; let lo = 0.01, hi = 1.0;
+          for (let i = 0; i < 10; i++) { const mid = (lo + hi) / 2; const b = await icCanvasToBlob(canvas, mime, mid); if (b.size <= tgt) lo = mid; else hi = mid; }
+          const fb = await icCanvasToBlob(canvas, mime, lo);
+          resolve({ name: icStemName(file.name, ext), originalSize: file.size, compressedSize: fb.size, blob: fb, previewUrl: URL.createObjectURL(fb) });
+          return;
+        }
+        const blob = await icCanvasToBlob(canvas, mime, quality);
+        resolve({ name: icStemName(file.name, ext), originalSize: file.size, compressedSize: blob.size, blob, previewUrl: URL.createObjectURL(blob) });
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); resolve({ name: file.name, originalSize: file.size, compressedSize: file.size, blob: file, previewUrl: null, error: true }); };
+      img.src = objUrl;
+    });
+  }
+
+  function icCanvasToBlob(canvas, mime, quality) { return new Promise(r => canvas.toBlob(r, mime, quality)); }
+  function icStemName(orig, ext) { const dot = orig.lastIndexOf('.'); const base = dot > -1 ? orig.slice(0, dot) : orig; return `${base}_sarvarc.${ext}`; }
+  function icFmt(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; return (b / 1048576).toFixed(2) + ' MB'; }
+
+  function icMakePendingCard(file, idx) {
+    const card = document.createElement('div'); card.className = 'ic-result-card ic-processing'; card.id = `ic-card-${idx}`;
+    card.innerHTML = `<div class="ic-thumb-ph">⏳</div><div><div class="ic-rname">${file.name}</div><div class="ic-meta"><span>Processing…</span></div><div class="ic-pbar"><div class="ic-pfill" style="width:60%;animation:ic-spin 0.6s linear infinite"></div></div></div><div></div>`;
+    return card;
+  }
+
+  function icUpdateCard(card, result, idx) {
+    card.classList.remove('ic-processing');
+    const sp = ((1 - result.compressedSize / result.originalSize) * 100).toFixed(1);
+    const sc = sp >= 0 ? 'ic-badge-pos' : 'ic-badge-neg', sl = sp >= 0 ? `↓ ${sp}%` : `↑ ${Math.abs(sp)}%`;
+    const ratio = Math.min(100, Math.round((result.compressedSize / result.originalSize) * 100));
+    const ph = result.previewUrl ? `<img class="ic-thumb" src="${result.previewUrl}" alt="preview"/>` : `<div class="ic-thumb-ph">📄</div>`;
+    card.innerHTML = `${ph}<div><div class="ic-rname" title="${result.name}">${result.name}</div><div class="ic-meta"><span class="ic-sz-before">${icFmt(result.originalSize)}</span><span>→</span><span class="ic-sz-after">${icFmt(result.compressedSize)}</span><span class="ic-badge ${sc}">${sl}</span>${result.error ? '<span style="color:var(--danger);font-size:10px;">⚠ Unsupported</span>' : ''}</div><div class="ic-pbar"><div class="ic-pfill" style="width:${100 - ratio}%"></div></div></div><div><button class="btn" style="background:transparent;color:var(--primary);border:1px solid var(--border-2);font-size:12px;padding:7px 12px;" onclick="icDlOne(${idx})">⬇ Save</button></div>`;
+  }
+
+  window.icDlOne = function(idx) {
+    const r = icResults[idx]; if (!r) return;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; a.click();
+  };
+
+  window.icDownloadAll = async function() {
+    if (!icResults.length) return;
+    if (icResults.length === 1) { icDlOne(0); return; }
+    if (!window.JSZip) {
+      const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; document.head.appendChild(s);
+      await new Promise(r => s.onload = r);
+    }
+    const zip = new JSZip();
+    for (const r of icResults) zip.file(r.name, r.blob);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sarvarc-compressed-images.zip'; a.click();
+  };
 
   function renderCompressPdfUI(main, cfg) {
     cpFile = null;
@@ -4503,7 +4868,7 @@ window.showConverter();
   <div class="lp-hero">
     <p class="lp-eyebrow">SARVARC Workspace</p>
     <h1 class="lp-headline">Convert anything.<br><em>Right in your browser.</em></h1>
-    <p class="lp-sub">28 free tools across PDF, Spreadsheet, Image, Video, Data &amp; Text — including a brand-new Case Converter. No sign-up, no server, no data leaving your device.</p>
+    <p class="lp-sub">29 free tools across PDF, Spreadsheet, Image, Video, Data &amp; Text — including a bulk <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-compress');scrollToTool();" style="color:var(--lp-blue-bright);text-decoration:none;font-weight:600;">Image Compressor</a> and Case Converter. No sign-up, no server, no data leaving your device.</p>
     <button class="lp-hero-btn" id="backToToolBtn" onclick="scrollToTool()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><polyline points="18 15 12 9 6 15"/></svg>
       Open the Tool
@@ -4518,16 +4883,16 @@ window.showConverter();
       <div>
         <p class="lp-eyebrow-sm">About</p>
         <h2 class="lp-section-title">What is SARVARC Workspace?</h2>
-        <p class="lp-section-body">SARVARC Workspace is a browser-based productivity suite with 28 file conversion and text tools across 6 categories — all running locally on your device. No installation, no account, no waiting. Just open and convert.</p>
+        <p class="lp-section-body">SARVARC Workspace is a browser-based productivity suite with 29 file conversion and text tools across 6 categories — all running locally on your device. No installation, no account, no waiting. Just open and convert.</p>
         <p class="lp-section-body" style="margin-top:12px;">Most tools support both file upload and direct paste, so you can go from raw text or data to a finished file in seconds.</p>
       </div>
       <div class="lp-what-visual">
-        <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>PDF</strong> — Merge, Split, Compress, Word → PDF, HTML → PDF, Text → PDF, PDF → Images</div>
-        <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Spreadsheet</strong> — Text → Excel (smart columns), CSV ↔ Excel, CSV ↔ JSON, JSON → CSV, Text → CSV</div>
-        <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Image</strong> — PNG / JPEG / WebP conversion, SVG → PNG, GIF &amp; WebP frame extraction</div>
-        <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Video</strong> — Capture still frames, Trim clips with live preview, Extract audio as WAV or WebM</div>
-        <div class="lp-what-pill"><div class="lp-what-dot"></div><strong>Data</strong> — JSON ↔ XML, JSON → Plain Text, with paste-to-convert on every tool</div>
-        <div class="lp-what-pill" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.06);"><div class="lp-what-dot" style="background:var(--lp-blue-bright);box-shadow:0 0 6px var(--lp-blue-bright);"></div><strong>Case Converter</strong> <span style="font-size:11px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;">NEW</span> — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case &amp; more</div>
+        <div class="lp-what-pill" id="pdf-tools"><div class="lp-what-dot"></div><strong>PDF</strong> — <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('merge-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Merge</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('split-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Split</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('compress-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Compress</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('word-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Word → PDF</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('html-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">HTML → PDF</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Text → PDF</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('pdf-img');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">PDF → Images</a></div>
+        <div class="lp-what-pill" id="spreadsheet-tools"><div class="lp-what-dot"></div><strong>Spreadsheet</strong> — <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-excel');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Text → Excel</a> (smart columns), <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('csv-excel');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">CSV ↔ Excel</a>, <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('csv-json');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">CSV ↔ JSON</a>, <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-csv');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">JSON → CSV</a>, <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-csv');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Text → CSV</a></div>
+        <div class="lp-what-pill" id="image-tools"><div class="lp-what-dot"></div><strong>Image</strong> — <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-compress');scrollToTool();" style="color:var(--lp-blue-bright);text-decoration:none;font-weight:600;">Compress Images</a> <span style="font-size:10px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 5px;font-weight:600;letter-spacing:0.03em;">NEW</span>, <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-img');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">PNG / JPEG / WebP conversion</a>, <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('svg-png');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">SVG → PNG</a>, <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('gif-img');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">GIF &amp; WebP frame extraction</a></div>
+        <div class="lp-what-pill" id="video-tools"><div class="lp-what-dot"></div><strong>Video</strong> — <a href="#video-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-frame');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Capture still frames</a>, <a href="#video-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-trim');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Trim clips</a> with live preview, <a href="#video-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-audio');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Extract audio</a> as WAV or WebM</div>
+        <div class="lp-what-pill" id="data-tools"><div class="lp-what-dot"></div><strong>Data</strong> — <a href="#data-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-txt');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">JSON → Plain Text</a>, <a href="#data-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('xml-json');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">XML → JSON</a>, <a href="#data-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-xml');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">JSON → XML</a>, with paste-to-convert on every tool</div>
+        <div class="lp-what-pill" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.06);" id="case-converter"><div class="lp-what-dot" style="background:var(--lp-blue-bright);box-shadow:0 0 6px var(--lp-blue-bright);"></div><strong><a href="#case-converter" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();" style="color:inherit;text-decoration:none;">Case Converter</a></strong> <span style="font-size:11px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;">NEW</span> — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case &amp; more</div>
       </div>
     </div>
   </div>
@@ -4561,12 +4926,12 @@ window.showConverter();
       </div>
       <div class="lp-feature-cell">
         <span class="lp-feature-num">05</span>
-        <div class="lp-feature-title">Split PDF — 3 Modes</div>
+        <div class="lp-feature-title"><a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('split-pdf');scrollToTool();" style="color:inherit;text-decoration:none;">Split PDF</a> — 3 Modes</div>
         <div class="lp-feature-body">Split by page ranges, every N pages, or hand-pick pages from a visual thumbnail grid. Single extractions download as PDF; multi-part splits come as a ZIP.</div>
       </div>
       <div class="lp-feature-cell">
         <span class="lp-feature-num">06</span>
-        <div class="lp-feature-title">Real PDF Compression</div>
+        <div class="lp-feature-title"><a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('compress-pdf');scrollToTool();" style="color:inherit;text-decoration:none;">Real PDF Compression</a></div>
         <div class="lp-feature-body">Genuinely shrinks PDFs by recompressing embedded images at your chosen quality. Measurable before/after size savings — not a placeholder.</div>
       </div>
       <div class="lp-feature-cell">
@@ -4596,13 +4961,18 @@ window.showConverter();
       </div>
       <div class="lp-feature-cell">
         <span class="lp-feature-num">12</span>
-        <div class="lp-feature-title">Merge PDF</div>
+        <div class="lp-feature-title"><a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('merge-pdf');scrollToTool();" style="color:inherit;text-decoration:none;">Merge PDF</a></div>
         <div class="lp-feature-body">Combine two or more PDFs into one. Reorder files exactly how you want before merging — all done locally, with no file size cap.</div>
       </div>
       <div class="lp-feature-cell" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.04);">
         <span class="lp-feature-num" style="background:linear-gradient(135deg,var(--lp-blue-deep),var(--lp-blue-bright));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">13</span>
         <div class="lp-feature-title">Case Converter <span style="font-size:10px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;vertical-align:middle;">NEW</span></div>
-        <div class="lp-feature-body">Instantly switch text between 10 case formats — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, aLtErNaTiNg, and Inverse Case. Paste any text and convert in one click, entirely in your browser.</div>
+        <div class="lp-feature-body">Instantly switch text between 10 case formats — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, aLtErNaTiNg, and Inverse Case. <a href="#case-converter" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();" style="color:var(--lp-blue-bright);text-decoration:none;font-weight:500;">Try it →</a></div>
+      </div>
+      <div class="lp-feature-cell" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.04);">
+        <span class="lp-feature-num" style="background:linear-gradient(135deg,var(--lp-blue-deep),var(--lp-blue-bright));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">14</span>
+        <div class="lp-feature-title">Bulk Image Compressor <span style="font-size:10px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;vertical-align:middle;">NEW</span></div>
+        <div class="lp-feature-body">Compress JPG, PNG, WebP, and SVG images in bulk. Adjust quality, resize by max dimension or set a target file size, and download everything as a single ZIP — no upload, 100% in your browser. <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-compress');scrollToTool();" style="color:var(--lp-blue-bright);text-decoration:none;font-weight:500;">Try it →</a></div>
       </div>
     </div>
   </div>
@@ -4904,8 +5274,10 @@ function scrollToTool() {
       a: "Try refreshing the page and repeating the conversion. For HTML to PDF, the file is rendered and downloaded automatically with no print dialog. For video trimming, make sure you are using Chrome or Edge. Still stuck? Reach out at sarvarcworkspace@gmail.com." },
     { q: "What case formats does the Case Converter support?",
       a: "The Case Converter supports 10 formats: UPPERCASE, lowercase, Title Case (every word capitalised), camelCase (first word lower, rest capitalised, no spaces), PascalCase (every word capitalised, no spaces), snake_case (words joined with underscores), kebab-case (words joined with hyphens), CONSTANT_CASE (snake_case all caps), aLtErNaTiNg (alternates upper and lower on every character), and Inverse Case (flips the existing case of each letter). Just paste your text, pick a format, and copy the result — no file upload needed." },
+    { q: "How does the Image Compressor work?",
+      a: "The Image Compressor runs entirely in your browser — no files are uploaded anywhere. Drop in one or multiple JPG, PNG, WebP, or SVG images, set your quality level (1–100), optionally resize by max dimension or target a specific file size, and download all compressed images as a ZIP. You get a live before/after size comparison for every file before downloading." },
     { q: "Will more tools be added in the future?",
-      a: "Yes! We are actively expanding SARVARC Workspace with new conversion types and utilities. Our latest addition is the Case Converter — switch text between UPPERCASE, lowercase, Title Case, camelCase, snake_case, and more in one click. Follow us on LinkedIn and Instagram (@sarvarc_) to stay updated." }
+      a: "Yes! We are actively expanding SARVARC Workspace with new conversion types and utilities. Our latest additions are the Bulk Image Compressor (compress JPG, PNG, WebP, SVG images in bulk) and the Case Converter. Follow us on LinkedIn and Instagram (@sarvarc_) to stay updated." }
   ];
 
   var list = document.getElementById('lpFaqList');
