@@ -4809,7 +4809,10 @@ window.showConverter();
 #landingPage footer {
   border-top: 1px solid var(--lp-border);
   padding: 40px;
-  display: flex; align-items: center; justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
   max-width: 1280px; margin: 0 auto;
 }
 #landingPage .lp-footer-brand {
@@ -4818,19 +4821,28 @@ window.showConverter();
   background: linear-gradient(120deg, var(--lp-blue-deep), var(--lp-blue-bright));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
+  justify-self: start;
 }
 [data-theme="dark"] #landingPage .lp-footer-brand {
   background: linear-gradient(120deg, #5B9BFF, var(--lp-blue-cyan));
   -webkit-background-clip: text; background-clip: text;
 }
-#landingPage .lp-footer-copy { font-size: 12px; color: var(--lp-text3); letter-spacing: 0.03em; }
-#landingPage .lp-footer-links { display: flex; gap: 24px; }
+#landingPage .lp-footer-copy { font-size: 12px; color: var(--lp-text3); letter-spacing: 0.03em; text-align: center; justify-self: center; }
+#landingPage .lp-footer-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; justify-self: end; }
+#landingPage .lp-footer-links { display: flex; gap: 20px; align-items: center; }
 #landingPage .lp-footer-links a {
   font-size: 12px; color: var(--lp-text3);
   text-decoration: none;
   transition: color var(--lp-trans);
 }
 #landingPage .lp-footer-links a:hover { color: var(--lp-blue-bright); }
+#landingPage .footer-ig {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--lp-text3) !important;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+#landingPage .footer-ig:hover { opacity: 0.75; }
 
 /* ── RESPONSIVE ────────────────────────────────────────── */
 @media (max-width: 768px) {
@@ -4839,8 +4851,9 @@ window.showConverter();
   #landingPage .lp-what-grid { grid-template-columns: 1fr; gap: 40px; }
   #landingPage .lp-features-grid { grid-template-columns: 1fr 1fr; }
   #landingPage .lp-privacy-strip { grid-template-columns: 1fr; padding: 32px; gap: 32px; }
-  #landingPage footer { flex-direction: column; gap: 16px; text-align: center; }
-  #landingPage .lp-footer-links { justify-content: center; }
+  #landingPage footer { grid-template-columns: 1fr; gap: 16px; text-align: center; justify-items: center; }
+  #landingPage .lp-footer-brand { justify-self: center; }
+  #landingPage .lp-footer-right { align-items: center; justify-self: center; }
   #landingPage .lp-blob-1, #landingPage .lp-blob-2 { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5025,11 +5038,30 @@ window.showConverter();
   <footer>
     <div class="lp-footer-brand">SARVARC WORKSPACE</div>
     <div class="lp-footer-copy">© 2026 SARVARC Workspace. All rights reserved.</div>
-    <div class="lp-footer-links">
-      <a href="/founding-partner-program">Founding Partner Program</a>
-      <a href="#" onclick="openPrivacyModal(event);return false;">Privacy</a>
-      <a href="#" onclick="openTermsModal(event);return false;">Terms</a>
-      <a href="#" onclick="openContactModal(event);return false;">Contact</a>
+    <div class="lp-footer-right">
+      <div class="lp-footer-links">
+        <a href="/founding-partner-program">Founding Partner Program</a>
+        <a href="#" onclick="openPrivacyModal(event);return false;">Privacy</a>
+        <a href="#" onclick="openTermsModal(event);return false;">Terms</a>
+        <a href="#" onclick="openContactModal(event);return false;">Contact</a>
+      </div>
+      <a href="https://www.instagram.com/sarvarc_" target="_blank" rel="noopener noreferrer" class="footer-ig">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="ig-grad-footer" cx="30%" cy="107%" r="130%">
+              <stop offset="0%" stop-color="#fdf497"/>
+              <stop offset="5%" stop-color="#fdf497"/>
+              <stop offset="45%" stop-color="#fd5949"/>
+              <stop offset="60%" stop-color="#d6249f"/>
+              <stop offset="90%" stop-color="#285AEB"/>
+            </radialGradient>
+          </defs>
+          <rect x="2" y="2" width="20" height="20" rx="5.5" ry="5.5" fill="url(#ig-grad-footer)"/>
+          <circle cx="12" cy="12" r="4" stroke="white" stroke-width="1.8" fill="none"/>
+          <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
+        </svg>
+        Instagram
+      </a>
     </div>
   </footer>
 
