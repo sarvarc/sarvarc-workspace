@@ -137,7 +137,7 @@ select.prop-input { cursor: pointer; }
 .nav-brand { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
 .nav-logo-img { height: 28px; width: auto; display: block; }
 .nav-brand-sub { font-size: 10px; letter-spacing: 0.3em; color: var(--text3); text-transform: uppercase; font-weight: 400; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border); line-height: 1; }
-.theme-toggle { width: 44px; height: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+.theme-toggle { width: 44px; height: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; margin-left: 6px; }
 .theme-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: var(--primary); border-radius: 50%; transition: transform 0.2s; }
 [data-theme="dark"] .theme-toggle::after { transform: translateX(20px); }
 .conv-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
@@ -427,6 +427,9 @@ select.prop-input { cursor: pointer; }
       <span class="nav-brand-sub">File Converter</span>
     </div>
     <div class="nav-spacer" style="flex:1;"></div>
+    <a href="https://www.producthunt.com/products/sarvarc-workspace?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-sarvarc-workspace" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;flex-shrink:0;margin-right:10px;">
+      <img id="ph-badge-img" alt="" width="160" height="35" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1180701&theme=light&t=1782722073278" style="border-radius:6px;">
+    </a>
     <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></div>
     <!-- Mobile hamburger -->
     <button class="mob-menu-btn" onclick="openMobDrawer()" aria-label="Open menu" title="Open menu">
@@ -4475,7 +4478,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 function toggleTheme() {
   const html = document.documentElement;
   html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+  _syncPhBadge();
 }
+
+function _syncPhBadge() {
+  const img = document.getElementById('ph-badge-img');
+  if (!img) return;
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  img.src = 'https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1180701&theme=' + (isDark ? 'dark' : 'light') + '&t=1782722073278';
+}
+document.addEventListener('DOMContentLoaded', _syncPhBadge);
 
 function openPrivacyModal(e) {
   if (e) e.preventDefault();
@@ -5988,6 +6000,10 @@ window.showConverter();
         <a href="#" onclick="openContactModal(event);return false;">Contact</a>
       </div>
       <div style="display:flex;gap:16px;align-items:center;">
+        <a href="https://www.producthunt.com/products/sarvarc-workspace?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-sarvarc-workspace" target="_blank" rel="noopener noreferrer" class="footer-ig">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="#DA552F"/><path d="M11.6 12.3H9.6V9.6h2c.75 0 1.35.6 1.35 1.35s-.6 1.35-1.35 1.35z" fill="#fff"/><path d="M9.6 7.6v9.2M9.6 7.6h2.4a2.7 2.7 0 1 1 0 5.4H9.6" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          Product Hunt
+        </a>
         <a href="https://www.linkedin.com/company/sarvarc" target="_blank" rel="noopener noreferrer" class="footer-ig">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="4" fill="#0A66C2"/><text x="6.5" y="16.5" font-family="Arial,sans-serif" font-weight="700" font-size="13" fill="white">in</text></svg>
           LinkedIn
