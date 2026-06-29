@@ -1038,23 +1038,26 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
             </div>
 
             <!-- Range track -->
-            <div id="vtTrackWrap" style="position:relative;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);overflow:hidden;cursor:crosshair;user-select:none;">
-              <!-- video thumbnail strip -->
-              <canvas id="vtThumbStrip" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:8px;"></canvas>
-              <!-- dimmed overlay outside trim zone -->
-              <div id="vtDimLeft"  style="position:absolute;top:0;left:0;height:100%;background:rgba(8,12,26,0.55);pointer-events:none;"></div>
-              <div id="vtDimRight" style="position:absolute;top:0;right:0;height:100%;background:rgba(8,12,26,0.55);pointer-events:none;"></div>
-              <!-- active trim zone border -->
-              <div id="vtZone" style="position:absolute;top:0;height:100%;border:2.5px solid var(--blue-cyan);border-radius:4px;pointer-events:none;box-sizing:border-box;"></div>
-              <!-- handles -->
-              <div id="vtHandleL" data-handle="L" style="position:absolute;top:0;width:14px;height:100%;background:var(--blue-cyan);border-radius:4px 0 0 4px;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:2;">
-                <svg viewBox="0 0 6 20" style="width:6px;height:20px;fill:rgba(0,0,0,0.5);"><rect x="1" y="3" width="1.5" height="14" rx="0.75"/><rect x="3.5" y="3" width="1.5" height="14" rx="0.75"/></svg>
+            <div id="vtTrackWrap" style="position:relative;height:56px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);overflow:visible;cursor:crosshair;user-select:none;touch-action:none;">
+              <!-- clipped inner area for thumbnail strip + dims + zone -->
+              <div style="position:absolute;inset:0;border-radius:8px;overflow:hidden;pointer-events:none;">
+                <!-- video thumbnail strip -->
+                <canvas id="vtThumbStrip" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:8px;"></canvas>
+                <!-- dimmed overlay outside trim zone -->
+                <div id="vtDimLeft"  style="position:absolute;top:0;left:0;height:100%;background:rgba(8,12,26,0.55);"></div>
+                <div id="vtDimRight" style="position:absolute;top:0;right:0;height:100%;background:rgba(8,12,26,0.55);"></div>
+                <!-- active trim zone border -->
+                <div id="vtZone" style="position:absolute;top:0;height:100%;border:2.5px solid var(--blue-cyan);border-radius:4px;box-sizing:border-box;"></div>
+                <!-- playhead -->
+                <div id="vtPlayhead" style="position:absolute;top:0;width:2px;height:100%;background:white;opacity:0.9;z-index:3;transform:translateX(-1px);"></div>
               </div>
-              <div id="vtHandleR" data-handle="R" style="position:absolute;top:0;width:14px;height:100%;background:var(--blue-cyan);border-radius:0 4px 4px 0;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:2;right:0;">
-                <svg viewBox="0 0 6 20" style="width:6px;height:20px;fill:rgba(0,0,0,0.5);"><rect x="1" y="3" width="1.5" height="14" rx="0.75"/><rect x="3.5" y="3" width="1.5" height="14" rx="0.75"/></svg>
+              <!-- handles: outside clip so full touch area is accessible -->
+              <div id="vtHandleL" data-handle="L" style="position:absolute;top:50%;transform:translateY(-50%);width:22px;height:calc(100% + 16px);background:var(--blue-cyan);border-radius:6px 0 0 6px;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:4;touch-action:none;">
+                <svg viewBox="0 0 6 20" style="width:6px;height:20px;fill:rgba(0,0,0,0.5);pointer-events:none;"><rect x="1" y="3" width="1.5" height="14" rx="0.75"/><rect x="3.5" y="3" width="1.5" height="14" rx="0.75"/></svg>
               </div>
-              <!-- playhead -->
-              <div id="vtPlayhead" style="position:absolute;top:0;width:2px;height:100%;background:white;opacity:0.9;pointer-events:none;z-index:3;transform:translateX(-1px);"></div>
+              <div id="vtHandleR" data-handle="R" style="position:absolute;top:50%;transform:translateY(-50%);width:22px;height:calc(100% + 16px);background:var(--blue-cyan);border-radius:0 6px 6px 0;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:4;touch-action:none;">
+                <svg viewBox="0 0 6 20" style="width:6px;height:20px;fill:rgba(0,0,0,0.5);pointer-events:none;"><rect x="1" y="3" width="1.5" height="14" rx="0.75"/><rect x="3.5" y="3" width="1.5" height="14" rx="0.75"/></svg>
+              </div>
             </div>
 
             <!-- Time inputs -->
@@ -1159,8 +1162,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     const dimL    = document.getElementById('vtDimLeft');
     const dimR    = document.getElementById('vtDimRight');
 
-    if (handleL) handleL.style.left = lPx + 'px';
-    if (handleR) handleR.style.left = (rPx - 14) + 'px';
+    if (handleL) handleL.style.left = (lPx - 11) + 'px';
+    if (handleR) handleR.style.left = (rPx - 11) + 'px';
     if (zone)    { zone.style.left = lPx + 'px'; zone.style.width = (rPx - lPx) + 'px'; }
     if (dimL)    dimL.style.width  = lPx + 'px';
     if (dimR)    dimR.style.width  = (W - rPx) + 'px';
@@ -1181,7 +1184,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     if (!video || !ph || !track || !vtDuration) return;
     const pct = video.currentTime / vtDuration;
     ph.style.left = (pct * track.offsetWidth) + 'px';
-    requestAnimationFrame(vtUpdatePlayhead);
+    if (!video.paused && !video.ended) requestAnimationFrame(vtUpdatePlayhead);
   }
 
   async function vtDrawThumbStrip(video) {
@@ -1222,6 +1225,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     }
     video.currentTime = 0;
     vtUpdatePlayhead();
+    video.addEventListener('play', vtUpdatePlayhead);
     video.addEventListener('timeupdate', vtUpdatePlayhead);
   }
 
@@ -1256,9 +1260,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       const handle = e.target.closest('[data-handle]');
       if (!handle) return;
       dragging = handle.dataset.handle;
-    }, { passive: true });
+      e.preventDefault();
+    }, { passive: false });
     document.addEventListener('touchmove', e => {
       if (!dragging) return;
+      e.preventDefault();
       const track = document.getElementById('vtTrackWrap');
       if (!track || !vtDuration) return;
       const rect = track.getBoundingClientRect();
@@ -1271,7 +1277,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         vtTrimEnd = Math.min(vtDuration, Math.max(t, vtTrimStart + 0.1));
       }
       vtUpdateUI();
-    }, { passive: true });
+    }, { passive: false });
     document.addEventListener('touchend', () => { dragging = null; }, { passive: true });
   }
 
@@ -4729,26 +4735,76 @@ window.showConverter();
   background: var(--lp-bg2);
   border: 1px solid var(--lp-border);
   border-radius: var(--lp-radius-xl);
-  padding: 36px;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 28px 28px 24px;
+  display: flex; flex-direction: column; gap: 8px;
 }
 #landingPage .lp-what-pill {
   background: var(--lp-surface);
   border: 1px solid var(--lp-border);
-  border-radius: 8px;
-  padding: 13px 16px;
+  border-radius: 12px;
+  padding: 14px 18px;
   font-size: 13px; color: var(--lp-text2);
-  display: flex; align-items: center; gap: 10px;
-  transition: border-color var(--lp-trans), box-shadow var(--lp-trans);
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  align-items: center;
+  gap: 14px;
+  transition: border-color var(--lp-trans), box-shadow var(--lp-trans), background var(--lp-trans);
+  position: relative;
+  overflow: hidden;
+}
+#landingPage .lp-what-pill::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--lp-blue-mid), var(--lp-blue-cyan));
+  border-radius: 12px 0 0 12px;
+  opacity: 0;
+  transition: opacity var(--lp-trans);
 }
 #landingPage .lp-what-pill:hover {
   border-color: var(--lp-border2);
-  box-shadow: var(--lp-shadow-sm);
+  box-shadow: 0 4px 20px rgba(0,174,255,0.08);
+  background: linear-gradient(135deg, var(--lp-surface), var(--lp-bg2));
+}
+#landingPage .lp-what-pill:hover::before { opacity: 1; }
+#landingPage .lp-what-pill-label {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
 }
 #landingPage .lp-what-dot {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 50%;
   background: linear-gradient(135deg, var(--lp-blue-mid), var(--lp-blue-cyan));
   flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(0,174,255,0.4);
+}
+#landingPage .lp-what-cat {
+  font-size: 12px; font-weight: 700; color: var(--lp-text1);
+  letter-spacing: 0.01em; white-space: normal; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+#landingPage .lp-what-tools {
+  display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+}
+#landingPage .lp-what-chip {
+  display: inline-block;
+  font-size: 11.5px; color: var(--lp-text2);
+  background: var(--lp-bg2);
+  border: 1px solid var(--lp-border);
+  border-radius: 5px;
+  padding: 2px 8px;
+  text-decoration: none;
+  transition: color var(--lp-trans), border-color var(--lp-trans), background var(--lp-trans);
+  white-space: nowrap;
+}
+#landingPage .lp-what-chip:hover {
+  color: var(--lp-blue-bright);
+  border-color: var(--lp-blue-bright);
+  background: rgba(0,174,255,0.07);
+}
+#landingPage .lp-what-chip-new {
+  font-size: 10px; font-weight: 700; color: #fff;
+  background: var(--lp-blue-bright);
+  border-radius: 4px; padding: 1px 6px;
+  letter-spacing: 0.04em; white-space: nowrap;
 }
 
 /* ── FEATURES — bordered grid ──────────────────────────── */
@@ -4952,12 +5008,67 @@ window.showConverter();
         <p class="lp-section-body" style="margin-top:12px;">Most tools support both file upload and direct paste, so you can go from raw text or data to a finished file in seconds.</p>
       </div>
       <div class="lp-what-visual">
-        <div class="lp-what-pill" id="pdf-tools"><div class="lp-what-dot"></div><strong>PDF</strong> — <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('merge-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Merge</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('split-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Split</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('compress-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Compress</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('word-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Word → PDF</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('html-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">HTML → PDF</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-pdf');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Text → PDF</a>, <a href="#pdf-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('pdf-img');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">PDF → Images</a></div>
-        <div class="lp-what-pill" id="spreadsheet-tools"><div class="lp-what-dot"></div><strong>Spreadsheet</strong> — <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-excel');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Text → Excel</a> (smart columns), <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('csv-excel');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">CSV ↔ Excel</a>, <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('csv-json');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">CSV ↔ JSON</a>, <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-csv');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">JSON → CSV</a>, <a href="#spreadsheet-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-csv');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Text → CSV</a></div>
-        <div class="lp-what-pill" id="image-tools"><div class="lp-what-dot"></div><strong>Image</strong> — <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-compress');scrollToTool();" style="color:var(--lp-blue-bright);text-decoration:none;font-weight:600;">Compress Images</a> <span style="font-size:10px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 5px;font-weight:600;letter-spacing:0.03em;">NEW</span>, <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-img');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">PNG / JPEG / WebP conversion</a>, <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('svg-png');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">SVG → PNG</a>, <a href="#image-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('gif-img');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">GIF &amp; WebP frame extraction</a></div>
-        <div class="lp-what-pill" id="video-tools"><div class="lp-what-dot"></div><strong>Video</strong> — <a href="#video-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-frame');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Capture still frames</a>, <a href="#video-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-trim');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Trim clips</a> with live preview, <a href="#video-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-audio');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">Extract audio</a> as WAV or WebM</div>
-        <div class="lp-what-pill" id="data-tools"><div class="lp-what-dot"></div><strong>Data</strong> — <a href="#data-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-txt');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">JSON → Plain Text</a>, <a href="#data-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('xml-json');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">XML → JSON</a>, <a href="#data-tools" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-xml');scrollToTool();" style="color:inherit;text-decoration:underline;text-decoration-color:var(--lp-border);">JSON → XML</a>, with paste-to-convert on every tool</div>
-        <div class="lp-what-pill" style="border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.06);" id="case-converter"><div class="lp-what-dot" style="background:var(--lp-blue-bright);box-shadow:0 0 6px var(--lp-blue-bright);"></div><strong><a href="#case-converter" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();" style="color:inherit;text-decoration:none;">Case Converter</a></strong> <span style="font-size:11px;background:var(--lp-blue-bright);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600;letter-spacing:0.03em;">NEW</span> — UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, kebab-case &amp; more</div>
+        <div class="lp-what-pill" id="pdf-tools">
+          <div class="lp-what-pill-label"><div class="lp-what-dot"></div><span class="lp-what-cat">PDF</span></div>
+          <div class="lp-what-tools">
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('merge-pdf');scrollToTool();">Merge</a>
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('split-pdf');scrollToTool();">Split</a>
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('compress-pdf');scrollToTool();">Compress</a>
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('word-pdf');scrollToTool();">Word → PDF</a>
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('html-pdf');scrollToTool();">HTML → PDF</a>
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-pdf');scrollToTool();">Text → PDF</a>
+            <a href="#pdf-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('pdf-img');scrollToTool();">PDF → Images</a>
+          </div>
+        </div>
+        <div class="lp-what-pill" id="spreadsheet-tools">
+          <div class="lp-what-pill-label"><div class="lp-what-dot"></div><span class="lp-what-cat">Spreadsheet</span></div>
+          <div class="lp-what-tools">
+            <a href="#spreadsheet-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-excel');scrollToTool();">Text → Excel</a>
+            <a href="#spreadsheet-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('csv-excel');scrollToTool();">CSV ↔ Excel</a>
+            <a href="#spreadsheet-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('csv-json');scrollToTool();">CSV ↔ JSON</a>
+            <a href="#spreadsheet-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-csv');scrollToTool();">JSON → CSV</a>
+            <a href="#spreadsheet-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('txt-csv');scrollToTool();">Text → CSV</a>
+          </div>
+        </div>
+        <div class="lp-what-pill" id="image-tools">
+          <div class="lp-what-pill-label"><div class="lp-what-dot"></div><span class="lp-what-cat">Image</span></div>
+          <div class="lp-what-tools">
+            <a href="#image-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-compress');scrollToTool();" style="color:var(--lp-blue-bright);border-color:var(--lp-blue-bright);background:rgba(0,174,255,0.07);font-weight:600;">Compress Images</a>
+            <span class="lp-what-chip-new">NEW</span>
+            <a href="#image-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('img-img');scrollToTool();">PNG / JPEG / WebP</a>
+            <a href="#image-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('svg-png');scrollToTool();">SVG → PNG</a>
+            <a href="#image-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('gif-img');scrollToTool();">GIF &amp; WebP frames</a>
+          </div>
+        </div>
+        <div class="lp-what-pill" id="video-tools">
+          <div class="lp-what-pill-label"><div class="lp-what-dot"></div><span class="lp-what-cat">Video</span></div>
+          <div class="lp-what-tools">
+            <a href="#video-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-frame');scrollToTool();">Capture frames</a>
+            <a href="#video-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-trim');scrollToTool();">Trim clips</a>
+            <a href="#video-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('video-audio');scrollToTool();">Extract audio</a>
+          </div>
+        </div>
+        <div class="lp-what-pill" id="data-tools">
+          <div class="lp-what-pill-label"><div class="lp-what-dot"></div><span class="lp-what-cat">Data</span></div>
+          <div class="lp-what-tools">
+            <a href="#data-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-txt');scrollToTool();">JSON → Text</a>
+            <a href="#data-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('xml-json');scrollToTool();">XML → JSON</a>
+            <a href="#data-tools" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('json-xml');scrollToTool();">JSON → XML</a>
+            <a href="#data-tools" class="lp-what-chip" style="font-style:italic;opacity:0.75;pointer-events:none;">paste-to-convert on all</a>
+          </div>
+        </div>
+        <div class="lp-what-pill" style="border-color:rgba(0,174,255,0.3);background:rgba(0,174,255,0.04);" id="case-converter">
+          <div class="lp-what-pill-label"><div class="lp-what-dot" style="background:var(--lp-blue-bright);box-shadow:0 0 8px rgba(0,174,255,0.5);"></div><span class="lp-what-cat" style="color:var(--lp-blue-bright);">Case Converter <span class="lp-what-chip-new">NEW</span></span></div>
+          <div class="lp-what-tools">
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">UPPERCASE</a>
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">lowercase</a>
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">Title Case</a>
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">camelCase</a>
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">snake_case</a>
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">kebab-case</a>
+            <a href="#case-converter" class="lp-what-chip" onclick="event.preventDefault();window._SARVARC_SELECT&&window._SARVARC_SELECT('case-converter');scrollToTool();">+4 more</a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -5294,7 +5405,7 @@ window.showConverter();
     <div class="lp-ea-layout">
 
       <!-- CARD -->
-      <div class="lp-ea-card">
+      <div class="lp-ea-card" onclick="lpOpenSpotlight()" style="cursor:pointer;" title="View spotlight">
         <div class="lp-ea-hero">
           <div class="lp-ea-logotype">ETHOS</div>
         </div>
@@ -6234,6 +6345,75 @@ window.addEventListener('message', function(e) {
     window._SARVARC_SELECT(tool);
   }
 });
+</script>
+
+<!-- ── EARLY ADOPTER SPOTLIGHT MODAL ───────────────────── -->
+<div id="lpSpotlightOverlay" onclick="lpCloseSpotlight()" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(4,8,20,0.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:lpSpotlightFadeIn 0.25s ease;"></div>
+
+<div id="lpSpotlightBox" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.94);z-index:9001;width:min(520px,92vw);animation:lpSpotlightSlideIn 0.3s cubic-bezier(.22,.68,0,1.2) forwards;">
+  <div style="border-radius:24px;overflow:hidden;background:var(--surface);border:1px solid rgba(0,174,255,0.22);box-shadow:0 0 0 1px rgba(0,174,255,0.06),0 40px 100px rgba(0,0,0,0.5),0 0 80px rgba(0,174,255,0.10);">
+
+    <!-- Glow top bar -->
+    <div style="height:3px;background:linear-gradient(90deg,var(--primary),var(--blue-cyan),var(--primary));"></div>
+
+    <!-- Header / Logo area -->
+    <div style="position:relative;background:#E8E7E4;padding:44px 36px 32px;display:flex;flex-direction:column;align-items:center;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,174,255,0.10) 0%,transparent 70%);pointer-events:none;"></div>
+      <div style="position:relative;z-index:1;font-family:'Georgia','Times New Roman',serif;font-weight:700;font-size:68px;letter-spacing:0.16em;color:#8B1A1A;line-height:1;user-select:none;">ETHOS</div>
+    </div>
+
+    <!-- Body — uses theme CSS variables -->
+    <div style="padding:26px 30px 30px;display:flex;flex-direction:column;gap:16px;background:var(--surface);">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:19px;font-weight:700;color:var(--text);letter-spacing:-0.02em;">ETHOS Workspace</div>
+        <div style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(0,174,255,0.10);color:var(--primary);border:1px solid rgba(0,174,255,0.20);">Since 2025</div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <span style="font-size:11px;padding:3px 10px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);">Interior Design</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);">Architecture</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);">Photography</span>
+        <span style="font-size:11px;padding:3px 10px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);">Videography</span>
+      </div>
+
+      <p style="font-size:13.5px;line-height:1.75;color:var(--text2);margin:0;">A multidisciplinary creative studio delivering design solutions across residential, commercial, and brand spaces — combining architectural vision with cinematic visual storytelling.</p>
+
+      <div style="height:1px;background:var(--border);"></div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <a href="https://www.instagram.com/_ethos_space_/" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--primary-glow);text-decoration:none;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.65'" onmouseout="this.style.opacity='1'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          @_ethos_space_
+        </a>
+        <span style="font-size:12px;color:var(--text3);">Creative Studio · India</span>
+      </div>
+    </div>
+
+    <!-- Close button -->
+    <button onclick="lpCloseSpotlight()" style="position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;z-index:10;" onmouseover="this.style.background='var(--border-2)';this.style.color='var(--text)'" onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text3)'">✕</button>
+  </div>
+</div>
+
+<style>
+@keyframes lpSpotlightFadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes lpSpotlightSlideIn { from { opacity:0; transform:translate(-50%,-50%) scale(0.92); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
+</style>
+
+<script>
+function lpOpenSpotlight() {
+  var ov = document.getElementById('lpSpotlightOverlay');
+  var bx = document.getElementById('lpSpotlightBox');
+  ov.style.display = 'block';
+  bx.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+function lpCloseSpotlight() {
+  document.getElementById('lpSpotlightOverlay').style.display = 'none';
+  document.getElementById('lpSpotlightBox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') lpCloseSpotlight(); });
 </script>
 
 </body>
