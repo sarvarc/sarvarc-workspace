@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -23418,6 +23419,104 @@ window.dgOpenMultiPushChoice = dgOpenMultiPushChoice;
 window.dgCloseMultiPushChoice = dgCloseMultiPushChoice;
 window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
 
+})();
+</script>
+
+<!-- ─── Mobile / Small-Screen Gate ─── -->
+<style>
+#sarvarc-mobile-gate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: var(--bg, #0A0F1E);
+  color: var(--text, #E8F4FF);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+#sarvarc-mobile-gate .smg-card {
+  max-width: 420px;
+  width: 100%;
+}
+#sarvarc-mobile-gate .smg-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 24px;
+  border-radius: 14px;
+  background: var(--surface2, rgba(0,194,255,0.10));
+  border: 1px solid var(--border2, rgba(0,194,255,0.30));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#sarvarc-mobile-gate .smg-icon svg {
+  width: 26px;
+  height: 26px;
+  stroke: var(--blue, #00C2FF);
+}
+#sarvarc-mobile-gate h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 14px;
+  letter-spacing: -0.01em;
+  color: var(--text, #E8F4FF);
+}
+#sarvarc-mobile-gate p {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--text2, #7BA8C4);
+  margin: 0 0 12px;
+}
+#sarvarc-mobile-gate p:last-of-type {
+  margin-bottom: 0;
+}
+#sarvarc-mobile-gate .smg-divider {
+  width: 40px;
+  height: 2px;
+  background: var(--blue, #00C2FF);
+  border-radius: 2px;
+  margin: 20px auto;
+  opacity: 0.6;
+}
+</style>
+
+<div id="sarvarc-mobile-gate">
+  <div class="smg-card">
+    <div class="smg-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="14" rx="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="18" x2="12" y2="21"></line>
+      </svg>
+    </div>
+    <h1>Desktop Experience Required</h1>
+    <div class="smg-divider"></div>
+    <p>SARVARC Workspace is currently available only on desktop and laptop devices.</p>
+    <p>We are building the best possible workspace experience, and mobile support is not available yet.</p>
+    <p>We'd love to have you on board. Please visit SARVARC Workspace from your desktop or laptop to get started.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  function isMobileDevice() {
+    var uaMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Windows Phone/i.test(navigator.userAgent);
+    var narrowScreen = window.innerWidth <= 768;
+    return uaMobile || narrowScreen;
+  }
+
+  function applyGate() {
+    var gate = document.getElementById('sarvarc-mobile-gate');
+    if (!gate) return;
+    gate.style.display = isMobileDevice() ? 'flex' : 'none';
+  }
+
+  applyGate();
+  window.addEventListener('resize', applyGate);
+  window.addEventListener('orientationchange', applyGate);
 })();
 </script>
 </body>
