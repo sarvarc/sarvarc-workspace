@@ -36,6 +36,11 @@
   --pink: #00E5FF;
   --cyan: #00C2FF;
   --green: #10B981;
+  /* Muted steel-blue used only for the Insights panel — deliberately desaturated
+     vs. the app's neon --blue/--cyan brand color, so stat cards, icons and the
+     takeaway callout read as calm analyst-report chrome rather than a flashy UI accent. */
+  --dg-ink: #4E7DA6;
+  --dg-ink-soft: rgba(78,125,166,0.12);
   --text: #E8F4FF;
   --text2: #7BA8C4;
   --text3: #3A5A70;
@@ -107,6 +112,8 @@
   --shadow-card-hover: 0 2px 4px rgba(16,40,90,0.05), 0 8px 16px -4px rgba(16,40,90,0.08), 0 20px 40px -12px rgba(0,115,230,0.18), 0 0 0 1px rgba(0,194,255,0.08);
   --shadow-nav: 0 1px 2px rgba(16,40,90,0.04), 0 4px 10px -3px rgba(16,40,90,0.09);
   --shadow-nav-active: 0 1px 2px rgba(0,115,230,0.08), 0 4px 12px -2px rgba(0,115,230,0.16), 0 0 0 1px rgba(0,194,255,0.04);
+  --dg-ink: #3E6B90;
+  --dg-ink-soft: rgba(62,107,144,0.09);
 }
 [data-theme="light"] .topnav { background: rgba(240,246,255,0.97); }
 [data-theme="light"] .main::before {
@@ -4754,6 +4761,26 @@ tr:hover .da-row-del-btn { opacity:1; }
 th:hover .da-th-del { opacity:1; }
 .da-th-del:hover { background:rgba(239,68,68,0.2); color:#ef4444; }
 
+/* Tiny per-column quick-math buttons: shown only under NUM columns, let a
+   user total/diff/multiply/divide the whole column in one click instead of
+   typing =SUM(...) by hand. Result lands in a reusable totals row at the
+   bottom of the table, same spot a manual AutoSum would land in. */
+.da-th-ops {
+  display:flex; gap:3px; padding:0 10px 8px; background:var(--bg3);
+}
+.da-th-opbtn {
+  min-width:17px; height:17px; border-radius:4px; border:1px solid var(--border2);
+  background:var(--surface2); color:var(--blue); font-size:10.5px; font-weight:800;
+  line-height:1; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; padding:0 3px; transition:background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.da-th-opbtn.da-th-opbtn-avg { font-size:8.5px; letter-spacing:0.2px; }
+.da-th-opbtn:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
+.da-th-opbtn:active { transform:scale(0.9); }
+/* A column with a "live" op (click again to turn off) stays highlighted so
+   it's clear at a glance which columns auto-recalculate as rows change. */
+.da-th-opbtn.da-th-opbtn-active { background:var(--blue); color:#fff; border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+
 .da-td-cell {
   display:block; padding:9.5px 16px; font-size:12.5px; line-height:1.5; color:var(--text);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -4766,6 +4793,78 @@ th:hover .da-th-del { opacity:1; }
 .da-td-cell.da-cell-num { text-align:right; font-variant-numeric:tabular-nums; }
 .da-td-cell.da-cell-empty { color:var(--text3); font-style:italic; }
 .da-mark { background:rgba(255,196,0,0.35); border-radius:2px; }
+
+/* Formula-driven cells: a subtle tint + left rule marks a cell as computed
+   rather than typed, and errors get an unmistakable red so a broken
+   reference never gets mistaken for real data. */
+.da-td-cell.da-cell-formula { background:rgba(16,185,129,0.07); box-shadow:2px 0 0 rgba(16,185,129,0.5) inset; }
+.da-table tbody tr:nth-child(even) .da-td-cell.da-cell-formula { background:rgba(16,185,129,0.1); }
+.da-td-cell.da-cell-formula:focus { background:rgba(0,194,255,0.08); box-shadow:0 0 0 1px var(--border2) inset; }
+.da-td-cell.da-cell-error { color:#ef4444; font-weight:700; box-shadow:2px 0 0 #ef4444 inset; background:rgba(239,68,68,0.08); }
+.da-table tbody tr:nth-child(even) .da-td-cell.da-cell-error { background:rgba(239,68,68,0.1); }
+
+/* Column-letter ruler row, sits above the real header row so cell refs
+   used in formulas (A1, B2…) map to something visible on screen, same as
+   any spreadsheet. */
+.da-collabels-row .da-collabel {
+  padding:4px 16px; font-size:9.5px; font-weight:700; text-align:center;
+  color:var(--text3); background:var(--bg3); letter-spacing:0.4px;
+  border-bottom:1px solid var(--border); user-select:none;
+}
+.da-collabels-row .da-rownum { padding:4px; font-size:9.5px; }
+
+/* Formula bar: mirrors the ref box + fx input every spreadsheet app has,
+   so editing a formula isn't confined to the tiny grid cell. */
+.da-formula-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px; border-radius:10px;
+  background:var(--bg2); border:1px solid var(--border);
+}
+.da-fb-ref {
+  flex-shrink:0; min-width:44px; text-align:center;
+  padding:5px 8px; border-radius:7px; font-size:11px; font-weight:800;
+  color:var(--blue); background:rgba(0,194,255,0.1); border:1px solid var(--border2);
+  letter-spacing:0.3px;
+}
+.da-fb-fx-btn {
+  flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  width:26px; height:26px; border-radius:7px; font-size:11.5px; font-weight:800;
+  font-style:italic; color:var(--green); background:var(--surface);
+  border:1px solid var(--border); cursor:pointer;
+}
+.da-fb-fx-btn:hover { background:var(--surface2); border-color:var(--border2); }
+.da-fb-divider { width:1px; align-self:stretch; background:var(--border); }
+.da-formula-bar input {
+  flex:1; min-width:0; border:none; background:transparent; outline:none;
+  font-size:12.5px; color:var(--text); font-family:'Source Code Pro', monospace;
+  padding:5px 4px;
+}
+.da-formula-bar input::placeholder { color:var(--text3); font-family:'Inter', sans-serif; font-style:italic; }
+.da-formula-bar input:disabled { color:var(--text3); }
+.da-fb-autosum-btn {
+  flex-shrink:0; padding:5px 10px; border-radius:7px; font-size:11px; font-weight:700;
+  color:var(--text2); background:var(--surface); border:1px solid var(--border); cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+}
+.da-fb-autosum-btn:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
+
+/* fx function picker popover */
+.da-fx-popover {
+  display:none; position:absolute; z-index:40; top:calc(100% + 6px); left:0;
+  width:300px; max-height:320px; overflow-y:auto;
+  background:var(--bg3); border:1px solid var(--border2); border-radius:10px;
+  box-shadow:0 12px 32px -8px rgba(0,0,0,0.5); padding:6px;
+}
+.da-fx-popover.open { display:block; }
+.da-fx-item {
+  display:flex; flex-direction:column; gap:1px; padding:7px 9px; border-radius:7px;
+  cursor:pointer; transition:background 0.12s ease;
+}
+.da-fx-item:hover { background:var(--surface2); }
+.da-fx-name { font-size:11.5px; font-weight:800; color:var(--blue); }
+.da-fx-syntax { font-size:10.5px; font-family:'Source Code Pro', monospace; color:var(--text2); }
+.da-fx-desc { font-size:10px; color:var(--text3); }
+.da-fb-wrap { position:relative; flex:1; min-width:0; display:flex; }
 
 /* ─── DIAGRAMS & GRAPHS ─── */
 .dg-section { display:flex; flex-direction:column; gap:10px; padding:12px 24px 20px; position:relative; z-index:1; min-height:0; }
@@ -4927,6 +5026,7 @@ th:hover .da-th-del { opacity:1; }
   to   { opacity:1; transform:translateY(0) scale(1); }
 }
 .dg-type-dropdown { width:250px; }
+.dg-columns-dropdown { width:280px; }
 .dg-type-dropdown .dg-type-grid { grid-template-columns:1fr 1fr; }
 .dg-templates-dropdown { width:230px; }
 .dg-templates-dropdown .dg-template-grid { grid-template-columns:1fr; }
@@ -4985,6 +5085,7 @@ th:hover .da-th-del { opacity:1; }
   display:flex; align-items:center; gap:2px; padding:3px;
   background:var(--surface); border:1px solid var(--border); border-radius:9px;
 }
+.dg-columns-group { position:relative; display:flex; }
 .dg-show-chip {
   display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:6px;
   font-size:11.5px; font-weight:600; color:var(--text2); cursor:pointer; user-select:none;
@@ -4993,6 +5094,8 @@ th:hover .da-th-del { opacity:1; }
 .dg-show-chip:hover { background:var(--surface2); color:var(--text); }
 .dg-show-chip.active { background:var(--blue); color:#fff; }
 .dg-show-chip input { display:none; }
+button.dg-show-chip { border:none; background:none; font-family:inherit; }
+button.dg-show-chip.active { background:var(--blue); }
 .dg-canvas-holder {
   flex:1; display:flex; align-items:center; justify-content:center;
   background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; min-height:0;
@@ -5091,22 +5194,20 @@ th:hover .da-th-del { opacity:1; }
 #dgInsightsToggleBtn {
   position:absolute; top:50%; left:-22px; transform:translateY(-50%); z-index:20;
   width:22px; height:64px;
-  background:linear-gradient(180deg, rgba(0,194,255,0.13) 0%, rgba(0,115,230,0.13) 100%);
-  border:1px solid rgba(0,194,255,0.28); border-right:none; border-radius:10px 0 0 10px;
+  background:var(--surface2);
+  border:1px solid var(--border); border-right:none; border-radius:10px 0 0 10px;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
-  color:var(--blue);
+  color:var(--dg-ink);
   transition:left 0.22s ease, color 0.15s, background 0.15s, box-shadow 0.15s, width 0.15s;
-  box-shadow:-3px 0 16px rgba(0,194,255,0.18), inset 1px 0 0 rgba(255,255,255,0.04);
-  backdrop-filter:blur(6px);
+  box-shadow:0 1px 6px rgba(0,0,0,0.12);
 }
 #dgInsightsToggleBtn:hover {
-  color:#fff; width:26px; left:-26px;
-  background:linear-gradient(180deg, rgba(0,194,255,0.28) 0%, rgba(0,115,230,0.28) 100%);
-  box-shadow:-4px 0 24px rgba(0,194,255,0.35), inset 1px 0 0 rgba(255,255,255,0.08);
+  color:var(--text); width:24px; left:-24px;
+  background:var(--dg-ink-soft);
 }
 .dg-insights-panel.dg-collapsed #dgInsightsToggleBtn {
-  background:linear-gradient(180deg, rgba(0,194,255,0.2) 0%, rgba(0,115,230,0.2) 100%);
-  border-color:rgba(0,194,255,0.4); box-shadow:-3px 0 20px rgba(0,194,255,0.25);
+  background:var(--dg-ink-soft);
+  border-color:var(--border2);
 }
 .dg-insights-head {
   display:flex; align-items:center; gap:8px; padding:13px 14px 12px;
@@ -5115,8 +5216,8 @@ th:hover .da-th-del { opacity:1; }
 .dg-insights-head-icon {
   width:22px; height:22px; border-radius:7px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(0,194,255,0.14); color:var(--blue);
-  box-shadow:0 0 0 1px rgba(0,194,255,0.18) inset;
+  background:var(--dg-ink-soft); color:var(--dg-ink);
+  box-shadow:0 0 0 1px rgba(0,0,0,0.03) inset;
 }
 .dg-insights-head-title { display:flex; flex-direction:column; gap:1px; }
 .dg-insights-head-title .dg-panel-title { margin:0; }
@@ -5194,26 +5295,25 @@ th:hover .da-th-del { opacity:1; }
 .dg-stat-strip { display:flex; gap:10px; flex-wrap:wrap; }
 .dg-stat-card {
   flex:1; min-width:112px; position:relative; overflow:hidden;
-  background:linear-gradient(160deg, var(--surface2) 0%, var(--surface) 100%);
+  background:var(--surface);
   border:1px solid var(--border);
   border-radius:11px; padding:11px 12px 11px 14px; display:flex; flex-direction:column; gap:3px;
-  transition:transform 0.16s cubic-bezier(.2,.8,.3,1), border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:border-color 0.16s ease, box-shadow 0.16s ease;
 }
 .dg-stat-card::before {
   content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:var(--dg-accent, var(--blue)); opacity:0.85;
+  background:var(--dg-accent, var(--dg-ink)); opacity:0.7;
 }
 .dg-stat-card:hover {
-  transform:translateY(-1px); border-color:var(--border2);
-  box-shadow:0 8px 20px rgba(0,0,0,0.22), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  border-color:var(--border2);
+  box-shadow:0 2px 10px rgba(0,0,0,0.10);
 }
 .dg-stat-card-top { display:flex; align-items:center; justify-content:space-between; gap:6px; }
 .dg-stat-icon {
   width:20px; height:20px; border-radius:6px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(0,194,255,0.14);
-  background:color-mix(in srgb, var(--dg-accent, var(--blue)) 16%, transparent);
-  color:var(--dg-accent, var(--blue));
+  background:color-mix(in srgb, var(--dg-accent, var(--dg-ink)) 14%, transparent);
+  color:var(--dg-accent, var(--dg-ink));
 }
 .dg-stat-icon svg { width:12px; height:12px; }
 .dg-stat-label { font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--text3); }
@@ -5232,22 +5332,82 @@ th:hover .da-th-del { opacity:1; }
 .dg-insight-sentence {
   position:relative; overflow:hidden;
   font-size:12px; color:var(--text2); line-height:1.55; display:none;
-  background:linear-gradient(160deg, rgba(0,194,255,0.09) 0%, var(--surface) 65%);
+  background:var(--surface);
   border:1px solid var(--border2); border-radius:11px;
   padding:12px 13px 12px 14px;
 }
 .dg-insight-sentence::before {
   content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:linear-gradient(180deg, var(--blue), var(--purple));
+  background:var(--dg-ink);
 }
 .dg-insight-sentence.show { display:block; }
 .dg-insight-badge {
   display:flex; align-items:center; gap:5px; margin-bottom:7px;
-  font-size:9px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--blue);
+  font-size:9px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--dg-ink);
 }
 .dg-insight-badge svg { width:11px; height:11px; }
 .dg-insight-text { color:var(--text); font-weight:500; }
 .dg-insight-text b { color:var(--text); font-weight:800; }
+
+/* Written Analysis — inline panel that sits beneath the chart in the Live Preview column
+   (not the sidebar, not a popup), shown only after the person clicks the toolbar chip. */
+.dg-analysis-panel {
+  display:none; margin-top:12px;
+  background:var(--surface);
+  border:1px solid var(--border2); border-radius:12px;
+  padding:14px 15px 15px;
+}
+.dg-analysis-panel.open { display:block; }
+.dg-analysis-panel-head {
+  display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:10px;
+}
+.dg-analysis-panel-badge {
+  display:flex; align-items:center; gap:5px;
+  font-size:10.5px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--dg-ink);
+}
+.dg-analysis-panel-badge svg { width:13px; height:13px; }
+.dg-analysis-panel-icon-btn {
+  display:flex; align-items:center; justify-content:center; width:22px; height:22px;
+  border-radius:6px; border:none; background:transparent; color:var(--text3); cursor:pointer;
+  transition:all .15s;
+}
+.dg-analysis-panel-icon-btn:hover { background:var(--dg-ink-soft); color:var(--dg-ink); }
+.dg-analysis-panel-icon-btn svg { width:13px; height:13px; }
+.dg-analysis-panel-text { color:var(--text); font-weight:500; font-size:12.5px; line-height:1.7; }
+.dg-analysis-panel-text b { color:var(--text); font-weight:800; }
+.dg-analysis-panel-actions { display:flex; gap:7px; margin-top:14px; }
+.dg-smart-analysis-btn {
+  flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:8px 8px; border-radius:8px; font-size:11.5px; font-weight:700;
+  border:1px solid var(--border2); background:var(--bg3); color:var(--text2);
+  cursor:pointer; transition:all .15s;
+}
+.dg-smart-analysis-btn svg { width:12px; height:12px; }
+.dg-smart-analysis-btn:hover { border-color:var(--dg-ink); color:var(--dg-ink); background:var(--dg-ink-soft); }
+.dg-smart-analysis-btn.primary { background:var(--dg-ink); color:#fff; border:none; }
+.dg-smart-analysis-btn.primary:hover { opacity:0.9; }
+
+/* Upload preview — quick look at detected columns/types before mapping label & value */
+.dg-upload-preview { margin-top:10px; }
+.dg-upload-preview-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:7px; }
+.dg-upload-chip {
+  font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px;
+  background:rgba(0,194,255,0.1); color:var(--blue); border:1px solid rgba(0,194,255,0.22);
+}
+.dg-upload-chip.text { background:rgba(138,148,163,0.12); color:var(--text3); border-color:var(--border2); }
+.dg-upload-preview-table-wrap { max-height:130px; overflow:auto; border:1px solid var(--border2); border-radius:8px; }
+.dg-upload-preview-table { width:100%; border-collapse:collapse; font-size:10px; }
+.dg-upload-preview-table th, .dg-upload-preview-table td {
+  padding:5px 7px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  max-width:110px; border-bottom:1px solid var(--border);
+}
+.dg-upload-preview-table th {
+  position:sticky; top:0; background:var(--bg3); color:var(--text2); font-weight:800; z-index:1;
+}
+.dg-upload-preview-table th .dg-upload-preview-type { display:block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--blue); margin-top:1px; }
+.dg-upload-preview-table th .dg-upload-preview-type.text { color:var(--text3); }
+.dg-upload-preview-table td { color:var(--text2); }
+.dg-upload-preview-table tr:last-child td { border-bottom:none; }
 
 .dg-bw-row { display:flex; gap:8px; }
 .dg-bw-swatch {
@@ -6744,7 +6904,7 @@ th:hover .da-th-del { opacity:1; }
         <div class="page-header da-header-card" id="daHeaderCard">
           <div>
             <h2>Data Arrangement</h2>
-            <p id="daHeaderDesc">Upload any data file, SARVARC Workspace reads it: tabular data gets clean, precisely structured tables with headers auto-detected; full written content gets analysed and arranged topic by topic, so nothing comes out as a messy pile of lines.</p>
+            <p id="daHeaderDesc">Upload any data file, SARVARC Workspace reads it: tabular data gets clean, precisely structured tables with headers auto-detected; full written content gets analysed and arranged topic by topic, so nothing comes out as a messy pile of lines. Then work it like a spreadsheet, type <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=SUM(A1:A5)</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=B2*C2</code>, or any formula straight into a cell.</p>
           </div>
         </div>
 
@@ -6779,6 +6939,22 @@ th:hover .da-th-del { opacity:1; }
 
           <!-- Dataset tabs -->
           <div class="da-tabs" id="daTabs"></div>
+
+          <!-- Formula bar: click any cell to see/edit its raw formula here, exactly like Excel/Sheets.
+               Type "=" in any cell (or here) to start a formula, e.g. =SUM(A1:A5) or =B2*C2. -->
+          <div class="da-formula-bar" id="daFormulaBar">
+            <span class="da-fb-ref" id="daFormulaBarRef">–</span>
+            <div class="da-fb-wrap">
+              <button type="button" class="da-fb-fx-btn" id="daFxBtn" onclick="daToggleFxMenu(event)" title="Insert a function">ƒx</button>
+              <div class="da-fx-popover" id="daFxPopover"></div>
+            </div>
+            <div class="da-fb-divider"></div>
+            <input type="text" id="daFormulaBarInput" placeholder="Select a cell, or type = to start a formula…" disabled
+              oninput="daFormulaBarInputChanged()"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();daFormulaBarCommit(true);}"
+              onblur="daFormulaBarCommit(false)">
+            <button type="button" class="da-fb-autosum-btn" onclick="daAutoSum()" title="Sum the numbers above this cell"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4H6l7 8-7 8h12"/></svg> AutoSum</button>
+          </div>
 
           <!-- Toolbar -->
           <div class="da-toolbar">
@@ -7129,16 +7305,7 @@ th:hover .da-th-del { opacity:1; }
                   <div class="dg-upload-zone-text">Drop a CSV, Excel, TSV, TXT or JSON file<br>or click to browse</div>
                 </div>
                 <input type="file" id="dgFileInput" accept=".csv,.tsv,.txt,.xlsx,.xls,.json" style="display:none" onchange="dgHandleFileSelect(event)">
-
-                <div id="dgUploadMapping" style="display:none;margin-top:12px">
-                  <div class="dg-upload-file-name" id="dgUploadFileName"></div>
-                  <label class="dg-upload-field-label">Label column (categories)</label>
-                  <select id="dgLabelColSelect" class="dg-upload-select" onchange="dgGenerateChartFromUpload()"></select>
-                  <label class="dg-upload-field-label" style="margin-top:8px">Value column (numbers)</label>
-                  <select id="dgValueColSelect" class="dg-upload-select" onchange="dgGenerateChartFromUpload()"></select>
-                  <div class="dg-upload-hint" id="dgUploadHint"></div>
-                  <button type="button" class="btn-primary" style="width:100%;margin-top:10px" onclick="dgGenerateChartFromUpload()">Generate Chart</button>
-                </div>
+                <div class="dg-upload-hint" id="dgUploadRibbonHint" style="margin-top:10px;display:none">File loaded — pick columns from the <b>Columns</b> button next to Legend, above the preview.</div>
               </div>
               <div class="dg-rbn-group-label" style="margin-top:2px">Upload Data</div>
             </div>
@@ -7258,10 +7425,24 @@ th:hover .da-th-del { opacity:1; }
                 <span class="da-meta">Live Preview</span>
                 <div class="dg-preview-toolbar-spacer"></div>
                 <div class="dg-show-toggles" title="Toggle chart overlays">
+                  <div class="dg-columns-group" id="dgColumnsGroup">
+                    <button type="button" class="dg-show-chip" id="dgColumnsChip" onclick="dgToggleColumnsDropdown(event)" title="Manually choose which uploaded column is the label and which is the value">Columns</button>
+                    <div class="dg-dropdown-panel dg-columns-dropdown" id="dgColumnsDropdown">
+                      <div class="dg-panel-title" style="margin-bottom:8px">Choose Data Columns</div>
+                      <div class="dg-upload-file-name" id="dgUploadFileName"></div>
+                      <div class="dg-upload-preview" id="dgUploadPreview"></div>
+                      <label class="dg-upload-field-label">Label column (categories)</label>
+                      <select id="dgLabelColSelect" class="dg-upload-select" onchange="dgGenerateChartFromUpload()"></select>
+                      <label class="dg-upload-field-label" style="margin-top:8px">Value column (numbers)</label>
+                      <select id="dgValueColSelect" class="dg-upload-select" onchange="dgGenerateChartFromUpload()"></select>
+                      <div class="dg-upload-hint" id="dgUploadHint"></div>
+                    </div>
+                  </div>
                   <label class="dg-show-chip active" id="dgLegendChip" title="Show legend"><input type="checkbox" id="dgLegendToggle" checked onchange="dgToggleShowChip(this,'dgLegendChip')"> Legend</label>
                   <label class="dg-show-chip active" id="dgValuesChip" title="Show values on chart"><input type="checkbox" id="dgValuesToggle" checked onchange="dgToggleShowChip(this,'dgValuesChip')"> Values</label>
                   <label class="dg-show-chip" id="dgTrendChip" title="Trendline (bar/line/area)"><input type="checkbox" id="dgTrendlineToggle" onchange="dgToggleShowChip(this,'dgTrendChip')"> Trend</label>
                   <label class="dg-show-chip active" id="dgInsightsChip" title="Show insights strip"><input type="checkbox" id="dgInsightsToggle" checked onchange="dgToggleShowChip(this,'dgInsightsChip')"> Insights</label>
+                  <button type="button" class="dg-show-chip" id="dgWrittenAnalysisChip" onclick="dgToggleWrittenAnalysis()" title="Show a written paragraph analysis beneath the chart">Written Analysis</button>
                 </div>
                 <div class="pdfed-rbn-btn pdfed-hand-btn annot-active dg-hand-indicator" style="cursor:default" title="Hand tool: click and drag the canvas to pan">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
@@ -7299,9 +7480,34 @@ th:hover .da-th-del { opacity:1; }
                   </div>
                 </div>
               </div>
+              <div class="dg-analysis-panel" id="dgAnalysisPanel">
+                <div class="dg-analysis-panel-head">
+                  <div class="dg-analysis-panel-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 12 8 8"/><path d="M12 2v4"/><path d="M12 12l6 2"/></svg>
+                    Written Analysis
+                  </div>
+                  <div style="display:flex;align-items:center;gap:4px">
+                    <button type="button" class="dg-analysis-panel-icon-btn" onclick="dgRenderSmartAnalysis()" title="Regenerate analysis">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    </button>
+                    <button type="button" class="dg-analysis-panel-icon-btn" onclick="dgToggleWrittenAnalysis()" title="Close">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="dg-analysis-panel-text" id="dgSmartAnalysisText"></div>
+                <div class="dg-analysis-panel-actions">
+                  <button type="button" class="dg-smart-analysis-btn" onclick="dgCopySmartAnalysis()" title="Copy analysis text">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy
+                  </button>
+                  <button type="button" class="dg-smart-analysis-btn primary" onclick="dgOpenAnalysisPushChoice()" title="Push this analysis into the Workspace as a text block">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>
+                    Push to Workspace
+                  </button>
+                </div>
+              </div>
             </div>
-
-            <!-- INSIGHTS SIDE PANEL -->
             <div class="dg-insights-panel" id="dgInsightsPanel">
               <button id="dgInsightsToggleBtn" onclick="dgToggleInsightsPanel()" title="Toggle insights panel">
                 <svg id="dgInsightsToggleIcon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -7320,6 +7526,7 @@ th:hover .da-th-del { opacity:1; }
                 <div class="dg-insight-sentence" id="dgInsightSentence"></div>
               </div>
             </div>
+
           </div>
 
           <!-- MULTI-CHART GALLERY: shown when a big/wide upload was split into several charts (one per metric) -->
@@ -7553,6 +7760,35 @@ th:hover .da-th-del { opacity:1; }
     </div>
     <div class="dg-push-choice-footer">
       <button class="btn-secondary" onclick="dgClosePushChoice()" style="padding:8px 18px;font-size:12px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Diagrams & Graphs: Smart Analysis push-to-Workspace destination choice modal -->
+<div class="dg-push-choice-overlay" id="dgAnalysisPushChoiceOverlay" onmousedown="if(event.target===this)dgCloseAnalysisPushChoice()">
+  <div class="dg-push-choice-modal">
+    <div class="dg-push-choice-head">
+      <h3>Push Analysis to Workspace</h3>
+      <p>Choose where you'd like this written analysis to go</p>
+    </div>
+    <div class="dg-push-choice-body">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmAnalysisPushChoice('new')">
+        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+        <div class="dg-push-choice-text">
+          <h4>Create New Page in Workspace</h4>
+          <p>Adds this analysis as a text block on a brand-new page in your Workspace document.</p>
+        </div>
+      </button>
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmAnalysisPushChoice('live')">
+        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
+        <div class="dg-push-choice-text">
+          <h4>Add to Live Page on Workspace</h4>
+          <p>Drops the analysis as an editable text block onto the page currently open in the Workspace.</p>
+        </div>
+      </button>
+    </div>
+    <div class="dg-push-choice-footer">
+      <button class="btn-secondary" onclick="dgCloseAnalysisPushChoice()" style="padding:8px 18px;font-size:12px">Cancel</button>
     </div>
   </div>
 </div>
@@ -8227,10 +8463,35 @@ document.addEventListener('keydown', onGlobalUndoRedoKeydown);
 // ─── NAVIGATION ───
 // ─── SIDEBAR TOGGLE ───
 let sidebarOpen = true;
+let sidebarManuallyToggledInSection = false;
 function toggleSidebar(isAuto) {
-  if (!isAuto) pdfed.leftManuallyToggled = true;
+  if (!isAuto) { pdfed.leftManuallyToggled = true; sidebarManuallyToggledInSection = true; }
   sidebarOpen = !sidebarOpen;
   document.body.classList.toggle('sidebar-collapsed', !sidebarOpen);
+}
+
+// ─── QUIET-5s AUTO-COLLAPSE for Diagrams & Graphs / Data Arrangement ───
+// Same idea as the PDF Editor's 10s auto-collapse below, but on a shorter
+// 5s timer and scoped to just the main app sidebar (these two tools don't
+// have a right panel to tuck away). Fires once, 5s after the section opens,
+// and only if the person hasn't already opened/closed the sidebar
+// themselves in that window — a manual toggle always wins.
+let sectionAutoCollapseTimer = null;
+function scheduleSectionAutoCollapse(sec) {
+  clearTimeout(sectionAutoCollapseTimer);
+  sidebarManuallyToggledInSection = false;
+  sectionAutoCollapseTimer = setTimeout(() => {
+    const section = document.getElementById('sec-' + sec);
+    if (!section || !section.classList.contains('active')) return; // navigated away before the timer fired
+    if (sidebarManuallyToggledInSection) return; // person already made their own call
+    if (sidebarOpen) {
+      toggleSidebar(true);
+      toast('Tucked the sidebar away for more canvas room, the arrow on the edge brings it back anytime', 'info');
+    }
+  }, 5000);
+}
+function cancelSectionAutoCollapse() {
+  clearTimeout(sectionAutoCollapseTimer);
 }
 
 function navigate(sec) {
@@ -8260,6 +8521,11 @@ function navigate(sec) {
   }
   if(sec === 'diagrams' && typeof dgRender === 'function') {
     dgRender();
+  }
+  if (sec === 'diagrams' || sec === 'dataarrange') {
+    scheduleSectionAutoCollapse(sec);
+  } else {
+    cancelSectionAutoCollapse();
   }
 }
 
@@ -12176,7 +12442,11 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
     // universally-editable PDF text object rather than a font-embedding project.
     const pdfStyle = (item.bold && item.italic) ? 'bolditalic' : item.bold ? 'bold' : item.italic ? 'italic' : 'normal';
     try { pdf.setFont('helvetica', pdfStyle); } catch(e) { pdf.setFont('helvetica', 'normal'); }
-    pdf.setFontSize(Math.max(4, item.fontSize * 0.75)); // px → pt at 96dpi
+    // px → pt using this PAGE's actual px→mm density (px2mm), not a fixed
+    // 96dpi assumption. Native PDF pages rasterize at 144dpi while
+    // blank/inserted pages rasterize at 96dpi (see pdfedExport), so a fixed
+    // 0.75 factor made text ~1.5x too large on native PDF pages specifically.
+    pdf.setFontSize(Math.max(4, item.fontSize * px2mm * 2.83464567)); // px → mm → pt
 
     lines.forEach((runs, li) => {
       const tyTopPx = item.y + padY + li * lineHeight;
@@ -15759,6 +16029,16 @@ function pdfedBakeAnnotations() {
   const pc = document.getElementById('pdfedPageCanvas');
   const ctx = pc.getContext('2d');
   ctx.drawImage(ac, 0, 0);
+  // Persist the merged result back into the page's own data model. Without
+  // this, the merge only ever lived in the on-screen <canvas> element — the
+  // moment you navigated to another page (and pdfedClearStrokesFor below
+  // wiped the stroke history, thinking it was "already baked"), the drawn
+  // lines/shapes/pen strokes were gone from both places export reads from
+  // (pg.dataUrl and pg.annotStrokes), so they silently vanished from any
+  // PDF exported afterward.
+  if (pdfed.active >= 0 && pdfed.pages[pdfed.active]) {
+    pdfed.pages[pdfed.active].dataUrl = pc.toDataURL('image/png');
+  }
   // clear annot canvas after bake
   ac.getContext('2d').clearRect(0, 0, ac.width, ac.height);
   // clear undo stack for this page (already baked)
@@ -19889,12 +20169,26 @@ async function daExtractPdf(arrayBuffer, filename) {
     });
     rowsMap.sort((a, b) => b.y - a.y); // top to bottom
 
+    // Column-gap threshold: how wide a horizontal gap has to be before it's
+    // treated as a break between columns rather than a normal word-space.
+    // This used to be recomputed PER ROW from that row's own average
+    // character width — but header rows are almost always bold/larger than
+    // the data rows under them, so their characters are wider, which
+    // inflated the threshold for that row alone. The result: the normal-size
+    // gaps between separate header labels ("Profit 2025 ($)", "Profit 2026
+    // ($)", "Growth %", "Employees") fell under that row's own oversized bar
+    // and got glued into a single cell, while the plainer data rows below
+    // got a correctly-scaled threshold and split cleanly — headers merged,
+    // data fine. Computing one threshold from the whole page's text (data
+    // rows included, which are usually the majority) keeps every row on the
+    // same yardstick.
+    const pageCharWidths = items.map(it => it.w / Math.max(it.str.length, 1)).filter(w => w > 0);
+    const pageMedianCharW = pageCharWidths.length ? pageCharWidths.slice().sort((a, b) => a - b)[Math.floor(pageCharWidths.length / 2)] : 5;
+    const pageGapThreshold = Math.max(pageMedianCharW * 2.2, 8);
+
     const pageRows = rowsMap.map(row => {
       row.items.sort((a, b) => a.x - b.x);
-      // median character width on this row, used as the "normal spacing" yardstick
-      const charWidths = row.items.map(it => it.w / Math.max(it.str.length, 1)).filter(w => w > 0);
-      const medianCharW = charWidths.length ? charWidths.slice().sort((a, b) => a - b)[Math.floor(charWidths.length / 2)] : 5;
-      const gapThreshold = Math.max(medianCharW * 2.2, 8);
+      const gapThreshold = pageGapThreshold;
 
       const cells = [];
       let current = '';
@@ -20343,7 +20637,7 @@ function daFlattenObject(obj, prefix = '', out = {}) {
 // row to the same width so the grid never overlaps or goes ragged.
 function daNormalize(aoa) {
   let rows = (aoa || []).filter(r => Array.isArray(r) && r.some(c => String(c ?? '').trim() !== ''));
-  if (!rows.length) return { headers: ['Column 1'], rows: [] };
+  if (!rows.length) return { headers: ['Column 1'], rows: [], titleRow: null };
 
   const colCount = Math.max(...rows.map(r => r.length));
   rows = rows.map(r => {
@@ -20351,6 +20645,28 @@ function daNormalize(aoa) {
     while (padded.length < colCount) padded.push('');
     return padded.map(c => (c === undefined || c === null) ? '' : c);
   });
+
+  // Report-style exports (and prose-to-canvas extraction) often carry a
+  // spanning title row above the real header row — e.g. "Quarterly Sales
+  // Report" sitting alone above "Month, Revenue, Region". That row has only
+  // one (or very few) filled cells out of colCount, since it was originally
+  // a merged cell. Left in place, it fails the "all filled" header check
+  // below, so the REAL header row underneath it never gets picked up and
+  // "Column 1 / Column 2…" placeholders get used instead. Detect and pull
+  // it out first so header detection runs against the row that's actually
+  // meant to be the header.
+  let titleRow = null;
+  if (colCount > 1 && rows.length > 2) {
+    const r0 = rows[0];
+    const r0Filled = r0.filter(c => String(c).trim() !== '');
+    const r1 = rows[1];
+    const r1FilledCount = r1.filter(c => String(c).trim() !== '').length;
+    const looksLikeSpanningTitle = r0Filled.length === 1 && r1FilledCount >= Math.max(2, Math.ceil(colCount * 0.6));
+    if (looksLikeSpanningTitle) {
+      titleRow = String(r0Filled[0]).trim();
+      rows = rows.slice(1);
+    }
+  }
 
   // Decide if row 0 looks like a header: header rows are usually all
   // non-empty, all-text, and distinct from the more numeric/mixed rows below.
@@ -20383,7 +20699,7 @@ function daNormalize(aoa) {
     return name;
   });
 
-  return { headers, rows: dataRows };
+  return { headers, rows: dataRows, titleRow };
 }
 
 function daAddDataset(name, aoa) {
@@ -20426,7 +20742,7 @@ function daRenderTabs() {
   daState.datasets.forEach(ds => {
     const tab = document.createElement('div');
     tab.className = 'da-tab' + (ds.id === daState.activeId ? ' active' : '');
-    tab.onclick = () => { daState.activeId = ds.id; daRenderTabs(); daRenderTable(); };
+    tab.onclick = () => { daState.activeId = ds.id; if (typeof daResetFormulaBar === 'function') daResetFormulaBar(); daRenderTabs(); daRenderTable(); };
     tab.innerHTML = `<span class="da-tab-name" title="${daEsc(ds.name)}">${daEsc(ds.name)}</span><span class="da-tab-close" onclick="event.stopPropagation();daCloseDataset('${ds.id}')">×</span>`;
     wrap.appendChild(tab);
   });
@@ -20437,6 +20753,7 @@ function daCloseDataset(id) {
   if (daState.activeId === id) {
     daState.activeId = daState.datasets.length ? daState.datasets[daState.datasets.length - 1].id : null;
   }
+  if (typeof daResetFormulaBar === 'function') daResetFormulaBar();
   daWorkspaceRefreshVisibility();
   daRenderTabs();
   daRenderTable();
@@ -20447,6 +20764,7 @@ function daClearAll() {
   if (!confirm('Clear all loaded data? This can\'t be undone.')) return;
   daState.datasets = [];
   daState.activeId = null;
+  if (typeof daResetFormulaBar === 'function') daResetFormulaBar();
   daWorkspaceRefreshVisibility();
   daRenderTabs();
   daRenderTable();
@@ -20459,9 +20777,583 @@ function daEsc(str) {
 function daIsNumericCol(ds, colIdx) {
   const sample = ds.rows.slice(0, 25);
   let numeric = 0, total = 0;
-  sample.forEach(r => { const v = String(r[colIdx] ?? '').trim(); if (v !== '') { total++; if (!isNaN(parseFloat(v)) && isFinite(v)) numeric++; } });
+  sample.forEach(r => { const v = String(r[colIdx] ?? '').trim(); if (v !== '') { total++; const c = daCleanNum(v); if (!isNaN(parseFloat(c)) && isFinite(c)) numeric++; } });
   return total > 0 && numeric / total > 0.7;
 }
+
+// ─── FORMULA ENGINE ─────────────────────────────────────────────────────
+// Excel-style formulas typed straight into a cell: "=A1+B2", "=SUM(A1:A5)",
+// "=IF(B2>10,"High","Low")", and so on. Cell refs address rows/columns by
+// the same letters/numbers shown on screen (col A = first column, row 1 =
+// first data row), independent of whatever the header text says.
+
+const DA_FUNCTIONS = [
+  { name: 'SUM',          syntax: 'SUM(range)',              desc: 'Add up a range of numbers' },
+  { name: 'AVERAGE',      syntax: 'AVERAGE(range)',          desc: 'Average of a range' },
+  { name: 'MIN',          syntax: 'MIN(range)',              desc: 'Smallest value in a range' },
+  { name: 'MAX',          syntax: 'MAX(range)',              desc: 'Largest value in a range' },
+  { name: 'COUNT',        syntax: 'COUNT(range)',            desc: 'Count numeric cells' },
+  { name: 'COUNTA',       syntax: 'COUNTA(range)',           desc: 'Count non-empty cells' },
+  { name: 'PRODUCT',      syntax: 'PRODUCT(range)',          desc: 'Multiply a range together' },
+  { name: 'MEDIAN',       syntax: 'MEDIAN(range)',           desc: 'Middle value of a range' },
+  { name: 'ROUND',        syntax: 'ROUND(value, digits)',    desc: 'Round to N decimal places' },
+  { name: 'ROUNDUP',      syntax: 'ROUNDUP(value, digits)',  desc: 'Round up' },
+  { name: 'ROUNDDOWN',    syntax: 'ROUNDDOWN(value, digits)',desc: 'Round down' },
+  { name: 'ABS',          syntax: 'ABS(value)',              desc: 'Absolute value' },
+  { name: 'SQRT',         syntax: 'SQRT(value)',             desc: 'Square root' },
+  { name: 'POWER',        syntax: 'POWER(base, exponent)',   desc: 'Raise to a power' },
+  { name: 'MOD',          syntax: 'MOD(number, divisor)',    desc: 'Remainder after division' },
+  { name: 'IF',           syntax: 'IF(condition, a, b)',     desc: 'a if condition is true, else b' },
+  { name: 'AND',          syntax: 'AND(cond1, cond2, …)',    desc: 'True only if all are true' },
+  { name: 'OR',           syntax: 'OR(cond1, cond2, …)',     desc: 'True if any are true' },
+  { name: 'NOT',          syntax: 'NOT(condition)',          desc: 'Flips true/false' },
+  { name: 'CONCAT',       syntax: 'CONCAT(a, b, …)',         desc: 'Join text together' },
+  { name: 'LEN',          syntax: 'LEN(text)',               desc: 'Length of text' },
+  { name: 'UPPER',        syntax: 'UPPER(text)',             desc: 'Convert to UPPERCASE' },
+  { name: 'LOWER',        syntax: 'LOWER(text)',             desc: 'Convert to lowercase' },
+  { name: 'TRIM',         syntax: 'TRIM(text)',              desc: 'Remove extra spaces' },
+];
+
+function daColToLetters(idx) {
+  let n = idx + 1, s = '';
+  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function daLettersToCol(letters) {
+  let n = 0;
+  for (let i = 0; i < letters.length; i++) n = n * 26 + (letters.charCodeAt(i) - 64);
+  return n - 1;
+}
+function daRefToCell(ref) {
+  const m = /^([A-Za-z]+)(\d+)$/.exec(ref);
+  if (!m) return null;
+  return { col: daLettersToCol(m[1].toUpperCase()), row: parseInt(m[2], 10) - 1 };
+}
+
+function daTokenize(str) {
+  const tokens = []; let i = 0; const n = str.length;
+  while (i < n) {
+    const c = str[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === '"') {
+      let j = i + 1, s = '';
+      while (j < n && str[j] !== '"') { s += str[j]; j++; }
+      tokens.push({ type: 'string', value: s }); i = j + 1; continue;
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(str[i + 1] || ''))) {
+      let j = i, s = '';
+      while (j < n && /[0-9.]/.test(str[j])) { s += str[j]; j++; }
+      tokens.push({ type: 'number', value: parseFloat(s) }); i = j; continue;
+    }
+    if (/[A-Za-z]/.test(c)) {
+      let j = i, s = '';
+      while (j < n && /[A-Za-z0-9_]/.test(str[j])) { s += str[j]; j++; }
+      tokens.push({ type: 'ident', value: s }); i = j; continue;
+    }
+    if (c === '<' && str[i + 1] === '>') { tokens.push({ type: 'op', value: '<>' }); i += 2; continue; }
+    if (c === '<' && str[i + 1] === '=') { tokens.push({ type: 'op', value: '<=' }); i += 2; continue; }
+    if (c === '>' && str[i + 1] === '=') { tokens.push({ type: 'op', value: '>=' }); i += 2; continue; }
+    if ('+-*/^(),:%=<>'.includes(c)) { tokens.push({ type: 'op', value: c }); i++; continue; }
+    throw new Error('Unexpected character: ' + c);
+  }
+  return tokens;
+}
+
+function daParseFormula(tokens) {
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+  const expect = (val) => { const t = next(); if (!t || t.value !== val) throw new Error('Expected ' + val); return t; };
+
+  function parseExpression() { return parseComparison(); }
+  function parseComparison() {
+    let left = parseTerm();
+    while (peek() && peek().type === 'op' && ['=', '<>', '<=', '>=', '<', '>'].includes(peek().value)) {
+      const op = next().value; left = { type: 'binop', op, left, right: parseTerm() };
+    }
+    return left;
+  }
+  function parseTerm() {
+    let left = parseFactor();
+    while (peek() && peek().type === 'op' && (peek().value === '+' || peek().value === '-')) {
+      const op = next().value; left = { type: 'binop', op, left, right: parseFactor() };
+    }
+    return left;
+  }
+  function parseFactor() {
+    let left = parseUnary();
+    while (peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/')) {
+      const op = next().value; left = { type: 'binop', op, left, right: parseUnary() };
+    }
+    return left;
+  }
+  function parseUnary() {
+    if (peek() && peek().type === 'op' && (peek().value === '-' || peek().value === '+')) {
+      const op = next().value; return { type: 'unary', op, val: parseUnary() };
+    }
+    return parsePower();
+  }
+  function parsePower() {
+    let left = parsePrimary();
+    if (peek() && peek().type === 'op' && peek().value === '^') {
+      next(); return { type: 'binop', op: '^', left, right: parseUnary() };
+    }
+    return left;
+  }
+  function parsePrimary() {
+    const t = peek();
+    if (!t) throw new Error('Unexpected end of formula');
+    if (t.type === 'number') { next(); return { type: 'number', value: t.value }; }
+    if (t.type === 'string') { next(); return { type: 'string', value: t.value }; }
+    if (t.type === 'op' && t.value === '(') {
+      next(); const e = parseExpression(); expect(')'); return e;
+    }
+    if (t.type === 'ident') {
+      next();
+      if (peek() && peek().type === 'op' && peek().value === '(') {
+        next();
+        const args = [];
+        if (!(peek() && peek().type === 'op' && peek().value === ')')) {
+          args.push(parseExpression());
+          while (peek() && peek().type === 'op' && peek().value === ',') { next(); args.push(parseExpression()); }
+        }
+        expect(')');
+        return { type: 'call', name: t.value.toUpperCase(), args };
+      }
+      if (/^[A-Za-z]+[0-9]+$/.test(t.value)) {
+        if (peek() && peek().type === 'op' && peek().value === ':') {
+          next();
+          const t2 = next();
+          if (!t2 || !/^[A-Za-z]+[0-9]+$/.test(t2.value)) throw new Error('Invalid range');
+          return { type: 'range', from: t.value.toUpperCase(), to: t2.value.toUpperCase() };
+        }
+        return { type: 'ref', ref: t.value.toUpperCase() };
+      }
+      if (/^TRUE$/i.test(t.value)) return { type: 'bool', value: true };
+      if (/^FALSE$/i.test(t.value)) return { type: 'bool', value: false };
+      throw new Error('Unknown name: ' + t.value);
+    }
+    throw new Error('Unexpected token in formula');
+  }
+
+  const ast = parseExpression();
+  if (pos !== tokens.length) throw new Error('Unexpected trailing characters');
+  return ast;
+}
+
+// Strips thousands separators / currency symbols / stray whitespace so
+// "420,000", "$420,000", " 420,000 " all parse as the full number 420000
+// instead of parseFloat's default behaviour of stopping at the first comma
+// (which silently truncated "420,000" down to 420).
+function daCleanNum(v) {
+  if (typeof v !== 'string') return v;
+  const trimmed = v.trim();
+  // Unwrap accounting-style negatives like "(1,234)" -> "-1234", then strip
+  // currency symbols / thousands commas / percent sign / whitespace while
+  // keeping the decimal point and minus sign intact.
+  let s = trimmed.replace(/^\(([^()]+)\)$/, '-$1');
+  s = s.replace(/[$€£₹,\s]/g, '');
+  s = s.replace(/%$/, '');
+  return s === '' ? trimmed : s;
+}
+
+function daToNumber(v) {
+  if (Array.isArray(v)) throw { formulaError: '#VALUE!' };
+  if (typeof v === 'number') return v;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (v === '' || v == null) return 0;
+  const n = parseFloat(daCleanNum(v));
+  if (isNaN(n)) throw { formulaError: '#VALUE!' };
+  return n;
+}
+function daIsTruthy(v) {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') return v.trim() !== '' && v.toUpperCase() !== 'FALSE';
+  return !!v;
+}
+
+function daGetCellComputedValue(ds, row, col, visiting) {
+  if (row < 0 || col < 0 || row >= ds.rows.length || col >= ds.headers.length) return '';
+  const key = row + ',' + col;
+  if (ds._calcCache && ds._calcCache.has(key)) return ds._calcCache.get(key);
+  const raw = String((ds.rows[row] || [])[col] ?? '');
+  if (!raw.trim().startsWith('=')) {
+    const cleaned = daCleanNum(raw);
+    const n = parseFloat(cleaned);
+    return (raw.trim() !== '' && !isNaN(n) && isFinite(cleaned)) ? n : raw;
+  }
+  if (visiting.has(key)) throw { formulaError: '#CIRCULAR!' };
+  visiting.add(key);
+  try {
+    const ast = daParseFormula(daTokenize(raw.trim().slice(1)));
+    const result = daEvalAst(ast, ds, visiting);
+    if (ds._calcCache) ds._calcCache.set(key, result);
+    visiting.delete(key);
+    return result;
+  } catch (e) {
+    visiting.delete(key);
+    throw e;
+  }
+}
+
+function daEvalArgsFlat(argNodes, ds, visiting) {
+  const out = [];
+  argNodes.forEach(a => { const v = daEvalAst(a, ds, visiting); if (Array.isArray(v)) out.push(...v); else out.push(v); });
+  return out;
+}
+function daNumericList(argNodes, ds, visiting) {
+  return daEvalArgsFlat(argNodes, ds, visiting)
+    .filter(v => v !== '' && v != null && typeof v !== 'boolean' && !isNaN(parseFloat(daCleanNum(v))))
+    .map(v => parseFloat(daCleanNum(v)));
+}
+
+function daCallFunction(name, argNodes, ds, visiting) {
+  switch (name) {
+    case 'SUM': return daNumericList(argNodes, ds, visiting).reduce((s, v) => s + v, 0);
+    case 'AVERAGE': case 'AVG': {
+      const vals = daNumericList(argNodes, ds, visiting);
+      if (!vals.length) throw { formulaError: '#DIV/0!' };
+      return vals.reduce((s, v) => s + v, 0) / vals.length;
+    }
+    case 'MIN': { const vals = daNumericList(argNodes, ds, visiting); return vals.length ? Math.min(...vals) : 0; }
+    case 'MAX': { const vals = daNumericList(argNodes, ds, visiting); return vals.length ? Math.max(...vals) : 0; }
+    case 'COUNT': return daNumericList(argNodes, ds, visiting).length;
+    case 'COUNTA': return daEvalArgsFlat(argNodes, ds, visiting).filter(v => v !== '' && v != null).length;
+    case 'PRODUCT': { const vals = daNumericList(argNodes, ds, visiting); return vals.length ? vals.reduce((p, v) => p * v, 1) : 0; }
+    case 'MEDIAN': {
+      const vals = daNumericList(argNodes, ds, visiting).sort((a, b) => a - b);
+      if (!vals.length) throw { formulaError: '#DIV/0!' };
+      const mid = Math.floor(vals.length / 2);
+      return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+    }
+    case 'ROUND': { const v = daEvalArgsFlat(argNodes, ds, visiting); const x = daToNumber(v[0]); const d = v[1] != null ? daToNumber(v[1]) : 0; const f = Math.pow(10, d); return Math.round(x * f) / f; }
+    case 'ROUNDUP': { const v = daEvalArgsFlat(argNodes, ds, visiting); const x = daToNumber(v[0]); const d = v[1] != null ? daToNumber(v[1]) : 0; const f = Math.pow(10, d); return (x >= 0 ? Math.ceil(x * f) : Math.floor(x * f)) / f; }
+    case 'ROUNDDOWN': { const v = daEvalArgsFlat(argNodes, ds, visiting); const x = daToNumber(v[0]); const d = v[1] != null ? daToNumber(v[1]) : 0; const f = Math.pow(10, d); return (x >= 0 ? Math.floor(x * f) : Math.ceil(x * f)) / f; }
+    case 'ABS': return Math.abs(daToNumber(daEvalArgsFlat(argNodes, ds, visiting)[0]));
+    case 'SQRT': { const x = daToNumber(daEvalArgsFlat(argNodes, ds, visiting)[0]); if (x < 0) throw { formulaError: '#NUM!' }; return Math.sqrt(x); }
+    case 'POWER': { const v = daEvalArgsFlat(argNodes, ds, visiting); return Math.pow(daToNumber(v[0]), daToNumber(v[1])); }
+    case 'MOD': { const v = daEvalArgsFlat(argNodes, ds, visiting); const a = daToNumber(v[0]), b = daToNumber(v[1]); if (b === 0) throw { formulaError: '#DIV/0!' }; return a - b * Math.floor(a / b); }
+    case 'IF': {
+      const cond = daIsTruthy(daEvalAst(argNodes[0], ds, visiting));
+      if (cond) return argNodes[1] ? daEvalAst(argNodes[1], ds, visiting) : true;
+      return argNodes[2] ? daEvalAst(argNodes[2], ds, visiting) : false;
+    }
+    case 'AND': return argNodes.every(a => daIsTruthy(daEvalAst(a, ds, visiting)));
+    case 'OR': return argNodes.some(a => daIsTruthy(daEvalAst(a, ds, visiting)));
+    case 'NOT': return !daIsTruthy(daEvalAst(argNodes[0], ds, visiting));
+    case 'CONCAT': case 'CONCATENATE': return daEvalArgsFlat(argNodes, ds, visiting).map(v => String(v ?? '')).join('');
+    case 'LEN': return String(daEvalArgsFlat(argNodes, ds, visiting)[0] ?? '').length;
+    case 'UPPER': return String(daEvalArgsFlat(argNodes, ds, visiting)[0] ?? '').toUpperCase();
+    case 'LOWER': return String(daEvalArgsFlat(argNodes, ds, visiting)[0] ?? '').toLowerCase();
+    case 'TRIM': return String(daEvalArgsFlat(argNodes, ds, visiting)[0] ?? '').trim();
+    default: throw { formulaError: '#NAME?' };
+  }
+}
+
+function daEvalAst(node, ds, visiting) {
+  switch (node.type) {
+    case 'number': return node.value;
+    case 'string': return node.value;
+    case 'bool': return node.value;
+    case 'ref': {
+      const cell = daRefToCell(node.ref);
+      if (!cell) throw { formulaError: '#REF!' };
+      return daGetCellComputedValue(ds, cell.row, cell.col, visiting);
+    }
+    case 'range': {
+      const from = daRefToCell(node.from), to = daRefToCell(node.to);
+      if (!from || !to) throw { formulaError: '#REF!' };
+      const r1 = Math.min(from.row, to.row), r2 = Math.max(from.row, to.row);
+      const c1 = Math.min(from.col, to.col), c2 = Math.max(from.col, to.col);
+      const arr = [];
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) arr.push(daGetCellComputedValue(ds, r, c, visiting));
+      return arr;
+    }
+    case 'unary': { const v = daToNumber(daEvalAst(node.val, ds, visiting)); return node.op === '-' ? -v : v; }
+    case 'binop': {
+      if (['=', '<>', '<', '>', '<=', '>='].includes(node.op)) {
+        let l = daEvalAst(node.left, ds, visiting), r = daEvalAst(node.right, ds, visiting);
+        if (Array.isArray(l)) l = l.length ? l[0] : '';
+        if (Array.isArray(r)) r = r.length ? r[0] : '';
+        switch (node.op) {
+          case '=': return l == r;
+          case '<>': return l != r;
+          case '<': return daToNumber(l) < daToNumber(r);
+          case '>': return daToNumber(l) > daToNumber(r);
+          case '<=': return daToNumber(l) <= daToNumber(r);
+          case '>=': return daToNumber(l) >= daToNumber(r);
+        }
+      }
+      const l = daToNumber(daEvalAst(node.left, ds, visiting)), r = daToNumber(daEvalAst(node.right, ds, visiting));
+      switch (node.op) {
+        case '+': return l + r;
+        case '-': return l - r;
+        case '*': return l * r;
+        case '/': if (r === 0) throw { formulaError: '#DIV/0!' }; return l / r;
+        case '^': return Math.pow(l, r);
+      }
+      break;
+    }
+    case 'call': return daCallFunction(node.name, node.args, ds, visiting);
+  }
+  throw { formulaError: '#ERROR!' };
+}
+
+function daFormatFormulaResult(val) {
+  if (Array.isArray(val)) val = val.length ? val[0] : '';
+  if (val && val.formulaError) return val.formulaError;
+  if (typeof val === 'number') {
+    if (!isFinite(val)) return '#NUM!';
+    return String(Math.round(val * 1e10) / 1e10);
+  }
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  return String(val ?? '');
+}
+
+// Returns {display, isFormula, isError} for one cell, safe to call on any
+// cell regardless of whether it holds a formula, a plain value, or nothing.
+function daFormulaDisplayValue(ds, row, col) {
+  const raw = String((ds.rows[row] || [])[col] ?? '');
+  if (!raw.trim().startsWith('=')) return { display: raw, isFormula: false, isError: false };
+  try {
+    const val = daGetCellComputedValue(ds, row, col, new Set());
+    return { display: daFormatFormulaResult(val), isFormula: true, isError: false };
+  } catch (e) {
+    return { display: (e && e.formulaError) || '#ERROR!', isFormula: true, isError: true };
+  }
+}
+
+// Anything leaving the grid (export files, Push to Diagrams, Push to
+// Workflow) should carry computed results, not the raw "=SUM(A1:A5)" text,
+// exactly like copying cells out of a real spreadsheet.
+function daComputedRowsForExport(ds) {
+  if (!ds) return [];
+  ds._calcCache = new Map();
+  return ds.rows.map((row, ri) => row.map((cell, ci) => {
+    const val = String(cell ?? '');
+    if (!val.trim().startsWith('=')) return val;
+    return daFormulaDisplayValue(ds, ri, ci).display;
+  }));
+}
+
+// ─── Formula bar + fx picker + AutoSum ──────────────────────────────────
+let daActiveCell = null; // { row, col } into the active dataset, or null
+
+function daPlaceCaretEnd(el) {
+  if (typeof window.getSelection === 'undefined' || typeof document.createRange === 'undefined') return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function daCellFocus(el, ri, ci) {
+  const ds = daGetActive(); if (!ds) return;
+  daActiveCell = { row: ri, col: ci };
+  const raw = String((ds.rows[ri] || [])[ci] ?? '');
+  el.textContent = raw;
+  daPlaceCaretEnd(el);
+  daUpdateFormulaBar(ri, ci, raw);
+}
+
+function daUpdateFormulaBar(ri, ci, raw) {
+  const refEl = document.getElementById('daFormulaBarRef');
+  const inputEl = document.getElementById('daFormulaBarInput');
+  if (refEl) refEl.textContent = daColToLetters(ci) + (ri + 1);
+  if (inputEl) { inputEl.disabled = false; inputEl.value = raw; }
+}
+
+function daResetFormulaBar() {
+  daActiveCell = null;
+  const refEl = document.getElementById('daFormulaBarRef');
+  const inputEl = document.getElementById('daFormulaBarInput');
+  if (refEl) refEl.textContent = '–';
+  if (inputEl) { inputEl.value = ''; inputEl.disabled = true; }
+}
+
+function daFormulaBarInputChanged() {
+  // Live-typing here doesn't touch the grid until commit (Enter/blur), so a
+  // half-typed formula never gets treated as the real cell value.
+}
+
+function daFormulaBarCommit(refocusGrid) {
+  if (!daActiveCell) return;
+  const inputEl = document.getElementById('daFormulaBarInput');
+  if (!inputEl) return;
+  const { row, col } = daActiveCell;
+  daUpdateCell(row, col, inputEl.value);
+  const ds = daGetActive();
+  if (ds) daUpdateFormulaBar(row, col, String((ds.rows[row] || [])[col] ?? ''));
+  if (refocusGrid) inputEl.blur();
+}
+
+function daToggleFxMenu(e) {
+  if (e) e.stopPropagation();
+  const pop = document.getElementById('daFxPopover');
+  if (!pop) return;
+  const willOpen = !pop.classList.contains('open');
+  if (willOpen) {
+    pop.innerHTML = DA_FUNCTIONS.map(f =>
+      `<div class="da-fx-item" onclick="daInsertFunction('${f.name}')">
+        <span class="da-fx-name">${f.name}</span>
+        <span class="da-fx-syntax">${daEsc(f.syntax)}</span>
+        <span class="da-fx-desc">${daEsc(f.desc)}</span>
+      </div>`).join('');
+  }
+  pop.classList.toggle('open', willOpen);
+}
+document.addEventListener('click', function(e) {
+  const pop = document.getElementById('daFxPopover');
+  const btn = document.getElementById('daFxBtn');
+  if (pop && pop.classList.contains('open') && !pop.contains(e.target) && (!btn || !btn.contains(e.target))) {
+    pop.classList.remove('open');
+  }
+});
+
+function daInsertFunction(name) {
+  const pop = document.getElementById('daFxPopover');
+  if (pop) pop.classList.remove('open');
+  if (!daActiveCell) { toast('Click a cell first, then pick a function to insert', 'info'); return; }
+  const inputEl = document.getElementById('daFormulaBarInput');
+  if (!inputEl) return;
+  let cur = inputEl.value || '';
+  if (!cur.trim().startsWith('=')) cur = '=';
+  cur += name + '(';
+  inputEl.value = cur;
+  inputEl.focus();
+}
+
+// Excel-style AutoSum: sums every numeric cell above the active cell in the
+// same column, e.g. clicking B6 and hitting AutoSum drops in =SUM(B1:B5).
+function daAutoSum() {
+  if (!daActiveCell) { toast('Click a cell first, then AutoSum', 'info'); return; }
+  const ds = daGetActive(); if (!ds) return;
+  const { row, col } = daActiveCell;
+  if (row <= 0) { toast('Need at least one row above this cell to sum', 'info'); return; }
+  const colLetter = daColToLetters(col);
+  const formula = `=SUM(${colLetter}1:${colLetter}${row})`;
+  daUpdateCell(row, col, formula);
+  daUpdateFormulaBar(row, col, formula);
+  toast(`Added ${formula}`, 'success');
+}
+
+// A row counts as a reusable "totals" row when every text-type column in it
+// is blank — i.e. it only ever holds numbers dropped in by daColumnOp below,
+// never a real record. That's what lets +, then × on another column, land
+// in the same bottom row instead of spawning a new one each click.
+function daIsTotalsRow(ds, ri) {
+  const row = ds.rows[ri];
+  if (!row) return false;
+  return ds.headers.every((_, ci) => daIsNumericCol(ds, ci) || String(row[ci] ?? '').trim() === '');
+}
+
+function daFormatResultNumber(n) {
+  if (!isFinite(n)) return String(n);
+  // Round off float noise (e.g. 0.1 + 0.2) without mangling real decimals.
+  return String(Math.round(n * 1e6) / 1e6);
+}
+
+// Reads every numeric value currently in a column, skipping any row that
+// counts as the shared totals row (so a column's own running result never
+// folds into itself) and, optionally, one extra row index to exclude (used
+// during recalculation, where that row IS the totals row being written to).
+function daGatherColumnValues(ds, colIdx, excludeRowIdx) {
+  const values = [];
+  ds.rows.forEach((row, ri) => {
+    if (ri === excludeRowIdx) return;
+    if (daIsTotalsRow(ds, ri)) return;
+    const raw = String(row[colIdx] ?? '');
+    if (raw.trim() === '') return;
+    let v;
+    if (raw.trim().startsWith('=')) {
+      const res = daFormulaDisplayValue(ds, ri, colIdx);
+      if (res.isError) return;
+      v = parseFloat(daCleanNum(String(res.display)));
+    } else {
+      v = parseFloat(daCleanNum(raw));
+    }
+    if (!isNaN(v)) values.push(v);
+  });
+  return values;
+}
+
+// Pure math for a gathered value list. Returns null when the op can't be
+// computed (empty list, or a divide-by-zero partway through).
+function daComputeOpResult(values, op) {
+  if (!values.length) return null;
+  if (op === '+') return values.reduce((s, v) => s + v, 0);
+  if (op === '*') return values.reduce((s, v) => s * v, 1);
+  if (op === '-') return values.reduce((s, v, i) => i === 0 ? v : s - v);
+  if (op === 'avg') return values.reduce((s, v) => s + v, 0) / values.length;
+  if (op === '/') {
+    if (values.slice(1).some(v => v === 0)) return null;
+    return values.reduce((s, v, i) => i === 0 ? v : s / v);
+  }
+  return null;
+}
+
+// Tiny per-column quick-math, triggered by the +/−/×/÷/AVG buttons under a
+// numeric column's header. Clicking one "arms" that column: from then on the
+// chosen operation is remembered (ds.colOps) and kept live in the shared
+// totals row automatically, any time a row is added, deleted, or a cell
+// edited — no need to re-click after every change. Clicking the same,
+// already-active button again turns auto-calc back off for that column.
+function daColumnOp(colIdx, op) {
+  const ds = daGetActive(); if (!ds) return;
+  ds.colOps = ds.colOps || {};
+  ds._calcCache = new Map();
+
+  if (ds.colOps[colIdx] === op) {
+    delete ds.colOps[colIdx];
+    const rowIdx = ds.rows.findIndex((row, ri) => daIsTotalsRow(ds, ri));
+    if (rowIdx !== -1) ds.rows[rowIdx][colIdx] = '';
+    daRenderTable();
+    toast(`Turned off auto-calculate for column ${daColToLetters(colIdx)}`, 'info');
+    return;
+  }
+
+  const values = daGatherColumnValues(ds, colIdx, -1);
+  if (!values.length) { toast('No numbers in this column yet', 'info'); return; }
+  if (op === '/' && values.slice(1).some(v => v === 0)) { toast("Can't divide, one of the values is 0", 'error'); return; }
+
+  ds.colOps[colIdx] = op;
+  daRecalcColumnOps(ds);
+  daRenderTable();
+  const wrap = document.getElementById('daGridWrap');
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+  const opLabel = { '+': 'Sum', '-': 'Difference', '*': 'Product', '/': 'Quotient', 'avg': 'Average' }[op];
+  const rowIdx = ds.rows.findIndex((row, ri) => daIsTotalsRow(ds, ri));
+  const shown = rowIdx !== -1 ? ds.rows[rowIdx][colIdx] : '';
+  toast(`${opLabel} (${daColToLetters(colIdx)}) will auto-update: ${shown}`, 'success');
+}
+
+// Recomputes every column that has a "live" op armed (see daColumnOp above)
+// against the table's current rows, and writes the fresh results back into
+// the shared totals row. Called after any change that could shift the
+// numbers a column op depends on: rows added/removed, a column removed, or
+// any cell edited. Columns with no op armed are left completely alone.
+function daRecalcColumnOps(ds) {
+  if (!ds || !ds.colOps) return;
+  const activeCols = Object.keys(ds.colOps).map(Number).filter(ci => ci < ds.headers.length);
+  if (!activeCols.length) return;
+  ds._calcCache = new Map();
+
+  let rowIdx = ds.rows.findIndex((row, ri) => daIsTotalsRow(ds, ri));
+  if (rowIdx === -1) {
+    ds.rows.push(new Array(ds.headers.length).fill(''));
+    rowIdx = ds.rows.length - 1;
+  }
+  activeCols.forEach(ci => {
+    const op = ds.colOps[ci];
+    const values = daGatherColumnValues(ds, ci, rowIdx);
+    const result = daComputeOpResult(values, op);
+    ds.rows[rowIdx][ci] = (result === null) ? '' : daFormatResultNumber(result);
+  });
+}
+
 
 function daRenderTable() {
   const gridWrap = document.getElementById('daGridWrap');
@@ -20482,13 +21374,28 @@ function daRenderTable() {
 
   const colTypes = ds.headers.map((_, ci) => daIsNumericCol(ds, ci) ? 'NUM' : 'TXT');
 
-  let html = `<table class="da-table${ds.frozen ? ' da-frozen' : ''}"><thead><tr>`;
+  // Fresh per-render cache so formulas re-evaluate against the latest edits,
+  // but repeated references within the same render (e.g. a range used by
+  // two different SUMs) don't get recomputed cell by cell.
+  ds._calcCache = new Map();
+
+  let html = `<table class="da-table${ds.frozen ? ' da-frozen' : ''}"><thead>`;
+  html += `<tr class="da-collabels-row"><th class="da-rownum"></th>`;
+  ds.headers.forEach((_, ci) => { html += `<th class="da-collabel">${daColToLetters(ci)}</th>`; });
+  html += `</tr><tr>`;
   html += `<th class="da-rownum">#</th>`;
   ds.headers.forEach((h, ci) => {
     html += `<th>
       <div class="da-th-cell" contenteditable="true" spellcheck="false"
            onblur="daRenameHeader(${ci}, this.textContent)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${daEsc(h)}<span class="da-th-type">${colTypes[ci]}</span><span class="da-th-del" title="Delete column" onclick="daDeleteColumn(${ci})">×</span></div>
+      ${colTypes[ci] === 'NUM' ? `<div class="da-th-ops">
+        <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '+' ? ' da-th-opbtn-active' : ''}" title="Sum this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '+')">+</button>
+        <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '-' ? ' da-th-opbtn-active' : ''}" title="Subtract down this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '-')">−</button>
+        <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '*' ? ' da-th-opbtn-active' : ''}" title="Multiply this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '*')">×</button>
+        <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '/' ? ' da-th-opbtn-active' : ''}" title="Divide down this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '/')">÷</button>
+        <button type="button" class="da-th-opbtn da-th-opbtn-avg${ds.colOps && ds.colOps[ci] === 'avg' ? ' da-th-opbtn-active' : ''}" title="Average this column, auto-updates as rows change" onclick="daColumnOp(${ci}, 'avg')">AVG</button>
+      </div>` : ''}
     </th>`;
   });
   html += `</tr></thead><tbody>`;
@@ -20501,11 +21408,28 @@ function daRenderTable() {
       html += `<tr><td class="da-rownum"><div class="da-rownum-inner"><span class="da-row-num-text">${ri + 1}</span><span class="da-row-del-btn" title="Delete row" onclick="daDeleteRow(${ri})">×</span></div></td>`;
       row.forEach((cell, ci) => {
         const val = String(cell ?? '');
-        const isNum = colTypes[ci] === 'NUM' && val.trim() !== '' && !isNaN(parseFloat(val));
-        const display = query && val.toLowerCase().includes(query) ? daHighlight(val, query) : daEsc(val);
-        html += `<td><div class="da-td-cell${isNum ? ' da-cell-num' : ''}${val === '' ? ' da-cell-empty' : ''}" contenteditable="true" spellcheck="false"
+        const isFormula = val.trim().startsWith('=');
+        let displayRaw, isError = false;
+        if (isFormula) {
+          const res = daFormulaDisplayValue(ds, ri, ci);
+          displayRaw = res.display; isError = res.isError;
+        } else {
+          displayRaw = val;
+        }
+        const isNum = !isFormula && colTypes[ci] === 'NUM' && displayRaw.trim() !== '' && !isNaN(parseFloat(displayRaw));
+        const isNumFormula = isFormula && !isError && displayRaw.trim() !== '' && !isNaN(parseFloat(displayRaw));
+        const showVal = (!isFormula && query && val.toLowerCase().includes(query)) ? daHighlight(val, query) : daEsc(displayRaw);
+        const cls = [
+          (isNum || isNumFormula) ? 'da-cell-num' : '',
+          (!isFormula && displayRaw === '') ? 'da-cell-empty' : '',
+          isFormula ? 'da-cell-formula' : '',
+          isError ? 'da-cell-error' : ''
+        ].filter(Boolean).join(' ');
+        html += `<td><div class="da-td-cell${cls ? ' ' + cls : ''}" contenteditable="true" spellcheck="false"
+             onfocus="daCellFocus(this, ${ri}, ${ci})"
              onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${val === '' ? '—' : display}</div></td>`;
+             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+             title="${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : '')}">${!isFormula && displayRaw === '' ? '—' : showVal}</div></td>`;
       });
       html += `</tr>`;
     });
@@ -20531,12 +21455,17 @@ function daUpdateCell(rowIdx, colIdx, newVal) {
   const ds = daGetActive(); if (!ds) return;
   const val = newVal === '—' ? '' : newVal.trim();
   ds.rows[rowIdx][colIdx] = val;
+  daRecalcColumnOps(ds);
   daRenderTable();
+  if (daActiveCell && daActiveCell.row === rowIdx && daActiveCell.col === colIdx) {
+    daUpdateFormulaBar(rowIdx, colIdx, val);
+  }
 }
 
 function daAddRow() {
   const ds = daGetActive(); if (!ds) { toast('Upload a file first', 'info'); return; }
   ds.rows.push(new Array(ds.headers.length).fill(''));
+  daRecalcColumnOps(ds);
   daRenderTable();
   const wrap = document.getElementById('daGridWrap');
   wrap.scrollTop = wrap.scrollHeight;
@@ -20552,6 +21481,7 @@ function daAddColumn() {
 function daDeleteRow(rowIdx) {
   const ds = daGetActive(); if (!ds) return;
   ds.rows.splice(rowIdx, 1);
+  daRecalcColumnOps(ds);
   daRenderTable();
 }
 
@@ -20560,6 +21490,18 @@ function daDeleteColumn(colIdx) {
   if (ds.headers.length <= 1) { toast('A table needs at least one column', 'info'); return; }
   ds.headers.splice(colIdx, 1);
   ds.rows.forEach(r => r.splice(colIdx, 1));
+  // Shift/drop any armed column ops so they still point at the right column
+  // after everything to the right of the deleted one shifts left by one.
+  if (ds.colOps) {
+    const shifted = {};
+    Object.keys(ds.colOps).forEach(k => {
+      const ci = Number(k);
+      if (ci === colIdx) return;
+      shifted[ci > colIdx ? ci - 1 : ci] = ds.colOps[k];
+    });
+    ds.colOps = shifted;
+  }
+  daRecalcColumnOps(ds);
   daRenderTable();
 }
 
@@ -20639,7 +21581,7 @@ function daPushToDiagrams() {
 
   // dgOnUploadParsed expects a plain array-of-arrays (header row + data rows),
   // exactly what daNormalize would produce from a raw file upload.
-  const aoa = [ds.headers.slice(), ...ds.rows.map(r => r.slice())];
+  const aoa = [ds.headers.slice(), ...daComputedRowsForExport(ds)];
   const name = ds.name || 'Table data';
 
   // If Diagrams & Graphs already has a real chart loaded (not just the
@@ -20693,7 +21635,7 @@ async function daPushToWorkflow(mode) {
       truncatedCols = headers.length - DA_PUSH_MAX_COLS;
       headers = headers.slice(0, DA_PUSH_MAX_COLS);
     }
-    const allRows = (ds.rows || []).map(r => r.slice(0, headers.length));
+    const allRows = daComputedRowsForExport(ds).map(r => r.slice(0, headers.length));
 
     // Work out column widths & font size ONCE from the whole dataset, so
     // every page of a multi-page push lines up with the same column layout.
@@ -20933,7 +21875,7 @@ async function pdfedAppendTableFitPages(chunks, headers, layout) {
 
 function daDownloadCSV(dsArg) {
   const ds = dsArg || daGetActive(); if (!ds) { toast('Nothing to download yet', 'info'); return; }
-  const blob = new Blob(['\uFEFF' + daRowsToCSV(ds.headers, ds.rows)], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + daRowsToCSV(ds.headers, daComputedRowsForExport(ds))], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `${ds.name || 'data'}.csv`;
@@ -20944,10 +21886,11 @@ function daDownloadCSV(dsArg) {
 
 function daDownloadXLSX(dsArg) {
   const ds = dsArg || daGetActive(); if (!ds) { toast('Nothing to download yet', 'info'); return; }
-  const aoa = [ds.headers, ...ds.rows];
+  const computedRows = daComputedRowsForExport(ds);
+  const aoa = [ds.headers, ...computedRows];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = ds.headers.map((h, ci) => {
-    const maxLen = Math.max(String(h).length, ...ds.rows.slice(0, 200).map(r => String(r[ci] ?? '').length));
+    const maxLen = Math.max(String(h).length, ...computedRows.slice(0, 200).map(r => String(r[ci] ?? '').length));
     return { wch: Math.min(Math.max(maxLen + 2, 10), 40) };
   });
   const wb = XLSX.utils.book_new();
@@ -21089,7 +22032,7 @@ function daExportUpdatePreview(idx) {
   } else {
     if (!wrap.contains(table)) { wrap.innerHTML = ''; wrap.appendChild(table); }
     const cols = ds.headers.slice(0, 6);
-    const rows = ds.rows.slice(0, 6);
+    const rows = daComputedRowsForExport(ds).slice(0, 6);
     let html = '<thead><tr>' + cols.map(h => `<th>${daEscHtml(String(h ?? ''))}</th>`).join('') +
       (ds.headers.length > 6 ? '<th>…</th>' : '') + '</tr></thead><tbody>';
     rows.forEach(r => {
@@ -21122,14 +22065,14 @@ function daExportPreviewStep(dir) {
 }
 
 function daBuildCombinedCSV(datasetsArr) {
-  return datasetsArr.map(ds => `# ${ds.name || 'Table'}\n` + daRowsToCSV(ds.headers, ds.rows)).join('\n\n');
+  return datasetsArr.map(ds => `# ${ds.name || 'Table'}\n` + daRowsToCSV(ds.headers, daComputedRowsForExport(ds))).join('\n\n');
 }
 
 function daDownloadXLSXMulti(datasetsArr, fname) {
   const wb = XLSX.utils.book_new();
   const usedNames = new Set();
   datasetsArr.forEach(ds => {
-    const aoa = [ds.headers, ...ds.rows];
+    const aoa = [ds.headers, ...daComputedRowsForExport(ds)];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     let sheetName = (ds.name || 'Sheet').slice(0, 31) || 'Sheet';
     let i = 2;
@@ -21167,7 +22110,7 @@ function daBuildPdfDoc(datasetsArr) {
     pdf.text(ds.name || 'Untitled Table', marginX, y - 6);
 
     const headers = ds.headers && ds.headers.length ? ds.headers : ['Column 1'];
-    const rows = ds.rows || [];
+    const rows = daComputedRowsForExport(ds);
     const colCount = headers.length;
     const colW = usableW / colCount;
 
@@ -21234,7 +22177,7 @@ async function daExportDOCXFile(datasetsArr, fname) {
     datasetsArr.forEach((ds, idx) => {
       if (idx > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
       bodyXml += `<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t xml:space="preserve">${pdfedXmlEscape(ds.name || 'Table')}</w:t></w:r></w:p>`;
-      const aoa = [ds.headers || [], ...(ds.rows || [])];
+      const aoa = [ds.headers || [], ...daComputedRowsForExport(ds)];
       bodyXml += pdfedBuildDocxTableXml(aoa);
       bodyXml += '<w:p/>';
     });
@@ -23105,6 +24048,7 @@ const DG_DROPDOWNS = [
   { groupId: 'dgTemplatesGroup', ddId: 'dgTemplatesDropdown' },
   { groupId: 'dgColourGroup',    ddId: 'dgColoursBody' },
   { groupId: 'dgUploadGroup',    ddId: 'dgUploadDropdown' },
+  { groupId: 'dgColumnsGroup',   ddId: 'dgColumnsDropdown' },
   { groupId: 'dgDataGroup',      ddId: 'dgDataDropdown' },
   { groupId: 'dgHistoryGroup',   ddId: 'dgHistoryDropdown' },
   { groupId: 'dgExportGroup',    ddId: 'dgExportDropdown' }
@@ -23244,6 +24188,22 @@ function dgToggleUploadDropdown(e) {
   const dd = document.getElementById('dgUploadDropdown');
   const group = document.getElementById('dgUploadGroup');
   dgCloseAllDropdowns('dgUploadDropdown');
+  const isOpen = dd.classList.toggle('open');
+  if (isOpen) {
+    const rect = group.getBoundingClientRect();
+    let left = rect.left;
+    const panelW = 300;
+    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
+    dd.style.top = (rect.bottom + 6) + 'px';
+    dd.style.left = left + 'px';
+  }
+}
+function dgToggleColumnsDropdown(e) {
+  if (e) e.stopPropagation();
+  if (!dgUploadParsed) { toast('Upload a data file first, then pick columns here', 'info'); return; }
+  const dd = document.getElementById('dgColumnsDropdown');
+  const group = document.getElementById('dgColumnsGroup');
+  dgCloseAllDropdowns('dgColumnsDropdown');
   const isOpen = dd.classList.toggle('open');
   if (isOpen) {
     const rect = group.getBoundingClientRect();
@@ -23471,17 +24431,22 @@ function dgProcessUploadedFile(file) {
 }
 
 function dgOnUploadParsed(aoa, fileName) {
-  const { headers, rows } = daNormalize(aoa);
+  const { headers, rows, titleRow } = daNormalize(aoa);
   if (!rows.length || headers.length < 1) { toast('No tabular data found in that file', 'info'); return; }
   dgUploadParsed = { headers, rows, fileName };
   const nameEl = document.getElementById('dgUploadFileName');
   if (nameEl) nameEl.textContent = fileName;
   dgPopulateUploadSelectors();
-  const mapWrap = document.getElementById('dgUploadMapping');
-  if (mapWrap) mapWrap.style.display = 'block';
+  const ribbonHint = document.getElementById('dgUploadRibbonHint');
+  if (ribbonHint) ribbonHint.style.display = 'block';
+  const columnsChip = document.getElementById('dgColumnsChip');
+  if (columnsChip) columnsChip.classList.add('active');
   const titleInput = document.getElementById('dgTitleInput');
   if (titleInput && (!titleInput.value.trim() || titleInput.value.trim() === 'Chart Title')) {
-    titleInput.value = daBaseName(fileName);
+    // Prefer a title actually detected inside the sheet (e.g. a spanning
+    // report title sitting above the real header row) over the filename —
+    // it's a far more accurate label than "Sheet1" or "export_final_v2".
+    titleInput.value = titleRow || daBaseName(fileName);
   }
   dgGenerateChartFromUpload();
   dgMaybeSuggestMultiChart();
@@ -23852,6 +24817,41 @@ function dgPopulateUploadSelectors() {
     const numCount = numericFlags.filter(Boolean).length;
     hint.textContent = `${dgUploadParsed.rows.length} rows detected \u00b7 ${numCount} numeric column${numCount === 1 ? '' : 's'} found. Switch columns above to re-plot instantly.`;
   }
+  dgRenderUploadPreview(numericFlags);
+}
+
+// Complex uploads (many columns, mixed types, big row counts) are hard to reason about from a
+// bare pair of dropdowns. This gives a quick visual sanity-check — column type badges plus a
+// peek at the first few rows — before the person commits to a label/value mapping.
+function dgRenderUploadPreview(numericFlags) {
+  const wrap = document.getElementById('dgUploadPreview');
+  if (!wrap || !dgUploadParsed) return;
+  const { headers, rows } = dgUploadParsed;
+  const flags = numericFlags || headers.map((_, i) => dgColumnIsNumeric(i));
+  const numCount = flags.filter(Boolean).length;
+  const textCount = headers.length - numCount;
+  const sampleRows = rows.slice(0, 4);
+  const chips = `
+    <div class="dg-upload-preview-chips">
+      <span class="dg-upload-chip">${rows.length} rows</span>
+      <span class="dg-upload-chip">${headers.length} columns</span>
+      <span class="dg-upload-chip">${numCount} numeric</span>
+      ${textCount ? `<span class="dg-upload-chip text">${textCount} text</span>` : ''}
+    </div>`;
+  const theadCells = headers.map((h, i) => `
+    <th title="${daEsc(h)}">${daEsc(h)}<span class="dg-upload-preview-type${flags[i] ? '' : ' text'}">${flags[i] ? '123 Numeric' : 'ABC Text'}</span></th>
+  `).join('');
+  const bodyRows = sampleRows.map(r => `
+    <tr>${headers.map((_, i) => `<td title="${daEsc(String(r[i] ?? ''))}">${daEsc(String(r[i] ?? ''))}</td>`).join('')}</tr>
+  `).join('');
+  wrap.innerHTML = `
+    ${chips}
+    <div class="dg-upload-preview-table-wrap">
+      <table class="dg-upload-preview-table">
+        <thead><tr>${theadCells}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
 }
 
 function dgGenerateChartFromUpload(topGrouped) {
@@ -24118,10 +25118,19 @@ function dgComputeStats(rows) {
   const dataRange = (Math.max(...vals, 0) - Math.min(...vals, 0)) || Math.abs(avg) || 1;
   const threshold = Math.max(Math.abs(avg) * 0.01, dataRange * 0.02);
   const trend = slope > threshold ? 'up' : (slope < -threshold ? 'down' : 'flat');
+  // Extra signals purely for the written Smart Analysis paragraph below — spread/volatility,
+  // how concentrated the total is in the top item, and any values that sit far outside the pack.
+  const variance = vals.reduce((a, v) => a + Math.pow(v - avg, 2), 0) / n;
+  const stdDev = Math.sqrt(variance);
+  const coefVar = avg !== 0 ? Math.abs(stdDev / avg) : 0;
+  const topShare = total !== 0 ? (maxRow.value / total) * 100 : 0;
+  const sorted = [...rows].sort((a, b) => b.value - a.value);
+  const outliers = rows.filter(r => Math.abs(r.value - avg) > stdDev * 1.8 && stdDev > 0);
+  const aboveAvgCount = vals.filter(v => v > avg).length;
   return {
     total, avg, max: maxRow.value, min: minRow.value,
     maxLabel: maxRow.label, minLabel: minRow.label,
-    growthPct, trend
+    growthPct, trend, stdDev, coefVar, topShare, sorted, outliers, aboveAvgCount, n
   };
 }
 
@@ -24145,6 +25154,10 @@ function dgRenderInsightsStrip() {
   if (!showInsights || !dgState.rows.length) {
     strip.innerHTML = '';
     if (sentenceEl) sentenceEl.classList.remove('show');
+    const panelEl = document.getElementById('dgAnalysisPanel');
+    if (panelEl) panelEl.classList.remove('open');
+    const chipEl = document.getElementById('dgWrittenAnalysisChip');
+    if (chipEl) { chipEl.classList.remove('active'); chipEl.disabled = true; }
     return;
   }
   const opts = dgGetOpts();
@@ -24180,15 +25193,15 @@ function dgRenderInsightsStrip() {
   const growthTrendClass = hasGrowth ? (stats.growthPct > 0.5 ? 'up' : (stats.growthPct < -0.5 ? 'down' : 'flat')) : 'flat';
   const growthArrow = growthTrendClass === 'up' ? trendArrowUp : (growthTrendClass === 'down' ? trendArrowDown : trendArrowFlat);
   strip.innerHTML = `
-    <div class="dg-stat-card" style="--dg-accent:var(--blue)">
+    <div class="dg-stat-card" style="--dg-accent:var(--dg-ink)">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Total</span><div class="dg-stat-icon">${ICONS.total}</div></div>
       <span class="dg-stat-value">${fmt(stats.total)}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#5C8AA6">
+    <div class="dg-stat-card" style="--dg-accent:#6B8CA6">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Average</span><div class="dg-stat-icon">${ICONS.avg}</div></div>
       <span class="dg-stat-value">${fmt(stats.avg)}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#2E7DBF">
+    <div class="dg-stat-card" style="--dg-accent:#3F6E93">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Highest</span><div class="dg-stat-icon">${ICONS.high}</div></div>
       <span class="dg-stat-value">${fmt(stats.max)}</span>
       <span class="dg-stat-sub" title="${dgEsc(stats.maxLabel)}">${dgEsc(stats.maxLabel)}</span>
@@ -24212,6 +25225,213 @@ function dgRenderInsightsStrip() {
       <span class="dg-insight-text">The data is <b>${dgEsc(trendWord)}</b>. <b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)}, while <b>${dgEsc(stats.minLabel)}</b> is lowest at ${fmt(stats.min)} — a spread of ${fmt(stats.max - stats.min)}.</span>
     `;
     sentenceEl.classList.add('show');
+  }
+  const chipEl = document.getElementById('dgWrittenAnalysisChip');
+  if (chipEl) chipEl.disabled = false;
+  const panelEl = document.getElementById('dgAnalysisPanel');
+  if (panelEl && panelEl.classList.contains('open')) dgRenderSmartAnalysis(stats);
+}
+
+// ── Smart Analysis: a written, paragraph-level overview of the chart — what's happening,
+// where the data is leading, and what would make it a stronger chart — built from the same
+// stats already computed above. Deterministic (not a live model call), so it's instant and
+// always available offline, but reads like a short analyst note rather than a bare stat.
+function dgBuildSmartAnalysisText(stats, rows, opts) {
+  const fmt = v => dgFormatNumber(v, opts.numberFormat);
+  const n = rows.length;
+  const label = (dgState.title || document.getElementById('dgTitleInput')?.value || 'This dataset').trim() || 'This dataset';
+
+  // 1. Overview sentence — what the chart is showing at a glance.
+  const overview = `<b>${dgEsc(label)}</b> covers ${n} item${n === 1 ? '' : 's'} totalling ${fmt(stats.total)}, averaging ${fmt(stats.avg)} per item.`;
+
+  // 2. Trajectory sentence — where it's leading.
+  let trajectory;
+  if (stats.growthPct !== null) {
+    const dir = stats.trend === 'up' ? 'climbing' : stats.trend === 'down' ? 'declining' : 'holding flat';
+    trajectory = `From first to last entry the series is <b>${dir}</b>, moving ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% overall — if that pace continues, expect the next few points to keep ${stats.trend === 'up' ? 'pushing above' : stats.trend === 'down' ? 'sliding below' : 'sitting near'} the current average of ${fmt(stats.avg)}.`;
+  } else {
+    trajectory = `<b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)} while <b>${dgEsc(stats.minLabel)}</b> sits lowest at ${fmt(stats.min)}, a spread of ${fmt(stats.max - stats.min)}.`;
+  }
+
+  // 3. Concentration / volatility sentence — how the values are distributed.
+  let distribution;
+  if (stats.topShare >= 40 && n > 2) {
+    distribution = `A single item, <b>${dgEsc(stats.maxLabel)}</b>, accounts for roughly ${Math.round(stats.topShare)}% of the total — the rest of the set is comparatively thin, so this chart is really a story about one outsized contributor.`;
+  } else if (stats.coefVar > 0.6 && n > 2) {
+    distribution = `Values swing widely around the average (about ${Math.round(stats.coefVar * 100)}% relative variation), so the underlying pattern is more volatile than the average alone suggests.`;
+  } else if (n > 2) {
+    distribution = `The values are fairly evenly spread — only ${stats.aboveAvgCount} of ${n} items sit above the ${fmt(stats.avg)} average, and no single item dominates the total.`;
+  } else {
+    distribution = '';
+  }
+
+  // 4. Improvement / recommendation sentence — tailored to chart type and what was noticed.
+  const type = dgState.type;
+  const improvementIdeas = [];
+  if (stats.outliers.length) {
+    improvementIdeas.push(`call out ${stats.outliers.length > 1 ? 'the outliers' : 'the outlier'} (${stats.outliers.map(o => dgEsc(o.label)).join(', ')}) with an annotation or separate callout so they don't skew the read`);
+  }
+  if ((type === 'pie' || type === 'donut') && n > 7) {
+    improvementIdeas.push('grouping the smallest slices into an "Other" bucket — a pie with this many slices gets hard to read at a glance');
+  }
+  if ((type === 'bar' || type === 'line' || type === 'area') && n > 15) {
+    improvementIdeas.push('trimming to the top items or adding a trendline so the overall direction reads faster than scanning every point');
+  }
+  if (stats.growthPct === null && (type === 'line' || type === 'area' || type === 'bar')) {
+    improvementIdeas.push('adding a zero-baseline check on the first value — growth % couldn\'t be calculated because it starts at zero');
+  }
+  if (!improvementIdeas.length) {
+    improvementIdeas.push(stats.trend === 'flat'
+      ? 'adding a comparison period (e.g. last year vs. this year) since the current data alone reads as fairly stable'
+      : 'adding a short annotation on the highest or lowest point to make the headline number impossible to miss');
+  }
+  const improvement = `To make it stronger, consider ${improvementIdeas[0]}.`;
+
+  return [overview, trajectory, distribution, improvement].filter(Boolean).join(' ');
+}
+
+function dgRenderSmartAnalysis(precomputedStats) {
+  const textEl = document.getElementById('dgSmartAnalysisText');
+  if (!textEl || !dgState.rows.length) return;
+  const stats = precomputedStats || dgComputeStats(dgState.rows);
+  const opts = dgGetOpts();
+  textEl.innerHTML = dgBuildSmartAnalysisText(stats, dgState.rows, opts);
+}
+
+// Written Analysis is opt-in — nothing is generated or shown until the person clicks the
+// "Written Analysis" chip in the Live Preview toolbar. It appears as an inline panel right
+// beneath the chart (not the sidebar, not a popup) and collapses back down on a second click.
+function dgToggleWrittenAnalysis() {
+  const panel = document.getElementById('dgAnalysisPanel');
+  const chip = document.getElementById('dgWrittenAnalysisChip');
+  if (!panel) return;
+  if (!dgState.rows.length) { toast('Build a chart first to get a written analysis', 'info'); return; }
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open', opening);
+  if (chip) chip.classList.toggle('active', opening);
+  if (opening) {
+    dgRenderSmartAnalysis();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function dgCopySmartAnalysis() {
+  const textEl = document.getElementById('dgSmartAnalysisText');
+  if (!textEl) return;
+  const plain = textEl.textContent || '';
+  navigator.clipboard.writeText(plain).then(
+    () => toast('Analysis copied to clipboard', 'success'),
+    () => toast('Could not copy — select and copy manually', 'error')
+  );
+}
+
+function dgOpenAnalysisPushChoice() {
+  if (!dgState.rows.length) { toast('Build a chart first before pushing an analysis', 'error'); return; }
+  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+  const overlay = document.getElementById('dgAnalysisPushChoiceOverlay');
+  if (overlay) overlay.classList.add('open');
+}
+function dgCloseAnalysisPushChoice() {
+  const overlay = document.getElementById('dgAnalysisPushChoiceOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+function dgConfirmAnalysisPushChoice(mode) {
+  dgCloseAnalysisPushChoice();
+  dgInsertAnalysisIntoWorkspace(mode);
+}
+
+// Drops the Smart Analysis paragraph onto the Workspace as an editable, wrapped text block —
+// same destination logic (new page / current live page / no document yet) as the chart push,
+// just placing a placedTexts item instead of a placedImages one.
+async function dgInsertAnalysisIntoWorkspace(mode) {
+  const textEl = document.getElementById('dgSmartAnalysisText');
+  if (!textEl) return;
+  const plainText = textEl.textContent || '';
+  if (!plainText.trim()) { toast('No analysis text to push yet', 'error'); return; }
+  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+
+  const titleInput = document.getElementById('dgTitleInput');
+  const heading = (titleInput && titleInput.value.trim()) || 'Chart';
+  const fullText = `Smart Analysis — ${heading}\n\n${plainText}`;
+
+  const mmW = 210, mmH = 297, EXPORT_PXMM = 3.7795;
+  const eW = Math.round(mmW * EXPORT_PXMM), eH = Math.round(mmH * EXPORT_PXMM);
+  const noWorkspaceYet = !pdfed.pages || pdfed.pages.length === 0;
+
+  const makeBlankPage = () => {
+    const bg = document.createElement('canvas');
+    bg.width = eW; bg.height = eH;
+    const bctx = bg.getContext('2d');
+    bctx.fillStyle = '#ffffff';
+    bctx.fillRect(0, 0, eW, eH);
+    return { type: 'blank', dataUrl: bg.toDataURL('image/png'), modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], label: 'Diagram', bgColor: '#ffffff', pageMM: [mmW, mmH] };
+  };
+
+  const placeTextOnPage = (pageIdx) => {
+    const pg = pdfed.pages[pageIdx];
+    if (!pg.placedTexts) pg.placedTexts = [];
+    if (!pdfedAnnotState.placedImgSeq) pdfedAnnotState.placedImgSeq = pdfedAnnotState.placedImgSeq || 0;
+    pdfedPlacedTextSeq = (typeof pdfedPlacedTextSeq === 'number' ? pdfedPlacedTextSeq : 0) + 1;
+    pg.placedTexts.push({
+      id: 'ptxt_' + pdfedPlacedTextSeq,
+      text: fullText,
+      x: 60, y: 70, w: eW - 120,
+      fontSize: 15,
+      fontFamily: 'Inter',
+      color: '#101820',
+      bold: false, italic: false, underline: false, align: 'left',
+      locked: false,
+      zIndex: pdfedNextZ(pg)
+    });
+  };
+
+  try {
+    if (noWorkspaceYet) {
+      pdfed.pages = [makeBlankPage()];
+      pdfed.pdfDoc = null;
+      pdfed.file = { name: 'Diagrams & Graphs' };
+      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = '';
+      });
+      const upBtn = document.getElementById('pdfedUploadBtn'); if (upBtn) upBtn.style.display = 'none';
+      const fnEl = document.getElementById('pdfedFileName'); if (fnEl) fnEl.textContent = pdfed.file.name;
+      const ph = document.getElementById('pdfedPlaceholder'); if (ph) ph.style.display = 'none';
+      const cw = document.getElementById('pdfedCanvasWrap'); if (cw) cw.style.display = 'inline-block';
+      const tb = document.getElementById('pdfedToolbar'); if (tb) tb.style.visibility = 'visible';
+      if (state && state.stats) { state.stats.pdfs++; state.stats.pages++; }
+      if (typeof updateStats === 'function') updateStats();
+      placeTextOnPage(0);
+      navigate('pdfeditor');
+      if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+      if (typeof pdfedGoto === 'function') await pdfedGoto(0);
+      setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
+    } else if (mode === 'new') {
+      pdfed.pages.push(makeBlankPage());
+      const newIdx = pdfed.pages.length - 1;
+      if (state && state.stats) { state.stats.pages++; }
+      if (typeof updateStats === 'function') updateStats();
+      placeTextOnPage(newIdx);
+      navigate('pdfeditor');
+      if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+      if (typeof pdfedGoto === 'function') await pdfedGoto(newIdx);
+      setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
+    } else {
+      const idx = pdfed.active >= 0 ? pdfed.active : 0;
+      if (!pdfed.pages[idx]) { toast('No live page to add to', 'error'); return; }
+      placeTextOnPage(idx);
+      navigate('pdfeditor');
+      setTimeout(() => { if (typeof pdfedRenderPlacedTexts === 'function') pdfedRenderPlacedTexts(idx); }, 60);
+    }
+    if (typeof pdfedMarkModified === 'function') {
+      const idx = mode === 'new' || noWorkspaceYet ? pdfed.pages.length - 1 : (pdfed.active >= 0 ? pdfed.active : 0);
+      pdfedMarkModified(idx);
+    }
+    setTimeout(() => { if (typeof pdfedRenderPlacedTexts === 'function') pdfedRenderPlacedTexts(pdfed.active); }, 140);
+    toast('Analysis added to Workspace — drag or resize the text block to fit', 'success');
+  } catch (err) {
+    console.error(err);
+    toast('Could not push analysis: ' + err.message, 'error');
   }
 }
 
@@ -24574,7 +25794,26 @@ function dgDrawChart() {
   const baseAxisSpace = opts.rotateLabels ? 84 : 60;
   const bottom = H - baseAxisSpace - xTitleExtra - legendH;
   const rightMargin = type === 'pareto' ? 74 : 40;
-  const leftMargin = 70 + yTitleExtra;
+  // Left margin sizes itself to the widest y-axis tick label instead of a fixed
+  // 70px — large formatted numbers (e.g. "$2,703,650") were getting clipped
+  // against the left edge of the canvas at the old fixed width. We estimate the
+  // tick values the same way dgYScale/dgDrawAxisGrid will, measure each
+  // formatted label at the actual axis font, and pad the margin to fit the
+  // widest one (plus room for the tick mark itself).
+  let dynLeftMargin = 70;
+  if (hasAxes && type !== 'funnel') {
+    const vals = rows.map(r => r.value);
+    const probeScale = dgYScale(vals, { y: 0, h: 100 });
+    ctx.font = '11px Inter, sans-serif';
+    let maxLabelW = 0;
+    for (let i = 0; i <= 4; i++) {
+      const v = probeScale.min + probeScale.range * i / 4;
+      const w = ctx.measureText(dgFormatNumber(v, opts.numberFormat)).width;
+      if (w > maxLabelW) maxLabelW = w;
+    }
+    dynLeftMargin = Math.max(70, Math.ceil(maxLabelW) + 11 /* tick mark */ + 20 /* padding */);
+  }
+  const leftMargin = dynLeftMargin + yTitleExtra;
   const chartArea = { x: leftMargin, y: top, w: W - leftMargin - rightMargin, h: bottom - top };
 
   if (type === 'bar' || type === 'stacked') {
@@ -26345,6 +27584,14 @@ window.dgApplyWheelToAll = dgApplyWheelToAll;
 window.dgOnWheelLightness = dgOnWheelLightness;
 window.dgToggleColoursPanel = dgToggleColoursPanel;
 window.dgToggleInsightsPanel = dgToggleInsightsPanel;
+window.dgToggleWrittenAnalysis = dgToggleWrittenAnalysis;
+window.dgRenderSmartAnalysis = dgRenderSmartAnalysis;
+window.dgCopySmartAnalysis = dgCopySmartAnalysis;
+window.dgOpenAnalysisPushChoice = dgOpenAnalysisPushChoice;
+window.dgCloseAnalysisPushChoice = dgCloseAnalysisPushChoice;
+window.dgConfirmAnalysisPushChoice = dgConfirmAnalysisPushChoice;
+window.dgInsertAnalysisIntoWorkspace = dgInsertAnalysisIntoWorkspace;
+window.dgRenderUploadPreview = dgRenderUploadPreview;
 window.dgSetType = dgSetType;
 window.dgToggleInfoPopover = dgToggleInfoPopover;
 window.dgToggleTypeDropdown = dgToggleTypeDropdown;
@@ -26356,6 +27603,7 @@ window.dgToggleRadiusDropdown = dgToggleRadiusDropdown;
 window.dgToggleTemplatesDropdown = dgToggleTemplatesDropdown;
 window.dgToggleDataDropdown = dgToggleDataDropdown;
 window.dgToggleUploadDropdown = dgToggleUploadDropdown;
+window.dgToggleColumnsDropdown = dgToggleColumnsDropdown;
 window.dgHandleFileSelect = dgHandleFileSelect;
 window.dgHandleDrop = dgHandleDrop;
 window.dgOnUploadParsed = dgOnUploadParsed;
