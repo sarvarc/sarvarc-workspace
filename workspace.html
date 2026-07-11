@@ -256,6 +256,40 @@ html, body {
 }
 .nav-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
 
+.save-workflow-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  color: #fff;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  border: none; border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(0,194,255,0.35);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+.save-workflow-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,194,255,0.45); }
+.save-workflow-btn:active { transform: translateY(0); }
+.save-workflow-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+.new-project-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 10px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.new-project-btn:hover { color: var(--text); border-color: var(--blue); }
+.new-project-btn:active { transform: translateY(0); }
+.new-project-btn svg { flex-shrink: 0; }
+.new-project-btn span { white-space: nowrap; }
+
 .theme-toggle {
   width: 44px; height: 24px;
   background: var(--surface2);
@@ -286,6 +320,9 @@ html, body {
   font-size: 12px; font-weight: 700; cursor: pointer;
   border: 2px solid var(--border2);
 }
+
+/* ─── SIDEBAR BACKDROP (mobile drawer only — hidden everywhere else) ─── */
+.sidebar-backdrop { display: none; }
 
 /* ─── SIDEBAR ─── */
 .sidebar {
@@ -4713,6 +4750,14 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 }
 .da-tool-btn:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
 .da-tool-btn.active { background:rgba(0,194,255,0.14); color:var(--blue); border-color:var(--border2); }
+.da-tool-btn-stacked {
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  padding:5px 10px; min-width:44px; font-size:9.5px;
+}
+.btn-stacked {
+  display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:3px !important;
+  padding:6px 12px !important; min-width:48px; font-size:10px !important; line-height:1;
+}
 .da-tool-divider { width:1px; align-self:stretch; background:var(--border); margin:0 2px; }
 
 /* Grid */
@@ -4979,11 +5024,15 @@ th:hover .da-th-del { opacity:1; }
    as the primary action rather than blending into the row. */
 .dg-rbn-btn-push {
   background:linear-gradient(135deg, var(--cyan, #00C2FF), var(--purple, #7C5CFF)) !important;
-  color:#fff !important; padding:7px 14px !important; border-radius:8px !important;
-  box-shadow:0 3px 14px rgba(0,194,255,0.35);
+  color:#fff !important; padding:5px 9px !important; border-radius:6px !important;
+  box-shadow:0 2px 8px rgba(0,194,255,0.3);
+  align-self:center;
 }
-.dg-rbn-btn-push:hover { box-shadow:0 5px 18px rgba(0,194,255,0.5); transform:translateY(-1px); color:#fff !important; }
+.dg-rbn-btn-push:hover { box-shadow:0 3px 12px rgba(0,194,255,0.45); transform:translateY(-1px); color:#fff !important; }
 .dg-rbn-btn-push svg { flex-shrink:0; }
+/* Keep the Push group visually anchored inside the ribbon row, same height/alignment
+   as every other group — no special padding that could push it out of vertical rhythm. */
+#dgPushGroup { align-self:stretch; justify-content:center; }
 
 /* ── Diagrams & Graphs ribbon bar, Workspace-style icon toolbar for fast chart building ── */
 .dg-ribbon-bar {
@@ -5494,6 +5543,88 @@ button.dg-show-chip.active { background:var(--blue); }
 }
 .dg-wheel-actions .btn-primary:hover { filter:brightness(1.08); transform:translateY(-1px); }
 .dg-wheel-actions .btn-secondary:hover { transform:translateY(-1px); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE APP SHELL — sidebar becomes a slide-in drawer, topnav compacts,
+   dashboard/content grids reflow to 1–2 columns. This block targets the
+   global shell + dashboard only; the PDF Editor / Make Forms / Diagrams
+   canvases already have (or need their own) dedicated passes since they're
+   precision editing surfaces, not simple reflow-able content.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  html, body { overflow-x: hidden; }
+
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  /* Sidebar: fixed slide-in drawer over the content instead of a column
+     that pushes it. Same .sidebar-collapsed class the desktop toggle
+     already uses — just re-purposed here as "drawer closed" vs "open". */
+  .sidebar {
+    position: fixed;
+    top: var(--topnav-h);
+    left: 0;
+    bottom: 0;
+    width: min(82vw, 300px);
+    z-index: 300;
+    opacity: 1;
+    box-shadow: 14px 0 34px rgba(0,0,0,0.35);
+    transform: translateX(0);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .sidebar-collapsed .sidebar {
+    width: min(82vw, 300px);
+    padding: 16px 12px;
+    opacity: 1;
+    overflow: hidden;
+    border-right: none;
+    transform: translateX(-100%);
+  }
+  .sidebar-collapsed .app {
+    grid-template-columns: 1fr;
+  }
+  .main::before { left: 0; }
+
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: var(--topnav-h) 0 0 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 250;
+  }
+  body:not(.sidebar-collapsed) .sidebar-backdrop { display: block; }
+
+  /* Topnav: drop non-essential chrome, keep hamburger + logo + core actions */
+  .topnav { padding: 0 10px; gap: 8px; }
+  .topnav-ws-label, .topnav-beta-badge, .topnav-alltools-link { display: none; }
+  .new-project-btn span { display: none; }
+  .new-project-btn { padding: 0 9px; margin-left: 4px; }
+  .save-workflow-btn { margin-left: 0; }
+  .nav-logo-link img { height: 22px !important; }
+
+  /* Dashboard + generic sections: tighter padding, single-column hero */
+  .dashboard, .export-section { padding: 16px; }
+  .dash-hero { padding: 22px 18px; }
+  .dash-hero h1 { font-size: 26px; line-height: 1.15; }
+  .hero-actions { flex-wrap: wrap; }
+
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .export-grid { grid-template-columns: 1fr; }
+  .extract-opts { grid-template-columns: 1fr; }
+  .extracted-mini-grid { grid-template-columns: repeat(2, 1fr); }
+  .pdfed-fmt-grid { grid-template-columns: repeat(2, 1fr); }
+  .pdfed-pagesize-card { flex-direction: column; }
+
+  /* Search bar takes less room where it appears outside the topnav */
+  .search-bar { width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .stats-row { grid-template-columns: 1fr; }
+  .dash-hero h1 { font-size: 22px; }
+}
 </style>
 </head>
 <body class="splash-active">
@@ -5505,6 +5636,33 @@ button.dg-show-chip.active { background:var(--blue); }
   <div class="splash-line"></div>
   <div class="splash-sub">Entering Workspace</div>
 </div>
+<script>
+// Runs immediately as the page parses (before the rest of the body even
+// loads), so returning users never see the splash flash on screen at all —
+// it only ever plays in full on someone's very first visit to the app.
+(function(){
+  try {
+    if (sessionStorage.getItem('sarvarcHasEntered') === '1') {
+      var s = document.getElementById('sarvarcSplash');
+      if (s) s.style.display = 'none';
+      document.body.classList.remove('splash-active');
+    }
+  } catch(e) { /* sessionStorage unavailable — falls back to showing the normal splash */ }
+})();
+</script>
+<script>
+// Mobile: start with the sidebar tucked away as a closed drawer instead of
+// the desktop default of "open and embedded in the grid". Runs synchronously
+// before .sidebar paints so there's no flash of an open drawer covering the
+// screen on first load.
+(function(){
+  try {
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      document.body.classList.add('sidebar-collapsed');
+    }
+  } catch(e) {}
+})();
+</script>
 
 <div class="app">
   <!-- TOP NAV -->
@@ -5515,10 +5673,17 @@ button.dg-show-chip.active { background:var(--blue); }
     <a href="https://sarvarc.com" class="nav-logo-link" style="display:flex;align-items:center;text-decoration:none;flex-shrink:0;">
       <img src="data:image/png;base64,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" alt="SARVARC Workspace" style="height:28px;width:auto;display:block;">
     </a>
-    <span style="font-size:10px;letter-spacing:0.3em;color:var(--text3);text-transform:uppercase;font-weight:400;margin-left:10px;padding-left:10px;border-left:1px solid var(--border);flex-shrink:0;">Workspace</span>
-    <span style="font-size:9px;letter-spacing:0.08em;color:var(--blue);text-transform:uppercase;font-weight:700;margin-left:8px;padding:2px 7px;border-radius:20px;border:1px solid var(--border2);background:rgba(0,194,255,0.10);flex-shrink:0;">Beta</span>
+    <span class="topnav-ws-label" style="font-size:10px;letter-spacing:0.3em;color:var(--text3);text-transform:uppercase;font-weight:400;margin-left:10px;padding-left:10px;border-left:1px solid var(--border);flex-shrink:0;">Workspace</span>
+    <span class="topnav-beta-badge" style="font-size:9px;letter-spacing:0.08em;color:var(--blue);text-transform:uppercase;font-weight:700;margin-left:8px;padding:2px 7px;border-radius:20px;border:1px solid var(--border2);background:rgba(0,194,255,0.10);flex-shrink:0;">Beta</span>
     <div class="topnav-spacer"></div>
-    <a href="https://sarvarc.com" style="font-size:13px;color:var(--text2);text-decoration:none;font-weight:500;margin-right:4px;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text2)'">All Tools</a>
+    <button class="new-project-btn" id="newProjectBtn" onclick="smNewProject()" title="New Project — clears all current work in every module (Workspace document, Extraction, Data Arrangement, Make Forms, Diagrams &amp; Graphs) so you can start fresh. Your saved sessions aren't affected." aria-label="New Project">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <span>New Project</span>
+    </button>
+    <button class="save-workflow-btn" id="saveWorkflowBtn" onclick="smSaveWorkflow()" title="Save Your Workflow — saves everything (Workspace document, Extraction, Data Arrangement, Make Forms, Diagrams &amp; Graphs) as one session in this browser" aria-label="Save Your Workflow">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    </button>
+    <a href="https://sarvarc.com" class="topnav-alltools-link" style="font-size:13px;color:var(--text2);text-decoration:none;font-weight:500;margin-right:4px;margin-left:14px;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text2)'">All Tools</a>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
   </nav>
 
@@ -5590,12 +5755,19 @@ button.dg-show-chip.active { background:var(--blue); }
       </a>
     </div>
 
+    <div class="nav-item" onclick="smOpenSessionsPage()" title="Save your current work as a named session, or reload one you saved earlier — kept in this browser until you delete it">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span> Saved Sessions
+    </div>
+
     <div style="flex:1"></div>
     <div class="sidebar-section">Info</div>
     <div class="nav-item" onclick="toast('All processing is client-side, your files never leave your browser.','info')">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Privacy First
     </div>
   </aside>
+
+  <!-- Tap-outside-to-close backdrop for the sidebar when it's a mobile drawer -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
 
   <!-- MAIN -->
   <main class="main">
@@ -5791,6 +5963,7 @@ button.dg-show-chip.active { background:var(--blue); }
           <div class="gallery-header">
             <h3 id="galleryTitle">Extracted Images</h3>
             <div class="gallery-actions">
+              
               <button class="btn-secondary" onclick="selectAll()" style="padding:7px 14px;font-size:12px">Select All</button>
               <button class="btn-secondary" onclick="clearAllImages()" style="padding:7px 14px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.35)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove All</span></button>
               <button class="btn-primary" onclick="downloadAll()" style="padding:7px 14px;font-size:12px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All</span></button>
@@ -5895,6 +6068,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <p>Start with an open canvas, place your logo, description, and details as fillable boxes, then print or export as a polished, professional PDF.</p>
             </div>
             <div style="display:flex;gap:10px">
+              
               <button class="btn-secondary" onclick="mfToggleTemplatePicker()"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Browse Templates</span></button>
               <button class="btn-secondary" onclick="mfStartBlank()"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Form</span></button>
               <button class="btn-primary" onclick="mfStartCanvas()"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="18" height="20" rx="1.5"/><line x1="7" y1="8" x2="13" y2="8"/><line x1="7" y1="13" x2="17" y2="13"/></svg> Canvas Form</span></button>
@@ -5928,6 +6102,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <button class="btn-secondary mf-back-btn" onclick="mfBackToGallery()">← Back to Forms</button>
             <input type="text" id="mfFormTitleInput" class="mf-title-input" placeholder="Untitled Form" oninput="mfUpdateTitle(this.value)">
             <div class="mf-editor-actions">
+              
               <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
               <button class="btn-pill" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
@@ -6000,6 +6175,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <button class="btn-secondary mf-back-btn" onclick="mfcBackToGallery()">← Back to Forms</button>
             <input type="text" id="mfcTitleInput" class="mf-title-input" placeholder="Untitled Canvas Form" oninput="mfcUpdateTitle(this.value)">
             <div class="mf-editor-actions">
+              
               <button class="btn-secondary" onclick="mfcPrint()">Print</button>
               <button class="btn-pill" id="mfcPushBtn" onclick="mfcOpenPushChoiceModal()" title="Send this canvas form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-primary" onclick="mfcExportPDF()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
@@ -6184,6 +6360,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 <span class="pdfed-pageinfo-dot"></span>
                 <span id="prrEdits" class="pdfed-pageinfo-edits">0 pages modified</span>
               </div>
+              
               <button class="pdfed-appbar-btn danger pdfed-slide-btn" id="pdfedCloseBtn" onclick="pdfedClosePdf()" style="display:none">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 <span class="pdfed-slide-label">Close</span>
@@ -6991,6 +7168,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
             <div class="da-tool-divider"></div>
             <button class="da-tool-btn" id="daClearAllBtn" onclick="daClearAll()" title="Clear all loaded data" style="color:#ef4444;border-color:rgba(239,68,68,0.35)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Clear All</button>
+            
             <button class="btn-primary" style="padding:6px 12px;font-size:11.5px" onclick="daOpenExportModal()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</span></button>
           </div>
 
@@ -7350,6 +7528,17 @@ button.dg-show-chip.active { background:var(--blue); }
 
             <div class="dg-rbn-sep"></div>
 
+            <!-- CLEAR ALL: wipes data points, text labels, title and axis titles back to a blank chart -->
+            <div class="dg-rbn-group" id="dgClearGroup">
+              <div class="dg-rbn-group-btns">
+                <button class="dg-rbn-btn" onclick="dgClearAll()" title="Clear all data, text labels and titles on this chart">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  Clear All
+                </button>
+              </div>
+              <div class="dg-rbn-group-label">Reset</div>
+            </div>
+
             <div class="dg-rbn-sep"></div>
 
             <!-- HISTORY (dropdown: charts kept via "Save Current Chart & Create New" when pushing fresh data in) -->
@@ -7370,7 +7559,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="dg-rbn-group-label" style="margin-top:2px">History</div>
             </div>
 
-            <div class="dg-rbn-sep" id="dgExportSep" style="margin-left:auto"></div>
+            <div class="dg-rbn-sep" id="dgExportSep"></div>
 
             <!-- EXPORT & PUSH (moved out of the header, lives in the ribbon now) -->
             <div class="dg-rbn-dropdown-group" id="dgExportGroup">
@@ -7557,6 +7746,55 @@ button.dg-show-chip.active { background:var(--blue); }
             </div>
             <div class="dg-multi-gallery-strip" id="dgMultiGalleryStrip"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAVED SESSIONS -->
+    <div class="section" id="sec-savedsessions">
+      <div class="sm-page">
+        <div class="sm-page-header">
+          <div class="sm-page-header-icon" onclick="smToggleDesc()" title="Show/hide description" style="cursor:pointer">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          </div>
+          <div>
+            <h2>Saved Sessions</h2>
+            <p class="sm-page-desc" id="smPageDesc">Saved on this device only — there's no account or server involved, and nothing is tracked by IP. A session bundles your current Workspace document, tables, forms and charts under one name, so you can pick up right where you left off. It stays saved until you delete it below.</p>
+          </div>
+        </div>
+
+        <div class="sm-layout">
+          <div class="sm-main">
+            <div class="sm-save-card" id="smSearchCard">
+              <div class="sm-save-row">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text3);flex-shrink:0;margin-left:2px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="smSessionSearch" placeholder="Search saved sessions…" oninput="smFilterSessions(this.value)">
+                <button class="sm-session-btn" title="Import a session file exported from this or another browser" onclick="document.getElementById('smImportFileInput').click()" style="flex-shrink:0">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>Import</span>
+                </button>
+                <input type="file" id="smImportFileInput" accept="application/json,.json" style="display:none" onchange="smOnImportFileChosen(this)">
+              </div>
+            </div>
+            <div class="sm-session-list" id="smSessionList"></div>
+          </div>
+
+          <aside class="sm-side">
+            <div class="sm-trust-panel">
+              <div class="sm-trust-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <span>Private by design</span>
+              </div>
+              <div class="sm-trust-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <span>On-device only</span>
+              </div>
+              <div class="sm-trust-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <span>No account needed</span>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -8350,6 +8588,174 @@ button.dg-show-chip.active { background:var(--blue); }
 <!-- TOAST -->
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- ─── SAVED SESSIONS ───
+     Named snapshots of everything currently in this browser's local storage
+     (Workspace document, Data Arrangement tables, Make Forms, Diagrams &
+     Graphs, plus preferences). Nothing here ever leaves the device — there is
+     no server, account, or IP-based tracking involved. A session is just a
+     bundle of this browser's own on-device storage, given a name, so it can
+     be restored on purpose later — and it stays until the person deletes it.
+     This lives as its own full page (see #sec-savedsessions near the other
+     module sections), not a popup, so it behaves the same as every other
+     tool in the sidebar/topnav navigation. -->
+<style>
+.sm-page { max-width: 1120px; padding: 26px 30px 48px; }
+.sm-page-header { display: flex; align-items: flex-start; gap: 14px; }
+.sm-page-header-icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; margin-top: 2px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--pdfed-accent-bg), rgba(59,130,246,0.16));
+  border: 1px solid var(--pdfed-accent); color: var(--pdfed-accent);
+}
+.sm-page-desc {
+  font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-top: 4px; max-width: 620px;
+  overflow: hidden; max-height: 90px; opacity: 1;
+  transition: opacity .5s ease, max-height .6s ease, margin-top .6s ease;
+}
+.sm-page-desc.sm-desc-hidden { opacity: 0; max-height: 0; margin-top: 0; pointer-events: none; }
+.sm-layout { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; margin-top: 22px; }
+.sm-main { flex: 1 1 420px; min-width: 0; }
+.sm-side { width: 248px; flex: 0 0 248px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 20px; }
+.sm-trust-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden;
+}
+.sm-trust-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 12px 14px;
+  font-size: 12px; font-weight: 500; color: var(--text2);
+  border-bottom: 1px solid var(--border);
+}
+.sm-trust-item:last-child { border-bottom: none; }
+.sm-trust-item svg { flex-shrink: 0; color: var(--text3); }
+.sm-save-card {
+  display: flex; margin: 0 0 22px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 5px 5px 5px 14px;
+  transition: border-color .15s ease;
+}
+.sm-save-card:focus-within { border-color: var(--border2); }
+.sm-save-row { display: flex; gap: 8px; flex: 1; align-items: center; }
+.sm-save-row input {
+  flex: 1; min-width: 0; background: transparent; border: none;
+  padding: 10px 4px; color: var(--text); font-size: 12.5px; font-family: inherit;
+}
+.sm-save-row input::placeholder { color: var(--text3); }
+.sm-save-row input:focus { outline: none; }
+.sm-save-row button {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; font-size: 12.5px; border-radius: 7px; border: 1px solid transparent;
+  background: var(--pdfed-accent); color: #fff; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background .15s ease;
+}
+.sm-save-row button:hover { background: var(--blue); }
+.sm-save-row button:active { filter: brightness(0.94); }
+.sm-session-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  background: var(--surface);
+}
+.sm-session-count {
+  font-size: 10.5px; font-weight: 700; color: var(--text3); text-transform: uppercase;
+  letter-spacing: .07em; padding: 9px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface2, rgba(127,127,127,0.04));
+}
+.sm-session-empty {
+  padding: 52px 20px; text-align: center; color: var(--text3); font-size: 12.5px;
+  border: 1.5px dashed var(--border); border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.sm-session-empty svg { opacity: .45; }
+
+/* ── log-line row ── */
+.sm-session-row {
+  position: relative;
+  display: flex; align-items: center; gap: 14px;
+  padding: 9px 16px 9px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  transition: background .12s ease;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.sm-session-list .sm-session-row:last-child { border-bottom: none; }
+.sm-session-row:hover { background: var(--surface2, rgba(127,127,127,0.05)); }
+.sm-session-row::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--pdfed-accent); opacity: 0; transition: opacity .12s ease;
+}
+.sm-session-row:hover::before { opacity: 1; }
+
+.sm-session-icon {
+  width: 15px; height: 15px; flex-shrink: 0; color: var(--text3);
+  display: flex; align-items: center; justify-content: center;
+}
+.sm-session-name {
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  background: none; border: none; padding: 3px 5px; margin: -3px -5px;
+  font-family: inherit; cursor: text; border-radius: 4px; flex: 1 1 280px; min-width: 160px;
+  white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+  transition: background .15s ease;
+}
+.sm-session-name:hover, .sm-session-name:focus { outline: none; background: var(--surface3, rgba(127,127,127,0.1)); }
+
+.sm-session-meta {
+  font-size: 10.5px; color: var(--text3); flex: 0 0 auto; white-space: nowrap;
+  font-variant-numeric: tabular-nums; letter-spacing: .01em;
+}
+
+.sm-session-divider { width: 1px; align-self: stretch; background: var(--border); flex-shrink: 0; }
+
+/* module checkboxes, inline, wraps onto a second line if there isn't
+   room for every module pill instead of silently scrolling out of view */
+.sm-mod-row {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 260px; min-width: 220px;
+  flex-wrap: wrap; row-gap: 6px;
+}
+.sm-mod-check {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px 3px 6px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+  color: var(--text3); cursor: pointer; user-select: none;
+  transition: all .12s ease;
+}
+.sm-mod-check input { display: none; }
+.sm-mod-check .chk-box {
+  width: 12px; height: 12px; border-radius: 3.5px; border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: inherit;
+}
+.sm-mod-check .chk-box svg { opacity: 0; transform: scale(.6); transition: all .12s ease; }
+.sm-mod-check.has-data { color: var(--text2); border-color: var(--border2); }
+.sm-mod-check.has-data:hover { border-color: var(--pdfed-accent); color: var(--pdfed-accent); }
+.sm-mod-check.checked { background: var(--pdfed-accent-bg); border-color: var(--pdfed-accent); color: var(--pdfed-accent); }
+.sm-mod-check.checked .chk-box { background: var(--pdfed-accent); border-color: var(--pdfed-accent); color: #fff; }
+.sm-mod-check.checked .chk-box svg { opacity: 1; transform: scale(1); }
+.sm-mod-check.empty { opacity: .38; cursor: not-allowed; }
+.sm-mod-detail { opacity: .8; font-weight: 500; }
+
+.sm-session-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.sm-session-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text2);
+  border-radius: 6px; padding: 5px 11px; font-size: 11px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; transition: all .12s ease; white-space: nowrap;
+}
+.sm-session-btn:hover { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent); }
+.sm-session-btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+.sm-session-btn.icon-only { padding: 5px 7px; }
+.sm-session-btn.danger:hover { background: rgba(239,68,68,0.08); color: #ef4444; border-color: rgba(239,68,68,0.35); }
+.sm-topnav-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; margin-right: 4px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text2);
+  font-size: 12px; font-weight: 500; cursor: pointer; flex-shrink: 0;
+}
+.sm-topnav-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+.sm-topnav-btn.active { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent); }
+.sm-module-save-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0;
+  width: 32px !important; height: 32px !important; padding: 0 !important; flex-shrink: 0;
+}
+</style>
+
 <!-- ─── CINEMA FULLSCREEN PAGE PREVIEW ─── -->
 <div class="cinema-overlay" id="cinemaOverlay">
   <div class="cinema-topbar">
@@ -8487,6 +8893,23 @@ function toggleSidebar(isAuto) {
   document.body.classList.toggle('sidebar-collapsed', !sidebarOpen);
 }
 
+// ─── MOBILE: sidebar acts as a drawer, so close it once someone taps
+// a nav item inside it (picking a tool implies "I'm done with the menu").
+// The tap-outside backdrop and hamburger button already call toggleSidebar()
+// directly, so this only needs to cover in-drawer nav-item taps. ───
+function sm_isMobileViewport() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+document.addEventListener('click', function(e) {
+  if (!sm_isMobileViewport()) return;
+  const item = e.target.closest('.sidebar .nav-item');
+  if (item && document.body.classList.contains('sidebar-collapsed') === false) {
+    setTimeout(function() {
+      if (sidebarOpen) toggleSidebar(true);
+    }, 120);
+  }
+});
+
 // ─── QUIET-5s AUTO-COLLAPSE for Diagrams & Graphs / Data Arrangement ───
 // Same idea as the PDF Editor's 10s auto-collapse below, but on a shorter
 // 5s timer and scoped to just the main app sidebar (these two tools don't
@@ -8514,6 +8937,7 @@ function cancelSectionAutoCollapse() {
 function navigate(sec) {
   const target = document.getElementById('sec-' + sec);
   if (!target) return; // unknown/removed section, fail safe instead of throwing
+  try { localStorage.setItem('sarvarcLastSection', sec); } catch(e) {}
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -8526,6 +8950,7 @@ function navigate(sec) {
     else if(sec === 'makeforms' && t.includes('make forms')) n.classList.add('active');
     else if(sec === 'dataarrange' && t.includes('data arrangement')) n.classList.add('active');
     else if(sec === 'diagrams' && t.includes('diagrams')) n.classList.add('active');
+    else if(sec === 'savedsessions' && t.includes('saved sessions')) n.classList.add('active');
   });
   if(sec === 'export') {
     document.getElementById('exportCount').textContent = state.extractedImages.length + ' image' + (state.extractedImages.length !== 1 ? 's' : '');
@@ -8539,11 +8964,35 @@ function navigate(sec) {
   if(sec === 'diagrams' && typeof dgRender === 'function') {
     dgRender();
   }
+  if(sec === 'pdfeditor' && pdfed.active >= 0 && typeof pdfedZoomFit === 'function') {
+    setTimeout(pdfedZoomFit, 0);
+  }
   if (sec === 'diagrams' || sec === 'dataarrange') {
     scheduleSectionAutoCollapse(sec);
   } else {
     cancelSectionAutoCollapse();
   }
+  if (sec === 'savedsessions') {
+    smAutoHideDesc();
+  }
+}
+
+// Intro copy on the Saved Sessions page fades away on its own a few seconds
+// after the page opens, so the page reads clean once the person already
+// knows what it does. Clicking the header icon brings it back any time.
+let smDescHideTimer = null;
+function smAutoHideDesc() {
+  const desc = document.getElementById('smPageDesc');
+  if (!desc) return;
+  desc.classList.remove('sm-desc-hidden');
+  clearTimeout(smDescHideTimer);
+  smDescHideTimer = setTimeout(() => { desc.classList.add('sm-desc-hidden'); }, 3000);
+}
+function smToggleDesc() {
+  const desc = document.getElementById('smPageDesc');
+  if (!desc) return;
+  clearTimeout(smDescHideTimer);
+  desc.classList.toggle('sm-desc-hidden');
 }
 
 function setMode(m) { state.extractMode = m; }
@@ -9851,6 +10300,1037 @@ const pdfed = {
   rightManuallyToggled: false,
 };
 
+// ─── Generic small IndexedDB key/value helper ───
+// The Workspace document (rendered page images, placed text/images/tables,
+// annotations) can easily run well past localStorage's ~5-10MB quota, so it
+// lives in IndexedDB instead. Still entirely on-device — nothing here is ever
+// uploaded anywhere, this just survives a refresh instead of only living in memory.
+function idbKvOpen() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+    // v2 adds a 'sessions' store (see Saved Sessions manager below) alongside
+    // the original 'kv' store — bumping the version runs onupgradeneeded once,
+    // which adds the missing store without touching anything already in 'kv'.
+    const req = indexedDB.open('sarvarcKV', 2);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+      if (!db.objectStoreNames.contains('sessions')) db.createObjectStore('sessions', { keyPath: 'id' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ─── Saved Sessions manager ───────────────────────────────────────────────
+// A "session" is a named, on-demand snapshot of everything this browser has
+// already been silently autosaving per module (Workspace document, Data
+// Arrangement tables, Make Forms, Diagrams & Graphs, plus preferences).
+//
+// Important, honest framing for anyone reading this code: there is no server
+// here and no IP-based user tracking. All of this lives in the visitor's own
+// browser via localStorage + IndexedDB, which is actually a more reliable and
+// private way to keep "this person's work" attached to them than an IP
+// address ever could be (IPs are shared, change constantly, and don't
+// identify a browser/device at all). A session is just a labelled bundle of
+// that same on-device storage, so someone can save a checkpoint on purpose
+// and load it back later — and it's kept until they delete it themselves.
+
+// Bumped whenever the shape of a session's {ls, idb} snapshot changes in a
+// way that future load logic needs to know about. Older saved sessions
+// (created before this field existed) come back from IndexedDB with
+// schemaVersion === undefined, which smLoadSession treats as "legacy" —
+// still loaded, just logged, so nothing silently breaks on the day the
+// format actually does change.
+const SM_SNAPSHOT_SCHEMA_VERSION = 1;
+
+// Lets other tabs on the same origin know a session was saved/updated/
+// deleted/loaded, so a second open tab doesn't keep working against data
+// that's stale or has been wiped out from under it. BroadcastChannel never
+// delivers messages back to the tab that sent them, so this is safe to fire
+// unconditionally after every write. Falls back to doing nothing on
+// browsers without BroadcastChannel — multi-tab notices are a nicety, not
+// a hard requirement.
+const smSessionChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('sarvarcSessions_v1') : null;
+function smNotifyOtherTabs(kind, id) {
+  if (!smSessionChannel) return;
+  try { smSessionChannel.postMessage({ kind: kind, id: id, at: Date.now() }); } catch (e) {}
+}
+if (smSessionChannel) {
+  smSessionChannel.onmessage = function (ev) {
+    const kind = ev && ev.data && ev.data.kind;
+    if (!kind) return;
+    if (typeof toast === 'function') {
+      const msg = kind === 'delete'
+        ? 'A saved session was deleted in another tab.'
+        : 'Your saved sessions changed in another tab.';
+      toast(msg, 'info');
+    }
+    // Only the Saved Sessions list needs a live refresh here — we deliberately
+    // do NOT auto-reload the whole page from a background tab, since that
+    // would blow away anything the person is actively typing in this one.
+    if (document.getElementById('smSessionList')) smRenderList();
+  };
+}
+
+// Best-effort check of how close this origin is to its storage quota.
+// Returns a warning string if it's worth surfacing to the user before a
+// save, or null if there's nothing to say (either plenty of room, or the
+// browser doesn't support the Storage API's estimate() call).
+async function smStorageHeadroomWarning() {
+  try {
+    if (!navigator.storage || !navigator.storage.estimate) return null;
+    const est = await navigator.storage.estimate();
+    if (!est || !est.quota) return null;
+    const pct = est.usage / est.quota;
+    if (pct >= 0.9) {
+      return 'Browser storage is about ' + Math.round(pct * 100) + '% full. Saving may fail — consider deleting an old session first.';
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+// ─── Session ↔ live-data linkage ────────────────────────────────────────
+// Whenever a module's live data is loaded FROM a saved session, or a saved
+// session is created FROM the current live data (Save Your Workflow), that
+// module is considered "linked" to that exact session id. If that specific
+// session is later deleted, the linked module's live data is cleared right
+// along with it (the log and the data attached to it disappear together).
+// A module keeps its link only until it's re-linked to a different session
+// (loading/saving again) — deleting an old, no-longer-linked session never
+// touches whatever the person is currently working on.
+const SM_ACTIVE_LINK_KEY = 'sarvarcActiveSessionLinks_v1';
+
+function smGetActiveLinks() {
+  try { return JSON.parse(localStorage.getItem(SM_ACTIVE_LINK_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+
+function smSetActiveLinks(map) {
+  try { localStorage.setItem(SM_ACTIVE_LINK_KEY, JSON.stringify(map)); }
+  catch (e) { console.warn('[Sessions] could not persist active session links', e); }
+}
+
+// Marks the given modules as now linked to sessionId (called right after a
+// successful load or save so live data knows which session it "belongs" to).
+function smMarkModulesLinked(moduleKeys, sessionId) {
+  if (!moduleKeys || !moduleKeys.length) return;
+  const map = smGetActiveLinks();
+  moduleKeys.forEach(function (mk) { map[mk] = sessionId; });
+  smSetActiveLinks(map);
+}
+
+// If any modules are currently linked to sessionId, wipes their live
+// ls/idb storage and un-links them. Returns true if anything was cleared,
+// so the caller knows whether a page reload is needed to reflect it.
+async function smClearModulesLinkedTo(sessionId) {
+  const map = smGetActiveLinks();
+  const toClear = Object.keys(map).filter(function (mk) { return map[mk] === sessionId; });
+  if (!toClear.length) return false;
+
+  let lsKeys = [], idbKeys = [];
+  toClear.forEach(function (mk) {
+    const s = SM_MODULE_STORAGE[mk];
+    if (!s) return;
+    if (s.ls) lsKeys = lsKeys.concat(s.ls);
+    if (s.idb) idbKeys = idbKeys.concat(s.idb);
+  });
+
+  lsKeys.forEach(function (k) { localStorage.removeItem(k); });
+
+  if (idbKeys.length) {
+    const db = await idbKvOpen();
+    await new Promise(function (resolve, reject) {
+      const tx = db.transaction('kv', 'readwrite');
+      const store = tx.objectStore('kv');
+      idbKeys.forEach(function (k) { store.delete(k); });
+      tx.oncomplete = resolve;
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+
+  toClear.forEach(function (mk) { delete map[mk]; });
+  smSetActiveLinks(map);
+  return true;
+}
+
+// Only the keys declared in SM_MODULE_STORAGE belong to a session snapshot.
+// Scanning by prefix alone would also sweep up unrelated 'sarvarc*' keys that
+// happen to share the prefix but aren't module data — e.g. sarvarcLastSection
+// (which page was open) or sarvarcExportPrefs / sarvarcDaExportPrefs
+// (remembered export format) — none of which any module's load path ever
+// reads back. Keeping them out of every save/export keeps sessions smaller
+// and keeps their content matching exactly what the module pills claim.
+function smAllModuleLsKeys() {
+  const out = [];
+  Object.keys(SM_MODULE_STORAGE).forEach(function (mk) {
+    const s = SM_MODULE_STORAGE[mk];
+    if (s && s.ls) out.push.apply(out, s.ls);
+  });
+  return out;
+}
+
+function smCaptureLocalStorage() {
+  const out = {};
+  smAllModuleLsKeys().forEach(function (k) {
+    const v = localStorage.getItem(k);
+    if (v !== null) out[k] = v;
+  });
+  return out;
+}
+
+function smCaptureIdbKv() {
+  return idbKvOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readonly');
+    const store = tx.objectStore('kv');
+    const keysReq = store.getAllKeys();
+    const valsReq = store.getAll();
+    tx.oncomplete = () => {
+      const out = {};
+      (keysReq.result || []).forEach((k, i) => { out[k] = (valsReq.result || [])[i]; });
+      resolve(out);
+    };
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function smDefaultName() {
+  const d = new Date();
+  return 'Session – ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
+    ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+async function smSaveSession(name) {
+  const [ls, idb] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv()]);
+  const snapshot = { ls, idb };
+  let size = 0;
+  try { size = JSON.stringify(snapshot).length; } catch (e) {}
+  const rec = {
+    id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    name: (name || '').trim() || smDefaultName(),
+    savedAt: Date.now(),
+    size,
+    schemaVersion: SM_SNAPSHOT_SCHEMA_VERSION,
+    snapshot
+  };
+  const db = await idbKvOpen();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readwrite');
+    tx.objectStore('sessions').put(rec);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  smNotifyOtherTabs('save', rec.id);
+  return rec;
+}
+
+// Re-captures current live storage into an EXISTING session record, keeping
+// its id and name but refreshing savedAt/size/snapshot. Used by "Save Your
+// Workflow" when every module is already linked to the same session, so
+// re-saving updates that checkpoint in place instead of piling up a new,
+// near-duplicate session every time the button is clicked. Returns null if
+// the session no longer exists (e.g. it was deleted in another tab).
+async function smUpdateSessionSnapshot(id) {
+  const db = await idbKvOpen();
+  const existing = await new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  if (!existing) return null;
+
+  const [ls, idb] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv()]);
+  const snapshot = { ls, idb };
+  let size = 0;
+  try { size = JSON.stringify(snapshot).length; } catch (e) {}
+  const rec = Object.assign({}, existing, {
+    savedAt: Date.now(),
+    size,
+    schemaVersion: SM_SNAPSHOT_SCHEMA_VERSION,
+    snapshot
+  });
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readwrite');
+    tx.objectStore('sessions').put(rec);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  smNotifyOtherTabs('update', id);
+  return rec;
+}
+
+// Fetches a single session record (used to check "does this still exist"
+// before deciding to update vs. create-new, and for export).
+async function smGetSession(id) {
+  const db = await idbKvOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function smListSessions() {
+  const db = await idbKvOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').getAll();
+    req.onsuccess = () => resolve((req.result || []).sort((a, b) => b.savedAt - a.savedAt));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function smRenameSession(id, newName) {
+  const db = await idbKvOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readwrite');
+    const store = tx.objectStore('sessions');
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const rec = getReq.result;
+      if (rec) { rec.name = newName.trim() || rec.name; store.put(rec); }
+    };
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function smDeleteSession(id) {
+  // Clear whatever live module data is currently linked to this exact
+  // session BEFORE removing the session record itself — i.e. whatever was
+  // loaded from it, or saved as it, and hasn't since been re-linked to a
+  // different session. Doing this first (and aborting if it throws) avoids
+  // a half-finished delete where the session record is gone but the active-
+  // link map still points at an id that no longer exists anywhere, which
+  // would leave that live data permanently "linked" to nothing.
+  let clearedLiveData = false;
+  try {
+    clearedLiveData = await smClearModulesLinkedTo(id);
+  } catch (e) {
+    console.warn('[Sessions] could not clear linked live data — aborting delete so nothing is left inconsistent', e);
+    throw e;
+  }
+
+  const db = await idbKvOpen();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readwrite');
+    tx.objectStore('sessions').delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  smNotifyOtherTabs('delete', id);
+  // Returns true if any live data was cleared, so the caller knows a reload
+  // is needed to reflect it.
+  return clearedLiveData;
+}
+
+// moduleKeys: array of SM_MODULE_MANIFEST keys to restore (e.g. ['makeforms',
+// 'diagrams']), taken straight from whichever pills were checked when Load
+// was clicked. Only the ls/idb keys belonging to those modules are touched —
+// everything else already in this browser (including other modules' current
+// work) is left exactly as it was.
+async function smLoadSession(id, moduleKeys, absentModuleKeys) {
+  const db = await idbKvOpen();
+  const rec = await new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
+
+  if (rec.schemaVersion !== SM_SNAPSHOT_SCHEMA_VERSION) {
+    // Not fatal — the {ls, idb} shape hasn't changed since this field was
+    // introduced, so legacy (undefined) and current versions load the same
+    // way today. This is here so that the day the snapshot format *does*
+    // change, there's already a place to branch on rec.schemaVersion instead
+    // of silently misreading old sessions.
+    console.warn('[Sessions] loading a session saved with schemaVersion=' + rec.schemaVersion + ' (current is ' + SM_SNAPSHOT_SCHEMA_VERSION + ')');
+  }
+
+  const keys = (moduleKeys && moduleKeys.length) ? moduleKeys : Object.keys(SM_MODULE_STORAGE);
+  let lsKeys = [], idbKeys = [];
+  keys.forEach(function (mk) {
+    const map = SM_MODULE_STORAGE[mk];
+    if (!map) return;
+    if (map.ls) lsKeys = lsKeys.concat(map.ls);
+    if (map.idb) idbKeys = idbKeys.concat(map.idb);
+  });
+
+  // Modules that had NO data in this session at all (disabled pills, passed
+  // in as absentModuleKeys) must be wiped too — not left as whatever a
+  // previously-loaded session put there. This is different from a PRESENT
+  // module the person manually unchecked (in `keys`'s complement), which is
+  // intentionally left alone. Without this, reopening an older, sparser
+  // session after a fuller one leaves the fuller session's modules "stuck"
+  // on screen even though this session never had that data.
+  const absentKeys = (absentModuleKeys && absentModuleKeys.length) ? absentModuleKeys : [];
+  let absentLsKeys = [], absentIdbKeys = [];
+  absentKeys.forEach(function (mk) {
+    const map = SM_MODULE_STORAGE[mk];
+    if (!map) return;
+    if (map.ls) absentLsKeys = absentLsKeys.concat(map.ls);
+    if (map.idb) absentIdbKeys = absentIdbKeys.concat(map.idb);
+  });
+
+  lsKeys.forEach(function (k) {
+    localStorage.removeItem(k);
+    if (rec.snapshot.ls && rec.snapshot.ls[k] !== undefined) localStorage.setItem(k, rec.snapshot.ls[k]);
+  });
+  absentLsKeys.forEach(function (k) { localStorage.removeItem(k); });
+
+  if (idbKeys.length || absentIdbKeys.length) {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      const store = tx.objectStore('kv');
+      idbKeys.forEach(function (k) {
+        store.delete(k);
+        if (rec.snapshot.idb && rec.snapshot.idb[k] !== undefined) store.put(rec.snapshot.idb[k], k);
+      });
+      absentIdbKeys.forEach(function (k) { store.delete(k); });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // These modules' live data now matches this exact session — link them so
+  // that if this session is deleted later, this live data goes with it.
+  smMarkModulesLinked(keys, id);
+  // Absent modules are now empty and don't belong to any session's data —
+  // unlink them so deleting some other session later doesn't try to clear
+  // them again under a stale link.
+  if (absentKeys.length) {
+    const map = smGetActiveLinks();
+    absentKeys.forEach(function (mk) { delete map[mk]; });
+    smSetActiveLinks(map);
+  }
+  smNotifyOtherTabs('load', id);
+
+  if (typeof toast === 'function') toast('Loading "' + rec.name + '"…', 'success');
+  // A reload is the safest way to bring the affected modules back in sync
+  // with the restored storage — each of them already self-restores from
+  // localStorage/IndexedDB on startup, so this reuses that exact same,
+  // already-tested path instead of re-implementing per-module refresh logic.
+  setTimeout(() => location.reload(), 500);
+}
+
+function smFormatBytes(n) {
+  if (!n) return '0 KB';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ─── Export / Import ────────────────────────────────────────────────────
+// Everything about Saved Sessions lives only in this one browser (see the
+// framing comment at the top of this manager) — there is no account, no
+// server, and no sync. That's good for privacy, but it also means clearing
+// site data, switching browsers, or moving to a new device wipes every
+// saved session with no way to get it back. Export/import gives people a
+// real on-disk backup and a way to carry a session to another browser.
+function smSanitizeFileNamePart(s) {
+  return String(s || 'session').replace(/[^a-z0-9\-_ ]/gi, '').trim().slice(0, 60) || 'session';
+}
+
+async function smExportSession(id) {
+  try {
+    const rec = await smGetSession(id);
+    if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
+    const payload = {
+      sarvarcSessionExport: true,
+      exportedAt: Date.now(),
+      schemaVersion: (typeof rec.schemaVersion === 'number') ? rec.schemaVersion : SM_SNAPSHOT_SCHEMA_VERSION,
+      name: rec.name,
+      savedAt: rec.savedAt,
+      size: rec.size,
+      snapshot: rec.snapshot
+    };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = smSanitizeFileNamePart(rec.name) + '.sarvarcsession.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+    if (typeof toast === 'function') toast('Exported "' + rec.name + '".', 'success');
+  } catch (e) {
+    console.warn('[Sessions] export failed', e);
+    if (typeof toast === 'function') toast('Could not export that session.', 'error');
+  }
+}
+
+// Reads a .sarvarcsession.json file (from smExportSession, possibly from a
+// different browser/device) and stores it as a brand-new session here —
+// never overwrites an existing one, even if a same-named session exists,
+// so a bad import can't silently clobber real data.
+async function smImportSessionFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    if (!payload || typeof payload !== 'object' || !payload.snapshot || typeof payload.snapshot !== 'object') {
+      throw new Error('Not a recognizable session export file.');
+    }
+    const rec = {
+      id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      name: (String(payload.name || '').trim() || smDefaultName()) + ' (imported)',
+      savedAt: Date.now(),
+      size: (function () { try { return JSON.stringify(payload.snapshot).length; } catch (e) { return payload.size || 0; } })(),
+      schemaVersion: (typeof payload.schemaVersion === 'number') ? payload.schemaVersion : 0,
+      snapshot: payload.snapshot
+    };
+    if (rec.schemaVersion !== SM_SNAPSHOT_SCHEMA_VERSION) {
+      console.warn('[Sessions] importing a file with schemaVersion=' + rec.schemaVersion + ' (current is ' + SM_SNAPSHOT_SCHEMA_VERSION + ')');
+    }
+    const db = await idbKvOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('sessions', 'readwrite');
+      tx.objectStore('sessions').put(rec);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    smNotifyOtherTabs('save', rec.id);
+    if (typeof toast === 'function') toast('Imported "' + rec.name + '".', 'success');
+    if (document.getElementById('smSessionList')) smRenderList();
+  } catch (e) {
+    console.warn('[Sessions] import failed', e);
+    if (typeof toast === 'function') toast('Could not import that file — it may not be a valid session export.', 'error');
+  }
+}
+
+function smOnImportFileChosen(input) {
+  const file = input && input.files && input.files[0];
+  if (file) smImportSessionFile(file);
+  if (input) input.value = '';
+}
+window.smExportSession = smExportSession;
+window.smOnImportFileChosen = smOnImportFileChosen;
+
+// ─── Per-module content detection ───
+// Looks inside a saved snapshot and reports, per module, whether that
+// session actually has data for it — and how much — so the session list can
+// show a real row breakdown (Workspace, Data Arrangement, Make Forms,
+// Diagrams & Graphs, Extraction) instead of just a name and a date.
+function smSafeParse(raw) { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+
+const SM_MODULE_MANIFEST = [
+  {
+    key: 'workspace', label: 'Workspace (Editor)',
+    icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    check: function (snap) {
+      const d = snap.idb && snap.idb['workspaceDoc_v1'];
+      const n = d && Array.isArray(d.pages) ? d.pages.length : 0;
+      return { present: n > 0, detail: n > 0 ? (n + (n === 1 ? ' page' : ' pages')) : 'no data' };
+    }
+  },
+  {
+    key: 'dataarrange', label: 'Data Arrangement',
+    icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>',
+    check: function (snap) {
+      const parsed = smSafeParse(snap.ls && snap.ls['sarvarcDaState_v1']);
+      const n = parsed && Array.isArray(parsed.datasets) ? parsed.datasets.length : 0;
+      return { present: n > 0, detail: n > 0 ? (n + (n === 1 ? ' table' : ' tables')) : 'no data' };
+    }
+  },
+  {
+    key: 'makeforms', label: 'Make Forms',
+    icon: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/>',
+    check: function (snap) {
+      const parsed = smSafeParse(snap.ls && snap.ls['sarvarcForms']);
+      const n = Array.isArray(parsed) ? parsed.length : 0;
+      return { present: n > 0, detail: n > 0 ? (n + (n === 1 ? ' form' : ' forms')) : 'no data' };
+    }
+  },
+  {
+    key: 'diagrams', label: 'Diagrams & Graphs',
+    icon: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    check: function (snap) {
+      const hist = smSafeParse(snap.ls && snap.ls['sarvarcDgHistory_v1']);
+      const histN = Array.isArray(hist) ? hist.length : 0;
+      const cur = smSafeParse(snap.ls && snap.ls['sarvarcDgState_v1']);
+      const hasCurrent = !!(cur && Array.isArray(cur.rows) && cur.rows.length);
+      const n = histN + (hasCurrent ? 1 : 0);
+      return { present: n > 0, detail: n > 0 ? (n + (n === 1 ? ' chart' : ' charts')) : 'no data' };
+    }
+  },
+  {
+    key: 'extract', label: 'Extraction',
+    icon: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+    check: function (snap) {
+      const d = snap.idb && snap.idb['sarvarcExtractState_v1'];
+      const n = d && Array.isArray(d.images) ? d.images.length : 0;
+      return { present: n > 0, detail: n > 0 ? (n + (n === 1 ? ' image' : ' images')) : 'no data' };
+    }
+  }
+];
+
+// Which underlying storage keys belong to each module — lets a "Load" click
+// touch only the ls/idb keys for the modules that are actually checked,
+// instead of wiping every sarvarc* key in the browser.
+const SM_MODULE_STORAGE = {
+  workspace:   { idb: ['workspaceDoc_v1'] },
+  dataarrange: { ls:  ['sarvarcDaState_v1'] },
+  makeforms:   { ls:  ['sarvarcForms'] },
+  diagrams:    { ls:  ['sarvarcDgHistory_v1', 'sarvarcDgState_v1'] },
+  extract:     { idb: ['sarvarcExtractState_v1'] }
+};
+
+// One checkbox pill per module. Ticked by default when the module has data
+// in this session; greyed out and unclickable when it doesn't. The tick
+// state read straight off these inputs at "Load Selected" time — no
+// separate JS state to keep in sync.
+function smModuleChecksHtml(sessionId, snapshot) {
+  return SM_MODULE_MANIFEST.map(function (m) {
+    const r = m.check(snapshot || {});
+    const cls = 'sm-mod-check ' + (r.present ? 'has-data checked' : 'empty');
+    const shortLabel = m.label.replace(' (Editor)', '');
+    return '<label class="' + cls + '" title="' + m.label + ': ' + r.detail + '">' +
+      '<input type="checkbox" class="sm-mod-input" data-mod="' + m.key + '" ' +
+        (r.present ? 'checked' : 'disabled') +
+        ' onchange="smOnModuleCheckChange(this)">' +
+      '<span class="chk-box"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' +
+      '<span>' + shortLabel + '</span>' +
+      '<span class="sm-mod-detail">' + r.detail + '</span>' +
+    '</label>';
+  }).join('');
+}
+
+// Keeps the pill's own "checked" class (used for its background colour) in
+// sync with its checkbox — the checkbox itself is visually hidden.
+function smOnModuleCheckChange(input) {
+  input.closest('.sm-mod-check').classList.toggle('checked', input.checked);
+  const row = input.closest('.sm-session-row');
+  if (row) smUpdateLoadButton(row);
+}
+
+function smUpdateLoadButton(row) {
+  const btn = row.querySelector('.sm-session-load-btn');
+  if (!btn) return;
+  const n = row.querySelectorAll('.sm-mod-input:checked').length;
+  btn.disabled = n === 0;
+  btn.querySelector('.sm-load-label').textContent = n === 0 ? 'Load' : (n === row.querySelectorAll('.sm-mod-input:not(:disabled)').length ? 'Load all' : 'Load ' + n);
+}
+
+async function smRenderList() {
+  const listEl = document.getElementById('smSessionList');
+  if (!listEl) return;
+  let sessions = [];
+  try { sessions = await smListSessions(); }
+  catch (e) { console.warn('[Sessions] could not list sessions', e); }
+
+  if (!sessions.length) {
+    listEl.innerHTML = '<div class="sm-session-empty">' +
+      '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' +
+      'No saved sessions yet. Use the Save Your Workflow button in the top bar to create your first one.' +
+    '</div>';
+    return;
+  }
+  const countLabel = sessions.length === 1 ? '1 saved session' : sessions.length + ' saved sessions';
+  listEl.innerHTML = '<div class="sm-session-count">' + countLabel + '</div>' + sessions.map(s => {
+    const dt = new Date(s.savedAt);
+    const dateStr = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const timeStr = dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const safeName = String(s.name).replace(/"/g, '&quot;');
+    const searchName = String(s.name).toLowerCase().replace(/"/g, '&quot;');
+    return '<div class="sm-session-row" data-id="' + s.id + '" data-name="' + searchName + '">' +
+        '<div class="sm-session-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>' +
+        '<input class="sm-session-name" value="' + safeName + '" ' +
+          'onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">' +
+        '<div class="sm-session-meta">' + dateStr + ', ' + timeStr + ' · ' + smFormatBytes(s.size) + '</div>' +
+        '<div class="sm-session-divider"></div>' +
+        '<div class="sm-mod-row">' + smModuleChecksHtml(s.id, s.snapshot) + '</div>' +
+        '<div class="sm-session-actions">' +
+          '<button class="sm-session-btn sm-session-load-btn" onclick="smOnLoadClick(\'' + s.id + '\', \'' + safeName + '\')">' +
+            '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+            '<span class="sm-load-label">Load all</span>' +
+          '</button>' +
+          '<button class="sm-session-btn icon-only" title="Export session to a file (for backup or another browser)" onclick="smExportSession(\'' + s.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>' +
+          '<button class="sm-session-btn danger icon-only" title="Delete session" onclick="smOnDeleteClick(\'' + s.id + '\', \'' + safeName + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
+        '</div>' +
+    '</div>';
+  }).join('');
+  smApplyFilter();
+}
+
+// ─── Search / filter saved sessions by name ────────────────────────────────
+let smSearchQuery = '';
+function smFilterSessions(value) {
+  smSearchQuery = (value || '').trim().toLowerCase();
+  smApplyFilter();
+}
+function smApplyFilter() {
+  const listEl = document.getElementById('smSessionList');
+  if (!listEl) return;
+  const rows = listEl.querySelectorAll('.sm-session-row');
+  let visibleCount = 0;
+  rows.forEach(function (row) {
+    const match = !smSearchQuery || (row.dataset.name || '').indexOf(smSearchQuery) !== -1;
+    row.style.display = match ? '' : 'none';
+    if (match) visibleCount++;
+  });
+  let noMatchEl = listEl.querySelector('.sm-session-no-match');
+  if (rows.length && smSearchQuery && visibleCount === 0) {
+    if (!noMatchEl) {
+      noMatchEl = document.createElement('div');
+      noMatchEl.className = 'sm-session-no-match';
+      noMatchEl.style.cssText = 'padding:26px 16px;text-align:center;color:var(--text3);font-size:12.5px';
+      listEl.appendChild(noMatchEl);
+    }
+    noMatchEl.textContent = 'No saved sessions match "' + smSearchQuery + '".';
+  } else if (noMatchEl) {
+    noMatchEl.remove();
+  }
+}
+
+function smOnRenameInput(id, value) {
+  smRenameSession(id, value).catch(e => console.warn('[Sessions] rename failed', e));
+}
+
+function smOnLoadClick(id, name) {
+  const row = document.querySelector('.sm-session-row[data-id="' + id + '"]');
+  const checked = row ? Array.from(row.querySelectorAll('.sm-mod-input:checked')).map(cb => cb.dataset.mod) : [];
+  if (!checked.length) { if (typeof toast === 'function') toast('Select at least one item to load.', 'error'); return; }
+
+  // Modules with a DISABLED checkbox had no data in this session at all — as
+  // opposed to a present module the person manually unchecked, which should
+  // stay untouched. Those disabled/absent ones must be cleared on load too,
+  // otherwise leftover data from a previously-loaded session lingers even
+  // though this session never had anything there (see smLoadSession).
+  const absent = row ? Array.from(row.querySelectorAll('.sm-mod-input:disabled')).map(cb => cb.dataset.mod) : [];
+
+  const totalAvailable = row ? row.querySelectorAll('.sm-mod-input:not(:disabled)').length : checked.length;
+  const what = checked.length === totalAvailable
+    ? 'everything'
+    : checked.length + ' selected item' + (checked.length > 1 ? 's' : '');
+  const absentNote = absent.length
+    ? ' Modules with no data in this session (' + absent.length + ') will be cleared to match it.'
+    : '';
+  if (!confirm('Load ' + what + ' from "' + name + '"? This replaces the matching current work with what was saved in this session.' + absentNote)) return;
+  smLoadSession(id, checked, absent);
+}
+
+async function smOnDeleteClick(id, name) {
+  const isLinked = Object.values(smGetActiveLinks()).indexOf(id) !== -1;
+  const warning = isLinked
+    ? 'Delete "' + name + '"? This cannot be undone — and since your current work in at least one module was loaded from (or saved as) this session, that live data will be cleared too.'
+    : 'Delete "' + name + '"? This cannot be undone.';
+  if (!confirm(warning)) return;
+  try {
+    const clearedLiveData = await smDeleteSession(id);
+    smRenderList();
+    if (typeof toast === 'function') toast('Session deleted.', 'info');
+    if (clearedLiveData) {
+      // Modules read their data from localStorage/IndexedDB on startup, so
+      // reload to bring their on-screen state back in sync with what was
+      // just cleared — same approach smLoadSession already uses.
+      setTimeout(() => location.reload(), 500);
+    }
+  }
+  catch (e) {
+    console.warn('[Sessions] delete failed', e);
+    if (typeof toast === 'function') toast('Could not delete "' + name + '" — nothing was removed. Try again.', 'error');
+  }
+}
+
+// Opens the Saved Sessions page (a real section like every other module —
+// not a popup) via the app's existing navigate() router.
+function smOpenSessionsPage() {
+  if (typeof navigate === 'function') navigate('savedsessions');
+  smRenderList();
+}
+
+// Quick-save button used inside each module's own toolbar: jumps straight to
+// the Saved Sessions page — saving itself now happens via the single "Save
+// Your Workflow" button in the top bar, kept here only for any old callers.
+function smQuickSave() {
+  smOpenSessionsPage();
+}
+
+// ─── Single workspace-wide "Save Your Workflow" button (top nav) ──────────
+// Captures everything — Workspace document, Extraction, Data Arrangement,
+// Make Forms and Diagrams & Graphs — into one named session in a single
+// click, no navigating away and no typing a name required. If the person
+// is already on the Saved Sessions page, the list refreshes in place so
+// the new entry shows up immediately.
+async function smSaveWorkflow() {
+  const btn = document.getElementById('saveWorkflowBtn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+  }
+  try {
+    const headroomWarning = await smStorageHeadroomWarning();
+    if (headroomWarning && typeof toast === 'function') toast(headroomWarning, 'error');
+
+    // If every module is currently linked to the SAME existing session (the
+    // normal case right after a prior "Save Your Workflow" or a full Load),
+    // re-saving updates that session in place instead of creating a new,
+    // near-duplicate one every click. Anything else — first-ever save, a
+    // fresh project, or modules linked to different sessions — creates a
+    // new session as before, since there's no single obvious one to update.
+    const allModuleKeys = Object.keys(SM_MODULE_STORAGE);
+    const links = smGetActiveLinks();
+    const linkedIds = allModuleKeys.map(function (mk) { return links[mk]; });
+    const candidateId = linkedIds[0];
+    const allLinkedToSame = !!candidateId && linkedIds.every(function (lid) { return lid === candidateId; });
+
+    let rec = null;
+    let updated = false;
+    if (allLinkedToSame) {
+      rec = await smUpdateSessionSnapshot(candidateId);
+      updated = !!rec;
+    }
+    if (!rec) {
+      rec = await smSaveSession(smDefaultName());
+    }
+
+    // The live data across every module now matches this session exactly —
+    // link them all, so if this session is later deleted, this live data is
+    // understood to belong to it.
+    smMarkModulesLinked(allModuleKeys, rec.id);
+    if (typeof toast === 'function') {
+      toast((updated ? 'Updated saved session "' : 'Workflow saved as "') + rec.name + '".', 'success');
+    }
+    if (document.getElementById('smSessionList')) smRenderList();
+    if (btn) {
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 1400);
+    }
+  } catch (e) {
+    console.warn('[Sessions] workflow save failed', e);
+    if (typeof toast === 'function') toast('Could not save your workflow — your browser storage may be unavailable or full.', 'error');
+    if (btn) { btn.innerHTML = originalHtml; btn.disabled = false; }
+  }
+}
+window.smSaveWorkflow = smSaveWorkflow;
+
+// ─── "New Project" button (top nav) ─────────────────────────────────────
+// Clears the CURRENT live work across every module — Workspace document,
+// Extraction, Data Arrangement, Make Forms, Diagrams & Graphs — so the
+// person can start with a clean slate. Asks for confirmation first since
+// this discards anything not already saved as a session. Saved Sessions
+// themselves are never touched by this — it only resets what's currently
+// on screen, the same live storage smClearModulesLinkedTo() already knows
+// how to wipe.
+async function smNewProject() {
+  const proceed = confirm(
+    'Start a new project?\n\n' +
+    'This clears your current work in every module — Workspace document, Extraction, Data Arrangement, Make Forms, and Diagrams & Graphs — in this browser.\n\n' +
+    'Your saved sessions are not affected, but anything not already saved will be lost. Use "Save Your Workflow" first if you want to keep it.'
+  );
+  if (!proceed) return;
+
+  const btn = document.getElementById('newProjectBtn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Clearing…</span>';
+  }
+
+  try {
+    const allModuleKeys = Object.keys(SM_MODULE_STORAGE);
+    let lsKeys = [], idbKeys = [];
+    allModuleKeys.forEach(function (mk) {
+      const s = SM_MODULE_STORAGE[mk];
+      if (!s) return;
+      if (s.ls) lsKeys = lsKeys.concat(s.ls);
+      if (s.idb) idbKeys = idbKeys.concat(s.idb);
+    });
+
+    lsKeys.forEach(function (k) { localStorage.removeItem(k); });
+
+    if (idbKeys.length) {
+      const db = await idbKvOpen();
+      await new Promise(function (resolve, reject) {
+        const tx = db.transaction('kv', 'readwrite');
+        const store = tx.objectStore('kv');
+        idbKeys.forEach(function (k) { store.delete(k); });
+        tx.oncomplete = resolve;
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }
+
+    // None of these modules are linked to any saved session anymore — this
+    // is a fresh, unsaved project.
+    const map = smGetActiveLinks();
+    allModuleKeys.forEach(function (mk) { delete map[mk]; });
+    smSetActiveLinks(map);
+
+    if (typeof toast === 'function') toast('Started a new project.', 'success');
+    setTimeout(() => location.reload(), 400);
+  } catch (e) {
+    console.warn('[New Project] could not clear current work', e);
+    if (typeof toast === 'function') toast('Could not start a new project — your browser storage may be unavailable.', 'error');
+    if (btn) { btn.innerHTML = originalHtml; btn.disabled = false; }
+  }
+}
+window.smNewProject = smNewProject;
+
+window.smOpenSessionsPage = smOpenSessionsPage;
+window.smQuickSave = smQuickSave;
+window.smFilterSessions = smFilterSessions;
+window.smOnRenameInput = smOnRenameInput;
+window.smOnLoadClick = smOnLoadClick;
+window.smOnDeleteClick = smOnDeleteClick;
+async function idbKvSet(key, value) {
+  const db = await idbKvOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(value, key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbKvGet(key) {
+  const db = await idbKvOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readonly');
+    const req = tx.objectStore('kv').get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbKvDelete(key) {
+  const db = await idbKvOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').delete(key);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ─── Workspace document persistence (save + restore) ───
+const PDFED_STORAGE_KEY = 'workspaceDoc_v1';
+let pdfedPersistTimer = null;
+let pdfedPersisting = false;
+function pdfedPersist() {
+  clearTimeout(pdfedPersistTimer);
+  pdfedPersistTimer = setTimeout(async () => {
+    if (pdfedPersisting) { pdfedPersist(); return; } // a save is already running — try again shortly
+    pdfedPersisting = true;
+    try {
+      if (!pdfed.pages.length) {
+        await idbKvDelete(PDFED_STORAGE_KEY);
+        return;
+      }
+      // Bake any not-yet-rendered PDF pages into a raster now, so the saved
+      // snapshot is fully self-contained and never needs the original file
+      // (or a live pdf.js document) again to be shown after a reload.
+      for (const pg of pdfed.pages) {
+        try { await pdfedPageUrlBase(pg); } catch (e) { /* leave dataUrl as-is; restore just skips this page's image */ }
+      }
+      await idbKvSet(PDFED_STORAGE_KEY, {
+        pages: pdfed.pages,
+        active: pdfed.active,
+        zoom: pdfed.zoom,
+        fileName: pdfed.file ? pdfed.file.name : null,
+        savedAt: Date.now()
+      });
+    } catch (e) {
+      console.warn('[Workspace] could not persist document to IndexedDB', e);
+    } finally {
+      pdfedPersisting = false;
+    }
+  }, 500);
+}
+
+async function pdfedRestore() {
+  let saved;
+  try { saved = await idbKvGet(PDFED_STORAGE_KEY); }
+  catch (e) { console.warn('[Workspace] could not read saved document', e); return; }
+  if (!saved || !Array.isArray(saved.pages) || !saved.pages.length) return;
+  try {
+    pdfed.pdfDoc = null;
+    pdfed.file = { name: saved.fileName || 'Untitled Document' };
+    pdfed.pages = saved.pages;
+    pdfed.active = -1;
+    pdfed.zoom = saved.zoom || 1.0;
+
+    ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    const upBtn = document.getElementById('pdfedUploadBtn');
+    if (upBtn) upBtn.style.display = 'none';
+    const fnEl = document.getElementById('pdfedFileName');
+    if (fnEl) fnEl.textContent = pdfed.file.name;
+    const ph = document.getElementById('pdfedPlaceholder');
+    if (ph) ph.style.display = 'none';
+    const wrap = document.getElementById('pdfedCanvasWrap');
+    if (wrap) wrap.style.display = 'inline-block';
+    const tb = document.getElementById('pdfedToolbar');
+    if (tb) tb.style.visibility = 'visible';
+
+    await pdfedBuildStrip();
+    const gotoIdx = Math.min(Math.max(saved.active, 0), pdfed.pages.length - 1);
+    await pdfedGoto(gotoIdx);
+    setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 50);
+    if (typeof toast === 'function') {
+      toast('Restored your last document (' + pdfed.pages.length + ' page' + (pdfed.pages.length !== 1 ? 's' : '') + ')', 'info');
+    }
+  } catch (e) {
+    console.warn('[Workspace] could not restore saved document', e);
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { pdfedRestore(); });
+} else {
+  pdfedRestore();
+}
+
+// ─── Extraction module persistence (save + restore) ───
+// Mirrors the Workspace document pattern above: extracted images (data URLs)
+// can be large, so they live in IndexedDB rather than localStorage. On-device
+// only, same as everything else — this just lets the extracted gallery
+// survive a refresh/reopen and be captured in a Saved Session.
+const EXTRACT_STORAGE_KEY = 'sarvarcExtractState_v1';
+let extractPersistTimer = null;
+function extractPersist() {
+  clearTimeout(extractPersistTimer);
+  extractPersistTimer = setTimeout(async () => {
+    try {
+      if (!state.extractedImages || !state.extractedImages.length) {
+        await idbKvDelete(EXTRACT_STORAGE_KEY);
+        return;
+      }
+      await idbKvSet(EXTRACT_STORAGE_KEY, {
+        images: state.extractedImages,
+        savedAt: Date.now()
+      });
+    } catch (e) { console.warn('[Extraction] could not persist gallery to IndexedDB', e); }
+  }, 500);
+}
+async function extractRestore() {
+  let saved;
+  try { saved = await idbKvGet(EXTRACT_STORAGE_KEY); }
+  catch (e) { console.warn('[Extraction] could not read saved gallery', e); return; }
+  if (!saved || !Array.isArray(saved.images) || !saved.images.length) return;
+  try {
+    state.extractedImages = saved.images;
+    state.stats.imgs += state.extractedImages.length;
+    if (typeof updateStats === 'function') updateStats();
+    const emptyEl = document.getElementById('emptyState');
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (typeof renderGallery === 'function') renderGallery();
+    const badge = document.getElementById('imgCountBadge');
+    if (badge) { badge.style.display = 'inline-block'; badge.textContent = state.extractedImages.length; }
+    if (typeof collapseUploadArea === 'function') collapseUploadArea();
+    if (typeof refreshSidebarFolder === 'function') refreshSidebarFolder();
+  } catch (e) {
+    console.warn('[Extraction] could not restore gallery', e);
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { extractRestore(); });
+} else {
+  extractRestore();
+}
+
 // Raw canvas-px size of one grid cell used for grid-to-grid snapping/overlay.
 const PDFED_GRID_SIZE = 20;
 
@@ -10128,6 +11608,7 @@ const pdfedPageUrlBase = pdfedPageUrl;
 
 // ─── BUILD STRIP ───
 async function pdfedBuildStrip() {
+  pdfedPersist();
   const strip = document.getElementById('pdfedStrip');
   if (!strip) return;
   strip.innerHTML = '';
@@ -16029,6 +17510,7 @@ function pdfedClearAnnotations() {
 const _pdfedThumbRefreshTimers = {};
 function pdfedMarkModified(idx) {
   if (pdfed.pages[idx]) pdfed.pages[idx].modified = true;
+  pdfedPersist();
   pdfedRefreshEditCount();
   const strip = document.getElementById('pdfedStrip');
   const card = strip && strip.querySelector('.pdfed-thumb[data-idx="' + idx + '"]');
@@ -19422,6 +20904,7 @@ function updateStats() {
   document.getElementById('statImgs').textContent = state.stats.imgs;
   document.getElementById('statExports').textContent = state.stats.exports;
   document.getElementById('statPages').textContent = state.stats.pages;
+  if (typeof extractPersist === 'function') extractPersist();
 }
 
 // ─── REMOVE / CLEAR HELPERS ───
@@ -19482,6 +20965,7 @@ function pdfedClosePdf() {
   pdfed.pdfDoc = null; pdfed.file = null;
   pdfed.pages = []; pdfed.active = -1;
   pdfed.zoom = 1.0;
+  idbKvDelete(PDFED_STORAGE_KEY).catch(e => console.warn('[Workspace] could not clear saved document', e));
   const strip = document.getElementById('pdfedStrip');
   if (strip) strip.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 8px">Open a PDF to see pages</div>';
   document.getElementById('pdfedPageCount').textContent = '';
@@ -19910,6 +21394,37 @@ let daState = {
   activeId: null
 };
 let daIdCounter = 0;
+
+// ─── Persistence: keeps tables intact across refresh/reopen. Browser-only
+// (localStorage), same "never leaves your device" guarantee as the rest of
+// the app — just written back out on every change instead of only in memory. ───
+const DA_STORAGE_KEY = 'sarvarcDaState_v1';
+let daPersistTimer = null;
+function daPersist() {
+  clearTimeout(daPersistTimer);
+  daPersistTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(DA_STORAGE_KEY, JSON.stringify({
+        datasets: daState.datasets,
+        activeId: daState.activeId,
+        idCounter: daIdCounter
+      }));
+    } catch (e) { console.warn('[Data Arrangement] could not persist to localStorage', e); }
+  }, 300);
+}
+function daRestore() {
+  try {
+    const raw = localStorage.getItem(DA_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved && Array.isArray(saved.datasets) && saved.datasets.length) {
+      daState.datasets = saved.datasets;
+      daState.activeId = saved.activeId || saved.datasets[0].id;
+      daIdCounter = Math.max(saved.idCounter || 0, daIdCounter);
+    }
+  } catch (e) { console.warn('[Data Arrangement] could not restore from localStorage', e); }
+}
+daRestore();
 
 // ─── Drag & drop wiring (mirrors handleDragOver/handleDrop but scoped to Data Arrangement) ───
 function daDragOver(e) { e.preventDefault(); document.getElementById('daUploadZone').classList.add('dragover'); }
@@ -20753,6 +22268,7 @@ function daRender() {
 }
 
 function daRenderTabs() {
+  daPersist();
   const wrap = document.getElementById('daTabs');
   if (!wrap) return;
   wrap.innerHTML = '';
@@ -21373,6 +22889,7 @@ function daRecalcColumnOps(ds) {
 
 
 function daRenderTable() {
+  daPersist();
   const gridWrap = document.getElementById('daGridWrap');
   const meta = document.getElementById('daMeta');
   if (!gridWrap) return;
@@ -22301,14 +23818,39 @@ async function daRunExportFromModal() {
 
 <script>
 (function(){
+  function restoreLastSection(){
+    var last = null;
+    try { last = localStorage.getItem('sarvarcLastSection'); } catch(e) {}
+    if (last && last !== 'dashboard' && typeof navigate === 'function' && document.getElementById('sec-' + last)) {
+      navigate(last);
+      // navigate() only switches which section is visible — the Saved Sessions
+      // list itself is populated separately from IndexedDB via smRenderList().
+      // Without this, landing back here on reload (e.g. right after loading a
+      // session) shows an empty list even though nothing was actually deleted.
+      if (last === 'savedsessions' && typeof smRenderList === 'function') {
+        smRenderList();
+      }
+    }
+  }
   function boot(){
+    restoreLastSection();
     var splash = document.getElementById('sarvarcSplash');
     var splashImg = document.getElementById('splashLogoImg');
     var navImg = document.querySelector('.nav-logo-link img');
     if (splashImg && navImg && navImg.getAttribute('src')) {
       splashImg.src = navImg.getAttribute('src');
     }
-    var MIN_SHOW = 1400; // ms the splash stays visible
+    var hasEntered = false;
+    try { hasEntered = sessionStorage.getItem('sarvarcHasEntered') === '1'; } catch(e) {}
+    if (hasEntered) {
+      // Already hidden instantly by the inline check right after the splash
+      // markup — this just guarantees a clean state either way, with no
+      // animation and no minimum-show delay on repeat visits/refreshes.
+      if (splash) { splash.classList.add('splash-hide'); splash.style.display = 'none'; }
+      document.body.classList.remove('splash-active');
+      return;
+    }
+    var MIN_SHOW = 1400; // ms the splash stays visible — first visit only
     var start = Date.now();
     function finishBoot(){
       var elapsed = Date.now() - start;
@@ -22317,6 +23859,7 @@ async function daRunExportFromModal() {
         if (splash) splash.classList.add('splash-hide');
         document.body.classList.remove('splash-active');
         setTimeout(function(){ if (splash) splash.style.display = 'none'; }, 600);
+        try { sessionStorage.setItem('sarvarcHasEntered', '1'); } catch(e) {}
       }, wait);
     }
     finishBoot();
@@ -24285,6 +25828,54 @@ function dgSyncBarRadiusUI() {
   if (mainLabel) mainLabel.textContent = dgState.barRadius + 'px';
 }
 
+// ── Clear All: wipes the current chart to a completely empty canvas —
+// all data rows, manual text labels, title and axis titles, colour/radius
+// customisations — without touching saved History or upload cache of other
+// charts. Confirms first since it can't be undone. ──
+function dgClearAll() {
+  if (!confirm("Clear everything on this chart — all data, text labels, and titles? This can't be undone.")) return;
+
+  dgState.rows = [];
+  dgState.texts = [];
+  dgSelected.clear();
+  dgHidePtxtToolbar();
+  dgState.sameColorMode = false;
+  dgState.sameColor = '#00C2FF';
+  dgState.barRadius = 8;
+  dgUploadParsed = null;
+
+  // The "Upload Data" flow keeps its own file-name label, column selectors,
+  // and sample-rows preview outside of dgState — clear those out too, or
+  // the old uploaded file's data stays visible even after everything else resets.
+  const uploadName = document.getElementById('dgUploadFileName');
+  if (uploadName) uploadName.textContent = '';
+  const labelSel = document.getElementById('dgLabelColSelect');
+  if (labelSel) labelSel.innerHTML = '';
+  const valueSel = document.getElementById('dgValueColSelect');
+  if (valueSel) valueSel.innerHTML = '';
+  const uploadHint = document.getElementById('dgUploadHint');
+  if (uploadHint) uploadHint.textContent = '';
+  const uploadPreview = document.getElementById('dgUploadPreview');
+  if (uploadPreview) uploadPreview.innerHTML = '';
+  const fileInput = document.getElementById('dgFileInput');
+  if (fileInput) fileInput.value = '';
+
+  const titleInput = document.getElementById('dgTitleInput');
+  if (titleInput) titleInput.value = 'Chart Title';
+  const xAxis = document.getElementById('dgXAxisTitleInput');
+  if (xAxis) xAxis.value = '';
+  const yAxis = document.getElementById('dgYAxisTitleInput');
+  if (yAxis) yAxis.value = '';
+
+  dgSetPaletteScheme('professional'); // recolours + refreshes the palette dropdown UI
+  dgSyncBarRadiusUI();
+  dgRenderRows(); // rows list is now empty — clears the Data panel's row editor
+  dgRenderTextOverlay();
+  dgSetType('bar'); // resets chart-type UI, and triggers the final render (empty canvas) + persist
+
+  toast('Chart cleared', 'success');
+}
+
 function dgAddRow() {
   const i = dgState.rows.length;
   const color = dgState.sameColorMode ? dgState.sameColor : dgCurrentScheme()[i % dgCurrentScheme().length];
@@ -24309,6 +25900,43 @@ let dgUploadParsed = null; // { headers, rows, fileName } once a file's been rea
 // for the History panel.
 let dgChartHistory = [];
 const DG_HISTORY_MAX = 15;
+
+// ─── Persistence: keeps the current chart + saved-chart history intact across
+// refresh/reopen. Browser-only (localStorage) — nothing is uploaded anywhere,
+// it's just written back out on every change instead of living only in memory. ───
+const DG_STORAGE_KEY = 'sarvarcDgState_v1';
+const DG_HISTORY_STORAGE_KEY = 'sarvarcDgHistory_v1';
+let dgPersistTimer = null;
+function dgPersist() {
+  clearTimeout(dgPersistTimer);
+  dgPersistTimer = setTimeout(() => {
+    try {
+      // wheelBase holds a cached offscreen canvas (not serializable) — skip it.
+      const { wheelBase, ...savable } = dgState;
+      localStorage.setItem(DG_STORAGE_KEY, JSON.stringify(savable));
+    } catch (e) { console.warn('[Diagrams] could not persist chart state', e); }
+    try {
+      localStorage.setItem(DG_HISTORY_STORAGE_KEY, JSON.stringify(dgChartHistory));
+    } catch (e) { console.warn('[Diagrams] could not persist chart history', e); }
+  }, 300);
+}
+function dgRestore() {
+  try {
+    const raw = localStorage.getItem(DG_STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved && typeof saved === 'object') Object.assign(dgState, saved, { wheelBase: null });
+    }
+  } catch (e) { console.warn('[Diagrams] could not restore chart state', e); }
+  try {
+    const rawH = localStorage.getItem(DG_HISTORY_STORAGE_KEY);
+    if (rawH) {
+      const savedH = JSON.parse(rawH);
+      if (Array.isArray(savedH)) dgChartHistory = savedH;
+    }
+  } catch (e) { console.warn('[Diagrams] could not restore chart history', e); }
+}
+dgRestore();
 
 // Used by callers outside this module (Data Arrangement's push button) to
 // decide whether to ask before overwriting. The blank canvas someone starts
@@ -24347,6 +25975,7 @@ function dgSaveCurrentToHistory(label) {
 }
 
 function dgRenderHistoryList() {
+  dgPersist();
   const wrap = document.getElementById('dgHistoryList');
   const badge = document.getElementById('dgHistoryBadge');
   if (badge) {
@@ -26474,6 +28103,7 @@ function dgHexAlpha(hex, alpha) {
 }
 
 function dgRender() {
+  dgPersist();
   if (!document.getElementById('dgCanvas')) return;
   if (!document.getElementById('dgRows').childElementCount) dgRenderRows();
   if (!document.getElementById('dgPaletteRow').childElementCount) dgRenderPalette();
@@ -27584,6 +29214,7 @@ function dgGetExportCanvas() {
   return out;
 }
 
+window.dgClearAll = dgClearAll;
 window.dgSetPaletteScheme = dgSetPaletteScheme;
 window.dgOnBarRadiusInput = dgOnBarRadiusInput;
 window.dgAddRow = dgAddRow;
