@@ -7098,7 +7098,7 @@ button.dg-show-chip.active { background:var(--blue); }
         <div class="page-header da-header-card" id="daHeaderCard">
           <div>
             <h2>Data Arrangement</h2>
-            <p id="daHeaderDesc">Upload any data file, SARVARC Workspace reads it: tabular data gets clean, precisely structured tables with headers auto-detected; full written content gets analysed and arranged topic by topic, so nothing comes out as a messy pile of lines. Then work it like a spreadsheet, type <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=SUM(A1:A5)</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=B2*C2</code>, or any formula straight into a cell.</p>
+            <p id="daHeaderDesc">Upload any data file — or a photo/screenshot of a table — SARVARC Workspace reads it: tabular data gets clean, precisely structured tables with headers auto-detected (even past title rows, grouped column headers, or currency/percent formatting); full written content gets analysed and arranged topic by topic, so nothing comes out as a messy pile of lines. Then work it like a spreadsheet, type <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=SUM(A1:A5)</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=B2*C2</code>, or any formula straight into a cell.</p>
           </div>
         </div>
 
@@ -7107,7 +7107,7 @@ button.dg-show-chip.active { background:var(--blue); }
           ondragover="daDragOver(event)" ondragleave="daDragLeave(event)" ondrop="daDrop(event)">
           <div class="upload-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
           <h3>Drop your file here</h3>
-          <p>or click to browse files<br>Word, PDF, CSV, Excel, TSV, TXT, or JSON: SARVARC looks for a table, and arranges the content either way</p>
+          <p>or click to browse files<br>Word, PDF, CSV, Excel, TSV, TXT, JSON, or a photo/screenshot of a table: SARVARC looks for a table, and arranges the content either way</p>
           <div class="upload-types">
             <span class="upload-type">DOCX</span>
             <span class="upload-type">PDF</span>
@@ -7116,10 +7116,11 @@ button.dg-show-chip.active { background:var(--blue); }
             <span class="upload-type">TSV</span>
             <span class="upload-type">TXT</span>
             <span class="upload-type">JSON</span>
+            <span class="upload-type">PNG/JPG</span>
           </div>
           <div class="upload-cta-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Choose File(s)</div>
         </div>
-        <input type="file" id="daFileInput" accept=".csv,.tsv,.txt,.xlsx,.xls,.json,.docx,.pdf" multiple style="display:none" onchange="daHandleFileSelect(event)">
+        <input type="file" id="daFileInput" accept=".csv,.tsv,.txt,.xlsx,.xls,.json,.docx,.pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none" onchange="daHandleFileSelect(event)">
 
 
         <!-- Parsing progress -->
@@ -21525,6 +21526,9 @@ function daProcessSingleFile(file) {
     } else if (ext === 'doc' || ext === 'rtf') {
       reject(new Error('legacy .doc/.rtf isn\'t supported in-browser, please save as .docx and try again'));
 
+    } else if (['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'].includes(ext)) {
+      daExtractImageTable(file).then(resolve).catch(reject);
+
     } else {
       // csv / tsv / txt / anything else plain-text, run the smart multi-strategy parser
       reader.onload = () => {
@@ -21590,6 +21594,196 @@ function daExtractTableGrid(table) {
 
   const maxCols = grid.reduce((m, r) => Math.max(m, r.length), 0);
   return grid.map(r => Array.from({ length: maxCols }, (_, i) => r[i] === undefined ? '' : r[i]));
+}
+
+// ─── Photo/screenshot of a table (PNG/JPG/WEBP/etc.) ───
+// There's no structural table markup to lean on here, only pixels, so this
+// runs OCR (reusing the PDF editor's Tesseract worker/preprocessing so the
+// engine only ever loads once) and reconstructs a grid from where each
+// recognized word actually sits on the page, rather than just its reading
+// order. Reading order alone would run every row together as one long line.
+async function daExtractImageTable(file) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('could not read image'));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('could not decode image, it may be corrupted'));
+    im.src = dataUrl;
+  });
+
+  if (typeof Tesseract === 'undefined') {
+    throw new Error('the text-reading tool (OCR) couldn\'t load, check your connection and retry');
+  }
+
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = img.naturalWidth || img.width;
+  srcCanvas.height = img.naturalHeight || img.height;
+  srcCanvas.getContext('2d').drawImage(img, 0, 0);
+
+  daSetProgress(true, 'Reading table from image (OCR)…');
+  _teOcrProgressCb = (frac, label) => daSetProgress(true, label || 'Reading table from image (OCR)…');
+  try {
+    const { canvas: ocrCanvas } = pdfedPreprocessForOcr(srcCanvas);
+    const worker = await pdfedGetOcrWorker();
+    const { data } = await worker.recognize(ocrCanvas);
+    const words = (data.words || []).filter(w => w.text && w.text.trim() && w.confidence >= 35);
+    if (!words.length) {
+      daAddDataset(daBaseName(file.name), [['Content'], ['No readable text was found in this image.']]);
+      toast(`Couldn't find readable text in "${file.name}".`, 'error');
+      return { tableFound: false };
+    }
+    const aoa = daClusterOcrWordsIntoGrid(words);
+    daAddDataset(daBaseName(file.name), aoa);
+    // Image-to-table via OCR is a newly-added, still-in-development path —
+    // unlike CSV/XLSX/DOCX (parsed from real structured data), this is
+    // reconstructed from pixel positions and can misread a character,
+    // merge/split a column, or drop a faint row. Flag that plainly right
+    // when the table lands so it doesn't get treated as trustworthy as an
+    // export straight from a spreadsheet, before anyone builds on top of it.
+    toast(`Table extracted from "${file.name}" via OCR (beta) — please double-check the data against the original image before relying on it.`, 'info');
+    return { tableFound: aoa.length > 1 && aoa[0].length > 1 };
+  } finally {
+    _teOcrProgressCb = null;
+  }
+}
+
+// Reconstructs a table grid from OCR word boxes by position, not reading
+// order: 1) cluster words into visual rows by vertical center proximity,
+// 2) build a whitespace "projection profile" across the whole table —
+// for every x-position, what fraction of rows have a word covering it —
+// and treat any x-band that's empty in almost every row as a column gap,
+// 3) bucket each word into the column its horizontal CENTER falls in.
+//
+// This replaced an earlier version that looked at word-to-word gaps one
+// row at a time and merged similar-looking gaps into a shared boundary
+// list. That approach broke down on real tables because a column's true
+// edge lands at a different pixel on almost every row (a long name vs. a
+// short one, a 3-digit fare vs. a 1-digit age), so gaps that were really
+// the same column boundary often drifted past the merge tolerance and got
+// counted as two separate boundaries — effectively doubling some columns,
+// which is what produced the "header lands in different columns than the
+// data" symptom. Scoring boundaries by column-wide whitespace instead of
+// per-row gaps is far less sensitive to that per-row width drift, because
+// it only cares whether a vertical strip is *consistently* empty top to
+// bottom, not how wide any single row's gap happens to look.
+function daClusterOcrWordsIntoGrid(words) {
+  const ws = words.map(w => ({
+    text: w.text.trim(), x0: w.bbox.x0, x1: w.bbox.x1,
+    yc: (w.bbox.y0 + w.bbox.y1) / 2, h: Math.max(1, w.bbox.y1 - w.bbox.y0)
+  })).filter(w => w.text);
+  if (!ws.length) return [['Content']];
+
+  // 1) group into rows by vertical center proximity
+  ws.sort((a, b) => a.yc - b.yc);
+  const sortedH = ws.map(w => w.h).sort((a, b) => a - b);
+  const medH = sortedH[Math.floor(sortedH.length / 2)] || 12;
+  const lineGap = medH * 0.6;
+  const lines = [];
+  ws.forEach(w => {
+    let line = lines[lines.length - 1];
+    if (!line || Math.abs(line.yc - w.yc) > lineGap) {
+      line = { yc: w.yc, words: [] };
+      lines.push(line);
+    }
+    line.words.push(w);
+    line.yc = (line.yc * (line.words.length - 1) + w.yc) / line.words.length;
+  });
+  lines.forEach(l => l.words.sort((a, b) => a.x0 - b.x0));
+
+  // 2) Sample the table's x-range in small buckets and count, per bucket,
+  // how many rows have a word covering it. A genuine column gap shows up
+  // as a band that stays near-zero across nearly every row.
+  const minX = Math.min(...ws.map(w => w.x0));
+  const maxX = Math.max(...ws.map(w => w.x1));
+  const bucketW = Math.max(1, medH * 0.25);
+  const nBuckets = Math.max(1, Math.ceil((maxX - minX) / bucketW));
+  const coverCount = new Array(nBuckets).fill(0);
+  lines.forEach(l => {
+    l.words.forEach(w => {
+      const b0 = Math.max(0, Math.floor((w.x0 - minX) / bucketW));
+      const b1 = Math.min(nBuckets - 1, Math.floor((w.x1 - minX) / bucketW));
+      for (let b = b0; b <= b1; b++) coverCount[b]++;
+    });
+  });
+
+  // A bucket counts as "gap" space once fewer than ~15% of rows have a
+  // word sitting on it — a handful of rows bleeding slightly into a real
+  // column gap (long values, a wrapped header) shouldn't disqualify it.
+  // Only contiguous gap runs at least ~0.9x a word-height wide count as an
+  // actual column boundary, so normal single-space word gaps within a
+  // cell (e.g. "Human Resources") don't get mistaken for one.
+  const gapThreshold = Math.max(1, lines.length * 0.15);
+  const minGapWidth = Math.max(medH * 0.9, bucketW * 2);
+  const isGap = coverCount.map(c => c < gapThreshold);
+  const boundaries = [];
+  let runStart = null;
+  for (let b = 0; b <= nBuckets; b++) {
+    const gapHere = b < nBuckets && isGap[b];
+    if (gapHere && runStart === null) runStart = b;
+    if (!gapHere && runStart !== null) {
+      const runWidthPx = (b - runStart) * bucketW;
+      if (runWidthPx >= minGapWidth) boundaries.push(minX + ((runStart + b) / 2) * bucketW);
+      runStart = null;
+    }
+  }
+
+  // Fallback for a ragged/skewed scan where no clean whitespace column
+  // ever lines up across rows: better to still produce a usable (if
+  // rougher) grid via the old per-row gap clustering than to give up.
+  if (!boundaries.length) return daClusterOcrWordsIntoGridLegacy(lines, medH);
+
+  const colOf = (x) => { let c = 0; while (c < boundaries.length && x >= boundaries[c]) c++; return c; };
+  const width = boundaries.length + 1;
+  return lines.map(l => {
+    const row = new Array(width).fill('');
+    l.words.forEach(w => {
+      // Bucket by the word's horizontal CENTER, not its left edge — a word
+      // whose bounding box straddles a boundary by a few px (common after
+      // OCR bbox rounding) still lands in the column it visually belongs to.
+      const c = colOf((w.x0 + w.x1) / 2);
+      row[c] = row[c] ? `${row[c]} ${w.text}` : w.text;
+    });
+    return row;
+  });
+}
+
+// Legacy per-row gap clustering, kept only as a fallback for tables where
+// the whitespace-projection approach above finds no consistent column gaps
+// at all (e.g. a skewed photo where no column edge stays empty top-to-bottom).
+function daClusterOcrWordsIntoGridLegacy(lines, medH) {
+  const gaps = [];
+  lines.forEach(l => {
+    for (let i = 1; i < l.words.length; i++) {
+      gaps.push({ gap: l.words[i].x0 - l.words[i - 1].x1, mid: (l.words[i].x0 + l.words[i - 1].x1) / 2 });
+    }
+  });
+  const threshold = Math.max(medH * 1.4, 10);
+  let boundaries = gaps.filter(g => g.gap >= threshold).map(g => g.mid).sort((a, b) => a - b);
+
+  const mergeTolerance = medH * 2.2;
+  const clusters = [];
+  boundaries.forEach(b => {
+    const last = clusters.length ? clusters[clusters.length - 1] : null;
+    if (last && b - last[last.length - 1] < mergeTolerance) last.push(b);
+    else clusters.push([b]);
+  });
+  boundaries = clusters.map(c => c.reduce((a, b) => a + b, 0) / c.length);
+
+  const colOf = (x) => { let c = 0; while (c < boundaries.length && x >= boundaries[c]) c++; return c; };
+  const width = boundaries.length + 1;
+  return lines.map(l => {
+    const row = new Array(width).fill('');
+    l.words.forEach(w => {
+      const c = colOf(w.x0);
+      row[c] = row[c] ? `${row[c]} ${w.text}` : w.text;
+    });
+    return row;
+  });
 }
 
 // ─── Word (.docx) — real tables are pulled out structurally as before. Any
@@ -21821,7 +22015,7 @@ function daCellsLookTabular(lines, delim) {
   const sample = lines.slice(0, 12);
   let totalWords = 0, totalCells = 0;
   sample.forEach(l => {
-    l.split(delim).forEach(cell => {
+    daCsvSplitLine(l, delim).forEach(cell => {
       totalCells++;
       totalWords += cell.trim().split(/\s+/).filter(Boolean).length;
     });
@@ -21833,7 +22027,7 @@ function daCellsLookTabular(lines, delim) {
 // (almost) every line? If so the whole file is one clean table.
 function daTryDelimiterTable(text, lines, delim) {
   if (lines.length <= 1) return null;
-  const counts = lines.map(l => l.split(delim).length - 1);
+  const counts = lines.map(l => daCsvFieldCount(l, delim));
   const consistentLines = counts.filter(c => c === counts[0] && c > 0).length;
   if (counts[0] > 0 && consistentLines / lines.length > 0.7 && daCellsLookTabular(lines, delim)) {
     const wb = XLSX.read(text, { type: 'string', FS: delim, raw: true });
@@ -21879,7 +22073,7 @@ function daTryKeyValueTable(lines) {
 function daSplitTabularAndProseLines(lines) {
   if (lines.length < 5) return null;
   const delim = daSniffDelimiter(lines.join('\n'));
-  const counts = lines.map(l => l.split(delim).length - 1);
+  const counts = lines.map(l => daCsvFieldCount(l, delim));
   const freq = {};
   counts.forEach(c => { if (c > 0) freq[c] = (freq[c] || 0) + 1; });
   const modeEntry = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
@@ -22102,13 +22296,39 @@ function daBaseName(filename) {
 
 // Guess the delimiter of a raw text file by counting candidate separators
 // across the first several non-empty lines and picking the most consistent one.
+// Quote-aware CSV field count/split. A plain `line.split(delim).length` breaks
+// the moment a field is quoted and contains the delimiter inside it — e.g. a
+// Titanic-style "Heikkinen, Miss. Laina" name field inside a comma-delimited
+// file reads as 2 columns instead of 1, which throws off every downstream
+// "is this a consistent table?" check (delimiter sniffing, row-consistency,
+// tabular-vs-prose classification). This walks the line character by
+// character so a delimiter inside a quoted span is never counted as a split.
+function daCsvSplitLine(line, delim) {
+  const out = [];
+  let cur = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; continue; }
+      inQuotes = !inQuotes;
+    } else if (ch === delim && !inQuotes) {
+      out.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+function daCsvFieldCount(line, delim) { return daCsvSplitLine(line, delim).length - 1; }
+
 function daSniffDelimiter(text) {
   const candidates = [',', '\t', ';', '|'];
   const lines = text.split(/\r\n|\n/).filter(l => l.trim().length).slice(0, 8);
   if (!lines.length) return ',';
   let best = ',', bestScore = -1;
   candidates.forEach(delim => {
-    const counts = lines.map(l => l.split(delim).length - 1);
+    const counts = lines.map(l => daCsvFieldCount(l, delim));
     const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
     const consistent = counts.every(c => c === counts[0]) && counts[0] > 0;
     const score = avg + (consistent ? 5 : 0);
@@ -22167,6 +22387,17 @@ function daFlattenObject(obj, prefix = '', out = {}) {
 // Takes a raw array-of-arrays (as returned by SheetJS) and decides whether the
 // first row is a header, generates clean unique header names, and pads every
 // row to the same width so the grid never overlaps or goes ragged.
+// A cell "looks numeric" once currency symbols, thousand-separator commas,
+// percent signs, and accounting-style parens are stripped — plain
+// isNaN(parseFloat(c)) misses "$1,234", "91%", "(1,234)" entirely and was
+// mis-scoring header-vs-data rows on exactly that kind of business data.
+function daCellLooksNumeric(c) {
+  const s = String(c).trim();
+  if (s === '') return false;
+  const cleaned = daCleanNum(s);
+  return !isNaN(parseFloat(cleaned)) && isFinite(cleaned);
+}
+
 function daNormalize(aoa) {
   let rows = (aoa || []).filter(r => Array.isArray(r) && r.some(c => String(c ?? '').trim() !== ''));
   if (!rows.length) return { headers: ['Column 1'], rows: [], titleRow: null };
@@ -22178,43 +22409,88 @@ function daNormalize(aoa) {
     return padded.map(c => (c === undefined || c === null) ? '' : c);
   });
 
-  // Report-style exports (and prose-to-canvas extraction) often carry a
-  // spanning title row above the real header row — e.g. "Quarterly Sales
-  // Report" sitting alone above "Month, Revenue, Region". That row has only
-  // one (or very few) filled cells out of colCount, since it was originally
-  // a merged cell. Left in place, it fails the "all filled" header check
-  // below, so the REAL header row underneath it never gets picked up and
-  // "Column 1 / Column 2…" placeholders get used instead. Detect and pull
-  // it out first so header detection runs against the row that's actually
-  // meant to be the header.
-  let titleRow = null;
-  if (colCount > 1 && rows.length > 2) {
-    const r0 = rows[0];
+  // Report-style exports (and prose-to-canvas extraction, and OCR'd
+  // screenshots) often carry one or more spanning title/subtitle rows above
+  // the real header row — e.g. "Employee Satisfaction Survey 2026 - Tabular
+  // Data" sitting alone above "Department, Employees, Satisfaction %...".
+  // Those rows are sparsely filled (originally a single merged cell, or a
+  // one-off caption line) compared to the real header/data rows underneath.
+  // Peel off every such leading row — not just a single one — so a
+  // title-then-subtitle pair doesn't leave the subtitle mistaken for headers.
+  const titleParts = [];
+  while (colCount > 1 && rows.length > 2) {
+    const r0 = rows[0], r1 = rows[1];
     const r0Filled = r0.filter(c => String(c).trim() !== '');
-    const r1 = rows[1];
-    const r1FilledCount = r1.filter(c => String(c).trim() !== '').length;
-    const looksLikeSpanningTitle = r0Filled.length === 1 && r1FilledCount >= Math.max(2, Math.ceil(colCount * 0.6));
-    if (looksLikeSpanningTitle) {
-      titleRow = String(r0Filled[0]).trim();
-      rows = rows.slice(1);
+    const r1Filled = r1.filter(c => String(c).trim() !== '');
+    const r1FilledRatio = r1Filled.length / colCount;
+    // Exactly one filled cell (a genuine spanning caption, originally one
+    // merged cell) — deliberately narrower than "sparsely filled", so a row
+    // with 2+ scattered values (a grouped-header label row like "Q1 _ Q2 _")
+    // falls through to the grouped-header check below instead of being
+    // discarded as a title. The row below either needs to look like the real
+    // header (mostly filled) or be another single-cell caption itself (a
+    // "Report Title" / "Subtitle" pair stacked above the real header), so a
+    // second peel of the loop can reach the actual header underneath.
+    const looksLikeSpanningTitle = r0Filled.length === 1 && (r1FilledRatio >= 0.6 || r1Filled.length === 1);
+    if (!looksLikeSpanningTitle) break;
+    titleParts.push(r0Filled.map(c => String(c).trim()).join(' '));
+    rows = rows.slice(1);
+  }
+  const titleRow = titleParts.length ? titleParts.join(' — ') : null;
+
+  // Grouped/spanning two-row headers — e.g. a blank-then-repeated group
+  // label ("Q1" merged across 3 sub-columns, so only the first of the 3
+  // lands filled) sitting above a fully-filled row of real sub-column names
+  // ("Revenue", "Costs", "Margin"). Forward-fill the sparse group row across
+  // its blanks, then fold group+sub into one header per column, e.g.
+  // "Q1 Revenue". Only kicks in when the row below looks like real column
+  // names (mostly text) and the rows after that look like actual data.
+  let headerRowsUsed = 1;
+  let groupRow = null;
+  if (rows.length > 3) {
+    const r0 = rows[0], r1 = rows[1];
+    const r0FilledCount = r0.filter(c => String(c).trim() !== '').length;
+    const r1AllFilled = r1.every(c => String(c).trim() !== '');
+    const r1MostlyText = r1.filter(c => !daCellLooksNumeric(c)).length >= Math.ceil(colCount * 0.7);
+    const sample = rows.slice(2, 7);
+    let numericBelow = 0, totalBelow = 0;
+    sample.forEach(r => r.forEach(c => { if (String(c).trim() !== '') { totalBelow++; if (daCellLooksNumeric(c)) numericBelow++; } }));
+    const belowLooksLikeData = totalBelow > 0 && (numericBelow / totalBelow) > 0.3;
+    const looksGrouped = r0FilledCount >= 1 && r0FilledCount < colCount && r1AllFilled && r1MostlyText && belowLooksLikeData;
+    if (looksGrouped) {
+      let lastFilled = '';
+      groupRow = r0.map(c => { const v = String(c).trim(); if (v !== '') lastFilled = v; return lastFilled; });
+      headerRowsUsed = 2;
     }
   }
 
-  // Decide if row 0 looks like a header: header rows are usually all
-  // non-empty, all-text, and distinct from the more numeric/mixed rows below.
-  const firstRow = rows[0];
-  const sampleRows = rows.slice(1, 6);
-  const firstRowAllText = firstRow.every(c => String(c).trim() !== '' && isNaN(parseFloat(c)) || String(c).trim() === '');
-  const firstRowAllFilled = firstRow.every(c => String(c).trim() !== '');
+  const headerSourceRow = headerRowsUsed === 2 ? rows[1] : rows[0];
+  const dataStartRows = rows.slice(headerRowsUsed);
+
+  // Decide if the header source row actually looks like a header: usually
+  // all non-empty (or very nearly, e.g. one blank leader/ID column), text-
+  // heavy, and distinct from the more numeric/mixed rows below it.
+  const sampleRows = dataStartRows.slice(0, 6);
+  const filledInHeaderRow = headerSourceRow.filter(c => String(c).trim() !== '').length;
+  const headerRowMostlyFilled = filledInHeaderRow >= Math.max(1, Math.ceil(colCount * 0.8));
+  const headerRowMostlyText = headerSourceRow.filter(c => String(c).trim() !== '' && !daCellLooksNumeric(c)).length >=
+    Math.ceil(filledInHeaderRow * 0.8);
   let numericBelow = 0, totalBelow = 0;
-  sampleRows.forEach(r => r.forEach(c => { if (String(c).trim() !== '') { totalBelow++; if (!isNaN(parseFloat(c))) numericBelow++; } }));
+  sampleRows.forEach(r => r.forEach(c => { if (String(c).trim() !== '') { totalBelow++; if (daCellLooksNumeric(c)) numericBelow++; } }));
   const belowLooksNumeric = totalBelow > 0 && (numericBelow / totalBelow) > 0.4;
-  const useFirstRowAsHeader = firstRowAllFilled && (firstRowAllText || belowLooksNumeric) && rows.length > 1;
+  const useHeaderRow = headerRowMostlyFilled && (headerRowMostlyText || belowLooksNumeric) && dataStartRows.length > 0;
 
   let headers, dataRows;
-  if (useFirstRowAsHeader) {
-    headers = firstRow.map(c => String(c).trim());
-    dataRows = rows.slice(1);
+  if (useHeaderRow) {
+    headers = headerSourceRow.map((c, i) => {
+      const label = String(c).trim();
+      if (headerRowsUsed === 2 && groupRow) {
+        const grp = groupRow[i];
+        return grp && grp !== label ? `${grp} ${label}`.trim() : (label || `Column ${i + 1}`);
+      }
+      return label;
+    });
+    dataRows = dataStartRows;
   } else {
     headers = Array.from({ length: colCount }, (_, i) => `Column ${i + 1}`);
     dataRows = rows;
