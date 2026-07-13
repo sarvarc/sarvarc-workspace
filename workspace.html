@@ -4724,6 +4724,29 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 }
 .da-tab-close:hover { background:rgba(239,68,68,0.18); color:#ef4444; }
 
+/* Grouped tab: one uploaded file that came back as BOTH a table and
+   written content (image/PDF OCR, or a doc/PDF with a table plus prose).
+   Instead of two look-alike generic tabs, this shows the file name once
+   with a small segmented switch to flip between the two views. */
+.da-tab-group {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px 6px 12px; border-radius:9px 9px 0 0;
+  background:transparent; border:1px solid transparent; border-bottom:none;
+  max-width:360px; transition:background 0.15s ease;
+}
+.da-tab-group:hover { background:var(--surface2); }
+.da-tab-group.active { background:var(--bg2); border-color:var(--border); box-shadow:0 -2px 0 var(--blue) inset; }
+.da-tab-group-name { font-size:11.5px; font-weight:600; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; flex-shrink:0; }
+.da-tab-switch { display:flex; align-items:center; background:var(--surface2); border-radius:7px; padding:2px; gap:2px; flex-shrink:0; }
+.da-tab-switch-btn {
+  border:none; background:transparent; font-size:10.5px; font-weight:700;
+  padding:4px 9px; border-radius:5px; color:var(--text3); cursor:pointer;
+  white-space:nowrap; transition:background 0.15s ease, color 0.15s ease;
+}
+.da-tab-switch-btn:hover { color:var(--text); }
+.da-tab-switch-btn.active { background:var(--blue); color:#fff; }
+.da-tab-group .da-tab-close { flex-shrink:0; }
+
 /* Toolbar */
 .da-toolbar {
   display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -8330,6 +8353,12 @@ button.dg-show-chip.active { background:var(--blue); }
           Remember these export settings
         </label>
 
+        <label class="pdfed-export-checkbox">
+          <input type="checkbox" id="pdfedExportBrandFilename">
+          <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          Add "SARVARC_Workspace_" to exported filename
+        </label>
+
       </div>
     </div>
 
@@ -8488,6 +8517,12 @@ button.dg-show-chip.active { background:var(--blue); }
           <input type="checkbox" id="daExportRemember">
           <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
           Remember these export settings
+        </label>
+
+        <label class="pdfed-export-checkbox">
+          <input type="checkbox" id="daExportBrandFilename">
+          <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          Add "SARVARC_Workspace_" to exported filename
         </label>
 
       </div>
@@ -9833,7 +9868,7 @@ async function downloadSingle(idx, e) {
   const outUrl = await pdfedApplyOpacityToDataUrl(img.dataUrl, pdfedGetOpacity(img));
   const a = document.createElement('a');
   a.href = outUrl;
-  a.download = img.name;
+  a.download = sarvarcBrandFilename(img.name);
   a.click();
   state.stats.exports++;
   updateStats();
@@ -9916,7 +9951,7 @@ async function downloadImages(imgs) {
   if(imgs.length === 1) {
     const outUrl = await pdfedApplyOpacityToDataUrl(imgs[0].dataUrl, pdfedGetOpacity(imgs[0]));
     const a = document.createElement('a');
-    a.href = outUrl; a.download = imgs[0].name; a.click();
+    a.href = outUrl; a.download = sarvarcBrandFilename(imgs[0].name); a.click();
     toast('Downloaded', 'success'); return;
   }
   showExportOverlay('Creating your ZIP…', `Packing ${imgs.length} images…`);
@@ -9934,7 +9969,7 @@ async function downloadImages(imgs) {
     });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'extractly-ai-images.zip';
+    a.download = sarvarcBrandFilename('extractly-ai-images.zip');
     a.click();
     state.stats.exports += imgs.length;
     updateStats();
@@ -10198,7 +10233,7 @@ async function exportAsPdf(imgs) {
       });
     }
     updateExportProgress(95, 'Saving file…');
-    pdf.save('extractly-ai-export.pdf');
+    pdf.save(sarvarcBrandFilename('extractly-ai-export.pdf'));
     state.stats.exports += imgs.length;
     updateStats();
     completeExportOverlay(total + ' page' + (total > 1 ? 's' : '') + ' exported');
@@ -10752,7 +10787,7 @@ async function smExportSession(id) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = smSanitizeFileNamePart(rec.name) + '.sarvarcsession.json';
+    a.download = sarvarcBrandFilename(smSanitizeFileNamePart(rec.name) + '.sarvarcsession.json');
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
@@ -15308,7 +15343,7 @@ async function pdfedExport(pageIndices) {
     updateExportProgress(95, 'Saving file…');
     const suffix = (pageIndices && pageIndices.length && pageIndices.length !== pdfed.pages.length) ? '_pages' : '_edited';
     const fname = (pdfed.file ? pdfed.file.name.replace(/\.pdf$/i,'') : 'edited') + suffix + '.pdf';
-    pdf.save(fname);
+    pdf.save(sarvarcBrandFilename(fname));
     state.stats.exports++;
     updateStats();
     completeExportOverlay(total + (total > 1 ? ' pages exported' : ' page exported'));
@@ -15353,6 +15388,8 @@ function pdfedOpenExportModal() {
       document.getElementById('pdfedExportRemember').checked = false;
     }
   } catch(e) {}
+
+  sarvarcInitBrandCheckbox('pdfedExportBrandFilename');
 
   pdfedApplyExportFormat(startFmt);
   document.querySelectorAll('#pdfedExportTypeMenu .pdfed-export-menu-item').forEach(el => el.classList.toggle('sel', el.dataset.fmt === startFmt));
@@ -15765,7 +15802,7 @@ async function pdfedRunExportFromModal() {
 function pdfedDownloadBlob(blob, fname) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = fname;
+  a.href = url; a.download = sarvarcBrandFilename(fname);
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
@@ -21076,6 +21113,38 @@ function hideExportOverlay() {
   setTimeout(() => ov.classList.remove('open', 'success'), 250);
 }
 
+// ─── SARVARC WORKSPACE — EXPORT FILENAME BRANDING ───
+// Every downloaded/exported file (PDF, DOCX, XLSX, CSV, images, ZIP, chart,
+// session, form) gets renamed with a "SARVARC_Workspace_" prefix so files
+// carry the brand wherever they end up. Controlled by a single shared
+// preference, toggleable from the export modals; defaults to ON.
+const SARVARC_BRAND_PREFIX = 'SARVARC_Workspace_';
+function sarvarcBrandingEnabled() {
+  try {
+    const v = localStorage.getItem('sarvarcBrandFilenames');
+    return v === null ? true : v === 'true';
+  } catch (e) { return true; }
+}
+function sarvarcSetBrandingEnabled(on) {
+  try { localStorage.setItem('sarvarcBrandFilenames', on ? 'true' : 'false'); } catch (e) {}
+}
+function sarvarcBrandFilename(name) {
+  if (!name) return name;
+  if (!sarvarcBrandingEnabled()) return name;
+  const base = String(name).trim();
+  if (base.toLowerCase().startsWith(SARVARC_BRAND_PREFIX.toLowerCase())) return base;
+  return SARVARC_BRAND_PREFIX + base;
+}
+// Syncs any "brand my export filenames" checkbox found in the DOM (used by
+// both the PDF Editor and Data Arrangement export modals) with the shared
+// preference above, in either direction.
+function sarvarcInitBrandCheckbox(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.checked = sarvarcBrandingEnabled();
+  el.onchange = () => sarvarcSetBrandingEnabled(el.checked);
+}
+
 // ─── TOAST ───
 function toast(msg, type = 'info') {
   const icons = {
@@ -21396,6 +21465,15 @@ let daState = {
 };
 let daIdCounter = 0;
 
+// Shared naming convention: when one uploaded file yields BOTH a detected
+// table and separate written content, the two resulting datasets are named
+// "<file>" + one of these suffixes. daExtractDocx/daExtractPdf/
+// daExtractImageTable all use these when adding datasets, and daRenderTabs
+// looks for this exact pairing to show one grouped tab with a Tabular Data /
+// Content Found switch instead of two generic-looking tabs.
+const DA_TABLE_SUFFIX = ' — Table';
+const DA_PROSE_SUFFIX = ' — Content found on the page';
+
 // ─── Persistence: keeps tables intact across refresh/reopen. Browser-only
 // (localStorage), same "never leaves your device" guarantee as the rest of
 // the app — just written back out on every change instead of only in memory. ───
@@ -21625,8 +21703,8 @@ async function daExtractImageTable(file) {
   srcCanvas.height = img.naturalHeight || img.height;
   srcCanvas.getContext('2d').drawImage(img, 0, 0);
 
-  daSetProgress(true, 'Reading table from image (OCR)…');
-  _teOcrProgressCb = (frac, label) => daSetProgress(true, label || 'Reading table from image (OCR)…');
+  daSetProgress(true, 'Reading image (OCR)…');
+  _teOcrProgressCb = (frac, label) => daSetProgress(true, label || 'Reading image (OCR)…');
   try {
     const { canvas: ocrCanvas } = pdfedPreprocessForOcr(srcCanvas);
     const worker = await pdfedGetOcrWorker();
@@ -21637,16 +21715,53 @@ async function daExtractImageTable(file) {
       toast(`Couldn't find readable text in "${file.name}".`, 'error');
       return { tableFound: false };
     }
-    const aoa = daClusterOcrWordsIntoGrid(words);
-    daAddDataset(daBaseName(file.name), aoa);
-    // Image-to-table via OCR is a newly-added, still-in-development path —
+
+    // Reconstruct which lines are table rows vs plain written lines — ruled
+    // grid-line detection first, then whitespace-based line classification
+    // as a fallback (see daExtractOcrTableAndProse), so a table sitting
+    // alongside a paragraph of text (or a caption underneath it) gets
+    // picked out cleanly instead of the whole image being forced one way or
+    // the other. Passing ocrCanvas lets it look for real drawn border lines
+    // on the actual pixels Tesseract read, not just word spacing.
+    const { tableRows, proseLines } = daExtractOcrTableAndProse(words, ocrCanvas);
+    const blocks = daLinesToBlocksFromText(proseLines.join('\n'));
+    const proseWordCount = blocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
+
+    const hasTable = tableRows.length >= 2 && tableRows[0] && tableRows[0].length > 1;
+    const hasProse = proseWordCount > 12;
+
+    // Image-to-text via OCR is a newly-added, still-in-development path —
     // unlike CSV/XLSX/DOCX (parsed from real structured data), this is
-    // reconstructed from pixel positions and can misread a character,
-    // merge/split a column, or drop a faint row. Flag that plainly right
-    // when the table lands so it doesn't get treated as trustworthy as an
-    // export straight from a spreadsheet, before anyone builds on top of it.
-    toast(`Table extracted from "${file.name}" via OCR (beta) — please double-check the data against the original image before relying on it.`, 'info');
-    return { tableFound: aoa.length > 1 && aoa[0].length > 1 };
+    // reconstructed from pixel positions and can misread a character, merge/
+    // split a column, or drop a faint line. Flag that plainly whenever
+    // something lands, so it isn't treated as trustworthy as an export
+    // straight from a spreadsheet or a real text layer.
+    const disclaimer = 'please double-check against the original image before relying on it.';
+
+    if (!hasTable && !hasProse) {
+      // Neither a clean table nor enough running text to arrange into
+      // topics — fall back to one raw reconstructed grid across the whole
+      // image rather than losing the OCR pass entirely.
+      const gridAoa = daClusterOcrWordsIntoGrid(words);
+      daAddDataset(daBaseName(file.name), gridAoa);
+      toast(`Table extracted from "${file.name}" via OCR (beta) — ${disclaimer}`, 'info');
+      return { tableFound: gridAoa.length > 1 && gridAoa[0].length > 1 };
+    }
+
+    if (hasTable) {
+      daAddDataset(hasProse ? `${daBaseName(file.name)}${DA_TABLE_SUFFIX}` : daBaseName(file.name), tableRows);
+    }
+    if (hasProse) {
+      const aoa2 = daArrangeBlocksIntoTopics(blocks);
+      daAddDataset(hasTable ? `${daBaseName(file.name)}${DA_PROSE_SUFFIX}` : daBaseName(file.name), aoa2);
+    }
+
+    toast(hasTable && hasProse
+      ? `"${file.name}" had both a table and written content, arranged into two connected views via OCR (beta) — ${disclaimer}`
+      : hasTable
+        ? `Table extracted from "${file.name}" via OCR (beta) — ${disclaimer}`
+        : `Written content extracted from "${file.name}" via OCR (beta) — ${disclaimer}`, 'info');
+    return { tableFound: hasTable };
   } finally {
     _teOcrProgressCb = null;
   }
@@ -21671,14 +21786,13 @@ async function daExtractImageTable(file) {
 // per-row gaps is far less sensitive to that per-row width drift, because
 // it only cares whether a vertical strip is *consistently* empty top to
 // bottom, not how wide any single row's gap happens to look.
-function daClusterOcrWordsIntoGrid(words) {
+function daGroupOcrWordsIntoLines(words) {
   const ws = words.map(w => ({
     text: w.text.trim(), x0: w.bbox.x0, x1: w.bbox.x1,
     yc: (w.bbox.y0 + w.bbox.y1) / 2, h: Math.max(1, w.bbox.y1 - w.bbox.y0)
   })).filter(w => w.text);
-  if (!ws.length) return [['Content']];
+  if (!ws.length) return { lines: [], medH: 12 };
 
-  // 1) group into rows by vertical center proximity
   ws.sort((a, b) => a.yc - b.yc);
   const sortedH = ws.map(w => w.h).sort((a, b) => a - b);
   const medH = sortedH[Math.floor(sortedH.length / 2)] || 12;
@@ -21694,12 +21808,23 @@ function daClusterOcrWordsIntoGrid(words) {
     line.yc = (line.yc * (line.words.length - 1) + w.yc) / line.words.length;
   });
   lines.forEach(l => l.words.sort((a, b) => a.x0 - b.x0));
+  return { lines, medH };
+}
 
-  // 2) Sample the table's x-range in small buckets and count, per bucket,
-  // how many rows have a word covering it. A genuine column gap shows up
-  // as a band that stays near-zero across nearly every row.
-  const minX = Math.min(...ws.map(w => w.x0));
-  const maxX = Math.max(...ws.map(w => w.x1));
+// Aligns a set of already-grouped lines into a grid via a whitespace
+// "projection profile" scoped to just THESE lines: for every x-position,
+// what fraction of these lines have a word covering it, any x-band that
+// stays empty across nearly all of them is a column gap. Scoping it to a
+// pre-picked subset of lines (rather than every line on the page/image)
+// means a table's column gaps never get diluted by unrelated paragraph
+// lines sitting elsewhere in the same document — see daExtractOcrTableAndProse.
+function daAlignLinesIntoGrid(lines, medH) {
+  if (!lines.length) return [];
+  const allWords = lines.flatMap(l => l.words);
+  if (!allWords.length) return [];
+
+  const minX = Math.min(...allWords.map(w => w.x0));
+  const maxX = Math.max(...allWords.map(w => w.x1));
   const bucketW = Math.max(1, medH * 0.25);
   const nBuckets = Math.max(1, Math.ceil((maxX - minX) / bucketW));
   const coverCount = new Array(nBuckets).fill(0);
@@ -21711,12 +21836,12 @@ function daClusterOcrWordsIntoGrid(words) {
     });
   });
 
-  // A bucket counts as "gap" space once fewer than ~15% of rows have a
-  // word sitting on it — a handful of rows bleeding slightly into a real
+  // A bucket counts as "gap" space once fewer than ~15% of these lines have
+  // a word sitting on it — a handful of rows bleeding slightly into a real
   // column gap (long values, a wrapped header) shouldn't disqualify it.
   // Only contiguous gap runs at least ~0.9x a word-height wide count as an
-  // actual column boundary, so normal single-space word gaps within a
-  // cell (e.g. "Human Resources") don't get mistaken for one.
+  // actual column boundary, so normal single-space word gaps within a cell
+  // (e.g. "Human Resources") don't get mistaken for one.
   const gapThreshold = Math.max(1, lines.length * 0.15);
   const minGapWidth = Math.max(medH * 0.9, bucketW * 2);
   const isGap = coverCount.map(c => c < gapThreshold);
@@ -21732,9 +21857,9 @@ function daClusterOcrWordsIntoGrid(words) {
     }
   }
 
-  // Fallback for a ragged/skewed scan where no clean whitespace column
-  // ever lines up across rows: better to still produce a usable (if
-  // rougher) grid via the old per-row gap clustering than to give up.
+  // Fallback for a ragged/skewed scan where no clean whitespace column ever
+  // lines up across these rows: still produce a usable (if rougher) grid
+  // via the old per-row gap clustering than to give up.
   if (!boundaries.length) return daClusterOcrWordsIntoGridLegacy(lines, medH);
 
   const colOf = (x) => { let c = 0; while (c < boundaries.length && x >= boundaries[c]) c++; return c; };
@@ -21750,6 +21875,489 @@ function daClusterOcrWordsIntoGrid(words) {
     });
     return row;
   });
+}
+
+// One raw grid across every line on the page/image, no table-vs-prose
+// split. Used only as a last resort when neither a real table nor enough
+// running text gets detected by daExtractOcrTableAndProse below, so the OCR
+// pass still produces something rather than nothing.
+function daClusterOcrWordsIntoGrid(words) {
+  const { lines, medH } = daGroupOcrWordsIntoLines(words);
+  if (!lines.length) return [['Content']];
+  return daAlignLinesIntoGrid(lines, medH);
+}
+
+// Classifies each OCR line as a table-row candidate (its own words split
+// into 2+ cells once a gap clearly bigger than normal word-spacing shows up
+// within THAT line) or a prose line (reads as one continuous run of text).
+// This runs before any cross-line column alignment, line by line, on
+// purpose: judging a line against only itself means a paragraph sharing the
+// page with a table can never wash out the table's column gaps, and the
+// table's wide cell gaps can never fool a paragraph line into looking like
+// a multi-column row.
+function daClassifyOcrLines(lines, medH) {
+  // Real table columns are separated by a gap clearly wider than normal
+  // word-spacing — 1.4x a word's own height was too conservative and could
+  // miss tables in tightly-spaced renders, 1.1x still comfortably clears
+  // normal inter-word spacing (usually ~0.3-0.5x word height) without
+  // flagging it.
+  const gapThreshold = Math.max(medH * 1.1, 8);
+  const cellCounts = lines.map(line => {
+    const ws = line.words;
+    let cellCount = 1;
+    for (let i = 1; i < ws.length; i++) {
+      if (ws[i].x0 - ws[i - 1].x1 >= gapThreshold) cellCount++;
+    }
+    return cellCount;
+  });
+
+  // A real table is a CONSECUTIVE run of multi-cell lines, not a one-off
+  // line scattered somewhere in a paragraph (an occasional unusually wide
+  // space in a sentence, or a justified line, shouldn't be mistaken for a
+  // table on its own). Find the longest such run — that's the table;
+  // everything else, including any shorter/scattered candidate lines, is
+  // written content.
+  let bestStart = -1, bestLen = 0, runStart = -1;
+  for (let i = 0; i <= lines.length; i++) {
+    const isCandidate = i < lines.length && cellCounts[i] > 1;
+    if (isCandidate && runStart === -1) runStart = i;
+    if (!isCandidate && runStart !== -1) {
+      const len = i - runStart;
+      if (len > bestLen) { bestLen = len; bestStart = runStart; }
+      runStart = -1;
+    }
+  }
+
+  const tableLines = [];
+  const proseLines = [];
+  lines.forEach((line, i) => {
+    if (bestLen >= 2 && i >= bestStart && i < bestStart + bestLen) {
+      tableLines.push(line);
+    } else {
+      const text = line.words.map(w => w.text).join(' ').trim();
+      if (text) proseLines.push(text);
+    }
+  });
+  return { tableLines, proseLines };
+}
+
+// ─── Ruled-grid detection: scans the OCR canvas's own pixels for real
+// border lines (a boxed/ruled table drawn with actual horizontal and
+// vertical rules — reports, screenshotted spreadsheets, invoices) rather
+// than only inferring columns from whitespace between words. A table like
+// this can defeat the whitespace-projection approach below when a header
+// row's wider letter-spacing, a short numeric column, or tight cell padding
+// leaves no reliably empty vertical strip — but the drawn lines themselves
+// are unambiguous. Runs on the SAME canvas handed to Tesseract, so the
+// pixel coordinates it returns line up directly with word bounding boxes.
+// Returns null when no confident ruled grid is found — borderless tables
+// still fall through to the whitespace-projection path below.
+function daDetectTableGridLines(canvas) {
+  const w = canvas.width, h = canvas.height;
+  if (w < 20 || h < 20) return null;
+  const { data } = canvas.getContext('2d').getImageData(0, 0, w, h);
+  // The preprocessed canvas is grayscale (R=G=B) and contrast-stretched.
+  // 245 (not near-black) is deliberately loose, so faint gray rule lines
+  // count, not just solid black ones — it's the near-zero gap tolerance
+  // below, not a strict darkness cutoff, that keeps ordinary text (which
+  // always has letter/word gaps) from being mistaken for a drawn rule.
+  const DARK = 245;
+  const gapTol = 1;
+
+  function longestRun(getVal, len) {
+    let runStart = -1, gap = 0, bestStart = 0, bestLen = 0;
+    for (let i = 0; i < len; i++) {
+      if (getVal(i) < DARK) {
+        if (runStart === -1) runStart = i;
+        gap = 0;
+      } else if (runStart !== -1) {
+        gap++;
+        if (gap > gapTol) {
+          const end = i - gap;
+          const runLen = end - runStart;
+          if (runLen > bestLen) { bestLen = runLen; bestStart = runStart; }
+          runStart = -1; gap = 0;
+        }
+      }
+    }
+    if (runStart !== -1) {
+      const runLen = len - runStart;
+      if (runLen > bestLen) { bestLen = runLen; bestStart = runStart; }
+    }
+    return bestLen > 0 ? { start: bestStart, len: bestLen } : null;
+  }
+
+  // 1) Horizontal rule candidates: for every row, the longest contiguous
+  // dark run across the full width.
+  const minHLen = Math.max(40, w * 0.10);
+  const hCandidates = [];
+  for (let y = 0; y < h; y++) {
+    const run = longestRun(x => data[(y * w + x) * 4], w);
+    if (run && run.len >= minHLen) hCandidates.push({ y, x0: run.start, x1: run.start + run.len });
+  }
+  if (hCandidates.length < 3) return null; // need at least 2 row bands worth of rules
+
+  // Group consecutive candidate rows (within 3px of each other) into
+  // blocks. A THIN block is a drawn rule — collapse it to one line as
+  // before. But a table with a shaded/filled row (a common header style —
+  // solid gray fill butted right up against its own border, with no light
+  // gap between fill and rule) produces one tall, unbroken dark block
+  // instead: collapsing that to a single averaged line would land it
+  // somewhere in the middle of the header text and lose the row entirely.
+  // Its own top and bottom edges ARE the real boundaries (top-of-header,
+  // header/data divider), so both get kept as separate candidate lines.
+  const maxLineThickness = Math.max(4, Math.min(14, h * 0.012));
+  const hLines = [];
+  {
+    let i = 0;
+    while (i < hCandidates.length) {
+      let j = i, x0 = hCandidates[i].x0, x1 = hCandidates[i].x1;
+      while (j + 1 < hCandidates.length && hCandidates[j + 1].y - hCandidates[j].y <= 3) {
+        j++;
+        x0 = Math.min(x0, hCandidates[j].x0);
+        x1 = Math.max(x1, hCandidates[j].x1);
+      }
+      const thickness = hCandidates[j].y - hCandidates[i].y;
+      if (thickness <= maxLineThickness) {
+        hLines.push({ y: (hCandidates[i].y + hCandidates[j].y) / 2, x0, x1 });
+      } else {
+        hLines.push({ y: hCandidates[i].y, x0, x1 });
+        hLines.push({ y: hCandidates[j].y, x0, x1 });
+      }
+      i = j + 1;
+    }
+  }
+  if (hLines.length < 3) return null;
+
+  // 2) A table's rules all share roughly the same left/right extent — group
+  // around the widest line found, so a one-off horizontal rule elsewhere on
+  // the page (an underline, a section divider) can't get pulled in as an
+  // extra "row" of an unrelated table.
+  const seed = hLines.reduce((a, b) => (b.x1 - b.x0) > (a.x1 - a.x0) ? b : a);
+  const overlapFrac = (a, b) => {
+    const lo = Math.max(a.x0, b.x0), hi = Math.min(a.x1, b.x1);
+    const inter = Math.max(0, hi - lo);
+    return inter / Math.min(a.x1 - a.x0, b.x1 - b.x0);
+  };
+  const cluster = hLines.filter(l => overlapFrac(l, seed) >= 0.6);
+  if (cluster.length < 3 || cluster.length > 60) return null;
+  cluster.sort((a, b) => a.y - b.y);
+
+  let rows = cluster.map(l => l.y);
+  const tableX0 = Math.min(...cluster.map(l => l.x0));
+  const tableX1 = Math.max(...cluster.map(l => l.x1));
+  const tableY0 = rows[0], tableY1 = rows[rows.length - 1];
+  const nRowBands = rows.length - 1;
+  if (nRowBands < 2) return null;
+  // Guard against a false-positive "shadow gradient" (a soft lighting
+  // gradient in a photo) being read as dozens of near-identical rules — a
+  // real table's rows aren't sliver-thin.
+  if ((tableY1 - tableY0) / nRowBands < 6) return null;
+
+  // A shaded/colored header row (a common spreadsheet style — pale fill,
+  // no dark pixels of its own) contributes nothing to the dark-run scan
+  // above except its thin bounding gridlines. Those gridlines can be
+  // shorter or fainter than the rest of the table's rules — broken up by
+  // filter-dropdown icons sitting right on that row, or by bold header
+  // text overlapping the line — so the boundary between the header and the
+  // very first data row is the one most likely to get missed, silently
+  // fusing header + first row into one oversized band. Detect that by
+  // comparing the first band's height against the rest, then re-scan just
+  // that slice with a shorter minimum run length (scoped to the table's
+  // own width, not the whole page) to recover the missed line.
+  if (rows.length >= 4) {
+    const bandHeights = rows.slice(1).map((y, i) => y - rows[i]);
+    const laterBands = bandHeights.slice(1).sort((a, b) => a - b);
+    const median = laterBands[Math.floor(laterBands.length / 2)];
+    if (median > 0 && bandHeights[0] > median * 1.6) {
+      const y0 = Math.round(rows[0]), y1 = Math.round(rows[1]);
+      const tblW = Math.round(tableX1 - tableX0);
+      const localMinLen = Math.max(20, tblW * 0.25);
+      let best = null;
+      for (let y = y0 + 3; y < y1 - 3; y++) {
+        const run = longestRun(x => data[(y * w + Math.round(tableX0) + x) * 4], tblW);
+        if (run && run.len >= localMinLen && (!best || run.len > best.len)) best = { y, len: run.len };
+      }
+      if (best) rows = [rows[0], best.y, ...rows.slice(1)];
+    }
+  }
+
+  // 3) Vertical rules, scoped to just the table's own bounding box, on the
+  // same principle: a solid dark run spanning most of the table's height.
+  const minVLen = (tableY1 - tableY0) * 0.5;
+  const tblH = Math.round(tableY1 - tableY0) + 1;
+  const vCandidates = [];
+  for (let x = Math.round(tableX0); x <= Math.round(tableX1); x++) {
+    const run = longestRun(y => data[((tableY0 + y) * w + x) * 4], tblH);
+    if (run && run.len >= minVLen) vCandidates.push({ x, y0: tableY0 + run.start, y1: tableY0 + run.start + run.len });
+  }
+  // Same thin-rule-vs-filled-block distinction as the horizontal pass above
+  // (a shaded label column would otherwise collapse to one misplaced line).
+  const maxVThickness = Math.max(4, Math.min(14, w * 0.012));
+  const vLines = [];
+  {
+    let i = 0;
+    while (i < vCandidates.length) {
+      let j = i;
+      while (j + 1 < vCandidates.length && vCandidates[j + 1].x - vCandidates[j].x <= 3) j++;
+      const thickness = vCandidates[j].x - vCandidates[i].x;
+      if (thickness <= maxVThickness) {
+        vLines.push({ x: (vCandidates[i].x + vCandidates[j].x) / 2 });
+      } else {
+        vLines.push({ x: vCandidates[i].x });
+        vLines.push({ x: vCandidates[j].x });
+      }
+      i = j + 1;
+    }
+  }
+
+  return {
+    rows,
+    cols: vLines.length >= 3 ? vLines.map(l => l.x) : null,
+    bbox: { x0: tableX0, y0: tableY0, x1: tableX1, y1: tableY1 }
+  };
+}
+
+// ─── Spreadsheet-chrome stripper ───
+// A screenshot of a live spreadsheet (Excel, Sheets, etc.) almost always
+// captures more than the data: the column-letter row (A, B, C…) above the
+// real header, and the row-number gutter (1, 2, 3…) to the left of the real
+// data. Both are ruled with gridlines just like the table itself, so
+// daDetectTableGridLines has no way to tell them apart from real table rules
+// — they get read in as an extra header row and an extra leading column.
+// Strip them here, once the OCR text is in hand, using the one signal that's
+// unambiguous: real spreadsheet chrome has a very specific shape (single
+// A/B/C… letters in strict left-to-right order; consecutive integers top to
+// bottom), which real data essentially never does by coincidence.
+function daStripSpreadsheetChrome(tableRows) {
+  if (!tableRows.length) return tableRows;
+  let rows = tableRows.map(r => r.slice());
+
+  // Column-letter header row — normally row 0, but a shaded/colored real
+  // header row can occasionally get detected as a separate band above it,
+  // so check the first couple of rows rather than only row 0.
+  const colLetterSeq = () => {
+    const row = rows[0];
+    const nextRow = rows[1];
+    const filled = row.map((c, i) => ({ v: String(c).trim(), i })).filter(o => o.v !== '');
+    if (filled.length < 2) return false;
+    // Tolerate a stray OCR misread (e.g. "D" read as "]") — require most,
+    // not all, filled cells to look like real column letters rather than
+    // letting one mangled glyph disqualify the whole row.
+    const letterCells = filled.filter(o => /^[A-Z]{1,2}$/.test(o.v));
+    const ascendingOk = (cells) => {
+      for (let k = 1; k < cells.length; k++) {
+        if (daColLetterToIndex(cells[k].v) <= daColLetterToIndex(cells[k - 1].v)) return false;
+      }
+      return true;
+    };
+    // Must actually read in ascending spreadsheet-column order (A, B, C…
+    // or with gaps like A, C, E if some letters were merged/missed) —
+    // guards against a real header coincidentally being a couple of
+    // single letters, e.g. an "ID"/"Q" column abbreviation. Checked only
+    // across the cells that parsed cleanly as letters, so a noise cell in
+    // between can't break the sequence for the ones that did.
+    if (letterCells.length >= Math.max(2, Math.ceil(filled.length * 0.6)) && ascendingOk(letterCells)) {
+      return true;
+    }
+    // Weaker fallback for when OCR mangled MOST of the letters into stray
+    // punctuation (e.g. "]" for "D", "|" for "E") rather than just one —
+    // too garbled to confirm an ascending A-B-C sequence directly. Instead
+    // lean on the shape of the row itself plus what's underneath it: every
+    // filled cell here is a single short (1-2 char) token (consistent with
+    // a letter or a misread glyph standing in for one — whether every
+    // column got such a token, or only some did), while the row directly
+    // below is fully filled, mostly text, and has at least one real
+    // multi-word label — the signature of a genuine header row. A real
+    // header essentially never has every one of its own cells be a bare
+    // 1-2 character token, so this combination is a safe, if softer,
+    // signal that row 0 is chrome regardless of how many of its cells
+    // came through filled.
+    if (nextRow && filled.every(o => o.v.length <= 2)) {
+      const nextFilled = nextRow.filter(c => String(c).trim() !== '');
+      const nextMostlyFilled = nextFilled.length >= Math.ceil(row.length * 0.8);
+      const nextMostlyText = nextFilled.filter(c => !daCellLooksNumeric(c)).length >= Math.ceil(nextFilled.length * 0.8);
+      const nextHasRealLabel = nextFilled.some(c => String(c).trim().length > 2);
+      if (nextMostlyFilled && nextMostlyText && nextHasRealLabel) return true;
+    }
+    return false;
+  };
+  while (rows.length > 2 && colLetterSeq()) rows = rows.slice(1);
+
+
+  // Row-number gutter column — normally column 0. Consecutive (allowing
+  // occasional OCR misses) integers top to bottom.
+  const isRowGutter = (colIdx) => {
+    const raw = rows.map(r => String(r[colIdx] ?? '').trim()).filter(v => v !== '');
+    if (raw.length < 3 || raw.length < rows.length * 0.5) return false;
+    // A gutter number can end up fused with a stray adjacent glyph (e.g.
+    // "1 2" instead of "1") — pull the leading digit run out of each cell
+    // rather than requiring the whole cell to be a clean integer, and
+    // tolerate a minority of cells that still don't parse at all.
+    const parsed = raw.map(v => { const m = v.match(/^\d+/); return m ? m[0] : null; }).filter(Boolean);
+    if (parsed.length < Math.max(2, Math.ceil(raw.length * 0.7))) return false;
+    let increasing = 0;
+    for (let k = 1; k < parsed.length; k++) if (parseInt(parsed[k], 10) > parseInt(parsed[k - 1], 10)) increasing++;
+    return increasing >= (parsed.length - 1) * 0.8;
+  };
+  if (rows.length && rows[0].length > 1 && isRowGutter(0)) {
+    rows = rows.map(r => r.slice(1));
+  }
+
+  // Filter/sort-arrow icons that sit right on a header cell get misread by
+  // OCR as an isolated punctuation glyph in front of the real text (e.g.
+  // "[North", "|Winter") — real data essentially never starts with a bare
+  // symbol like that, so trim it. Also catches a leading "=" that would
+  // otherwise get treated as the start of a formula and show as #ERROR!.
+  const iconNoise = /^[[\]{}|<>=~^`]+\s*(?=\S)/;
+  rows = rows.map(r => r.map(c => String(c ?? '').replace(iconNoise, '')));
+
+  // A stray extra vertical rule (e.g. a filter/sort-arrow icon on a header
+  // cell mistaken for a column boundary) can split one real column into
+  // two bands, leaving one half permanently blank across every row —
+  // including the header. A genuine real column always has at least a
+  // header label, so any column that's empty everywhere is phantom; drop it.
+  if (rows.length && rows[0].length > 1) {
+    const nCols = rows[0].length;
+    const colIsEmpty = new Array(nCols).fill(true);
+    rows.forEach(r => r.forEach((c, i) => { if (String(c ?? '').trim() !== '') colIsEmpty[i] = false; }));
+    if (colIsEmpty.some(Boolean) && colIsEmpty.some(v => !v)) {
+      rows = rows.map(r => r.filter((_, i) => !colIsEmpty[i]));
+    }
+  }
+
+  return rows;
+}
+function daColLetterToIndex(letters) {
+  let n = 0;
+  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n;
+}
+
+// Buckets OCR words into the ruled grid found by daDetectTableGridLines —
+// by pixel position, not reading order, so a merged cell or an oddly-kerned
+// header can't shuffle a value into the wrong column. Words that fall
+// outside the table's bounding box (a title above it, a caption below) are
+// handed back separately so they still make it into the written-content
+// canvas instead of being lost.
+function daExtractOcrTableViaGrid(words, grid) {
+  const { rows, cols, bbox } = grid;
+  const marginX = (bbox.x1 - bbox.x0) * 0.02;
+  const insideWords = [];
+  const outsideWords = [];
+  words.forEach(w => {
+    const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+    const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+    if (cx >= bbox.x0 - marginX && cx <= bbox.x1 + marginX && cy >= bbox.y0 && cy <= bbox.y1) {
+      insideWords.push(w);
+    } else {
+      outsideWords.push(w);
+    }
+  });
+
+  if (!cols) {
+    // No clean vertical rules (a table ruled only with horizontal lines) —
+    // fall back to the whitespace-projection column finder, but scoped to
+    // just these row-banded words, which is still far more reliable than
+    // running that projection over the whole page.
+    const { lines: rowLines, medH } = daGroupOcrWordsIntoLines(insideWords);
+    const tableRows = daAlignLinesIntoGrid(rowLines, medH);
+    return { tableRows: daStripSpreadsheetChrome(tableRows), outsideWords };
+  }
+
+  // A missed vertical rule — too faint or thin for daDetectTableGridLines to
+  // pick up, common when a narrow "short label" column (e.g. Team) sits next
+  // to a wide "long value" column (e.g. Date) with a light default gridline
+  // between them — leaves two real columns' words landing in the same
+  // detected band. Check each detected column band for that signature before
+  // bucketing: if most rows in that band show a horizontal gap between
+  // consecutive words that's far wider than ordinary word-spacing, treat it
+  // as a missed rule and insert an extra split line at the average gap.
+  const splitCols = [];
+  for (let c = 0; c < cols.length - 1; c++) {
+    const x0 = cols[c], x1 = cols[c + 1];
+    const colWords = insideWords.filter(w => {
+      const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+      return cx >= x0 && cx < x1;
+    });
+    if (colWords.length < 4) continue;
+    const byRow = {};
+    colWords.forEach(w => {
+      const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+      let r = 0; while (r < rows.length - 2 && cy >= rows[r + 1]) r++;
+      (byRow[r] = byRow[r] || []).push(w);
+    });
+    const medH = colWords.reduce((s, w) => s + (w.bbox.y1 - w.bbox.y0), 0) / colWords.length;
+    const gapMids = [];
+    Object.values(byRow).forEach(rowWords => {
+      if (rowWords.length < 2) return;
+      rowWords.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+      let bestGap = 0, bestMid = null;
+      for (let i = 1; i < rowWords.length; i++) {
+        const gap = rowWords[i].bbox.x0 - rowWords[i - 1].bbox.x1;
+        if (gap > bestGap) { bestGap = gap; bestMid = (rowWords[i].bbox.x0 + rowWords[i - 1].bbox.x1) / 2; }
+      }
+      // A gap much wider than the text is tall reads as a missed column
+      // boundary rather than normal spacing within one field.
+      if (bestGap > medH * 1.8) gapMids.push(bestMid);
+    });
+    const rowsWithData = Object.keys(byRow).length;
+    if (gapMids.length >= Math.max(2, Math.ceil(rowsWithData * 0.6))) {
+      splitCols.push(gapMids.reduce((a, b) => a + b, 0) / gapMids.length);
+    }
+  }
+  const allCols = splitCols.length ? cols.concat(splitCols).sort((a, b) => a - b) : cols;
+
+  const nRows = rows.length - 1, nCols = allCols.length - 1;
+  const tableRows = Array.from({ length: nRows }, () => new Array(nCols).fill(''));
+  insideWords.forEach(w => {
+    const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+    const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+    let r = 0; while (r < nRows - 1 && cy >= rows[r + 1]) r++;
+    let c = 0; while (c < nCols - 1 && cx >= allCols[c + 1]) c++;
+    tableRows[r][c] = tableRows[r][c] ? `${tableRows[r][c]} ${w.text}` : w.text;
+  });
+  return { tableRows: daStripSpreadsheetChrome(tableRows), outsideWords };
+}
+
+// ─── Main entry for OCR'd content (image upload or a rasterized scanned-PDF
+// page): splits the recognized words into a real tabular portion and a
+// written-content portion.
+//
+// Two detectors run, in order of confidence:
+// 1) Ruled-grid detection (daDetectTableGridLines) reads the canvas's own
+//    pixels for actual drawn border/grid lines — the most reliable signal
+//    when a table has them (boxed reports, screenshotted spreadsheets,
+//    invoices), since it doesn't depend on word-spacing at all.
+// 2) If no ruled grid is found (or it didn't produce real multi-column
+//    content), the longest consecutive run of multi-cell lines is picked
+//    out by whitespace (daClassifyOcrLines), then only those lines get run
+//    through column alignment (daAlignLinesIntoGrid) — scoped just to them,
+//    so a table sitting inside a page mostly made of paragraph text still
+//    gets clean, well-aligned columns instead of the table's boundaries
+//    getting diluted by every unrelated paragraph line on the same page. ───
+function daExtractOcrTableAndProse(words, canvas) {
+  if (canvas) {
+    const grid = daDetectTableGridLines(canvas);
+    if (grid) {
+      const { tableRows, outsideWords } = daExtractOcrTableViaGrid(words, grid);
+      const hasRealTable = tableRows.length >= 2 && tableRows.some(r => r.filter(Boolean).length > 1);
+      if (hasRealTable) {
+        const { lines: proseOcrLines } = daGroupOcrWordsIntoLines(outsideWords);
+        const proseLines = proseOcrLines.map(l => l.words.map(x => x.text).join(' ').trim()).filter(Boolean);
+        return { tableRows, proseLines };
+      }
+    }
+  }
+
+  const { lines, medH } = daGroupOcrWordsIntoLines(words);
+  if (!lines.length) return { tableRows: [], proseLines: [] };
+
+  const { tableLines, proseLines } = daClassifyOcrLines(lines, medH);
+  if (tableLines.length < 2) return { tableRows: [], proseLines };
+
+  const tableRows = daAlignLinesIntoGrid(tableLines, medH);
+  return { tableRows: daStripSpreadsheetChrome(tableRows), proseLines };
 }
 
 // Legacy per-row gap clustering, kept only as a fallback for tables where
@@ -21809,7 +22417,7 @@ async function daExtractDocx(arrayBuffer, filename) {
     const wordCount = blocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
     if (wordCount > 25) {
       const aoa2 = daArrangeBlocksIntoTopics(blocks);
-      daAddDataset(`${daBaseName(filename)} — Content found on the page`, aoa2);
+      daAddDataset(`${daBaseName(filename)}${DA_PROSE_SUFFIX}`, aoa2);
     }
     return { tableFound: true };
   } else {
@@ -21949,19 +22557,82 @@ async function daExtractPdf(arrayBuffer, filename) {
   const hasProse = proseWordCount > 5;
 
   if (hasTable) {
-    daAddDataset(hasProse ? `${daBaseName(filename)} — Table` : daBaseName(filename), tableRows);
+    daAddDataset(hasProse ? `${daBaseName(filename)}${DA_TABLE_SUFFIX}` : daBaseName(filename), tableRows);
   }
   if (hasProse) {
     const aoa = daArrangeBlocksIntoTopics(blocks);
-    daAddDataset(hasTable ? `${daBaseName(filename)} — Content found on the page` : daBaseName(filename), aoa);
+    daAddDataset(hasTable ? `${daBaseName(filename)}${DA_PROSE_SUFFIX}` : daBaseName(filename), aoa);
   }
   if (!hasTable && !hasProse) {
-    throw new Error('no readable text found, this PDF may be a scanned image with no text layer');
+    // No embedded text layer at all — this PDF is (or contains) scanned
+    // page images rather than real text, the pdf.js text-content pass above
+    // comes back empty. Rather than give up, fall back to rasterizing each
+    // page and running it through the same OCR pipeline used for photo/
+    // screenshot uploads (daExtractImageTable), so a scanned PDF is handled
+    // the same way a photo of the same pages would be.
+    return await daExtractScannedPdfViaOcr(doc, filename);
   }
   // hasTable=false here means real prose was found but nothing in it looked
   // like tabular columns, tell the caller plainly instead of just quietly
   // handing back paragraph text with no table.
   return { tableFound: hasTable };
+}
+
+// ─── Fallback for a PDF with no text layer (a scan saved as a PDF).
+// Renders every page to a canvas and reuses the exact same OCR → line
+// classification → table/prose split pipeline as an image upload
+// (daExtractOcrTableAndProse), then merges the results across all pages
+// before deciding whether this came back as a table, written content, or
+// both. ───
+async function daExtractScannedPdfViaOcr(doc, filename) {
+  if (typeof Tesseract === 'undefined') {
+    throw new Error('no readable text found, this PDF may be a scanned image with no text layer, and OCR is unavailable, check your connection and retry');
+  }
+  const ocrTableRows = [];
+  const ocrProseLines = [];
+
+  for (let p = 1; p <= doc.numPages; p++) {
+    daSetProgress(true, `Scanning page ${p} of ${doc.numPages} (OCR)…`);
+    const page = await doc.getPage(p);
+    const viewport = page.getViewport({ scale: 2 });
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = viewport.width;
+    pageCanvas.height = viewport.height;
+    await page.render({ canvasContext: pageCanvas.getContext('2d'), viewport }).promise;
+
+    _teOcrProgressCb = (frac, label) => daSetProgress(true, `Page ${p} of ${doc.numPages}: ${label || 'reading (OCR)…'}`);
+    try {
+      const { canvas: ocrCanvas } = pdfedPreprocessForOcr(pageCanvas);
+      const worker = await pdfedGetOcrWorker();
+      const { data } = await worker.recognize(ocrCanvas);
+      const words = (data.words || []).filter(w => w.text && w.text.trim() && w.confidence >= 35);
+      if (!words.length) continue;
+      const { tableRows, proseLines } = daExtractOcrTableAndProse(words, ocrCanvas);
+      tableRows.forEach(r => ocrTableRows.push(r));
+      proseLines.forEach(l => ocrProseLines.push(l));
+      ocrProseLines.push(''); // page break, keeps paragraph grouping from bleeding across pages
+    } finally {
+      _teOcrProgressCb = null;
+    }
+  }
+
+  const ocrBlocks = daLinesToBlocksFromText(ocrProseLines.join('\n'));
+  const ocrProseWordCount = ocrBlocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
+  const ocrHasTable = ocrTableRows.length >= 2;
+  const ocrHasProse = ocrProseWordCount > 12;
+
+  if (!ocrHasTable && !ocrHasProse) {
+    throw new Error('no readable text found in this scanned PDF, even with OCR');
+  }
+  if (ocrHasTable) {
+    daAddDataset(ocrHasProse ? `${daBaseName(filename)}${DA_TABLE_SUFFIX}` : daBaseName(filename), ocrTableRows);
+  }
+  if (ocrHasProse) {
+    const aoa = daArrangeBlocksIntoTopics(ocrBlocks);
+    daAddDataset(ocrHasTable ? `${daBaseName(filename)}${DA_PROSE_SUFFIX}` : daBaseName(filename), aoa);
+  }
+  toast(`"${daBaseName(filename)}" looked like a scanned PDF (no text layer), content extracted via OCR (beta) — please double-check against the original before relying on it.`, 'info');
+  return { tableFound: ocrHasTable };
 }
 
 // ─── Entry point for plain .txt/.csv/.tsv uploads. Tries the whole-file
@@ -22543,12 +23214,54 @@ function daRender() {
   daRenderTable();
 }
 
+// A single uploaded file can land in Data Arrangement as TWO connected
+// datasets, its detected table and its written content (see DA_TABLE_SUFFIX
+// / DA_PROSE_SUFFIX above, used by daAddDataset calls in daExtractDocx/
+// daExtractPdf/daExtractImageTable). Rather than show those as two
+// look-alike generic tabs, this pairs them back up by their shared base
+// filename and renders one tab with a small Tabular Data / Content Found
+// switch, so it reads as "one file, two views" instead of "two files".
 function daRenderTabs() {
   daPersist();
   const wrap = document.getElementById('daTabs');
   if (!wrap) return;
   wrap.innerHTML = '';
+  const rendered = new Set();
+
   daState.datasets.forEach(ds => {
+    if (rendered.has(ds.id)) return;
+
+    let base = null, kind = null;
+    if (ds.name.endsWith(DA_TABLE_SUFFIX)) { base = ds.name.slice(0, -DA_TABLE_SUFFIX.length); kind = 'table'; }
+    else if (ds.name.endsWith(DA_PROSE_SUFFIX)) { base = ds.name.slice(0, -DA_PROSE_SUFFIX.length); kind = 'prose'; }
+
+    const partner = base
+      ? daState.datasets.find(d => d.id !== ds.id && d.name === base + (kind === 'table' ? DA_PROSE_SUFFIX : DA_TABLE_SUFFIX))
+      : null;
+
+    if (base && partner) {
+      const tableDs = kind === 'table' ? ds : partner;
+      const proseDs = kind === 'table' ? partner : ds;
+      rendered.add(tableDs.id); rendered.add(proseDs.id);
+
+      const group = document.createElement('div');
+      group.className = 'da-tab-group' + ((daState.activeId === tableDs.id || daState.activeId === proseDs.id) ? ' active' : '');
+      group.innerHTML = `
+        <span class="da-tab-group-name" title="${daEsc(base)}">${daEsc(base)}</span>
+        <div class="da-tab-switch">
+          <button type="button" class="da-tab-switch-btn${daState.activeId === tableDs.id ? ' active' : ''}" title="Show the detected table">Tabular Data</button>
+          <button type="button" class="da-tab-switch-btn${daState.activeId === proseDs.id ? ' active' : ''}" title="Show the written content found alongside it">Content Found</button>
+        </div>
+        <span class="da-tab-close" title="Remove this file">×</span>`;
+      const [tableBtn, proseBtn] = group.querySelectorAll('.da-tab-switch-btn');
+      tableBtn.onclick = (e) => { e.stopPropagation(); daState.activeId = tableDs.id; if (typeof daResetFormulaBar === 'function') daResetFormulaBar(); daRenderTabs(); daRenderTable(); };
+      proseBtn.onclick = (e) => { e.stopPropagation(); daState.activeId = proseDs.id; if (typeof daResetFormulaBar === 'function') daResetFormulaBar(); daRenderTabs(); daRenderTable(); };
+      group.querySelector('.da-tab-close').onclick = (e) => { e.stopPropagation(); daCloseDataset(tableDs.id); daCloseDataset(proseDs.id); };
+      wrap.appendChild(group);
+      return;
+    }
+
+    rendered.add(ds.id);
     const tab = document.createElement('div');
     tab.className = 'da-tab' + (ds.id === daState.activeId ? ' active' : '');
     tab.onclick = () => { daState.activeId = ds.id; if (typeof daResetFormulaBar === 'function') daResetFormulaBar(); daRenderTabs(); daRenderTable(); };
@@ -23688,7 +24401,7 @@ function daDownloadCSV(dsArg) {
   const blob = new Blob(['\uFEFF' + daRowsToCSV(ds.headers, daComputedRowsForExport(ds))], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `${ds.name || 'data'}.csv`;
+  a.href = url; a.download = sarvarcBrandFilename(`${ds.name || 'data'}.csv`);
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
   toast('CSV downloaded', 'success');
@@ -23705,7 +24418,7 @@ function daDownloadXLSX(dsArg) {
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (ds.name || 'Sheet1').slice(0, 31));
-  XLSX.writeFile(wb, `${ds.name || 'data'}.xlsx`);
+  XLSX.writeFile(wb, sarvarcBrandFilename(`${ds.name || 'data'}.xlsx`));
   toast('XLSX downloaded', 'success');
 }
 
@@ -23740,6 +24453,8 @@ function daOpenExportModal() {
       document.getElementById('daExportRemember').checked = false;
     }
   } catch (e) {}
+
+  sarvarcInitBrandCheckbox('daExportBrandFilename');
 
   daApplyExportFormat(startFmt);
   document.querySelectorAll('#daExportTypeMenu .pdfed-export-menu-item').forEach(el => el.classList.toggle('sel', el.dataset.fmt === startFmt));
@@ -23890,7 +24605,7 @@ function daDownloadXLSXMulti(datasetsArr, fname) {
     usedNames.add(sheetName);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
-  XLSX.writeFile(wb, fname);
+  XLSX.writeFile(wb, sarvarcBrandFilename(fname));
 }
 
 // Truncates text with an ellipsis so it fits a jsPDF column width.
@@ -23970,7 +24685,7 @@ async function daExportPDFFile(datasetsArr, fname) {
   if (!window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
   try {
     const pdf = daBuildPdfDoc(datasetsArr);
-    pdf.save(fname);
+    pdf.save(sarvarcBrandFilename(fname));
     toast('PDF exported', 'success');
   } catch (e) {
     toast('PDF export failed: ' + e.message, 'error');
@@ -25024,7 +25739,7 @@ async function mfExportPDF() {
     const pdf = new jsPDF({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
-    pdf.save(fname);
+    pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     toast('Form exported as PDF', 'success');
   } catch(e) {
@@ -25557,7 +26272,7 @@ async function mfcExportPDF() {
       pdf.addImage(img, 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     }
     const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
-    pdf.save(fname);
+    pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     toast('Form exported as PDF', 'success');
   } catch (e) {
@@ -28393,7 +29108,7 @@ function dgDownloadPNG() {
   const canvas = dgGetExportCanvas();
   if (!canvas) return;
   const a = document.createElement('a');
-  a.download = ((document.getElementById('dgTitleInput') || {}).value || 'chart').trim().replace(/\s+/g, '_') + '.png';
+  a.download = sarvarcBrandFilename(((document.getElementById('dgTitleInput') || {}).value || 'chart').trim().replace(/\s+/g, '_') + '.png');
   a.href = canvas.toDataURL('image/png');
   a.click();
   toast('Chart downloaded', 'success');
@@ -28401,7 +29116,8 @@ function dgDownloadPNG() {
 
 // ── Export dropdown: PDF / Word / JPEG / PNG ──
 function dgExportFilename(ext) {
-  return ((document.getElementById('dgTitleInput') || {}).value || 'chart').trim().replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.' + ext;
+  const raw = ((document.getElementById('dgTitleInput') || {}).value || 'chart').trim().replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.' + ext;
+  return sarvarcBrandFilename(raw);
 }
 
 function dgExportChart(format) {
