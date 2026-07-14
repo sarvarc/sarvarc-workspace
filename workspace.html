@@ -31,6 +31,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.7.2/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-RN93D87JZH"></script>
 <script>
@@ -1043,6 +1045,34 @@ a.nav-item:hover { color: var(--text); }
   box-shadow: var(--shadow-card);
 }
 .img-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-card-hover, 0 8px 24px rgba(0,0,0,0.4)); }
+.img-card[draggable="true"] { cursor: grab; }
+.img-card.dragging { opacity: 0.4; cursor: grabbing; }
+.pdfed-canvas-area.pdfed-drag-over {
+  outline: 2px dashed var(--cyan);
+  outline-offset: -2px;
+  background: rgba(0,194,255,0.06);
+}
+.pdfed-canvas-area.pdfed-drag-over::after {
+  content: 'Drop to add as a page';
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--cyan); color: #fff;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  padding: 6px 14px; border-radius: 20px;
+  box-shadow: 0 4px 14px rgba(0,194,255,0.35);
+  pointer-events: none;
+  z-index: 20;
+}
+.pdfed-canvas-area.pdfed-drag-over.pdfed-drag-over-page {
+  outline-color: var(--purple);
+  background: rgba(155,92,255,0.07);
+}
+.pdfed-canvas-area.pdfed-drag-over.pdfed-drag-over-page::after {
+  content: 'Drop to edit this page';
+  background: var(--purple);
+  box-shadow: 0 4px 14px rgba(155,92,255,0.35);
+}
 .img-card img { width: 100%; height: 120px; object-fit: cover; display: block; }
 .img-card .img-overlay {
   position: absolute; inset: 0;
@@ -5114,7 +5144,7 @@ th:hover .da-th-del { opacity:1; }
   from { opacity:0; transform:translateY(-6px) scale(0.97); }
   to   { opacity:1; transform:translateY(0) scale(1); }
 }
-.dg-type-dropdown { width:250px; }
+.dg-type-dropdown { width:250px; max-height:min(70vh, 520px); overflow-y:auto; overscroll-behavior:contain; }
 .dg-columns-dropdown { width:280px; }
 .dg-type-dropdown .dg-type-grid { grid-template-columns:1fr 1fr; }
 .dg-templates-dropdown { width:230px; }
@@ -5182,6 +5212,7 @@ th:hover .da-th-del { opacity:1; }
 }
 .dg-show-chip:hover { background:var(--surface2); color:var(--text); }
 .dg-show-chip.active { background:var(--blue); color:#fff; }
+.dg-hologram-chip.active { background:#00C2FF; box-shadow:0 0 10px rgba(0,229,255,0.7); }
 .dg-show-chip input { display:none; }
 button.dg-show-chip { border:none; background:none; font-family:inherit; }
 button.dg-show-chip.active { background:var(--blue); }
@@ -5202,13 +5233,45 @@ button.dg-show-chip.active { background:var(--blue); }
 .dg-canvas-zoom-wrap { position:relative; transform-origin:center center; transition:transform 0.12s ease; flex-shrink:0; display:flex; }
 .dg-canvas-zoom-wrap canvas { display:block; }
 
+/* ── 3D Statistical charts: WebGL canvas lives in the same zoom-wrap slot as
+   the 2D <canvas>, toggled via display:none so only one is ever visible.
+   Sized to match the 2D canvas's default card (1200x675) so the surrounding
+   holder/zoom logic needs no special-casing. ── */
+#dgCanvas3D { display:none; border-radius:14px; cursor:grab; background:#ffffff; box-shadow:0 3px 16px rgba(16,24,40,0.12); }
+#dgCanvas3D.dg-panning-3d { cursor:grabbing; }
+.dg-type-grid-label {
+  grid-column:1 / -1; font-size:10px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;
+  color:var(--text3); padding:8px 2px 0; margin-top:2px; border-top:1px solid var(--border);
+}
+.dg-type-grid-label:first-child { border-top:none; margin-top:0; padding-top:0; }
+.dg-type-tile .dg-3d-badge {
+  font-size:8px; font-weight:800; letter-spacing:0.03em; color:#fff; background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border-radius:5px; padding:1px 5px; margin-top:-2px;
+}
+.dg-3d-rotate-hint {
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%); pointer-events:none;
+  font-size:10.5px; font-weight:600; color:var(--text3); background:var(--surface); border:1px solid var(--border);
+  padding:4px 10px; border-radius:20px; opacity:0.9; display:flex; align-items:center; gap:5px;
+}
+.dg-3d-tooltip {
+  position:absolute; z-index:15; pointer-events:none; transform:translate(-50%, -100%);
+  background:#101820; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.45;
+  box-shadow:0 8px 20px rgba(0,0,0,0.28); white-space:nowrap;
+}
+.dg-3d-tooltip .dg-3d-tt-title { font-weight:700; font-size:12px; }
+.dg-3d-tooltip .dg-3d-tt-sub { color:#9aa5b3; }
+.dg-3d-tooltip::after {
+  content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:#101820;
+}
+
 /* ── Manual text overlay: sits directly on top of dgCanvas, INSIDE the same
    zoom wrap, so it scales/pans as one unit with the chart via the existing
    CSS transform (dgApplyZoom) — the same proven pattern as the PDF editor's
    placed-text layer. Because this is a pure DOM layer, dragging or editing
    text never touches dgCanvas or calls dgDrawChart(), so the chart itself
    ("its environment") is never cleared or redrawn while text is moved. ── */
-.dg-text-overlay { position:absolute; top:0; left:0; width:820px; height:460px; pointer-events:none; }
+.dg-text-overlay { position:absolute; top:0; left:0; width:1200px; height:675px; pointer-events:none; }
 .dg-placed-text {
   position:absolute; min-width:24px; min-height:20px; padding:2px 4px;
   cursor:grab; pointer-events:auto; border:1.5px solid transparent; border-radius:4px;
@@ -5260,7 +5323,7 @@ button.dg-show-chip.active { background:var(--blue); }
    text box's edge/center lines up with the canvas center/edges or another
    placed text's edge/center — Canva-style. Pure visual layer, sits above
    the overlay, never affects the chart canvas itself. ── */
-.dg-snap-guides { position:absolute; top:0; left:0; width:820px; height:460px; pointer-events:none; z-index:5; }
+.dg-snap-guides { position:absolute; top:0; left:0; width:1200px; height:675px; pointer-events:none; z-index:5; }
 .dg-snap-line { position:absolute; background:#FF3B8D; box-shadow:0 0 4px rgba(255,59,141,0.6); }
 .dg-snap-line.v { width:1px; top:0; height:100%; }
 .dg-snap-line.h { height:1px; left:0; width:100%; }
@@ -6717,7 +6780,10 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
 
           <!-- CENTRE: canvas view -->
-          <div class="pdfed-canvas-area" style="position:relative">
+          <div class="pdfed-canvas-area" style="position:relative"
+               ondragover="pdfedCanvasDragOver(event)"
+               ondragleave="pdfedCanvasDragLeave(event)"
+               ondrop="pdfedCanvasDrop(event)">
             <div id="pdfedZoomBadge"></div>
             <div class="pdfed-page-actions" id="pdfedPageActions">
               <button class="pdfed-pgact-btn" id="pdfedPgactDup" onclick="pdfedDuplicatePage(pdfed.active)" title="Duplicate this page">
@@ -7275,6 +7341,23 @@ button.dg-show-chip.active { background:var(--blue); }
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-6 8v7l-6 2v-9z"/></svg>
                     Funnel
                   </div>
+                  <div class="dg-type-grid-label">3D Statistical</div>
+                  <div class="dg-type-tile" data-type="3d-bar" data-label="3D Bar Chart" onclick="dgSetType('3d-bar')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l4-2v12z"/><path d="M10 20V6l4-2v16z"/><path d="M16 20V12l4-2v10z"/></svg>
+                    3D Bar <span class="dg-3d-badge">3D</span>
+                  </div>
+                  <div class="dg-type-tile" data-type="3d-histogram" data-label="3D Histogram" onclick="dgSetType('3d-histogram')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V13l3-1.5v8.5z"/><path d="M8 20V9l3-1.5v12.5z"/><path d="M13 20V6l3-1.5v15.5z"/><path d="M18 20v-6l3-1.5V20z"/></svg>
+                    3D Histogram <span class="dg-3d-badge">3D</span>
+                  </div>
+                  <div class="dg-type-tile" data-type="3d-scatter" data-label="3D Scatter" onclick="dgSetType('3d-scatter')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="17" r="1.6" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r="2.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="6" r="1.8" fill="currentColor" stroke="none"/><path d="M3 20h18"/><path d="M3 20V4"/></svg>
+                    3D Scatter <span class="dg-3d-badge">3D</span>
+                  </div>
+                  <div class="dg-type-tile" data-type="3d-boxplot" data-label="3D Box Plot" onclick="dgSetType('3d-boxplot')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="8"/><rect x="7" y="8" width="10" height="8"/><line x1="12" y1="16" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="8" y1="3" x2="16" y2="3"/></svg>
+                    3D Box Plot <span class="dg-3d-badge">3D</span>
+                  </div>
                 </div>
               </div>
               <div class="dg-rbn-group-label" style="margin-top:2px">Chart Type</div>
@@ -7630,6 +7713,14 @@ button.dg-show-chip.active { background:var(--blue); }
                     <div class="pdfed-export-menu-desc">Sharp edges, transparent-ready</div>
                   </span>
                 </div>
+
+                <div class="pdfed-export-menu-item" onclick="dgOpenVideoExportModal()">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(0,229,255,0.15);color:var(--cyan)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">Rotating Video (WebM)</div>
+                    <div class="pdfed-export-menu-desc">3D chart spins, notes underneath</div>
+                  </span>
+                </div>
               </div>
               <div class="dg-rbn-group-label" style="margin-top:2px">Export</div>
             </div>
@@ -7670,8 +7761,9 @@ button.dg-show-chip.active { background:var(--blue); }
                   </div>
                   <label class="dg-show-chip active" id="dgLegendChip" title="Show legend"><input type="checkbox" id="dgLegendToggle" checked onchange="dgToggleShowChip(this,'dgLegendChip')"> Legend</label>
                   <label class="dg-show-chip active" id="dgValuesChip" title="Show values on chart"><input type="checkbox" id="dgValuesToggle" checked onchange="dgToggleShowChip(this,'dgValuesChip')"> Values</label>
-                  <label class="dg-show-chip" id="dgTrendChip" title="Trendline (bar/line/area)"><input type="checkbox" id="dgTrendlineToggle" onchange="dgToggleShowChip(this,'dgTrendChip')"> Trend</label>
+                  <label class="dg-show-chip" id="dgTrendChip" title="Trendline (bar/line/area, incl. 3D)"><input type="checkbox" id="dgTrendlineToggle" onchange="dgToggleShowChip(this,'dgTrendChip')"> Trend</label>
                   <label class="dg-show-chip active" id="dgInsightsChip" title="Show insights strip"><input type="checkbox" id="dgInsightsToggle" checked onchange="dgToggleShowChip(this,'dgInsightsChip')"> Insights</label>
+                  <label class="dg-show-chip dg-hologram-chip" id="dgHologramChip" title="Futuristic glowing hologram style — applies to the 3D chart types"><input type="checkbox" id="dgHologramToggle" onchange="dgToggleShowChip(this,'dgHologramChip')"> Hologram</label>
                   <button type="button" class="dg-show-chip" id="dgWrittenAnalysisChip" onclick="dgToggleWrittenAnalysis()" title="Show a written paragraph analysis beneath the chart">Written Analysis</button>
                 </div>
                 <div class="pdfed-rbn-btn pdfed-hand-btn annot-active dg-hand-indicator" style="cursor:default" title="Hand tool: click and drag the canvas to pan">
@@ -7690,8 +7782,54 @@ button.dg-show-chip.active { background:var(--blue); }
               </div>
               <div class="dg-canvas-holder" id="dgCanvasHolder">
                 <div class="dg-canvas-zoom-wrap" id="dgCanvasZoomWrap">
-                  <canvas id="dgCanvas" width="820" height="460"></canvas>
+                  <canvas id="dgCanvas" width="1200" height="675"></canvas>
+                  <canvas id="dgCanvas3D" width="1200" height="675"></canvas>
+                  <div class="dg-3d-rotate-hint" id="dg3DHint" style="display:none">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+                    Drag to rotate · scroll to zoom
+                  </div>
+                  <div id="dg3DTooltip" class="dg-3d-tooltip" style="display:none"></div>
                   <div id="dgTextOverlay" class="dg-text-overlay"></div>
+
+                  <!-- Rotating Video export modal -->
+                  <div id="dgVideoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
+                    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:22px;max-width:460px;width:92%;display:flex;flex-direction:column;gap:14px;">
+                      <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <h3 style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                          Record Rotating Video
+                        </h3>
+                        <button onclick="dgCloseVideoExportModal()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1">×</button>
+                      </div>
+
+                      <div id="dgVideoModalNote3D" style="display:none;font-size:12px;color:#F97316;background:rgba(249,115,22,0.12);border-radius:8px;padding:8px 10px;">
+                        Switch to a 3D chart type (bar, histogram, scatter, or box plot) to record a rotating video.
+                      </div>
+
+                      <canvas id="dgVideoPreviewCanvas" width="640" height="440" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--border);background:#0A0F1E;display:block;"></canvas>
+
+                      <div>
+                        <label style="font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;display:block;margin-bottom:6px;">Notes to show beneath the chart</label>
+                        <textarea id="dgVideoNotesInput" rows="3" placeholder="Add a caption or takeaway to display under the rotating chart…" maxlength="280" oninput="dgVideoDrawPreviewFrame()"
+                          style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
+                      </div>
+
+                      <div style="display:flex;align-items:center;gap:10px;">
+                        <label style="font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;">Duration</label>
+                        <select id="dgVideoDurationSelect" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:12px;">
+                          <option value="6">6 sec (quick loop)</option>
+                          <option value="8" selected>8 sec (one full spin)</option>
+                          <option value="12">12 sec (slow spin)</option>
+                        </select>
+                        <span id="dgVideoStatus" style="margin-left:auto;font-size:11px;color:var(--text2);"></span>
+                      </div>
+
+                      <div style="display:flex;gap:10px;margin-top:4px;">
+                        <button class="btn-secondary" onclick="dgCloseVideoExportModal()" style="flex:1;padding:9px;">Cancel</button>
+                        <button class="btn-primary" id="dgVideoRecordBtn" onclick="dgStartVideoRecording()" style="flex:1;padding:9px;">Record &amp; Download</button>
+                      </div>
+                    </div>
+                  </div>
                   <div id="dgSnapGuides" class="dg-snap-guides"></div>
                   <div id="dgPtxtToolbar" class="pdfed-ptxt-toolbar" style="display:none; position:absolute; z-index:20;">
                     <button type="button" id="dgPtxtBoldBtn" class="pdfed-ptxt-tb-btn" title="Bold" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('bold')"><b>B</b></button>
@@ -7986,6 +8124,13 @@ button.dg-show-chip.active { background:var(--blue); }
     </div>
     <div class="dg-multi-suggest-stats" id="dgMultiSuggestStats"></div>
     <div class="dg-push-choice-body">
+      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestCompareBtn" onclick="dgConfirmMultiSuggest('compare')" style="display:none;border-color:var(--blue, #00C2FF)">
+        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 19 7 19 17 12 22 5 17 5 7"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="5" y1="7" x2="19" y2="17"/><line x1="19" y1="7" x2="5" y2="17"/></svg></div>
+        <div class="dg-push-choice-text">
+          <h4 id="dgMultiSuggestCompareHead">Compare side-by-side (recommended)</h4>
+          <p id="dgMultiSuggestCompareDesc">Builds one bar chart per metric, plus a normalized radar overview, so differences between columns jump out immediately.</p>
+        </div>
+      </button>
       <button type="button" class="dg-push-choice-card" id="dgMultiSuggestPerColumnBtn" onclick="dgConfirmMultiSuggest('perColumn')">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
         <div class="dg-push-choice-text">
@@ -8840,6 +8985,12 @@ button.dg-show-chip.active { background:var(--blue); }
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ─── STATE ───
+// Tiny fallback store for thumbnail -> PDF editor canvas drag-and-drop
+// (both the extracted-image gallery cards and the left-nav page thumbnails).
+// dataTransfer.getData usually works fine, but some embedded webviews restrict
+// reading it on dragover/drop, so we keep this as a backup source of truth.
+let dragState = { galleryIdx: null, pageIdx: null };
+
 let state = {
   pdfDoc: null,
   pdfFile: null,
@@ -9804,6 +9955,14 @@ function renderGallery() {
     const card = document.createElement('div');
     card.className = 'img-card';
     card.dataset.idx = idx;
+    card.draggable = true;
+    card.ondragstart = (ev) => {
+      ev.dataTransfer.effectAllowed = 'copy';
+      ev.dataTransfer.setData('text/plain', String(idx));
+      dragState.galleryIdx = idx; // fallback for browsers/webviews with flaky dataTransfer reads
+      card.classList.add('dragging');
+    };
+    card.ondragend = () => { card.classList.remove('dragging'); dragState.galleryIdx = null; };
     card.innerHTML = `
       <img src="${img.dataUrl}" alt="${img.name}" loading="lazy" style="opacity:${pdfedGetOpacity(img)}">
       <div class="img-overlay">
@@ -9876,6 +10035,57 @@ async function downloadSingle(idx, e) {
 }
 
 // ─── PUSH EXTRACTED IMAGE INTO PDF EDITOR ───
+// ─── DRAG A THUMBNAIL ONTO THE PDF EDITOR CANVAS ───
+// Two things can land here:
+//  1. A page thumbnail from the left-nav strip -> switch editing to that
+//     page. pdfedGoto() already bakes/auto-saves whatever was on the
+//     previously active page before it loads the new one, so no extra
+//     save step is needed here.
+//  2. An extracted-image gallery thumbnail -> insert it as a new page
+//     (reuses pushImageToPdfEditor, same as the button).
+function pdfedCanvasDragOver(e) {
+  const isPage = dragState.pageIdx !== null;
+  const isGallery = dragState.galleryIdx !== null || e.dataTransfer.types.includes('text/plain');
+  if (!isPage && !isGallery) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = isPage ? 'move' : 'copy';
+  e.currentTarget.classList.add('pdfed-drag-over');
+  e.currentTarget.classList.toggle('pdfed-drag-over-page', isPage);
+}
+
+function pdfedCanvasDragLeave(e) {
+  if (e.currentTarget.contains(e.relatedTarget)) return; // still inside, ignore
+  e.currentTarget.classList.remove('pdfed-drag-over', 'pdfed-drag-over-page');
+}
+
+async function pdfedCanvasDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('pdfed-drag-over', 'pdfed-drag-over-page');
+
+  // Case 1: a page thumbnail was dropped -> make it the active, editable page
+  if (dragState.pageIdx !== null) {
+    const pageIdx = dragState.pageIdx;
+    dragState.pageIdx = null;
+    _dragSrcIdx = null;
+    if (!pdfed.pages[pageIdx]) return;
+    if (pageIdx === pdfed.active) return; // already editing this one
+    const prevIdx = pdfed.active;
+    await pdfedGoto(pageIdx); // bakes/auto-saves the previous page internally
+    if (prevIdx >= 0) toast('Editing page ' + (pageIdx + 1) + ' · page ' + (prevIdx + 1) + ' auto-saved', 'success');
+    return;
+  }
+
+  // Case 2: a gallery thumbnail was dropped -> insert as a new page
+  let idx = dragState.galleryIdx;
+  if (idx === null || idx === undefined) {
+    const raw = e.dataTransfer.getData('text/plain');
+    idx = (raw && !raw.startsWith('page:')) ? parseInt(raw, 10) : NaN;
+  }
+  dragState.galleryIdx = null;
+  if (idx === null || Number.isNaN(idx) || !state.extractedImages[idx]) return;
+  await pushImageToPdfEditor(idx);
+}
+
 async function pushImageToPdfEditor(idx, e) {
   if(e) e.stopPropagation();
   const img = state.extractedImages[idx];
@@ -11743,11 +11953,14 @@ function pdfedMakeInsertZone(afterIdx) {
 let _dragSrcIdx = null;
 function pdfedDragStart(e, idx) {
   _dragSrcIdx = idx;
+  dragState.pageIdx = idx;
   e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', 'page:' + idx); // fallback for drops onto the canvas
   setTimeout(() => e.target.classList.add('dragging'), 0);
 }
 function pdfedDragEnd(e) {
   e.target.classList.remove('dragging');
+  dragState.pageIdx = null;
   document.querySelectorAll('#pdfedStrip .pdfed-thumb').forEach(el => {
     el.classList.remove('drag-over-top','drag-over-bot');
   });
@@ -26567,6 +26780,725 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// 3D STATISTICAL CHARTS ENGINE (Three.js) — Bar / Histogram / Scatter / Box
+// Plot rendered with real depth + mouse-orbit, sharing dgState.rows (the
+// same label/value/color data the flat 2D charts use) so switching a
+// chart between a flat type and a 3D type keeps the same data intact.
+// The WebGL canvas (#dgCanvas3D) lives in the same zoom-wrap slot as the
+// 2D <canvas> — only one of the two is ever visible at a time.
+// ═══════════════════════════════════════════════════════════════════════
+function dgHologramOn() {
+  const el = document.getElementById('dgHologramToggle');
+  return !!(el && el.checked);
+}
+
+const DG_3D_TYPES = ['3d-bar', '3d-histogram', '3d-scatter', '3d-boxplot'];
+function dgIs3DType(type) { return DG_3D_TYPES.indexOf(type) !== -1; }
+
+const dg3D = {
+  renderer: null, scene: null, camera: null, controls: null,
+  group: null, raf: null, active: false, resizeObs: null,
+  raycaster: null, pointer: null
+};
+
+function dgMakeLabelSprite(text, color) {
+  const c = document.createElement('canvas');
+  const scale = 4; // supersample so labels stay crisp when the camera gets close
+  c.width = 256 * scale; c.height = 64 * scale;
+  const ctx = c.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.font = '700 26px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (dgHologramOn()) {
+    // Bright glowing cyan text on the dark hologram backdrop — keeps the same
+    // two-tier brightness (muted grey callouts stay dimmer than primary value
+    // labels) so it still reads as a lit projection, not just plain text.
+    ctx.fillStyle = (color === '#7a8496') ? '#5FE0FF' : '#EAFBFF';
+    ctx.shadowColor = '#00E5FF';
+    ctx.shadowBlur = 14;
+  } else {
+    ctx.fillStyle = color || '#1a2230';
+  }
+  ctx.fillText(String(text), 128, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3.2, 0.8, 1);
+  return sprite;
+}
+
+// Larger banner sprite for the chart title, floated above everything.
+function dgMakeTitleSprite(text) {
+  const c = document.createElement('canvas');
+  const scale = 3;
+  c.width = 700 * scale; c.height = 80 * scale;
+  const ctx = c.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.font = '800 34px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (dgHologramOn()) {
+    ctx.fillStyle = '#EAFBFF';
+    ctx.shadowColor = '#00E5FF';
+    ctx.shadowBlur = 18;
+  } else {
+    ctx.fillStyle = '#101820';
+  }
+  ctx.fillText(dgFitLabel(ctx, String(text), 660), 350, 40);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(7.2, 0.82, 1);
+  return sprite;
+}
+
+// Small uppercase caption sprite used for axis titles ("VALUE", "FREQUENCY", etc).
+function dgMakeAxisCaptionSprite(text) {
+  const c = document.createElement('canvas');
+  const scale = 4;
+  c.width = 320 * scale; c.height = 56 * scale;
+  const ctx = c.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.font = '800 21px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (dgHologramOn()) {
+    ctx.fillStyle = '#00E5FF';
+    ctx.shadowColor = '#00E5FF';
+    ctx.shadowBlur = 12;
+  } else {
+    ctx.fillStyle = '#0073E6';
+  }
+  ctx.fillText(String(text).toUpperCase(), 160, 28);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3.0, 0.52, 1);
+  return sprite;
+}
+
+function dgInit3DEngine() {
+  if (dg3D.renderer) return;
+  const canvas = document.getElementById('dgCanvas3D');
+  if (!canvas || typeof THREE === 'undefined') return;
+  const W = canvas.width, H = canvas.height;
+  // Keep the original CSS-pixel size around: three.js's setSize() takes CSS
+  // pixels and multiplies internally by the pixel ratio, so later resolution
+  // updates (see dg3DUpdateResolutionForZoom) must keep reusing these base
+  // values rather than reading canvas.width/height back (which, after the
+  // first setSize call, already holds the multiplied drawing-buffer size).
+  dg3D.baseW = W; dg3D.baseH = H;
+
+  dg3D.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  dg3D.baseDPR = Math.min(window.devicePixelRatio || 1, 3); // baseline device-pixel density, a bit higher than before for sharper text/edges
+  dg3D.renderer.setPixelRatio(dg3D.baseDPR);
+  dg3D.renderer.setSize(W, H, false);
+  dg3D.renderer.setClearColor(0xffffff, 1);
+
+  dg3D.scene = new THREE.Scene();
+  dg3D.camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
+  dg3D.camera.position.set(11, 9, 13);
+
+  dg3D.ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+  dg3D.scene.add(dg3D.ambientLight);
+  const key = new THREE.DirectionalLight(0xffffff, 0.75);
+  key.position.set(8, 14, 10);
+  dg3D.scene.add(key);
+  dg3D.keyLight = key;
+  const fill = new THREE.DirectionalLight(0xaeeaff, 0.3);
+  fill.position.set(-8, 4, -6);
+  dg3D.scene.add(fill);
+  dg3D.fillLight = fill;
+
+  if (THREE.OrbitControls) {
+    dg3D.controls = new THREE.OrbitControls(dg3D.camera, canvas);
+    dg3D.controls.enableDamping = true;
+    dg3D.controls.dampingFactor = 0.08;
+    dg3D.controls.minDistance = 5;
+    dg3D.controls.maxDistance = 40;
+    dg3D.controls.maxPolarAngle = Math.PI * 0.49; // never dip below the floor grid
+    dg3D.controls.target.set(0, 0.5, 0);
+  }
+
+  dg3D.group = new THREE.Group();
+  dg3D.scene.add(dg3D.group);
+
+  // Hover tooltip: raycast against whatever's tagged userData.dgHover, so
+  // the exact label + value behind any bar/point/box is always one hover
+  // away instead of relying only on the always-on floating value labels.
+  dg3D.raycaster = new THREE.Raycaster();
+  dg3D.pointer = new THREE.Vector2();
+  canvas.addEventListener('pointermove', dg3DOnPointerMove);
+  canvas.addEventListener('pointerleave', dg3DOnPointerLeave);
+}
+
+// The zoom control (dgApplyZoom) zooms the whole preview via a CSS transform:
+// scale() on the wrapper. That's fine for the 2D <canvas>, which gets redrawn
+// at native resolution on every dgRender(), but the 3D WebGL canvas is only
+// ever rendered once per frame at its own fixed drawing-buffer resolution —
+// so stretching it larger via CSS scale was blowing up its existing pixels
+// (blur/pixelation) instead of rendering more of them. Fix: whenever the zoom
+// level changes, bump the renderer's actual pixel ratio to match, so the
+// drawing buffer always has enough real pixels for the zoomed-in display size.
+function dg3DUpdateResolutionForZoom(zoom) {
+  if (!dg3D.renderer) return;
+  const base = dg3D.baseDPR || Math.min(window.devicePixelRatio || 1, 3);
+  // Cap the combined ratio so we don't ask the GPU for an absurdly large
+  // framebuffer at high zoom on an already-high-DPI screen.
+  const effective = Math.min(base * Math.max(zoom || 1, 1), 6);
+  dg3D.renderer.setPixelRatio(effective);
+  const canvas = dg3D.renderer.domElement;
+  // Reuse the ORIGINAL css-pixel dimensions (not canvas.width/height, which
+  // already holds the previous pixelRatio-multiplied drawing-buffer size) —
+  // three.js multiplies these by the new pixel ratio internally.
+  dg3D.renderer.setSize(dg3D.baseW || canvas.width, dg3D.baseH || canvas.height, false);
+  if (dg3D.active && dg3D.renderer && dg3D.scene && dg3D.camera) {
+    dg3D.renderer.render(dg3D.scene, dg3D.camera);
+  }
+}
+window.dg3DUpdateResolutionForZoom = dg3DUpdateResolutionForZoom;
+
+function dg3DOnPointerMove(e) {
+  if (!dg3D.active || !dg3D.renderer || !dg3D.group) return;
+  const canvas = dg3D.renderer.domElement;
+  const rect = canvas.getBoundingClientRect();
+  dg3D.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  dg3D.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  dg3D.raycaster.setFromCamera(dg3D.pointer, dg3D.camera);
+  const hoverable = dg3D.group.children.filter(o => o.userData && o.userData.dgHover);
+  const hits = dg3D.raycaster.intersectObjects(hoverable, false);
+  const tooltip = document.getElementById('dg3DTooltip');
+  if (!tooltip) return;
+  if (hits.length) {
+    const d = hits[0].object.userData;
+    tooltip.innerHTML = '<div class="dg-3d-tt-title">' + dgEsc(d.label || '') + '</div>' +
+      (d.sub ? '<div class="dg-3d-tt-sub">' + dgEsc(d.sub) + '</div>' : '');
+    tooltip.style.display = 'block';
+    const holderRect = document.getElementById('dgCanvasHolder').getBoundingClientRect();
+    tooltip.style.left = (e.clientX - holderRect.left + document.getElementById('dgCanvasHolder').scrollLeft) + 'px';
+    tooltip.style.top = (e.clientY - holderRect.top + document.getElementById('dgCanvasHolder').scrollTop - 12) + 'px';
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltip.style.display = 'none';
+    canvas.style.cursor = 'grab';
+  }
+}
+function dg3DOnPointerLeave() {
+  const tooltip = document.getElementById('dg3DTooltip');
+  if (tooltip) tooltip.style.display = 'none';
+}
+
+function dgClear3DGroup() {
+  if (!dg3D.group) return;
+  while (dg3D.group.children.length) {
+    const obj = dg3D.group.children.pop();
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (obj.material.map) obj.material.map.dispose();
+      obj.material.dispose();
+    }
+    dg3D.group.remove(obj);
+  }
+}
+
+function dg3DAddFloor(halfSize) {
+  const holo = dgHologramOn();
+  const grid = holo
+    ? new THREE.GridHelper(halfSize * 2, 10, 0x00E5FF, 0x0C3A52)
+    : new THREE.GridHelper(halfSize * 2, 10, 0xd6dde6, 0xe9edf2);
+  grid.position.y = 0;
+  if (holo) {
+    grid.material.transparent = true;
+    grid.material.opacity = 0.65;
+  }
+  dg3D.group.add(grid);
+
+  if (holo) {
+    // Projector-base glow: a soft radial-gradient disc sitting right on the
+    // floor, like the light pool a hologram emitter would be projecting up
+    // from — this, plus the dim scene lighting (see dg3DApplyHologramMood),
+    // is what sells "hologram" instead of just "dark chart".
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = glowCanvas.height = 256;
+    const gctx = glowCanvas.getContext('2d');
+    const grad = gctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    grad.addColorStop(0, 'rgba(0,229,255,0.55)');
+    grad.addColorStop(0.5, 'rgba(0,194,255,0.18)');
+    grad.addColorStop(1, 'rgba(0,194,255,0)');
+    gctx.fillStyle = grad;
+    gctx.fillRect(0, 0, 256, 256);
+    const glowTex = new THREE.CanvasTexture(glowCanvas);
+    const glowMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const glowDisc = new THREE.Mesh(new THREE.CircleGeometry(halfSize * 0.9, 48), glowMat);
+    glowDisc.rotation.x = -Math.PI / 2;
+    glowDisc.position.y = 0.01;
+    glowDisc.userData.dgHoloGlow = true; // tagged so the flicker loop can pulse it
+    dg3D.group.add(glowDisc);
+  }
+}
+
+function dg3DPalette() {
+  const scheme = dgCurrentScheme();
+  return dgState.rows.map((r, i) => new THREE.Color(r.color || scheme[i % scheme.length]));
+}
+
+// Dashed regression line through a series of 3D points — the 3D counterpart
+// to dgDrawTrendline on the 2D canvas, so the "Trend" toggle does the same
+// job (and uses the same red dashed styling + "Trend" tag) in both views.
+function dg3DAddTrendline(pts) {
+  if (!pts || pts.length < 2) return;
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineDashedMaterial({ color: 0xef4444, dashSize: 0.3, gapSize: 0.18, linewidth: 2, transparent: true, opacity: 0.9 });
+  const line = new THREE.Line(geo, mat);
+  line.computeLineDistances();
+  dg3D.group.add(line);
+  const last = pts[pts.length - 1];
+  const label = dgMakeLabelSprite('Trend', '#ef4444');
+  label.position.set(last.x, last.y + 0.45, last.z);
+  label.scale.set(1.3, 0.35, 1);
+  dg3D.group.add(label);
+}
+
+// Vertical value axis with tick marks + numeric labels, so the height/size
+// encoding on every 3D chart maps back to an actual number at a glance —
+// not just a relative floating label on each shape.
+function dg3DAddValueAxis({ x, z, worldMax, valueAtFrac, caption, tickCount }) {
+  tickCount = tickCount || 4;
+  const rodGeo = new THREE.CylinderGeometry(0.025, 0.025, worldMax, 8);
+  const rod = new THREE.Mesh(rodGeo, new THREE.MeshBasicMaterial({ color: 0xb9c2cc }));
+  rod.position.set(x, worldMax / 2, z);
+  dg3D.group.add(rod);
+  for (let t = 0; t <= tickCount; t++) {
+    const frac = t / tickCount;
+    const wy = frac * worldMax;
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.02, 0.24), new THREE.MeshBasicMaterial({ color: 0xb9c2cc }));
+    tick.position.set(x, wy, z);
+    dg3D.group.add(tick);
+    const lab = dgMakeLabelSprite(dgFormatValueForOpts(valueAtFrac(frac)), '#7a8496');
+    lab.scale.set(1.5, 0.4, 1);
+    lab.position.set(x - 0.95, wy, z);
+    dg3D.group.add(lab);
+  }
+  if (caption) {
+    const cap = dgMakeAxisCaptionSprite(caption);
+    cap.position.set(x - 1.7, worldMax + 0.55, z);
+    dg3D.group.add(cap);
+  }
+}
+
+function dg3DAddTitleAndCaptions(opts) {
+  const title = (opts.title || '').trim();
+  if (title) {
+    const t = dgMakeTitleSprite(title);
+    t.position.set(0, 8.4, 0);
+    dg3D.group.add(t);
+  }
+}
+
+// ── 3D Bar: one extruded column per row, height = value ──
+function dg3DBuildBar() {
+  const rows = dgState.rows;
+  const opts = dgGetOpts();
+  dgClear3DGroup();
+  if (!rows.length) return;
+  const maxV = Math.max(1, ...rows.map(r => Math.abs(Number(r.value) || 0)));
+  const n = rows.length;
+  const spacing = 2.1;
+  const totalW = (n - 1) * spacing;
+  dg3DAddFloor(Math.max(6, totalW / 2 + 3));
+  const colors = dg3DPalette();
+
+  rows.forEach((r, i) => {
+    const v = Number(r.value) || 0;
+    const h = Math.max(0.05, (Math.abs(v) / maxV) * 6.5);
+    const geo = new THREE.BoxGeometry(1.1, h, 1.1);
+    const mat = new THREE.MeshStandardMaterial({ color: colors[i], metalness: 0.15, roughness: 0.45 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(i * spacing - totalW / 2, h / 2, 0);
+    mesh.userData = { dgHover: true, label: r.label || ('Item ' + (i + 1)), sub: dgFormatValueForOpts(v) };
+    dg3D.group.add(mesh);
+
+    if (opts.values) {
+      const valLabel = dgMakeLabelSprite(dgFormatValueForOpts(v), '#1a2230');
+      valLabel.position.set(mesh.position.x, h + 0.55, 0);
+      dg3D.group.add(valLabel);
+    }
+
+    const nameLabel = dgMakeLabelSprite(r.label || ('Item ' + (i + 1)), '#7a8496');
+    nameLabel.position.set(mesh.position.x, -0.55, 1.0);
+    nameLabel.scale.set(2.6, 0.65, 1);
+    dg3D.group.add(nameLabel);
+  });
+
+  dg3DAddValueAxis({
+    x: -totalW / 2 - 1.7, z: -0.2, worldMax: 6.5,
+    valueAtFrac: f => f * maxV,
+    caption: opts.yAxisTitle || 'Value'
+  });
+  const xCap = dgMakeAxisCaptionSprite(opts.xAxisTitle || 'Category');
+  xCap.position.set(0, -1.15, 2.3);
+  dg3D.group.add(xCap);
+  if (opts.trendline && rows.length > 1) {
+    const { slope, intercept } = dgLinearRegression(rows.map(r => Number(r.value) || 0));
+    const pts = rows.map((r, i) => {
+      const predicted = slope * i + intercept;
+      const hPred = Math.max(0.05, (Math.abs(predicted) / maxV) * 6.5);
+      return new THREE.Vector3(i * spacing - totalW / 2, hPred, 0);
+    });
+    dg3DAddTrendline(pts);
+  }
+  dg3DAddTitleAndCaptions(opts);
+}
+
+// ── 3D Histogram: bins the same values into frequency buckets, so it reads
+// as a true statistical distribution rather than one bar per row. ──
+function dg3DBuildHistogram() {
+  const rows = dgState.rows;
+  const opts = dgGetOpts();
+  dgClear3DGroup();
+  if (!rows.length) return;
+  const values = rows.map(r => Number(r.value) || 0);
+  const min = Math.min(...values), max = Math.max(...values);
+  const binCount = Math.max(3, Math.min(8, Math.ceil(Math.sqrt(values.length)) + 2));
+  const span = (max - min) || 1;
+  const binW = span / binCount;
+  const bins = new Array(binCount).fill(0);
+  values.forEach(v => {
+    let idx = Math.floor((v - min) / binW);
+    if (idx >= binCount) idx = binCount - 1;
+    if (idx < 0) idx = 0;
+    bins[idx]++;
+  });
+  const maxFreq = Math.max(1, ...bins);
+  const spacing = 2.1;
+  const totalW = (binCount - 1) * spacing;
+  dg3DAddFloor(Math.max(6, totalW / 2 + 3));
+  const scheme = dgCurrentScheme();
+
+  bins.forEach((freq, i) => {
+    const h = Math.max(0.05, (freq / maxFreq) * 6.5);
+    const rangeLo = min + i * binW, rangeHi = rangeLo + binW;
+    const geo = new THREE.BoxGeometry(1.3, h, 1.3);
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(scheme[i % scheme.length]), metalness: 0.15, roughness: 0.45 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(i * spacing - totalW / 2, h / 2, 0);
+    mesh.userData = {
+      dgHover: true,
+      label: dgFormatValueForOpts(rangeLo) + ' – ' + dgFormatValueForOpts(rangeHi),
+      sub: freq + (freq === 1 ? ' item' : ' items')
+    };
+    dg3D.group.add(mesh);
+
+    if (opts.values) {
+      const freqLabel = dgMakeLabelSprite(String(freq), '#1a2230');
+      freqLabel.position.set(mesh.position.x, h + 0.55, 0);
+      dg3D.group.add(freqLabel);
+    }
+
+    const rangeLabel = dgMakeLabelSprite(dgFormatValueForOpts(rangeLo) + '–' + dgFormatValueForOpts(rangeHi), '#7a8496');
+    rangeLabel.position.set(mesh.position.x, -0.55, 1.2);
+    rangeLabel.scale.set(2.8, 0.6, 1);
+    dg3D.group.add(rangeLabel);
+  });
+
+  dg3DAddValueAxis({
+    x: -totalW / 2 - 1.7, z: -0.2, worldMax: 6.5,
+    valueAtFrac: f => Math.round(f * maxFreq),
+    caption: opts.yAxisTitle || 'Frequency'
+  });
+  const xCap = dgMakeAxisCaptionSprite(opts.xAxisTitle || 'Value range');
+  xCap.position.set(0, -1.15, 2.3);
+  dg3D.group.add(xCap);
+  if (opts.trendline && bins.length > 1) {
+    const { slope, intercept } = dgLinearRegression(bins);
+    const pts = bins.map((freq, i) => {
+      const predicted = slope * i + intercept;
+      const hPred = Math.max(0.05, (Math.abs(predicted) / maxFreq) * 6.5);
+      return new THREE.Vector3(i * spacing - totalW / 2, hPred, 0);
+    });
+    dg3DAddTrendline(pts);
+  }
+  dg3DAddTitleAndCaptions(opts);
+}
+
+// ── 3D Scatter/Bubble: X = row order, Y = value (normalized), Z = a second
+// spread axis so points don't all sit on one line; sphere radius doubles as
+// the bubble-size encoding when values vary a lot. ──
+function dg3DBuildScatter() {
+  const rows = dgState.rows;
+  const opts = dgGetOpts();
+  dgClear3DGroup();
+  if (!rows.length) return;
+  const values = rows.map(r => Number(r.value) || 0);
+  const maxV = Math.max(1, ...values.map(Math.abs));
+  const minV = Math.min(...values);
+  const n = rows.length;
+  const spanX = 10;
+  dg3DAddFloor(7);
+  const colors = dg3DPalette();
+
+  rows.forEach((r, i) => {
+    const v = values[i];
+    const x = n > 1 ? (i / (n - 1)) * spanX - spanX / 2 : 0;
+    const y = Math.max(0.3, (Math.abs(v) / maxV) * 6 + 0.3);
+    // deterministic depth spread from the value itself (not random), so
+    // re-rendering the same data always produces the same layout
+    const z = ((v - minV) / (maxV - minV || 1) - 0.5) * 6;
+    const r3 = 0.28 + (Math.abs(v) / maxV) * 0.55;
+    const geo = new THREE.SphereGeometry(r3, 24, 18);
+    const mat = new THREE.MeshStandardMaterial({ color: colors[i], metalness: 0.1, roughness: 0.35 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.userData = { dgHover: true, label: r.label || ('Item ' + (i + 1)), sub: dgFormatValueForOpts(v) + ' · bubble size = value' };
+    dg3D.group.add(mesh);
+
+    // thin stem down to the floor so depth is easy to read at a glance
+    const stemGeo = new THREE.CylinderGeometry(0.02, 0.02, y, 6);
+    const stemMat = new THREE.MeshBasicMaterial({ color: 0xd6dde6 });
+    const stem = new THREE.Mesh(stemGeo, stemMat);
+    stem.position.set(x, y / 2, z);
+    dg3D.group.add(stem);
+
+    const label = dgMakeLabelSprite(r.label || ('Item ' + (i + 1)), '#7a8496');
+    label.position.set(x, y + r3 + 0.5, z);
+    dg3D.group.add(label);
+
+    if (opts.values) {
+      const valLabel = dgMakeLabelSprite(dgFormatValueForOpts(v), '#1a2230');
+      valLabel.position.set(x, y + r3 + 0.9, z);
+      dg3D.group.add(valLabel);
+    }
+  });
+
+  if (opts.trendline && rows.length > 1) {
+    const { slope, intercept } = dgLinearRegression(values);
+    const predictedPts = rows.map((r, i) => {
+      const x = n > 1 ? (i / (n - 1)) * spanX - spanX / 2 : 0;
+      const predicted = slope * i + intercept;
+      const y = Math.max(0.3, (Math.abs(predicted) / maxV) * 6 + 0.3);
+      return new THREE.Vector3(x, y, 0);
+    });
+    dg3DAddTrendline(predictedPts);
+  }
+
+  dg3DAddValueAxis({
+    x: -spanX / 2 - 1.7, z: -3.4, worldMax: 6.3,
+    valueAtFrac: f => Math.max(0, (f * 6.3 - 0.3) / 6 * maxV),
+    caption: opts.yAxisTitle || 'Value (height)'
+  });
+  const xCap = dgMakeAxisCaptionSprite(opts.xAxisTitle || 'Items, in order');
+  xCap.position.set(0, -1.15, 4.4);
+  dg3D.group.add(xCap);
+  dg3DAddTitleAndCaptions(opts);
+}
+
+// ── 3D Box Plot: classic five-number summary (min, Q1, median, Q3, max) of
+// all row values, drawn as a single box + whiskers so the whole dataset's
+// spread and skew reads as one statistical shape. ──
+function dg3DBuildBoxPlot() {
+  const rows = dgState.rows;
+  const opts = dgGetOpts();
+  dgClear3DGroup();
+  if (!rows.length) return;
+  const values = rows.map(r => Number(r.value) || 0).sort((a, b) => a - b);
+  const q = p => {
+    const idx = (values.length - 1) * p;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    return lo === hi ? values[lo] : values[lo] + (values[hi] - values[lo]) * (idx - lo);
+  };
+  const min = values[0], max = values[values.length - 1];
+  const q1 = q(0.25), median = q(0.5), q3 = q(0.75);
+  const span = (max - min) || 1;
+  const scale = 6.5 / span;
+  const toY = v => (v - min) * scale;
+  dg3DAddFloor(5);
+  const scheme = dgCurrentScheme();
+
+  // whisker (min → max), a thin vertical rod
+  const whiskerGeo = new THREE.CylinderGeometry(0.035, 0.035, toY(max) - toY(min), 8);
+  const whisker = new THREE.Mesh(whiskerGeo, new THREE.MeshBasicMaterial({ color: 0x9aa5b3 }));
+  whisker.position.set(0, (toY(max) + toY(min)) / 2, 0);
+  dg3D.group.add(whisker);
+  [['Minimum', min], ['Maximum', max]].forEach(([name, v]) => {
+    const capGeo = new THREE.BoxGeometry(1.0, 0.04, 1.0);
+    const cap = new THREE.Mesh(capGeo, new THREE.MeshBasicMaterial({ color: 0x9aa5b3 }));
+    cap.position.set(0, toY(v), 0);
+    cap.userData = { dgHover: true, label: name, sub: dgFormatValueForOpts(v) };
+    dg3D.group.add(cap);
+  });
+
+  // the box itself: Q1 → Q3
+  const boxH = Math.max(0.08, toY(q3) - toY(q1));
+  const boxGeo = new THREE.BoxGeometry(2.2, boxH, 2.2);
+  const boxMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(scheme[0]), metalness: 0.15, roughness: 0.4, transparent: true, opacity: 0.88 });
+  const box = new THREE.Mesh(boxGeo, boxMat);
+  box.position.set(0, toY(q1) + boxH / 2, 0);
+  box.userData = {
+    dgHover: true, label: 'Interquartile range (Q1–Q3)',
+    sub: dgFormatValueForOpts(q1) + ' – ' + dgFormatValueForOpts(q3) + ' · middle 50% of values'
+  };
+  dg3D.group.add(box);
+
+  // median line, a flat slab through the box
+  const medGeo = new THREE.BoxGeometry(2.35, 0.05, 2.35);
+  const med = new THREE.Mesh(medGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(scheme[3] || '#1a2230') }));
+  med.position.set(0, toY(median), 0);
+  med.userData = { dgHover: true, label: 'Median', sub: dgFormatValueForOpts(median) };
+  dg3D.group.add(med);
+
+  if (opts.values) {
+    [['Max', max], ['Q3', q3], ['Median', median], ['Q1', q1], ['Min', min]].forEach(([name, v]) => {
+      const label = dgMakeLabelSprite(name + ': ' + dgFormatValueForOpts(v), '#1a2230');
+      label.position.set(1.9, toY(v), 0);
+      dg3D.group.add(label);
+    });
+  }
+
+  const yCap = dgMakeAxisCaptionSprite(opts.yAxisTitle || 'Value');
+  yCap.position.set(-2.1, toY(max) + 0.6, 0);
+  dg3D.group.add(yCap);
+  const summaryCap = dgMakeAxisCaptionSprite((rows.length) + ' data points summarized');
+  summaryCap.position.set(0, -1.15, 1.8);
+  dg3D.group.add(summaryCap);
+  dg3DAddTitleAndCaptions(opts);
+}
+
+function dgFormatValueForOpts(v) {
+  try { return dgFormatNumber(v, dgGetOpts().numberFormat); } catch (e) { return String(Math.round(v * 100) / 100); }
+}
+
+// Row edits (colour, value, label, add/remove) previously only called
+// dgDrawChart(), which repaints the 2D <canvas> — invisible while a 3D chart
+// type is active, since the WebGL scene is only ever rebuilt on chart-type
+// switch. This wrapper keeps the currently-visible view in sync: it always
+// repaints the 2D canvas (cheap, and needed for export/thumbnails), and also
+// rebuilds + re-renders the 3D scene live whenever it's the one on screen —
+// so picking a new colour, editing a value, or adding/removing a row shows
+// up immediately in the 3D view too, not just after switching chart types.
+function dgRefreshChart() {
+  if (dg3D.active && dg3D.renderer) {
+    dg3DBuild(dgState.type);
+    if (dg3D.scene && dg3D.camera) dg3D.renderer.render(dg3D.scene, dg3D.camera);
+  } else {
+    dgDrawChart();
+  }
+}
+
+function dg3DApplyHologramMood(holo) {
+  if (!dg3D.renderer) return;
+  dg3D.renderer.setClearColor(holo ? 0x030A14 : 0xffffff, 1);
+  // Dim the normal studio lighting so the emissive glow on each shape does the
+  // work of reading as "lit from within" rather than lit from a lamp — a
+  // hologram doesn't cast conventional highlights.
+  if (dg3D.ambientLight) dg3D.ambientLight.intensity = holo ? 0.22 : 0.65;
+  if (dg3D.keyLight) dg3D.keyLight.intensity = holo ? 0.2 : 0.75;
+  if (dg3D.fillLight) dg3D.fillLight.intensity = holo ? 0.15 : 0.3;
+}
+
+// Re-skins every solid shape the chart just built (bars, boxplot box, scatter
+// spheres, histogram columns, axis rods/ticks — anything with real geometry)
+// into a translucent glowing panel with a crisp neon wireframe edge, the
+// classic sci-fi "projected" look, without touching the underlying geometry,
+// position, or hover data those shapes already carry.
+function dg3DApplyHologramMaterials() {
+  if (!dg3D.group) return;
+  const shapes = dg3D.group.children.filter(o => o.isMesh && o.geometry && !o.userData.dgHoloGlow);
+  const edgeLines = [];
+  shapes.forEach(mesh => {
+    const baseColor = (mesh.material && mesh.material.color) ? mesh.material.color.clone() : new THREE.Color(0x00C2FF);
+    mesh.material.dispose();
+    mesh.material = new THREE.MeshStandardMaterial({
+      color: baseColor, emissive: baseColor, emissiveIntensity: 0.85,
+      transparent: true, opacity: 0.38, roughness: 0.3, metalness: 0.05,
+      depthWrite: false
+    });
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(mesh.geometry),
+      new THREE.LineBasicMaterial({ color: 0x00E5FF, transparent: true, opacity: 0.95 })
+    );
+    edges.position.copy(mesh.position);
+    edges.rotation.copy(mesh.rotation);
+    edges.scale.copy(mesh.scale);
+    edges.userData.dgHoloEdge = true;
+    edgeLines.push(edges);
+  });
+  edgeLines.forEach(l => dg3D.group.add(l));
+}
+
+function dg3DBuild(type) {
+  const holo = dgHologramOn();
+  dg3DApplyHologramMood(holo);
+  if (type === '3d-bar') dg3DBuildBar();
+  else if (type === '3d-histogram') dg3DBuildHistogram();
+  else if (type === '3d-scatter') dg3DBuildScatter();
+  else if (type === '3d-boxplot') dg3DBuildBoxPlot();
+  if (holo) dg3DApplyHologramMaterials();
+}
+
+function dg3DAnimate() {
+  if (!dg3D.active) return;
+  dg3D.raf = requestAnimationFrame(dg3DAnimate);
+  if (dg3D.controls) dg3D.controls.update();
+  if (dgHologramOn() && dg3D.group) dg3DHologramFlicker();
+  if (dg3D.renderer && dg3D.scene && dg3D.camera) dg3D.renderer.render(dg3D.scene, dg3D.camera);
+}
+
+// Subtle, continuous brightness jitter on every glowing shape/edge/glow-disc —
+// a real hologram projection never sits perfectly still, so a tiny sine-wave
+// wobble (plus occasional micro-glitches) is what keeps it feeling "alive"
+// rather than like a static tinted render.
+function dg3DHologramFlicker() {
+  const t = performance.now() * 0.001;
+  const base = 0.85 + Math.sin(t * 2.3) * 0.08 + (Math.sin(t * 17) > 0.985 ? 0.25 : 0);
+  dg3D.group.children.forEach(o => {
+    if (o.isMesh && o.material && o.material.emissiveIntensity !== undefined) {
+      o.material.emissiveIntensity = base;
+    } else if (o.userData.dgHoloGlow && o.material) {
+      o.material.opacity = 0.75 + Math.sin(t * 1.6) * 0.2;
+    }
+  });
+}
+
+function dgActivate3D(type) {
+  dgInit3DEngine();
+  if (!dg3D.renderer) return; // Three.js failed to load (offline, blocked CDN, etc.) — caller falls back to 2D
+  const canvas2d = document.getElementById('dgCanvas');
+  const canvas3d = document.getElementById('dgCanvas3D');
+  const overlay = document.getElementById('dgTextOverlay');
+  const hint = document.getElementById('dg3DHint');
+  if (canvas2d) canvas2d.style.display = 'none';
+  if (canvas3d) canvas3d.style.display = 'block';
+  if (overlay) overlay.style.display = 'none';
+  if (hint) hint.style.display = 'flex';
+  dg3DBuild(type);
+  if (!dg3D.active) {
+    dg3D.active = true;
+    dg3DAnimate();
+  } else if (dg3D.renderer) {
+    dg3D.renderer.render(dg3D.scene, dg3D.camera);
+  }
+}
+
+function dgDeactivate3D() {
+  dg3D.active = false;
+  if (dg3D.raf) cancelAnimationFrame(dg3D.raf);
+  const canvas2d = document.getElementById('dgCanvas');
+  const canvas3d = document.getElementById('dgCanvas3D');
+  const overlay = document.getElementById('dgTextOverlay');
+  const hint = document.getElementById('dg3DHint');
+  const tooltip = document.getElementById('dg3DTooltip');
+  if (canvas2d) canvas2d.style.display = '';
+  if (canvas3d) canvas3d.style.display = 'none';
+  if (overlay) overlay.style.display = '';
+  if (hint) hint.style.display = 'none';
+  if (tooltip) tooltip.style.display = 'none';
+}
+
 function dgSetType(type) {
   dgState.type = type;
   document.querySelectorAll('#dgTypeGrid .dg-type-tile').forEach(t => {
@@ -26577,7 +27509,7 @@ function dgSetType(type) {
       const label = document.getElementById('dgTypeLabel');
       const svg = t.querySelector('svg');
       if (icon && svg) icon.innerHTML = svg.outerHTML;
-      if (label) label.textContent = t.textContent.trim();
+      if (label) label.textContent = t.dataset.label || t.textContent.trim();
     }
   });
   const dd = document.getElementById('dgTypeDropdown');
@@ -26621,7 +27553,9 @@ function dgToggleTypeDropdown(e) {
   const isOpen = dd.classList.toggle('open');
   if (isOpen) {
     const rect = group.getBoundingClientRect();
-    dd.style.top = (rect.bottom + 6) + 'px';
+    const estH = Math.min(520, dd.scrollHeight || 480);
+    const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - estH - 8));
+    dd.style.top = top + 'px';
     dd.style.left = rect.left + 'px';
   }
 }
@@ -26872,7 +27806,7 @@ function dgAddRow() {
   const color = dgState.sameColorMode ? dgState.sameColor : dgCurrentScheme()[i % dgCurrentScheme().length];
   dgState.rows.push({ label: 'Item ' + (i + 1), value: 25, color });
   dgRenderRows();
-  dgDrawChart();
+  dgRefreshChart();
 }
 
 // ── Upload Data (Tabular): hand the tool a CSV/TSV/TXT/XLSX/JSON file, it reads
@@ -27106,18 +28040,36 @@ function dgAnalyzeUpload() {
   return { headers, rows, labelIdx, numericIdxs, rowCount: rows.length };
 }
 
+// A table shaped like "a handful of metrics (rows) tracked across a handful of named
+// options/entities (numeric columns)" — a competitor comparison, a before/after benchmark, a
+// scenario matrix — is a different animal from a long single-measure list. For that shape, the
+// most useful charts aren't "one per column" (that would plot every metric for one competitor on
+// one axis, mixing seconds with percentages with raw counts) — it's one clean comparison per
+// metric, plus a normalized overview. Kept deliberately conservative (small-ish row/column counts)
+// so it only fires for genuine side-by-side comparison tables, not generic long-format data.
+function dgDetectComparisonShape(info) {
+  if (!info) return false;
+  const { numericIdxs, rowCount } = info;
+  return numericIdxs.length >= 2 && numericIdxs.length <= 8 && rowCount >= 2 && rowCount <= 20;
+}
+
 function dgMaybeSuggestMultiChart() {
   const info = dgAnalyzeUpload();
   if (!info) return;
   const manyMetrics = info.numericIdxs.length >= 2;
   const bigRowCount = info.rowCount > 40;
+  const isComparison = dgDetectComparisonShape(info);
   if (!manyMetrics && !bigRowCount) return; // a plain small table — the single auto-built chart is enough
 
   const statsEl = document.getElementById('dgMultiSuggestStats');
+  const compareBtn = document.getElementById('dgMultiSuggestCompareBtn');
+  const compareHead = document.getElementById('dgMultiSuggestCompareHead');
+  const compareDesc = document.getElementById('dgMultiSuggestCompareDesc');
   const perColBtn = document.getElementById('dgMultiSuggestPerColumnBtn');
   const perColHead = document.getElementById('dgMultiSuggestPerColumnHead');
   const perColDesc = document.getElementById('dgMultiSuggestPerColumnDesc');
   const subEl = document.getElementById('dgMultiSuggestSub');
+  const titleEl = document.getElementById('dgMultiSuggestTitle');
   if (statsEl) {
     statsEl.innerHTML = `
       <div class="dg-multi-suggest-stat"><b>${info.rowCount}</b><span>Rows detected</span></div>
@@ -27125,16 +28077,28 @@ function dgMaybeSuggestMultiChart() {
       <div class="dg-multi-suggest-stat"><b>${info.headers.length}</b><span>Total columns</span></div>
     `;
   }
+  if (titleEl) {
+    titleEl.textContent = isComparison ? 'This looks like a comparison table' : 'This looks like a rich dataset';
+  }
   if (subEl) {
-    subEl.textContent = manyMetrics && bigRowCount
-      ? `Found ${info.numericIdxs.length} numeric columns across ${info.rowCount} rows — that's more than one chart usually shows cleanly.`
-      : manyMetrics
-        ? `Found ${info.numericIdxs.length} separate numeric columns — each could be its own chart.`
-        : `Found ${info.rowCount} rows — one chart may get crowded. Here's how you'd like it handled.`;
+    subEl.textContent = isComparison
+      ? `Found ${info.numericIdxs.length} columns (${info.headers.filter((_, i) => info.numericIdxs.includes(i)).join(', ')}) measured across ${info.rowCount} metrics — that reads like a side-by-side comparison.`
+      : manyMetrics && bigRowCount
+        ? `Found ${info.numericIdxs.length} numeric columns across ${info.rowCount} rows — that's more than one chart usually shows cleanly.`
+        : manyMetrics
+          ? `Found ${info.numericIdxs.length} separate numeric columns — each could be its own chart.`
+          : `Found ${info.rowCount} rows — one chart may get crowded. Here's how you'd like it handled.`;
+  }
+  if (compareBtn) compareBtn.style.display = isComparison ? '' : 'none';
+  if (compareHead && compareDesc) {
+    compareHead.textContent = `Compare side-by-side (recommended)`;
+    compareDesc.textContent = `Builds one bar chart per metric — a fair, correctly-scaled comparison for each row — plus one radar chart normalizing every metric onto a shared 0–100 scale so the overall pattern jumps out.`;
   }
   if (perColBtn) perColBtn.style.display = manyMetrics ? '' : 'none';
   if (perColHead && perColDesc) {
-    perColHead.textContent = `One chart per numeric column (${info.numericIdxs.length} charts)`;
+    perColHead.textContent = isComparison
+      ? `One chart per column instead (${info.numericIdxs.length} charts)`
+      : `One chart per numeric column (${info.numericIdxs.length} charts)`;
   }
   const overlay = document.getElementById('dgMultiSuggestOverlay');
   if (overlay) overlay.classList.add('open');
@@ -27147,7 +28111,8 @@ function dgDismissMultiSuggest() {
 
 function dgConfirmMultiSuggest(choice) {
   dgDismissMultiSuggest();
-  if (choice === 'perColumn') dgBuildMultiChartsPerColumn();
+  if (choice === 'compare') dgBuildComparisonCharts();
+  else if (choice === 'perColumn') dgBuildMultiChartsPerColumn();
   else if (choice === 'topGrouped') dgGenerateChartFromUpload(true);
   // 'single' needs no further action — the auto-built chart is already showing
 }
@@ -27175,6 +28140,90 @@ function dgBuildMultiChartsPerColumn() {
   if (!dgMultiCharts.length) { toast('Could not find usable numeric data in those columns', 'error'); return; }
   dgRenderMultiChartGallery();
   toast(`Built ${dgMultiCharts.length} charts \u2014 one per numeric column`, 'success');
+}
+
+// Metric labels like "Processing Time" or "Support Response" are lower-is-better — a smaller
+// number is the win. Min-max normalizing those the same direction as "Monthly Active Users"
+// would make the radar chart lie (small value = closer to center = looks worse, even when it's
+// actually the best result). This flags that class of metric from its label text so the radar
+// axis can be inverted for it — keeping a single, honest rule across the whole chart: further
+// out always means better, on every axis.
+const DG_LOWER_IS_BETTER_HINTS = [
+  'time', 'latency', 'response', 'wait', 'delay', 'downtime', 'duration',
+  'cost', 'price', 'expense', 'spend',
+  'error', 'bug', 'defect', 'complaint', 'churn', 'bounce', 'failure', 'outage',
+  'load time', 'turnaround'
+];
+function dgIsLowerBetterMetric(label) {
+  const l = String(label || '').toLowerCase();
+  return DG_LOWER_IS_BETTER_HINTS.some(hint => l.includes(hint));
+}
+
+// Builds the "smart comparison" set for a table shaped like metrics-as-rows /
+// entities-as-columns (a competitor matrix, a before/after benchmark, a scenario comparison):
+//   1. One bar chart PER METRIC, bars for every entity colour-matched consistently across every
+//      card — each metric keeps its own natural scale, so "2.4 sec" never gets crushed to
+//      invisible next to "12,500 users" on a shared axis.
+//   2. One radar chart giving the big-picture shape: every metric (axis) is independently
+//      min-max normalized to 0–100 across entities, so mixed units can share one chart without
+//      one metric's scale swamping the rest. Axes detected as lower-is-better (processing time,
+//      support response, cost, error rate, etc.) are inverted during normalization, so the rule
+//      stays constant across the whole chart: further from the center always means better,
+//      never "further means bigger." Raw values are kept alongside for reference/tooltips.
+// Rows where none of the entity columns parse as numbers (e.g. a qualitative row like
+// "Privacy Model: Browser-first / Cloud / Cloud") are left out of both — they're categorical,
+// not chartable, and forcing them into a bar would misrepresent them as quantities.
+function dgBuildComparisonCharts() {
+  const info = dgAnalyzeUpload();
+  if (!info || info.numericIdxs.length < 2) { toast('Need at least two numeric columns to compare', 'info'); return; }
+  const scheme = dgCurrentScheme();
+  const MAX_METRICS = 14;
+
+  const entityNames = info.numericIdxs.map((idx, si) => String(info.headers[idx] || ('Column ' + (idx + 1))));
+  const entityColors = entityNames.map((_, si) => scheme[si % scheme.length]);
+
+  const metrics = [];
+  for (let i = 0; i < info.rows.length && metrics.length < MAX_METRICS; i++) {
+    const r = info.rows[i];
+    const parsed = info.numericIdxs.map(idx => dgParseNumericCell(r[idx]));
+    if (parsed.every(v => isNaN(v))) continue;
+    const label = String(r[info.labelIdx] ?? '').trim() || `Metric ${metrics.length + 1}`;
+    metrics.push({ label, values: parsed.map(v => isNaN(v) ? 0 : v), lowerBetter: dgIsLowerBetterMetric(label) });
+  }
+  if (!metrics.length) { toast('Could not find rows with comparable numeric values across those columns', 'error'); return; }
+
+  const perMetricSpecs = metrics.map(m => ({
+    title: m.label + (m.lowerBetter ? ' (lower is better)' : ''),
+    type: 'bar',
+    rows: entityNames.map((name, si) => ({ label: name, value: m.values[si], color: entityColors[si] }))
+  }));
+
+  const radarSeries = entityNames.map((name, si) => ({ name, color: entityColors[si], values: [], rawValues: [] }));
+  let anyInverted = false;
+  metrics.forEach(m => {
+    const vals = m.values;
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const span = max - min;
+    if (m.lowerBetter) anyInverted = true;
+    vals.forEach((v, si) => {
+      let pct = span > 0 ? ((v - min) / span) * 100 : 50;
+      if (m.lowerBetter) pct = 100 - pct; // flip so "further out" still reads as "better" on this axis
+      radarSeries[si].values.push(Math.round(pct));
+      radarSeries[si].rawValues.push(v);
+    });
+  });
+  const radarSpec = {
+    title: 'Overview — Normalized Comparison (further out = better on every axis)',
+    type: 'radar',
+    categories: metrics.map(m => m.label + (m.lowerBetter ? ' ↓' : '')),
+    series: radarSeries
+  };
+
+  dgMultiCharts = [radarSpec, ...perMetricSpecs];
+  dgRenderMultiChartGallery();
+  toast(anyInverted
+    ? `Built a normalized radar overview (lower-is-better axes inverted) + ${perMetricSpecs.length} per-metric comparison charts`
+    : `Built a normalized radar overview + ${perMetricSpecs.length} per-metric comparison charts`, 'success');
 }
 
 function dgCloseMultiGallery() {
@@ -27208,11 +28257,18 @@ function dgRenderMultiChartGallery() {
 function dgLoadMultiChart(idx) {
   const spec = dgMultiCharts[idx];
   if (!spec) return;
+  document.querySelectorAll('.dg-multi-gallery-card').forEach(el => el.classList.toggle('active', el.dataset.idx == idx));
+  // Radar overview charts hold multiple normalized series (one per entity), not the single
+  // label/value list the row editor works with — so it stays a gallery-only preview, still fully
+  // exportable and pushable, rather than being silently flattened into something misleading.
+  if (spec.type === 'radar') {
+    toast('This radar overview compares every metric at once — push it as-is, or open the per-metric cards to edit colours', 'info');
+    return;
+  }
   dgState.rows = spec.rows.map(r => ({ ...r }));
   dgState.type = spec.type;
   const titleInput = document.getElementById('dgTitleInput');
   if (titleInput) titleInput.value = spec.title;
-  document.querySelectorAll('.dg-multi-gallery-card').forEach(el => el.classList.toggle('active', el.dataset.idx == idx));
   dgRenderRows();
   dgRender();
 }
@@ -27260,7 +28316,7 @@ function dgRenderSpecFullCanvas(spec) {
     ctx.fillText(dgFitLabel(ctx, opts.title, W - 60), W / 2, 44);
     top = 84;
   }
-  const rows = spec.rows;
+  const rows = spec.rows || [];
   const axisChartTypes = ['bar', 'stacked', 'waterfall', 'pareto', 'line', 'area'];
   const maxLabelLen = Math.max(0, ...rows.map(r => String(r.label || '').length));
   opts.rotateLabels = axisChartTypes.includes(spec.type) && (rows.length > 8 || maxLabelLen > 10);
@@ -27273,6 +28329,7 @@ function dgRenderSpecFullCanvas(spec) {
   else if (spec.type === 'waterfall') dgDrawWaterfall(ctx, rows, area, opts);
   else if (spec.type === 'pareto') dgDrawPareto(ctx, rows, area, opts);
   else if (spec.type === 'funnel') dgDrawFunnel(ctx, rows, area, opts);
+  else if (spec.type === 'radar') { opts.legend = true; dgDrawRadar(ctx, spec.categories, spec.series, { x: 40, y: top, w: W - 80, h: bottom - top }, opts); }
   return canvas;
 }
 
@@ -27401,15 +28458,16 @@ function dgDrawChartSpec(canvas, spec) {
   ctx.font = '700 13px Inter, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(dgFitLabel(ctx, spec.title, W - 20), W / 2, 18);
-  const opts = { title: '', values: false, legend: false, numberFormat: 'auto', trendline: false };
+  const opts = { title: '', values: false, legend: spec.type === 'radar', numberFormat: 'auto', trendline: false };
   const area = { x: 34, y: 28, w: W - 34 - 14, h: H - 28 - 24 };
-  const rows = spec.rows;
+  const rows = spec.rows || [];
   if (spec.type === 'bar' || spec.type === 'stacked') dgDrawBars(ctx, rows, area, opts, spec.type === 'stacked');
   else if (spec.type === 'line' || spec.type === 'area') dgDrawLine(ctx, rows, area, opts, spec.type === 'area');
   else if (spec.type === 'pie' || spec.type === 'donut') dgDrawPie(ctx, rows, { x: W / 2, y: area.y + area.h / 2, r: Math.min(area.w, area.h) / 2 - 6 }, opts, spec.type === 'donut');
   else if (spec.type === 'waterfall') dgDrawWaterfall(ctx, rows, area, opts);
   else if (spec.type === 'pareto') dgDrawPareto(ctx, rows, area, opts);
   else if (spec.type === 'funnel') dgDrawFunnel(ctx, rows, area, opts);
+  else if (spec.type === 'radar') dgDrawRadar(ctx, spec.categories, spec.series, area, opts);
 }
 
 function dgParseNumericCell(v) {
@@ -27543,10 +28601,10 @@ function dgRemoveRow(idx) {
   if (dgState.rows.length <= 1) { toast('Keep at least one data point', 'info'); return; }
   dgState.rows.splice(idx, 1);
   dgRenderRows();
-  dgDrawChart();
+  dgRefreshChart();
 }
 
-function dgOnLabelInput(idx, val) { if (dgState.rows[idx]) { dgState.rows[idx].label = val; dgDrawChart(); } }
+function dgOnLabelInput(idx, val) { if (dgState.rows[idx]) { dgState.rows[idx].label = val; dgRefreshChart(); } }
 function dgOnValueInput(idx, val) {
   if (!dgState.rows[idx]) return;
   // Allow negative numbers (needed for waterfall deltas, profit/loss bars,
@@ -27555,9 +28613,9 @@ function dgOnValueInput(idx, val) {
   // corrupting real data (e.g. a "-40000" cost hit becoming 0).
   const parsed = parseFloat(val);
   dgState.rows[idx].value = Number.isFinite(parsed) ? parsed : 0;
-  dgDrawChart();
+  dgRefreshChart();
 }
-function dgOnColorInput(idx, val) { if (dgState.rows[idx]) { dgState.rows[idx].color = val; dgDrawChart(); } }
+function dgOnColorInput(idx, val) { if (dgState.rows[idx]) { dgState.rows[idx].color = val; dgRefreshChart(); } }
 
 function dgEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -27609,7 +28667,7 @@ function dgApplyPaletteFrom(startIdx) {
   if (toggle) toggle.checked = false;
   dgState.rows.forEach((r, i) => { r.color = scheme[(startIdx + i) % scheme.length]; });
   dgRenderRows();
-  dgDrawChart();
+  dgRefreshChart();
 }
 
 function dgApplyCustomSwatchFrom(startIdx) {
@@ -27620,7 +28678,7 @@ function dgApplyCustomSwatchFrom(startIdx) {
   if (toggle) toggle.checked = false;
   dgState.rows.forEach((r, i) => { r.color = arr[(startIdx + i) % arr.length]; });
   dgRenderRows();
-  dgDrawChart();
+  dgRefreshChart();
 }
 
 function dgAddCustomSwatch() {
@@ -27645,7 +28703,7 @@ function dgToggleSameColor(checked) {
     dgState.rows.forEach(r => { r.color = master; });
   }
   dgRenderRows();
-  dgDrawChart();
+  dgRefreshChart();
 }
 
 function dgOnSameColorInput(val) {
@@ -27653,7 +28711,7 @@ function dgOnSameColorInput(val) {
   if (dgState.sameColorMode) {
     dgState.rows.forEach(r => { r.color = val; });
     dgRenderRows();
-    dgDrawChart();
+    dgRefreshChart();
   }
 }
 
@@ -27667,7 +28725,7 @@ function dgApplyWheelToAll() {
   if (input) input.value = hex;
   dgState.rows.forEach(r => { r.color = hex; });
   dgRenderRows();
-  dgDrawChart();
+  dgRefreshChart();
   toast('Applied to every data point', 'success');
 }
 
@@ -28262,6 +29320,7 @@ function dgGetOpts() {
     values: !!(document.getElementById('dgValuesToggle') || {}).checked,
     numberFormat: (document.getElementById('dgFormatSelect') || {}).value || 'plain',
     trendline: !!(document.getElementById('dgTrendlineToggle') || {}).checked,
+    hologram: dgHologramOn(),
     barRadius: dgState.barRadius != null ? dgState.barRadius : 8
   };
 }
@@ -28358,7 +29417,7 @@ function dgDrawChart() {
   // axis labels the current data needs, capped at MAX_H — so a 12-category legend gets
   // real room to sit under the chart instead of being squeezed and clipped at a fixed
   // 460px, while a simple 3-bar chart still renders at the compact default size.
-  const BASE_W = 820, BASE_H = 460, MAX_H = 620;
+  const BASE_W = 1200, BASE_H = 675, MAX_H = 900;
   let W = BASE_W, H = BASE_H;
   let legendLines = [], legendH = 0;
   const axisChartTypes = ['bar', 'stacked', 'waterfall', 'pareto', 'line', 'area'];
@@ -29004,6 +30063,106 @@ function dgDrawFunnel(ctx, rows, area, opts) {
   });
 }
 
+// Draws a radar/spider chart: one axis per category arranged around a circle, one overlaid
+// polygon per series. Values are expected to already be normalized onto a shared 0–100 scale by
+// the caller (see dgBuildComparisonCharts) — this function only handles layout and drawing, not
+// the statistics, so it stays reusable for any future multi-series comparison spec.
+function dgDrawRadar(ctx, categories, series, area, opts) {
+  if (!categories || !categories.length || !series || !series.length) return;
+  const cx = area.x + area.w / 2;
+  const legendRows = Math.ceil(series.length / 3);
+  const legendH = 20 + legendRows * 20;
+  const cy = area.y + (area.h - legendH) / 2;
+  const R = Math.max(24, Math.min(area.w, area.h - legendH) / 2 - 38);
+  const n = categories.length;
+  const angleStep = (Math.PI * 2) / n;
+  const startAngle = -Math.PI / 2;
+
+  const pointFor = (i, valuePct) => {
+    const angle = startAngle + i * angleStep;
+    const r = R * Math.max(0, Math.min(100, valuePct)) / 100;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  };
+
+  // Concentric rings + spokes
+  ctx.strokeStyle = '#e4e9f0';
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const angle = startAngle + (i % n) * angleStep;
+      const x = cx + R * f * Math.cos(angle), y = cy + R * f * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+  for (let i = 0; i < n; i++) {
+    const angle = startAngle + i * angleStep;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(angle), cy + R * Math.sin(angle));
+    ctx.stroke();
+  }
+
+  // Axis (category) labels
+  ctx.fillStyle = '#3a4658';
+  ctx.font = '600 11px Inter, sans-serif';
+  for (let i = 0; i < n; i++) {
+    const angle = startAngle + i * angleStep;
+    const lx = cx + (R + 14) * Math.cos(angle);
+    const ly = cy + (R + 14) * Math.sin(angle);
+    ctx.textAlign = Math.cos(angle) > 0.15 ? 'left' : (Math.cos(angle) < -0.15 ? 'right' : 'center');
+    ctx.fillText(dgFitLabel(ctx, categories[i], Math.max(50, area.w / n)), lx, ly + 4);
+  }
+
+  // Series polygons, drawn with a translucent fill so overlapping shapes stay readable
+  series.forEach(s => {
+    ctx.beginPath();
+    s.values.forEach((v, i) => {
+      const p = pointFor(i, v);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = s.color + '2E';
+    ctx.fill();
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    s.values.forEach((v, i) => {
+      const p = pointFor(i, v);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = s.color;
+      ctx.fill();
+    });
+  });
+
+  // Legend (wraps to multiple rows for 4+ series)
+  if (opts.legend !== false) {
+    ctx.font = '12px Inter, sans-serif';
+    const itemW = Math.min(160, area.w / Math.min(3, series.length));
+    const perRow = Math.max(1, Math.floor(area.w / itemW));
+    const rows = Math.ceil(series.length / perRow);
+    const legendTop = area.y + area.h - (rows * 20) + 6;
+    series.forEach((s, i) => {
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const rowCount = Math.min(perRow, series.length - row * perRow);
+      const rowW = rowCount * itemW;
+      const rowStartX = cx - rowW / 2;
+      const x = rowStartX + col * itemW;
+      const y = legendTop + row * 20;
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(x + 5, y - 4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4b5563';
+      ctx.textAlign = 'left';
+      ctx.fillText(dgFitLabel(ctx, s.name, itemW - 16), x + 16, y);
+    });
+  }
+}
+
 function dgDrawLegend(ctx, lines, W, y, opts) {
   ctx.font = '12px Inter, sans-serif';
   // All rows share one left edge, derived from the widest row in the block and centred
@@ -29100,7 +30259,13 @@ function dgRender() {
   if (!document.getElementById('dgPaletteRow').childElementCount) dgRenderPalette();
   dgRenderCustomSwatches();
   dgInitWheel();
-  dgDrawChart();
+  if (dgIs3DType(dgState.type)) {
+    dgActivate3D(dgState.type);
+    if (!dg3D.renderer) { dgState.type = 'bar'; dgDeactivate3D(); dgDrawChart(); } // 3D engine unavailable, fall back
+  } else {
+    dgDeactivate3D();
+    dgDrawChart();
+  }
   dgRenderTextOverlay();
 }
 
@@ -29415,6 +30580,9 @@ var DG_ZOOM_MIN = 0.25, DG_ZOOM_MAX = 3, DG_ZOOM_STEP = 0.1;
 function dgApplyZoom() {
   const wrap = document.getElementById('dgCanvasZoomWrap');
   if (wrap) wrap.style.transform = 'scale(' + dgZoomLevel + ')';
+  if (typeof dg3D !== 'undefined' && dg3D.active && dg3D.renderer) {
+    dg3DUpdateResolutionForZoom(dgZoomLevel);
+  }
   const overlay = document.getElementById('dgTextOverlay');
   if (overlay) overlay.style.setProperty('--dg-inv-zoom', (1 / (dgZoomLevel || 1)).toFixed(4));
   const label = document.getElementById('dgZoomLabel');
@@ -29490,6 +30658,7 @@ function dgInitCanvasZoom() {
   holder.addEventListener('mousedown', function (e) {
     if (e.button === 1) { dgPanStart(e.clientX, e.clientY); e.preventDefault(); return; }
     if (e.button !== 0) return;
+    if (dgIs3DType(dgState.type)) return; // let OrbitControls own left-drag (orbit) on the 3D canvas
     if (dgSpaceDown) { dgPanStart(e.clientX, e.clientY); e.preventDefault(); return; }
     dgMarqueeStart(e.clientX, e.clientY, e.shiftKey || e.ctrlKey || e.metaKey);
     e.preventDefault();
@@ -29557,7 +30726,7 @@ function dgAddText() {
 // hiding directly on top of each other.
 function dgFindSmartTextPosition(w, h) {
   const canvas = document.getElementById('dgCanvas');
-  const CW = canvas ? canvas.width : 820, CH = canvas ? canvas.height : 460;
+  const CW = canvas ? canvas.width : 1200, CH = canvas ? canvas.height : 675;
   const margin = 16;
   const pad = 10; // breathing room required between two labels' boxes
 
@@ -29863,7 +31032,7 @@ function dgPtxtSetAlign(align) {
   // width, not just the text within a shrink-wrapped box (which is invisible
   // for single-line labels, the overwhelmingly common case).
   const canvas = document.getElementById('dgCanvas');
-  const CW = canvas ? canvas.width : 820;
+  const CW = canvas ? canvas.width : 1200;
   const margin = 16;
   const w = el ? el.offsetWidth : 0;
   let newX = item.x;
@@ -29998,7 +31167,7 @@ function dgTextMouseMove(ev) {
   ev.preventDefault();
   // Divide by dgZoomLevel: the overlay is visually scaled by the same CSS
   // transform as the canvas, so a screen-space mouse delta must be
-  // converted back into the canvas's own 820x460 coordinate space.
+  // converted back into the canvas's own 1200x675 coordinate space.
   const dx = rawDx / dgZoomLevel;
   const dy = rawDy / dgZoomLevel;
 
@@ -30114,7 +31283,7 @@ function dgShowSnapGuide(axis, pos) {
 
 function dgApplySnap(item, rawX, rawY, w, h) {
   const canvas = document.getElementById('dgCanvas');
-  const CW = canvas ? canvas.width : 820, CH = canvas ? canvas.height : 460;
+  const CW = canvas ? canvas.width : 1200, CH = canvas ? canvas.height : 675;
 
   const xTargets = [0, CW / 2, CW];
   const yTargets = [0, CH / 2, CH];
@@ -30194,6 +31363,12 @@ function dgDrawTextsOnCtx(ctx) {
 // The real #dgCanvas is never touched, so the live preview and the
 // overlay's drag/edit state are completely unaffected by exporting.
 function dgGetExportCanvas() {
+  if (dgIs3DType(dgState.type) && dg3D.renderer) {
+    // Force one fresh frame right before capture (renderer has
+    // preserveDrawingBuffer:true so toDataURL reads the last-rendered frame)
+    dg3D.renderer.render(dg3D.scene, dg3D.camera);
+    return document.getElementById('dgCanvas3D');
+  }
   const canvas = document.getElementById('dgCanvas');
   if (!canvas) return null;
   if (!dgState.texts || !dgState.texts.length) return canvas;
@@ -30205,6 +31380,164 @@ function dgGetExportCanvas() {
   dgDrawTextsOnCtx(ctx);
   return out;
 }
+
+// ── Rotating Video export ──
+// Records the live 3D chart doing one slow spin, with the user's typed
+// notes rendered beneath it, and downloads the result as a .webm file.
+// Everything happens on-device: a hidden composite canvas is fed into
+// MediaRecorder via canvas.captureStream(), so no upload/server is involved.
+const dgVideo = { recording: false, raf: null };
+
+function dgOpenVideoExportModal() {
+  dgCloseAllDropdowns();
+  const modal = document.getElementById('dgVideoModal');
+  const warn = document.getElementById('dgVideoModalNote3D');
+  const btn = document.getElementById('dgVideoRecordBtn');
+  const is3D = dgIs3DType(dgState.type) && dg3D.renderer;
+  if (warn) warn.style.display = is3D ? 'none' : 'block';
+  if (btn) btn.disabled = !is3D;
+  if (btn) btn.style.opacity = is3D ? '1' : '0.5';
+  const status = document.getElementById('dgVideoStatus');
+  if (status) status.textContent = '';
+  if (modal) { modal.style.display = 'flex'; }
+  dgVideoDrawPreviewFrame();
+}
+
+function dgCloseVideoExportModal() {
+  if (dgVideo.recording) return; // don't let the modal close mid-recording
+  const modal = document.getElementById('dgVideoModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Static preview of the composite frame (chart + notes) so the user can see
+// roughly what the exported video will look like before hitting record.
+function dgVideoDrawPreviewFrame() {
+  const canvas = document.getElementById('dgVideoPreviewCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0A0F1E';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (dgIs3DType(dgState.type) && dg3D.renderer) {
+    dg3D.renderer.render(dg3D.scene, dg3D.camera);
+    const chartH = Math.round(canvas.height * 0.78);
+    ctx.drawImage(dg3D.renderer.domElement, 0, 0, canvas.width, chartH);
+    dgVideoDrawNotes(ctx, canvas, chartH);
+  } else {
+    ctx.fillStyle = 'rgba(232,244,255,0.5)';
+    ctx.font = '13px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Build a 3D chart to preview the rotating video', canvas.width / 2, canvas.height / 2);
+  }
+}
+
+function dgVideoDrawNotes(ctx, canvas, chartH) {
+  const notes = (document.getElementById('dgVideoNotesInput') || {}).value || '';
+  ctx.fillStyle = '#141B2D';
+  ctx.fillRect(0, chartH, canvas.width, canvas.height - chartH);
+  if (!notes.trim()) return;
+  ctx.fillStyle = '#E8F4FF';
+  ctx.font = '15px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  dgVideoWrapText(ctx, notes, 20, chartH + 14, canvas.width - 40, 20, 5);
+}
+
+function dgVideoWrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = text.split(/\s+/);
+  let line = '', lines = [];
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  if (lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…';
+  }
+  lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
+}
+
+function dgStartVideoRecording() {
+  if (dgVideo.recording) return;
+  if (!(dgIs3DType(dgState.type) && dg3D.renderer)) {
+    toast('Build a 3D chart first, then record its rotation', 'error');
+    return;
+  }
+  if (typeof MediaRecorder === 'undefined') {
+    toast('Video recording is not supported in this browser', 'error');
+    return;
+  }
+
+  const durationSec = parseFloat((document.getElementById('dgVideoDurationSelect') || {}).value || '8');
+  const canvas = document.getElementById('dgVideoPreviewCanvas');
+  const ctx = canvas.getContext('2d');
+  const chartH = Math.round(canvas.height * 0.78);
+  const btn = document.getElementById('dgVideoRecordBtn');
+  const status = document.getElementById('dgVideoStatus');
+
+  // Pause orbit controls and remember the starting rotation so we can spin
+  // the chart ourselves at a steady rate for a clean, predictable loop.
+  const hadControls = !!dg3D.controls;
+  if (hadControls) dg3D.controls.enabled = false;
+  const startRotY = dg3D.group ? dg3D.group.rotation.y : 0;
+
+  const stream = canvas.captureStream(30);
+  let recorder;
+  try {
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
+  } catch (e) {
+    toast('Could not start the video recorder: ' + e.message, 'error');
+    if (hadControls) dg3D.controls.enabled = true;
+    return;
+  }
+
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    pdfedDownloadBlob(blob, dgExportFilename('webm'));
+    toast('Rotating video downloaded', 'success');
+    dgVideo.recording = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Record & Download'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '';
+    if (hadControls) dg3D.controls.enabled = true;
+    dgCloseVideoExportModal();
+  };
+
+  dgVideo.recording = true;
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+  const startTime = performance.now();
+  recorder.start();
+
+  function frame() {
+    const elapsed = (performance.now() - startTime) / 1000;
+    const progress = Math.min(elapsed / durationSec, 1);
+    if (dg3D.group) dg3D.group.rotation.y = startRotY + progress * Math.PI * 2;
+    if (dgHologramOn() && dg3D.group) dg3DHologramFlicker();
+    dg3D.renderer.render(dg3D.scene, dg3D.camera);
+
+    ctx.fillStyle = '#0A0F1E';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(dg3D.renderer.domElement, 0, 0, canvas.width, chartH);
+    dgVideoDrawNotes(ctx, canvas, chartH);
+
+    if (btn) btn.textContent = 'Recording… ' + Math.ceil(durationSec - elapsed) + 's';
+    if (status) status.textContent = Math.round(progress * 100) + '%';
+
+    if (progress < 1) {
+      dgVideo.raf = requestAnimationFrame(frame);
+    } else {
+      recorder.stop();
+    }
+  }
+  frame();
+}
+
+window.dgOpenVideoExportModal = dgOpenVideoExportModal;
+window.dgCloseVideoExportModal = dgCloseVideoExportModal;
+window.dgStartVideoRecording = dgStartVideoRecording;
 
 window.dgClearAll = dgClearAll;
 window.dgSetPaletteScheme = dgSetPaletteScheme;
