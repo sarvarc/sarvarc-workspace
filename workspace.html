@@ -69,6 +69,7 @@
   --radius: 14px;
   --sidebar-w: 220px;
   --sidebar-collapsed-w: 0px;
+  --sidebar-rail-w: 56px;
   --topnav-h: 56px;
 
   /* PDF Editor chrome */
@@ -98,20 +99,44 @@
   --shadow-nav-active: none;
 }
 
-/* ─── SIDEBAR COLLAPSED ─── */
+/* ─── SIDEBAR COLLAPSED → MINI ICON RAIL ───
+   Rather than disappearing entirely, the sidebar shrinks down to a slim
+   strip of icon-only buttons (same nav items, same onclick handlers) so
+   people can still jump straight to a tool without reopening the full
+   sidebar first. */
 .sidebar { will-change: width; }
 .sidebar-collapsed .sidebar {
-  width: 0;
-  padding: 0;
-  overflow: hidden;
-  border-right: none;
-  opacity: 0;
+  width: var(--sidebar-rail-w);
+  padding: 16px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  opacity: 1;
 }
 .sidebar-collapsed .app {
-  grid-template-columns: 0px 1fr;
+  grid-template-columns: var(--sidebar-rail-w) 1fr;
 }
 .sidebar-collapsed .main::before {
-  left: 0;
+  left: var(--sidebar-rail-w);
+}
+
+/* Icon-only nav rows: collapse the plain-text label to zero width via
+   font-size:0 (the icons are fixed px SVGs, not em-based, so they stay
+   put and centered) and hide anything that needs horizontal room. */
+.sidebar-collapsed .nav-item,
+.sidebar-collapsed .sidebar-folder-header {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+  font-size: 0;
+}
+.sidebar-collapsed .nav-item.active::before { left: -6px; }
+.sidebar-collapsed .sidebar-section,
+.sidebar-collapsed .sidebar-folder-body,
+.sidebar-collapsed .nav-badge,
+.sidebar-collapsed .sidebar-tag,
+.sidebar-collapsed .folder-chevron,
+.sidebar-collapsed .nav-ext-arrow {
+  display: none !important;
 }
 
 /* ─── LIGHT THEME ─── */
@@ -4136,7 +4161,8 @@ a.nav-item:hover { color: var(--text); }
 .annot-mode-star #pdfedAnnotCanvas,
 .annot-mode-hexagon #pdfedAnnotCanvas,
 .annot-mode-redact #pdfedAnnotCanvas,
-.annot-mode-addtext #pdfedAnnotCanvas { pointer-events: all !important; cursor: crosshair !important; }
+.annot-mode-addtext #pdfedAnnotCanvas,
+.annot-mode-link #pdfedAnnotCanvas { pointer-events: all !important; cursor: crosshair !important; }
 .annot-mode-eraser #pdfedAnnotCanvas { cursor: cell !important; }
 
 /* Hand (pan) tool */
@@ -5775,35 +5801,35 @@ button.dg-show-chip.active { background:var(--blue); }
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="nav-item active" onclick="navigate('dashboard')">
+    <div class="nav-item active" onclick="navigate('dashboard')" title="Dashboard">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span> Dashboard
     </div>
-    <div class="nav-item" onclick="navigate('pdfeditor')">
+    <div class="nav-item" onclick="navigate('pdfeditor')" title="Workspace">
       <span class="nav-icon" style="color:#0073E6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span> Workspace
-      <span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(0,115,230,0.2);color:#0073E6;margin-left:auto;letter-spacing:0.3px">APP</span>
+      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(0,115,230,0.2);color:#0073E6;margin-left:auto;letter-spacing:0.3px">APP</span>
     </div>
-    <div class="nav-item" onclick="navigate('extract')">
+    <div class="nav-item" onclick="navigate('extract')" title="Extract Images">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="15" r="2"/><path d="m20 17-1.09-1.09A2 2 0 0 0 17.5 15.5h-1"/></svg></span> Extract Images
       <span class="nav-badge" id="imgCountBadge" style="display:none">0</span>
     </div>
-    <div class="nav-item" onclick="navigate('dataarrange')">
+    <div class="nav-item" onclick="navigate('dataarrange')" title="Data Arrangement">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span> Data Arrangement
     </div>
-    <div class="nav-item" onclick="navigate('makeforms')">
+    <div class="nav-item" onclick="navigate('makeforms')" title="Make Forms">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></span> Make Forms
-      <span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,0.18);color:#10B981;margin-left:auto;letter-spacing:0.3px">NEW</span>
+      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,0.18);color:#10B981;margin-left:auto;letter-spacing:0.3px">NEW</span>
     </div>
-    <div class="nav-item" onclick="navigate('diagrams')">
+    <div class="nav-item" onclick="navigate('diagrams')" title="Diagrams &amp; Graphs">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Diagrams &amp; Graphs
-      <span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,0.18);color:#10B981;margin-left:auto;letter-spacing:0.3px">NEW</span>
+      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,0.18);color:#10B981;margin-left:auto;letter-spacing:0.3px">NEW</span>
     </div>
-    <div class="nav-item" onclick="navigate('export')">
+    <div class="nav-item" onclick="navigate('export')" title="Export Center">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> Export Center
     </div>
 
     <!-- IMAGES FOLDER -->
     <div class="sidebar-section">Assets</div>
-    <div class="sidebar-folder-header" id="folderHeader" onclick="toggleSidebarFolder()">
+    <div class="sidebar-folder-header" id="folderHeader" onclick="toggleSidebarFolder()" title="Extracted Images">
       <span class="nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
       <span>Extracted Images</span>
       <span class="nav-badge" id="folderBadge" style="display:none;margin-left:4px">0</span>
@@ -5813,7 +5839,7 @@ button.dg-show-chip.active { background:var(--blue); }
       <div class="sidebar-folder-empty" id="folderEmpty">No images yet</div>
     </div>
 
-    <div class="sidebar-folder-header open" id="moreToolsHeader" onclick="toggleMoreTools()">
+    <div class="sidebar-folder-header open" id="moreToolsHeader" onclick="toggleMoreTools()" title="More Tools">
       <span class="nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
       <span>More Tools</span>
       <span class="folder-chevron">▶</span>
@@ -5847,7 +5873,7 @@ button.dg-show-chip.active { background:var(--blue); }
 
     <div style="flex:1"></div>
     <div class="sidebar-section">Info</div>
-    <div class="nav-item" onclick="toast('All processing is client-side, your files never leave your browser.','info')">
+    <div class="nav-item" onclick="toast('All processing is client-side, your files never leave your browser.','info')" title="Privacy First">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Privacy First
     </div>
   </aside>
@@ -6595,6 +6621,10 @@ button.dg-show-chip.active { background:var(--blue); }
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
                   Add Text
                 </button>
+                <button class="pdfed-rbn-btn" id="pdfedAddLinkBtn" onclick="pdfedSetAnnotTool('link')" title="Add a clickable hyperlink, like a link in Canva or Word">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Add Link
+                </button>
                 <button class="pdfed-rbn-btn" id="pdfedRbnSelectAllBtn" onclick="pdfedSelectAllPlacedTexts()" title="Select everything on this page (Ctrl+A)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/><rect x="7.5" y="7.5" width="9" height="9" rx="1"/></svg>
                   Select All
@@ -6932,10 +6962,58 @@ button.dg-show-chip.active { background:var(--blue); }
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>
                   </button>
                   <div class="pdfed-ptxt-tb-sep"></div>
+                  <button id="pdfedPtxtLinkBtn" class="pdfed-ptxt-tb-btn" title="Add or edit hyperlink" onmousedown="event.preventDefault();event.stopPropagation()" onclick="pdfedPtxtEditLink()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  </button>
+                  <div class="pdfed-ptxt-tb-sep"></div>
                   <input id="pdfedPtxtColorInput" class="pdfed-ptxt-tb-color" type="color" value="#ffffff" title="Text color, select some text first to color only that selection, or leave nothing selected to set the whole box's color" onmousedown="pdfedPtxtCaptureSelection(event)" oninput="pdfedPtxtApplyColor(this.value)" onchange="pdfedPtxtApplyColor(this.value)">
                   <div class="pdfed-ptxt-tb-sep"></div>
                   <input id="pdfedPtxtOpacityInput" class="pdfed-opacity-slider" type="range" min="10" max="100" step="5" value="100" title="Opacity" onmousedown="event.stopPropagation()" oninput="pdfedPtxtSetOpacity(this.value)" onchange="pdfedPtxtSetOpacity(this.value)">
                   <span id="pdfedPtxtOpacityVal" class="pdfed-ptxt-tb-opacity-val">100%</span>
+                </div>
+                <!-- ─── SMART LINK MODAL ─── -->
+                <div id="pdfedLinkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
+                  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:22px;max-width:440px;width:92%;display:flex;flex-direction:column;gap:14px;max-height:82vh;overflow:auto;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                      <h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;margin:0;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        <span id="pdfedLinkModalTitle">Insert Link</span>
+                      </h3>
+                      <button onclick="pdfedCloseLinkModal()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1">×</button>
+                    </div>
+
+                    <!-- Smart detection panel, only shown when URLs are found in the box's text -->
+                    <div id="pdfedLinkDetectedPanel" style="display:none;flex-direction:column;gap:8px;">
+                      <div style="font-size:11px;color:var(--text3);font-weight:600;">
+                        <span id="pdfedLinkDetectedCount">0</span> link<span id="pdfedLinkDetectedPlural">s</span> found in this text — choose which to turn into clickable links:
+                      </div>
+                      <div id="pdfedLinkDetectedList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;padding:2px;"></div>
+                      <button class="btn-primary" onclick="pdfedLinkModalApplyDetected()" style="width:100%;padding:9px;font-size:12.5px;">Apply to Selected</button>
+                      <div style="display:flex;align-items:center;gap:10px;margin:2px 0;">
+                        <div style="flex:1;height:1px;background:var(--border);"></div>
+                        <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;">or add manually</span>
+                        <div style="flex:1;height:1px;background:var(--border);"></div>
+                      </div>
+                    </div>
+
+                    <!-- Manual entry, always available -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;">Link URL</label>
+                      <input id="pdfedLinkManualUrl" type="text" placeholder="https://example.com" autocomplete="off"
+                        style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;box-sizing:border-box;">
+                      <div id="pdfedLinkManualLabelRow" style="display:flex;flex-direction:column;gap:8px;">
+                        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;">Display Text (optional)</label>
+                        <input id="pdfedLinkManualLabel" type="text" placeholder="Link" autocomplete="off"
+                          style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;box-sizing:border-box;">
+                      </div>
+                      <div id="pdfedLinkManualHint" style="font-size:10.5px;color:var(--text3);display:none;"></div>
+                    </div>
+
+                    <div style="display:flex;gap:8px;margin-top:4px;">
+                      <button class="btn-secondary" onclick="pdfedCloseLinkModal()" style="flex:1;padding:9px;font-size:12.5px;">Cancel</button>
+                      <button class="btn-primary" id="pdfedLinkManualInsertBtn" onclick="pdfedLinkModalManualInsert()" style="flex:1;padding:9px;font-size:12.5px;">Insert Link</button>
+                    </div>
+                  </div>
                 </div>
                 <!-- ─── E-SIGNATURE MODAL ─── -->
                 <div id="pdfedSigModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
@@ -9186,12 +9264,14 @@ function setMode(m) { state.extractMode = m; }
 
 // ─── MORE TOOLS DROPDOWN ───
 function toggleMoreTools() {
+  if (document.body.classList.contains('sidebar-collapsed')) { toggleSidebar(true); return; }
   document.getElementById('moreToolsHeader').classList.toggle('open');
   document.getElementById('moreToolsBody').classList.toggle('open');
 }
 
 // ─── SIDEBAR FOLDER ───
 function toggleSidebarFolder() {
+  if (document.body.classList.contains('sidebar-collapsed')) { toggleSidebar(true); return; }
   const header = document.getElementById('folderHeader');
   const body   = document.getElementById('folderBody');
   header.classList.toggle('open');
@@ -14159,10 +14239,14 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
     const lineHeight = item.fontSize * 1.25;
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
     const anchorX = item.x + padX;
+    const fontCtx = { fontSize: item.fontSize, fam, itemBold: !!item.bold, itemItalic: !!item.italic };
+    // Same measurement font a run actually gets drawn with below — keeps the
+    // width used for wrap/align/underline in sync with the glyphs jsPDF prints.
+    const setRunFont = (r) => { mctx.font = `${r.italic ? 'italic' : 'normal'} ${r.bold ? '700' : '400'} ${item.fontSize}px ${fam}, Inter, sans-serif`; };
 
     let lines = item.html
       ? pdfedParseRichLines(item.html)
-      : (item.text || '').split('\n').map(t => [{ text: t, color: null }]);
+      : (item.text || '').split('\n').map(t => [{ text: t, color: null, link: null }]);
 
     let maxWidth;
     if (item.w) {
@@ -14172,14 +14256,14 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
       maxWidth = Math.max(10, (pageWpx ? (pageWpx - item.x - 12) : 99999) - padX);
     }
     const wrapped = [];
-    lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(mctx, runs, maxWidth)));
+    lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(mctx, runs, maxWidth, fontCtx)));
     lines = wrapped;
 
     let contentWidth = maxWidth;
     if (!item.w) {
       contentWidth = 0;
       lines.forEach(runs => {
-        const w = runs.reduce((a, r) => a + mctx.measureText(r.text).width, 0);
+        const w = runs.reduce((a, r) => { setRunFont(r); return a + mctx.measureText(r.text).width; }, 0);
         if (w > contentWidth) contentWidth = w;
       });
     }
@@ -14195,9 +14279,10 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
     // 0.75 factor made text ~1.5x too large on native PDF pages specifically.
     pdf.setFontSize(Math.max(4, item.fontSize * px2mm * 2.83464567)); // px → mm → pt
 
+    let hasRunLink = false;
     lines.forEach((runs, li) => {
       const tyTopPx = item.y + padY + li * lineHeight;
-      const widths = runs.map(r => mctx.measureText(r.text).width);
+      const widths = runs.map(r => { setRunFont(r); return mctx.measureText(r.text).width; });
       const totalWidth = widths.reduce((a, b) => a + b, 0);
       let startX = anchorX;
       if (item.align === 'center') startX = anchorX + (contentWidth - totalWidth) / 2;
@@ -14206,24 +14291,124 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
       let cx = startX;
       runs.forEach((r, ri) => {
         if (r.text && r.text.trim()) {
+          const runPdfStyle = (r.bold && r.italic) ? 'bolditalic' : r.bold ? 'bold' : r.italic ? 'italic' : 'normal';
+          try { pdf.setFont('helvetica', runPdfStyle); } catch(e) { pdf.setFont('helvetica', 'normal'); }
           const rgb = pdfedHexToRgb(r.color || item.color || '#000000');
           pdf.setTextColor(rgb.r, rgb.g, rgb.b);
           pdf.text(r.text, cx * px2mm, tyTopPx * px2mm, { baseline: 'top' });
-          if (item.underline) {
+          if (item.underline || r.underline || r.link) {
             const uW = widths[ri] * px2mm;
             const uy = (tyTopPx + item.fontSize * 1.05) * px2mm;
             pdf.setDrawColor(rgb.r, rgb.g, rgb.b);
             pdf.setLineWidth(Math.max(0.1, item.fontSize * 0.06 * px2mm));
             pdf.line(cx * px2mm, uy, cx * px2mm + uW, uy);
           }
+          if (r.link) {
+            hasRunLink = true;
+            try { pdf.link(cx * px2mm, tyTopPx * px2mm, widths[ri] * px2mm, lineHeight * px2mm, { url: r.link }); } catch(e) {}
+          }
         }
         cx += widths[ri];
       });
     });
+
+    // Make it an actual clickable link in the exported PDF, not just blue
+    // underlined text — covers the full box so the whole thing is tappable.
+    // Skipped when the paragraph already has its own per-word links (from
+    // "Apply to Selected"), so a stray whole-box link doesn't swallow clicks
+    // meant for the surrounding, non-linked text.
+    if (item.link && !hasRunLink) {
+      try {
+        const boxH = lines.length * lineHeight + padY * 2;
+        pdf.link(item.x * px2mm, item.y * px2mm, (item.w || (contentWidth + padX * 2)) * px2mm, boxH * px2mm, { url: item.link });
+      } catch(e) {}
+    }
   });
 }
 
-// Small hex/rgb-string → {r,g,b} used only by the editable-text export path above.
+// Registers invisible clickable regions for any linked placed-text boxes,
+// WITHOUT drawing anything — the actual glyphs are already baked into the
+// page's raster image (pdfedComposeThumb) for a pixel-exact match to the
+// editor. This uses the identical wrap/align/padding math as
+// pdfedRenderPlacedTextsAsPdfText so each clickable rectangle lines up
+// exactly with the (already-baked) word or box it belongs to.
+function pdfedAddPlacedTextLinkAnnotations(pdf, pg, wmm, iw) {
+  const list = pg.placedTexts;
+  if (!list || !list.length || !iw) return;
+  const px2mm = wmm / iw;
+
+  const measCan = document.createElement('canvas');
+  const mctx = measCan.getContext('2d');
+
+  list.forEach(item => {
+    // Skip the measurement entirely for boxes with no link anywhere — most
+    // placed-text boxes don't have one, so this keeps export fast.
+    const hasAnyLink = item.link || (item.html && /<a[\s>]/i.test(item.html));
+    if (!hasAnyLink) return;
+
+    const famRaw = item.fontFamily || 'Inter';
+    const fam = famRaw.includes(',') ? famRaw : `'${famRaw}'`;
+    const lineHeight = item.fontSize * 1.25;
+    const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
+    const anchorX = item.x + padX;
+    const fontCtx = { fontSize: item.fontSize, fam, itemBold: !!item.bold, itemItalic: !!item.italic };
+    const setRunFont = (r) => { mctx.font = `${r.italic ? 'italic' : 'normal'} ${r.bold ? '700' : '400'} ${item.fontSize}px ${fam}, Inter, sans-serif`; };
+
+    let lines = item.html
+      ? pdfedParseRichLines(item.html)
+      : (item.text || '').split('\n').map(t => [{ text: t, color: null, link: null }]);
+
+    let maxWidth;
+    if (item.w) {
+      maxWidth = Math.max(10, item.w - padX * 2);
+    } else {
+      const pageWpx = iw;
+      maxWidth = Math.max(10, (pageWpx ? (pageWpx - item.x - 12) : 99999) - padX);
+    }
+    const wrapped = [];
+    lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(mctx, runs, maxWidth, fontCtx)));
+    lines = wrapped;
+
+    let contentWidth = maxWidth;
+    if (!item.w) {
+      contentWidth = 0;
+      lines.forEach(runs => {
+        const w = runs.reduce((a, r) => { setRunFont(r); return a + mctx.measureText(r.text).width; }, 0);
+        if (w > contentWidth) contentWidth = w;
+      });
+    }
+
+    let hasRunLink = false;
+    lines.forEach((runs, li) => {
+      const tyTopPx = item.y + padY + li * lineHeight;
+      const widths = runs.map(r => { setRunFont(r); return mctx.measureText(r.text).width; });
+      const totalWidth = widths.reduce((a, b) => a + b, 0);
+      let startX = anchorX;
+      if (item.align === 'center') startX = anchorX + (contentWidth - totalWidth) / 2;
+      else if (item.align === 'right') startX = anchorX + (contentWidth - totalWidth);
+
+      let cx = startX;
+      runs.forEach((r, ri) => {
+        if (r.text && r.text.trim() && r.link) {
+          hasRunLink = true;
+          try { pdf.link(cx * px2mm, tyTopPx * px2mm, widths[ri] * px2mm, lineHeight * px2mm, { url: r.link }); } catch(e) {}
+        }
+        cx += widths[ri];
+      });
+    });
+
+    // Whole-box link (skipped when per-word links already cover it), same
+    // "cover the full tappable box" behavior as the old vector-text path.
+    if (item.link && !hasRunLink) {
+      try {
+        const boxH = lines.length * lineHeight + padY * 2;
+        pdf.link(item.x * px2mm, item.y * px2mm, (item.w || (contentWidth + padX * 2)) * px2mm, boxH * px2mm, { url: item.link });
+      } catch(e) {}
+    }
+  });
+}
+
+
 function pdfedHexToRgb(color) {
   if (!color) return { r: 0, g: 0, b: 0 };
   if (color.startsWith('rgb')) {
@@ -15502,6 +15687,12 @@ async function pdfedExport(pageIndices) {
   // Finalize any image the user was still mid-drag/mid-resize on the currently
   // open page, so it lands in pg.placedImages before we read that array below.
   pdfedAutoStampPendingGhost();
+  // Make sure any Google Fonts used by placed-text boxes (Inter, Roboto,
+  // Poppins, etc.) are actually loaded before we bake pixels below — on a
+  // fresh page load, exporting immediately could otherwise rasterize with a
+  // fallback system font for a frame before the real one is ready, which
+  // would defeat the whole point of an exact match.
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e) {}
   const indices = (pageIndices && pageIndices.length) ? pageIndices : pdfed.pages.map((_, i) => i);
   const total = indices.length;
   showExportOverlay('Exporting your PDF…', total > 1 ? `Rendering page 1 of ${total}…` : 'Rendering page…');
@@ -15515,16 +15706,18 @@ async function pdfedExport(pageIndices) {
       // Reserve the last 10% of the ring for the save step below, so the
       // bar never sits at a false 100% while jsPDF is still writing bytes.
       updateExportProgress((k / total) * 90, total > 1 ? `Rendering page ${k + 1} of ${total}…` : 'Rendering page…');
-      // pdfedComposeExportBase layers everything this page has EXCEPT its
-      // placed text boxes — baked PDF text edits, placed images, tables, and
-      // annotation strokes (pen, highlighter, shapes, redaction) — read
-      // straight from that page's own stored data. The page still comes out
-      // as one single flat layer, same as before. Placed text boxes are then
-      // added back below as real jsPDF text() calls instead of pixels, so
-      // any text the person typed on the page is genuinely selectable,
-      // searchable, and editable in the downloaded PDF — not just a picture
-      // of text.
-      const url = await pdfedComposeExportBase(pg, i);
+      // pdfedComposeThumb layers EVERYTHING this page has — baked PDF text
+      // edits, placed images, tables, placed text boxes, and annotation
+      // strokes — onto one flat raster using the exact same canvas draw
+      // routine the on-screen thumbnail/preview uses. That guarantees the
+      // exported page is visually identical to what you saw while editing:
+      // same font, weight, size, color, and spacing, pixel for pixel.
+      // Trade-off: placed text is now part of the page image, so it's no
+      // longer separately selectable/searchable text in the PDF — chosen
+      // deliberately over the previous vector-text path, which substituted
+      // a built-in PDF font (Helvetica) and could never match the real
+      // on-screen font's metrics exactly.
+      const url = await pdfedComposeThumb(pg, i);
       if (!url) continue;
       await new Promise(res => {
         const img = new Image();
@@ -15544,8 +15737,10 @@ async function pdfedExport(pageIndices) {
           pdf.setFillColor(255,255,255);
           pdf.rect(0,0,wmm,hmm,'F');
           pdf.addImage(url, 'PNG', 0, 0, wmm, hmm, '', 'FAST');
-          // Real, editable vector text on top of the flat page image.
-          pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw);
+          // Text itself is already baked into the image above (pixel-exact
+          // match to the editor); this only adds back invisible clickable
+          // regions so links still work in the downloaded PDF.
+          pdfedAddPlacedTextLinkAnnotations(pdf, pg, wmm, iw);
           res();
         };
         img.onerror = res;
@@ -16841,6 +17036,16 @@ function pdfedCropHeaderBand(canvas, viewport, firstRowY, scale, firstRowFontSiz
 // the zip's media/rels/content-types. `images` is the shared accumulator
 // passed in from pdfedExportDOCX; `maxWidthEmu` clamps oversized images to
 // the page's content width.
+// Registers an external hyperlink relationship for the DOCX package and
+// returns its rId. Uses its own 'rIdLink' prefix/counter (images.hyperlinks)
+// so IDs never collide with the 'rIdImg' ones images use.
+function pdfedAddHyperlinkRel(images, url) {
+  if (!images.hyperlinks) images.hyperlinks = [];
+  const rId = 'rIdLink' + (images.hyperlinks.length + 1);
+  images.hyperlinks.push({ rId, url });
+  return rId;
+}
+
 function pdfedAddImageRun(images, dataUrl, widthPt, heightPt, maxWidthEmu) {
   const rId = 'rIdImg' + (images.list.length + 1);
   const base64 = dataUrl.split(',')[1];
@@ -17004,14 +17209,43 @@ async function pdfedExportDOCX(indices) {
         } else if (pg.placedTexts && pg.placedTexts.length) {
           // style already lives on each item, no need to sample/guess it
           pg.placedTexts.forEach(tb => {
-            const text = tb.html ? pdfedStripHtmlToText(tb.html) : (tb.text || '');
             const align = tb.align === 'center' || tb.align === 'right' ? tb.align : 'left';
-            const hex = (tb.color || '#000000').replace('#', '').toUpperCase();
-            const rPr = `<w:rPr>${tb.bold ? '<w:b/>' : ''}${tb.italic ? '<w:i/>' : ''}${tb.underline ? '<w:u w:val="single"/>' : ''}` +
-              `<w:color w:val="${hex}"/><w:sz w:val="${Math.max(12, Math.round((tb.fontSize || 14) * 1.5))}"/></w:rPr>`;
             const jc = align === 'left' ? '' : `<w:jc w:val="${align}"/>`;
-            text.split('\n').forEach(line => {
-              bodyXml += `<w:p><w:pPr>${jc}</w:pPr><w:r>${rPr}<w:t xml:space="preserve">${pdfedXmlEscape(line)}</w:t></w:r></w:p>`;
+            const baseSz = Math.max(12, Math.round((tb.fontSize || 14) * 1.5));
+            const baseHex = (tb.color || '#000000').replace('#', '').toUpperCase();
+
+            // Parse into per-run lines (same parser export/on-screen rendering
+            // already use) instead of pdfedStripHtmlToText, so any <a href>
+            // markup from "Apply to Selected" survives as real run-level
+            // link data rather than being thrown away as plain text.
+            const lines = tb.html
+              ? pdfedParseRichLines(tb.html)
+              : (tb.text || '').split('\n').map(t => [{ text: t, color: null, link: null }]);
+
+            lines.forEach(runs => {
+              let runsXml = '';
+              runs.forEach(r => {
+                if (!r.text) return;
+                // Per-word link wins; otherwise the whole box's own link (if
+                // any) applies to every run in it.
+                const url = r.link || tb.link;
+                const runHex = url
+                  ? '0563C1' // Word's standard hyperlink blue
+                  : (r.color ? pdfedToHexColor(r.color).replace('#', '').toUpperCase() : baseHex);
+                const rBold = r.bold != null ? r.bold : tb.bold;
+                const rItalic = r.italic != null ? r.italic : tb.italic;
+                const rUnderline = r.underline != null ? r.underline : tb.underline;
+                const rPr = `<w:rPr>${rBold ? '<w:b/>' : ''}${rItalic ? '<w:i/>' : ''}${(rUnderline || url) ? '<w:u w:val="single"/>' : ''}` +
+                  `<w:color w:val="${runHex}"/><w:sz w:val="${baseSz}"/></w:rPr>`;
+                const runXml = `<w:r>${rPr}<w:t xml:space="preserve">${pdfedXmlEscape(r.text)}</w:t></w:r>`;
+                // Real Word hyperlink field — clickable and Ctrl-clickable in
+                // Word/Google Docs, not just blue underlined text.
+                runsXml += url
+                  ? `<w:hyperlink r:id="${pdfedAddHyperlinkRel(images, url)}" w:history="1">${runXml}</w:hyperlink>`
+                  : runXml;
+              });
+              if (!runsXml) runsXml = '<w:r><w:t xml:space="preserve"></w:t></w:r>';
+              bodyXml += `<w:p><w:pPr>${jc}</w:pPr>${runsXml}</w:p>`;
             });
             anyContent = true;
           });
@@ -17058,9 +17292,11 @@ async function pdfedExportDOCX(indices) {
       `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
 
+    const hyperlinkRels = images.hyperlinks || [];
     const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
       `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       images.list.map(img => `<Relationship Id="${img.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${img.rId}.${img.ext}"/>`).join('') +
+      hyperlinkRels.map(h => `<Relationship Id="${h.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${pdfedXmlEscape(h.url)}" TargetMode="External"/>`).join('') +
       `</Relationships>`;
 
     const zip = new JSZip();
@@ -17068,10 +17304,12 @@ async function pdfedExportDOCX(indices) {
     zip.folder('_rels').file('.rels', rootRels);
     const wordFolder = zip.folder('word');
     wordFolder.file('document.xml', documentXml);
-    if (images.list.length) {
+    if (images.list.length || hyperlinkRels.length) {
       wordFolder.folder('_rels').file('document.xml.rels', docRels);
-      const media = wordFolder.folder('media');
-      images.list.forEach(img => media.file(`${img.rId}.${img.ext}`, img.base64, { base64: true }));
+      if (images.list.length) {
+        const media = wordFolder.folder('media');
+        images.list.forEach(img => media.file(`${img.rId}.${img.ext}`, img.base64, { base64: true }));
+      }
     }
 
     const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -17294,10 +17532,11 @@ function pdfedSetAnnotTool(tool) {
   if (tool) wrap.classList.add('annot-mode-' + tool);
   pdfedSyncSizePanelForTool();
   if (tool === 'addtext') toast('Click anywhere on the page to drop a text box', 'info');
+  if (tool === 'link') toast('Click anywhere on the page to add a link', 'info');
 
   const btnMap = {
     highlight: 'pdfedHighlightBtn', draw: 'pdfedDrawBtn', eraser: 'pdfedEraserBtn',
-    redact: 'pdfedRedactBtn', addtext: 'pdfedAddTextBtn'
+    redact: 'pdfedRedactBtn', addtext: 'pdfedAddTextBtn', link: 'pdfedAddLinkBtn'
   };
   const btn = document.getElementById(btnMap[tool]);
   if (btn) btn.classList.add('annot-active');
@@ -18020,6 +18259,13 @@ function pdfedAnnotInit() {
       return;
     }
 
+    if (pdfedAnnotState.tool === 'link') {
+      // click to place a hyperlink
+      pdfedAnnotState.drawing = false;
+      pdfedPlaceLinkLabel(pos.x, pos.y);
+      return;
+    }
+
     // Save snapshot for undo before starting
     pdfedAnnotPushUndo();
     previewSnapshot = pdfedGetAnnotCanvas().toDataURL();
@@ -18245,6 +18491,274 @@ function pdfedAnnotInit() {
 
 let pdfedPlacedTextSeq = 0;
 
+// Prompts for a URL (via the Insert Link modal), then drops a clickable
+// hyperlink box on the page — reuses the exact same placedTexts item shape/
+// rendering/drag/resize/lock/delete machinery as Add Text, just with a
+// `.link` field set. Ctrl/Cmd-click opens the link instead of editing it,
+// same convention Word and Canva use for in-canvas hyperlinks.
+function pdfedPlaceLinkLabel(x, y) {
+  const idx = pdfed.active;
+  if (idx < 0 || !pdfed.pages[idx]) { toast('No page loaded', 'error'); return; }
+  if (pdfed.snapGrid) { x = pdfedSnapToGrid(x); y = pdfedSnapToGrid(y); }
+  pdfedOpenLinkModal('place', { x, y });
+}
+
+// ─── SMART LINK DETECTION ───
+// Deliberately conservative: only recognizes http(s)/www URLs, email
+// addresses, and bare domains ending in a real, common TLD, so it doesn't
+// mistake things like "e.g." or "3.14" or "Mr. Smith" for a link. Trims
+// trailing sentence punctuation ("check example.com." -> "example.com") so
+// links don't swallow the period that ends the sentence, and recognizes
+// emails as mailto: links rather than half-linking just the domain.
+const PDFED_URL_TLDS = 'com|net|org|io|co|edu|gov|mil|info|biz|dev|app|ai|in|us|uk|ca|de|fr|jp|cn|au|nz|xyz|me|shop|store|tech|online|site|ly|to|so|gg|tv|cc|nl|es|it|ru|br|za|ch|se|no|dk|fi|pl|kr|id|sg|ae|hk|tw';
+function pdfedDetectUrls(text) {
+  if (!text) return [];
+  const EMAIL = '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*\\.(?:' + PDFED_URL_TLDS + ')';
+  const re = new RegExp(
+    '\\b' + EMAIL + '\\b' +
+    '|\\b(?:https?:\\/\\/|www\\.)[^\\s<>"\')]+' +
+    '|(?<!@)\\b[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9-]+)*\\.(?:' + PDFED_URL_TLDS + ')(?:\\/[^\\s<>"\')]*)?\\b',
+    'gi'
+  );
+  const out = [];
+  let m;
+  while ((m = re.exec(text))) {
+    let raw = m[0];
+    // Trim trailing punctuation that's almost certainly sentence punctuation.
+    const trimmed = raw.replace(/[.,;:!?)\]"']+$/, '');
+    if (!trimmed || trimmed.length < 4) continue;
+    if (/^\d+\.\d+$/.test(trimmed)) continue; // decimals like "3.14"
+    if (!/[a-zA-Z]/.test(trimmed)) continue;
+    const end = m.index + trimmed.length;
+    const isEmail = trimmed.includes('@');
+    const normalized = isEmail ? ('mailto:' + trimmed) : (/^https?:\/\//i.test(trimmed) ? trimmed : ('https://' + trimmed));
+    out.push({ raw: trimmed, normalized, start: m.index, end });
+  }
+  return out;
+}
+
+// Wraps detected occurrences in <a> tags against the plain-text source,
+// preserving everything in between untouched. `occurrences` must be sorted
+// ascending and non-overlapping.
+function pdfedBuildLinkedHtml(text, occurrences) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let html = '', cursor = 0;
+  occurrences.forEach(o => {
+    html += esc(text.slice(cursor, o.start));
+    html += `<a href="${esc(o.normalized)}" style="color:#0B63F6;text-decoration:underline;cursor:pointer">${esc(text.slice(o.start, o.end))}</a>`;
+    cursor = o.end;
+  });
+  html += esc(text.slice(cursor));
+  return html.replace(/\n/g, '<br>');
+}
+
+// ─── INSERT LINK MODAL ───
+// mode: 'place' (Add Link ribbon tool, dropping a brand-new box at ctx.x/ctx.y)
+//    or 'edit'  (link button on an existing/focused text box's toolbar)
+const pdfedLinkModalState = { mode: null, ctx: null, groups: [] };
+
+function pdfedOpenLinkModal(mode, ctx) {
+  pdfedLinkModalState.mode = mode;
+  pdfedLinkModalState.ctx = ctx || null;
+  pdfedLinkModalState.groups = [];
+
+  const titleEl = document.getElementById('pdfedLinkModalTitle');
+  const detectedPanel = document.getElementById('pdfedLinkDetectedPanel');
+  const labelRow = document.getElementById('pdfedLinkManualLabelRow');
+  const hint = document.getElementById('pdfedLinkManualHint');
+  const urlInput = document.getElementById('pdfedLinkManualUrl');
+  const labelInput = document.getElementById('pdfedLinkManualLabel');
+  urlInput.value = ''; labelInput.value = '';
+
+  if (mode === 'edit') {
+    titleEl.textContent = 'Manage Link';
+    labelRow.style.display = 'none'; // editing existing text, no separate display-text field
+    const item = pdfedPtxtTb.item;
+    const text = item ? (item.text || '') : '';
+    const occ = pdfedDetectUrls(text);
+    if (occ.length) {
+      // Group by normalized URL so the same link repeated in a paragraph
+      // shows once, with a single checkbox that applies to every occurrence.
+      const byUrl = new Map();
+      occ.forEach(o => {
+        const key = o.normalized.toLowerCase();
+        if (!byUrl.has(key)) byUrl.set(key, { normalized: o.normalized, occurrences: [] });
+        byUrl.get(key).occurrences.push(o);
+      });
+      pdfedLinkModalState.groups = Array.from(byUrl.values());
+      const list = document.getElementById('pdfedLinkDetectedList');
+      list.innerHTML = '';
+      pdfedLinkModalState.groups.forEach((g, gi) => {
+        const row = document.createElement('label');
+        row.style.cssText = 'display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;';
+        const times = g.occurrences.length > 1 ? ` <span style="opacity:0.6">(${g.occurrences.length}×)</span>` : '';
+        row.innerHTML = `<input type="checkbox" checked data-gi="${gi}" style="accent-color:var(--blue);flex-shrink:0;cursor:pointer;">
+          <span style="font-size:12px;color:var(--text);word-break:break-all;">${g.normalized.replace(/^https:\/\//, '')}${times}</span>`;
+        list.appendChild(row);
+      });
+      document.getElementById('pdfedLinkDetectedCount').textContent = pdfedLinkModalState.groups.length;
+      document.getElementById('pdfedLinkDetectedPlural').textContent = pdfedLinkModalState.groups.length === 1 ? '' : 's';
+      detectedPanel.style.display = 'flex';
+    } else {
+      detectedPanel.style.display = 'none';
+    }
+    if (item && item.link) { urlInput.value = item.link; hint.style.display = 'block'; hint.textContent = 'This box currently links entirely to the URL above. Saving here replaces it.'; }
+    else { hint.style.display = 'none'; }
+    document.getElementById('pdfedLinkManualInsertBtn').textContent = 'Link Entire Box';
+  } else if (mode === 'selection') {
+    titleEl.textContent = 'Link Selection';
+    detectedPanel.style.display = 'none';
+    labelRow.style.display = 'none'; // linking existing highlighted text, no separate label field
+    const preview = ctx.text.length > 60 ? (ctx.text.slice(0, 57) + '…') : ctx.text;
+    hint.style.display = 'block';
+    hint.textContent = 'Linking just the highlighted text: "' + preview + '"';
+    document.getElementById('pdfedLinkManualInsertBtn').textContent = 'Link Selection';
+  } else {
+    titleEl.textContent = 'Insert Link';
+    detectedPanel.style.display = 'none';
+    labelRow.style.display = 'flex';
+    hint.style.display = 'none';
+    document.getElementById('pdfedLinkManualInsertBtn').textContent = 'Insert Link';
+  }
+
+  document.getElementById('pdfedLinkModal').style.display = 'flex';
+  setTimeout(() => urlInput.focus(), 30);
+}
+
+function pdfedCloseLinkModal() {
+  document.getElementById('pdfedLinkModal').style.display = 'none';
+  if (pdfedLinkModalState.mode === 'place') pdfedSetAnnotTool(null);
+  pdfedLinkModalState.mode = null; pdfedLinkModalState.ctx = null; pdfedLinkModalState.groups = [];
+}
+
+function pdfedNormalizeUrlInput(raw) {
+  let url = (raw || '').trim();
+  if (!url) return '';
+  if (!/^([a-zA-Z][a-zA-Z0-9+.-]*:)?\/\//.test(url) && !/^mailto:/i.test(url)) url = 'https://' + url;
+  return url;
+}
+
+// "Apply to Selected" — turns the checked, auto-detected URLs into real
+// clickable links within the paragraph, leaving all other text untouched.
+function pdfedLinkModalApplyDetected() {
+  const item = pdfedPtxtTb.item;
+  const idx = pdfedPtxtTb.idx;
+  const content = pdfedPtxtTb.content;
+  if (!item) { pdfedCloseLinkModal(); return; }
+  const checks = document.querySelectorAll('#pdfedLinkDetectedList input[type="checkbox"]:checked');
+  const occurrences = [];
+  checks.forEach(cb => {
+    const g = pdfedLinkModalState.groups[+cb.dataset.gi];
+    if (g) occurrences.push(...g.occurrences);
+  });
+  if (!occurrences.length) { toast('Nothing selected to link', 'info'); return; }
+  occurrences.sort((a, b) => a.start - b.start);
+  item.html = pdfedBuildLinkedHtml(item.text || '', occurrences);
+  delete item.link; // multiple in-paragraph links now, no single whole-box link
+  if (content) content.innerHTML = item.html;
+  pdfedMarkModified(idx);
+  pdfedCloseLinkModal();
+  toast(occurrences.length === 1 ? 'Link applied' : occurrences.length + ' links applied', 'success');
+}
+
+// Manual entry — either drops a brand-new link box (mode 'place') or turns
+// the *entire* focused text box into one link (mode 'edit', blank URL removes it).
+function pdfedLinkModalManualInsert() {
+  const rawUrl = document.getElementById('pdfedLinkManualUrl').value;
+
+  if (pdfedLinkModalState.mode === 'place') {
+    const url = pdfedNormalizeUrlInput(rawUrl);
+    if (!url) { toast('Enter a URL first', 'error'); return; }
+    const { x, y } = pdfedLinkModalState.ctx;
+    const idx = pdfed.active;
+    const pg = pdfed.pages[idx];
+    if (!pg.placedTexts) pg.placedTexts = [];
+    const typedLabel = document.getElementById('pdfedLinkManualLabel').value.trim();
+    let label = typedLabel;
+    if (!label) { try { label = new URL(url).hostname.replace(/^www\./, '') || url; } catch(e) { label = url; } }
+    const item = {
+      id: 'ptxt_' + (++pdfedPlacedTextSeq),
+      text: label, link: url, x, y,
+      fontSize: pdfedAnnotState.textSize || 20, fontFamily: 'Inter', color: '#0B63F6',
+      bold: false, italic: false, underline: true, align: 'left', locked: false,
+      zIndex: pdfedNextZ(pg)
+    };
+    pg.placedTexts.push(item);
+    pdfedMarkModified(idx);
+    pdfedRenderPlacedTexts(idx);
+    toast('Link added — Ctrl/Cmd-click to open, drag to move', 'success');
+    pdfedCloseLinkModal();
+    return;
+  }
+
+  if (pdfedLinkModalState.mode === 'selection') {
+    const url = pdfedNormalizeUrlInput(rawUrl);
+    if (!url) { toast('Enter a URL first', 'error'); return; }
+    const { item, idx, content } = pdfedPtxtTb;
+    const range = pdfedLinkModalState.ctx && pdfedLinkModalState.ctx.range;
+    if (!item || !content || !range) { pdfedCloseLinkModal(); return; }
+    content.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    // Wraps just the selected text in a real <a href>, leaving everything
+    // else in the paragraph untouched — same approach Word/Google Docs use.
+    // Note: this works cleanly for a plain-text selection; a selection that
+    // crosses into an already-colored span can produce nested markup our
+    // simple top-level-only export parser won't fully unpack, same edge
+    // case as the rest of this rich-text box.
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('createLink', false, url);
+    const escapedUrl = url.replace(/"/g, '\\"');
+    const anchors = Array.from(content.querySelectorAll('a[href="' + escapedUrl + '"]'));
+    anchors.forEach(a => { a.style.color = '#0B63F6'; a.style.textDecoration = 'underline'; a.style.cursor = 'pointer'; });
+    item.html = content.innerHTML;
+    item.text = content.innerText || content.textContent || '';
+    pdfedMarkModified(idx);
+    pdfedCloseLinkModal();
+    toast('Link applied to selection', 'success');
+    return;
+  }
+
+  // mode === 'edit': link (or unlink) the whole box
+  const { item, idx, content } = pdfedPtxtTb;
+  if (!item) { pdfedCloseLinkModal(); return; }
+  const url = pdfedNormalizeUrlInput(rawUrl);
+  if (!url) {
+    delete item.link;
+    // Also strip any per-run <a> tags from a prior "apply to selected", so
+    // clearing the URL field actually removes every link on this box.
+    if (item.html) {
+      const tmp = document.createElement('div'); tmp.innerHTML = item.html;
+      tmp.querySelectorAll('a').forEach(a => a.replaceWith(document.createTextNode(a.textContent)));
+      item.html = tmp.innerHTML;
+      if (content) content.innerHTML = item.html;
+    }
+    toast('Link removed', 'success');
+  } else {
+    item.link = url;
+    // Turn the whole box blue + underlined the instant a link is applied —
+    // the same visual cue Word/Canva give — so it's obvious at a glance
+    // which text is now a live link instead of looking unchanged.
+    item.color = '#0B63F6';
+    item.underline = true;
+    if (item.html) {
+      // Strip any leftover per-run color overrides so nothing stays its old
+      // color underneath the new whole-box link styling.
+      const tmp = document.createElement('div'); tmp.innerHTML = item.html;
+      tmp.querySelectorAll('[style]').forEach(el => { el.style.color = ''; });
+      item.html = tmp.innerHTML;
+    }
+    toast('Link applied — text turned blue, Ctrl/Cmd-click to open', 'success');
+  }
+  pdfedMarkModified(idx);
+  pdfedCloseLinkModal();
+  // Full re-render (rather than poking a couple of inline styles) so the new
+  // color/underline/cursor state is guaranteed to show immediately, the same
+  // path the "place new link" flow already relies on.
+  pdfedRenderPlacedTexts(idx);
+}
+
 function pdfedPlaceTextLabel(x, y) {
   const idx = pdfed.active;
   if (idx < 0 || !pdfed.pages[idx]) { toast('No page loaded', 'error'); return; }
@@ -18317,6 +18831,8 @@ function pdfedShowPtxtToolbar(item, idx, content, el) {
   document.getElementById('pdfedPtxtUnderlineBtn').classList.toggle('active', !!item.underline);
   const bulletBtn = document.getElementById('pdfedPtxtBulletBtn');
   if (bulletBtn) bulletBtn.classList.toggle('active', !!item.bullet);
+  const linkBtn = document.getElementById('pdfedPtxtLinkBtn');
+  if (linkBtn) linkBtn.classList.toggle('active', !!item.link);
   pdfedUpdatePtxtAlignButtons(item);
   const colorInput = document.getElementById('pdfedPtxtColorInput');
   if (colorInput) colorInput.value = pdfedToHexColor(item.color || '#ffffff');
@@ -18505,7 +19021,18 @@ function pdfedMaybeHidePtxtToolbar() {
   const tb = document.getElementById('pdfedPtxtToolbar');
   if (!tb) return;
   if (document.activeElement === document.getElementById('pdfedPtxtFontSelect') ||
-      document.activeElement === document.getElementById('pdfedPtxtSizeInput')) return;
+      document.activeElement === document.getElementById('pdfedPtxtSizeInput') ||
+      document.activeElement === document.getElementById('pdfedPtxtColorInput')) return;
+  // The Insert/Manage Link modal steals focus into its URL field the instant
+  // it opens (so the user can start typing right away), which blurs the text
+  // box and would otherwise let this 120ms cleanup timer wipe pdfedPtxtTb
+  // before the user finishes typing a URL and clicks Insert/Link Selection —
+  // silently breaking every link action with no error shown. Native color
+  // pickers have the same issue (input keeps focus while the OS swatch is
+  // open, often for way longer than 120ms), guarded above. Skip clearing
+  // state while the link modal is open.
+  const linkModal = document.getElementById('pdfedLinkModal');
+  if (linkModal && linkModal.style.display !== 'none') return;
   if (pdfedPtxtTb.el) pdfedPtxtTb.el.classList.remove('selected', 'editing');
   tb.style.display = 'none';
   pdfedPtxtTb.item = null; pdfedPtxtTb.idx = -1; pdfedPtxtTb.content = null; pdfedPtxtTb.el = null;
@@ -18618,6 +19145,12 @@ document.addEventListener('mousedown', function(e) {
   if (e.target.closest('.pdfed-placed-text, .pdfed-placed-img, .pdfed-placed-table')) return; // let that box's own handler manage selection
   const tb = document.getElementById('pdfedPtxtToolbar');
   if (tb && tb.contains(e.target)) return;
+  // The Insert/Manage Link modal isn't part of the toolbar DOM-wise, but a
+  // click on its Insert/Link Selection/Apply buttons must not clear the
+  // selection either — mousedown fires before that button's own click, so
+  // without this the link modal would wipe pdfedPtxtTb the instant you hit
+  // Insert, and the link would silently never get applied.
+  if (e.target.closest('#pdfedLinkModal')) return;
   // Ribbon alignment buttons act ON the current selection, so clicking them
   // must not clear it first (mousedown fires before the button's own click).
   if (e.target.closest('#pdfedRbnAlignLeftBtn, #pdfedRbnAlignCenterBtn, #pdfedRbnAlignRightBtn, #pdfedRbnSelectAllBtn')) return;
@@ -18768,6 +19301,33 @@ function pdfedPtxtSetOpacity(value) {
   const opacityVal = document.getElementById('pdfedPtxtOpacityVal');
   if (opacityVal) opacityVal.textContent = Math.round(v * 100) + '%';
   pdfedMarkModified(idx);
+}
+
+// Attaches, edits, or removes a hyperlink on the currently focused text box.
+// If the user has actually highlighted some text first, that's a much
+// stronger signal than "manage the whole box" — Word/Canva both treat a
+// selection + the link button as "link just this", so that takes priority.
+// With nothing highlighted, falls back to the smart Manage Link modal:
+// auto-detects any http(s)/www/bare-domain URLs already typed in the
+// paragraph and offers to turn them into real clickable links (individually,
+// via checkboxes), plus a manual field to link the whole box.
+function pdfedPtxtEditLink() {
+  if (!pdfedPtxtTb.item) return;
+  const content = pdfedPtxtTb.content;
+  const sel = window.getSelection();
+  if (content && sel && sel.rangeCount && !sel.isCollapsed &&
+      content.contains(sel.anchorNode) && content.contains(sel.focusNode)) {
+    const text = sel.toString();
+    if (text.trim()) {
+      // Clone the range now — opening the modal moves focus to the URL
+      // input, which collapses the live selection, so we need our own copy
+      // to restore and act on when the user hits "Link Selection".
+      const range = sel.getRangeAt(0).cloneRange();
+      pdfedOpenLinkModal('selection', { range, text });
+      return;
+    }
+  }
+  pdfedOpenLinkModal('edit');
 }
 
 function pdfedPtxtToggleStyle(prop) {
@@ -18951,6 +19511,37 @@ function pdfedPtxtApplyColor(hex) {
 // Splits saved rich HTML for a placed-text box into per-line runs of
 // { text, color }, used both for re-rendering and for export baking.
 function pdfedParseRichLines(html) {
+  // Walks the full node tree (not just direct children) so a link or color
+  // that ends up NESTED inside another wrapper tag — e.g. execCommand('createLink')
+  // landing inside an existing <span style="color:...">, or a boundary <span>
+  // the browser inserts around a formatting change — is still picked up.
+  // The old version only inspected the immediate child element itself, so any
+  // <a href> one level deeper than that was silently invisible to export:
+  // the text still came through (via node.textContent) but with color/link
+  // dropped, which is exactly why links "disappeared" (no color, no underline,
+  // not clickable) on exported PDF/PNG/DOCX while looking correct on-screen.
+  function walk(node, ctx, runs) {
+    if (node.nodeType === 3) {
+      if (node.textContent) runs.push({ text: node.textContent, color: ctx.color, link: ctx.link, bold: ctx.bold, italic: ctx.italic, underline: ctx.underline });
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const next = { color: ctx.color, link: ctx.link, bold: ctx.bold, italic: ctx.italic, underline: ctx.underline };
+    if (node.style && node.style.color) next.color = node.style.color;
+    if (node.tagName === 'A') next.link = node.getAttribute('href') || ctx.link;
+    const tag = node.tagName;
+    if (tag === 'B' || tag === 'STRONG') next.bold = true;
+    if (tag === 'I' || tag === 'EM') next.italic = true;
+    if (tag === 'U') next.underline = true;
+    if (node.style) {
+      const fw = node.style.fontWeight;
+      if (fw && (fw === 'bold' || parseInt(fw, 10) >= 600)) next.bold = true;
+      if (node.style.fontStyle === 'italic') next.italic = true;
+      if (node.style.textDecoration && /underline/.test(node.style.textDecoration)) next.underline = true;
+    }
+    node.childNodes.forEach(child => walk(child, next, runs));
+  }
+
   // Bulleted boxes are stored as <ul><li> markup (from the Bullet List
   // toggle) rather than <br>-separated lines. Split on <li> instead, and
   // stitch a bullet glyph onto the front of each line as its own run so the
@@ -18961,17 +19552,8 @@ function pdfedParseRichLines(html) {
     const lis = tmp.querySelectorAll('li');
     if (lis.length) {
       return Array.from(lis).map(li => {
-        const runs = [{ text: '•  ', color: null }];
-        li.childNodes.forEach(node => {
-          if (node.nodeType === 3) {
-            if (node.textContent) runs.push({ text: node.textContent, color: null });
-          } else if (node.nodeType === 1) {
-            const text = node.textContent || '';
-            if (!text) return;
-            const color = (node.style && node.style.color) ? node.style.color : null;
-            runs.push({ text, color });
-          }
-        });
+        const runs = [{ text: '•  ', color: null, link: null, bold: null, italic: null, underline: null }];
+        li.childNodes.forEach(node => walk(node, { color: null, link: null, bold: null, italic: null, underline: null }, runs));
         return runs;
       });
     }
@@ -18981,17 +19563,8 @@ function pdfedParseRichLines(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = lineHtml;
     const runs = [];
-    tmp.childNodes.forEach(node => {
-      if (node.nodeType === 3) {
-        if (node.textContent) runs.push({ text: node.textContent, color: null });
-      } else if (node.nodeType === 1) {
-        const text = node.textContent || '';
-        if (!text) return;
-        const color = (node.style && node.style.color) ? node.style.color : null;
-        runs.push({ text, color });
-      }
-    });
-    if (!runs.length) runs.push({ text: '', color: null });
+    tmp.childNodes.forEach(node => walk(node, { color: null, link: null, bold: null, italic: null, underline: null }, runs));
+    if (!runs.length) runs.push({ text: '', color: null, link: null, bold: null, italic: null, underline: null });
     return runs;
   });
 }
@@ -19019,13 +19592,21 @@ function pdfedRenderPlacedTexts(idx) {
   if (!pc || !pc.width) return;
 
   list.forEach(item => {
+    // A locked box with a link has nothing else to do with a click — it can't
+    // be dragged or edited while locked — so it gets full click-to-open
+    // behavior instead of requiring Ctrl/Cmd. Unlocked boxes still need the
+    // modifier so a plain click can keep doing its normal job (drag / place
+    // the text cursor) without accidentally opening a new tab.
+    const hasAnyLink = !!(item.link || (item.html && /<a[\s>]/i.test(item.html)));
+    const clickToOpen = !!(item.locked && hasAnyLink);
+
     const el = document.createElement('div');
     el.className = 'pdfed-placed-text' + (item.locked ? ' locked' : '');
     el.dataset.id = item.id;
     el.style.cssText = `position:absolute;box-sizing:border-box;
       border-radius:4px;min-width:24px;min-height:20px;
-      pointer-events:${item.locked ? 'none' : 'auto'};
-      cursor:${item.locked ? 'default' : 'move'};
+      pointer-events:${item.locked && !clickToOpen ? 'none' : 'auto'};
+      cursor:${clickToOpen ? 'pointer' : (item.locked ? 'default' : 'move')};
       z-index:${item.zIndex || 0};`;
 
     const content = document.createElement('div');
@@ -19037,15 +19618,43 @@ function pdfedRenderPlacedTexts(idx) {
       color:${item.color};font-weight:${item.bold ? '700' : '400'};
       font-style:${item.italic ? 'italic' : 'normal'};text-decoration:${item.underline ? 'underline' : 'none'};
       transition:none;opacity:${pdfedGetOpacity(item)};
-      text-align:${item.align};pointer-events:${item.locked ? 'none' : 'auto'};`;
+      text-align:${item.align};pointer-events:${item.locked && !clickToOpen ? 'none' : 'auto'};`;
     content.textContent = item.text;
     if (item.html) content.innerHTML = item.html;
+    if (hasAnyLink) {
+      const target = item.link || 'the link';
+      content.title = clickToOpen ? ('Click to open ' + target) : ('Ctrl/Cmd-click to open ' + target);
+      content.style.cursor = clickToOpen ? 'pointer' : (item.locked ? 'default' : 'pointer');
+    }
     content.addEventListener('mousedown', (e) => {
+      // Locked + linked box: a plain click opens it directly, no modifier needed.
+      if (clickToOpen) {
+        const a = e.target.closest && e.target.closest('a');
+        const url = (a && a.getAttribute('href')) || item.link;
+        if (url) { e.preventDefault(); e.stopPropagation(); window.open(url, '_blank', 'noopener'); return; }
+      }
+      // Ctrl/Cmd-click opens a link: either an individual in-paragraph <a>
+      // (from "Apply to Selected") or, failing that, the whole-box link.
+      if (e.ctrlKey || e.metaKey) {
+        const a = e.target.closest && e.target.closest('a');
+        const url = (a && a.getAttribute('href')) || item.link;
+        if (url) { e.preventDefault(); e.stopPropagation(); window.open(url, '_blank', 'noopener'); return; }
+      }
       // Allow native text selection/typing when already focused; otherwise let
       // the drag handler on `el` take over so a single click moves the box.
       if (document.activeElement !== content) { /* let drag happen */ }
       else { e.stopPropagation(); }
     });
+    if (clickToOpen) {
+      // Locked boxes have contentEditable off and no drag handler engaging
+      // them, so also handle a plain click (not just mousedown) as a safety
+      // net for touch/trackpad taps that don't always fire mousedown first.
+      content.addEventListener('click', (e) => {
+        const a = e.target.closest && e.target.closest('a');
+        const url = (a && a.getAttribute('href')) || item.link;
+        if (url) { e.preventDefault(); e.stopPropagation(); window.open(url, '_blank', 'noopener'); }
+      });
+    }
     content.addEventListener('dblclick', (e) => { e.stopPropagation(); content.focus(); });
     content.addEventListener('focus', () => { if (!item.locked) { pdfedShowPtxtToolbar(item, idx, content, el); el.classList.add('editing'); } });
     content.addEventListener('blur', () => {
@@ -19464,10 +20073,18 @@ function pdfedDeletePlacedText(idx, id) {
 // manual \n / <br>) into multiple lines that each fit within maxWidth, without
 // breaking a run's color boundaries. Mirrors the browser's own word-wrap of the
 // live editable box (white-space:pre-wrap) closely enough for export baking.
-function pdfedWrapRichLine(ctx, runs, maxWidth) {
+function pdfedWrapRichLine(ctx, runs, maxWidth, fontCtx) {
   const out = [];
   let current = [], currentWidth = 0;
   runs.forEach(run => {
+    // Resolve this run's own bold/italic against the box's overall default —
+    // a run only overrides when it actually carried a <b>/<i>/style flag of
+    // its own (see pdfedParseRichLines), otherwise it inherits the box style.
+    const bold = fontCtx ? (run.bold != null ? run.bold : fontCtx.itemBold) : undefined;
+    const italic = fontCtx ? (run.italic != null ? run.italic : fontCtx.itemItalic) : undefined;
+    if (fontCtx) {
+      ctx.font = `${italic ? 'italic' : 'normal'} ${bold ? '700' : '400'} ${fontCtx.fontSize}px ${fontCtx.fam}, Inter, sans-serif`;
+    }
     const tokens = (run.text || '').match(/\S+\s*|\s+/g) || [''];
     tokens.forEach(tok => {
       const w = ctx.measureText(tok).width;
@@ -19476,7 +20093,7 @@ function pdfedWrapRichLine(ctx, runs, maxWidth) {
         current = []; currentWidth = 0;
         if (/^\s+$/.test(tok)) return; // drop the space that triggered the wrap
       }
-      current.push({ text: tok, color: run.color });
+      current.push({ text: tok, color: run.color, link: run.link || null, bold, italic, underline: !!run.underline });
       currentWidth += w;
     });
   });
@@ -19498,6 +20115,11 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     const lineHeight = item.fontSize * 1.25;
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER; // mirrors the on-screen box's border+padding offset
     const anchorX = item.x + padX;
+    const fontCtx = { fontSize: item.fontSize, fam, itemBold: !!item.bold, itemItalic: !!item.italic };
+    // Switches ctx.font to a specific run's own resolved bold/italic (falling
+    // back to the box defaults), so every measureText/fillText call below
+    // uses the SAME per-run style the wrap pass already measured with.
+    const setRunFont = (r) => { ctx.font = `${r.italic ? 'italic' : 'normal'} ${r.bold ? '700' : '400'} ${item.fontSize}px ${fam}, Inter, sans-serif`; };
 
     // Rich (multi-color) boxes are stored as HTML with <span style="color:..."> runs
     // from the formatting toolbar's selection-coloring; plain boxes just split on \n.
@@ -19522,7 +20144,7 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
       maxWidth = Math.max(10, (pageW ? (pageW - item.x - 12) : 99999) - padX);
     }
     const wrapped = [];
-    lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(ctx, runs, maxWidth)));
+    lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(ctx, runs, maxWidth, fontCtx)));
     lines = wrapped;
 
     // The on-screen box centers/right-aligns each line within the BOX's own
@@ -19536,14 +20158,14 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     if (!item.w) {
       contentWidth = 0;
       lines.forEach(runs => {
-        const w = runs.reduce((a, r) => a + ctx.measureText(r.text).width, 0);
+        const w = runs.reduce((a, r) => { setRunFont(r); return a + ctx.measureText(r.text).width; }, 0);
         if (w > contentWidth) contentWidth = w;
       });
     }
 
     lines.forEach((runs, i) => {
       const tyTop = item.y + padY + i * lineHeight;
-      const widths = runs.map(r => ctx.measureText(r.text).width);
+      const widths = runs.map(r => { setRunFont(r); return ctx.measureText(r.text).width; });
       const totalWidth = widths.reduce((a, b) => a + b, 0);
       let startX = anchorX;
       if (item.align === 'center') startX = anchorX + (contentWidth - totalWidth) / 2;
@@ -19554,9 +20176,10 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
       runs.forEach((r, ri) => {
         const color = r.color || item.color;
         if (r.text) {
+          setRunFont(r);
           ctx.fillStyle = color;
           ctx.fillText(r.text, cx, tyTop);
-          if (item.underline) {
+          if (item.underline || r.underline) {
             const w = widths[ri];
             const uy = tyTop + item.fontSize * 1.05;
             ctx.save();
