@@ -22008,7 +22008,7 @@ function pdfedInsertExtractedImg(idx) {
 // this file — it lives only in a backend proxy (Cloudflare Worker), which
 // creates orders and verifies payment signatures server-side. See
 // razorpay-proxy-worker.js for that backend code.
-const RAZORPAY_KEY_ID = 'rzp_live_TEAaROVnVTpSIm'; // public Key ID — safe in client code. Switch to your rzp_live_... key ID when ready to go live.
+const RAZORPAY_KEY_ID = 'rzp_live_TEAaROVnVTpSIm'; // public Key ID — safe in client code. Live mode.
 const RAZORPAY_PROXY_ENDPOINT = 'https://sarvarc-razorpay-proxy.sarvarcworkspace.workers.dev'; // <-- update after deploying the Worker
 
 const pdfedCoffee = { amount: 99 }; // default preset, in INR
@@ -22103,7 +22103,7 @@ async function pdfedStartCoffeeCheckout() {
           if (verify && verify.verified) {
             const modal = document.getElementById('pdfedCoffeeModal');
             if (modal) modal.remove();
-            toast('Thank you so much for the coffee! ☕', 'success');
+            pdfedShowCoffeeThankYouModal(amount);
           } else {
             if (statusEl) statusEl.textContent = 'Could not verify payment, please contact support.';
           }
@@ -22122,6 +22122,118 @@ async function pdfedStartCoffeeCheckout() {
   } catch (err) {
     if (statusEl) statusEl.textContent = 'Could not start checkout, please try again.';
   }
+}
+
+function pdfedShowCoffeeThankYouModal(amount) {
+  const old = document.getElementById('pdfedCoffeeThanksModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'pdfedCoffeeThanksModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;display:flex;align-items:center;justify-content:center;animation:pdfedThanksFadeIn 0.25s ease;';
+  modal.innerHTML = `
+    <div style="position:relative;background:linear-gradient(160deg, var(--bg2) 0%, var(--bg2) 60%, rgba(0,194,255,0.07) 100%);border:1px solid var(--border2);border-radius:20px;padding:36px 32px 28px;max-width:380px;width:90%;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:pdfedThanksPop 0.4s cubic-bezier(.2,1.4,.4,1);">
+
+      <div style="position:absolute;top:-40%;left:-20%;width:140%;height:140%;background:radial-gradient(circle at 30% 20%, rgba(0,194,255,0.14), transparent 55%), radial-gradient(circle at 75% 75%, rgba(139,92,246,0.14), transparent 55%);pointer-events:none;"></div>
+
+      <button onclick="document.getElementById('pdfedCoffeeThanksModal').remove()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1;z-index:2;">×</button>
+
+      <div style="position:relative;width:150px;height:128px;z-index:1;">
+        <svg viewBox="0 0 160 140" width="150" height="128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="pdfedMascotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:var(--cyan)" />
+              <stop offset="100%" style="stop-color:var(--purple)" />
+            </linearGradient>
+          </defs>
+          <path d="M45 140 Q45 68 80 68 Q115 68 115 140 Z" fill="url(#pdfedMascotGrad)" opacity="0.92"/>
+          <g class="pdfed-mascot-head" style="transform-origin:80px 60px;">
+            <circle cx="80" cy="38" r="22" fill="url(#pdfedMascotGrad)"/>
+            <circle cx="72" cy="36" r="2.6" fill="#fff"/>
+            <circle cx="88" cy="36" r="2.6" fill="#fff"/>
+            <path d="M70 46 Q80 53 90 46" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          </g>
+          <g class="pdfed-arm-wave" style="transform-origin:52px 82px;">
+            <path d="M52 82 Q35 78 28 55" stroke="url(#pdfedMascotGrad)" stroke-width="12" stroke-linecap="round" fill="none"/>
+            <circle cx="28" cy="55" r="8" fill="url(#pdfedMascotGrad)"/>
+          </g>
+          <g class="pdfed-arm-cup" style="transform-origin:108px 84px;">
+            <path d="M108 84 Q122 90 118 68" stroke="url(#pdfedMascotGrad)" stroke-width="12" stroke-linecap="round" fill="none"/>
+            <g transform="translate(108,55)">
+              <path d="M-9 0 L-7 14 Q-7 18 -3 18 L3 18 Q7 18 7 14 L9 0 Z" fill="#fff"/>
+              <path d="M9 3 Q16 3 16 9 Q16 14 9 13" fill="none" stroke="#fff" stroke-width="2"/>
+              <line class="pdfed-steam pdfed-steam-1" x1="-3" y1="-3" x2="-3" y2="-9" stroke="var(--cyan)" stroke-width="1.6" stroke-linecap="round"/>
+              <line class="pdfed-steam pdfed-steam-2" x1="3" y1="-3" x2="3" y2="-9" stroke="var(--purple)" stroke-width="1.6" stroke-linecap="round"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div style="position:relative;z-index:1;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--cyan);text-transform:uppercase;">SARVARC</div>
+      <h3 style="position:relative;z-index:1;font-size:19px;font-weight:800;margin-top:2px;">Thank you for the coffee ☕</h3>
+      <div style="position:relative;z-index:1;font-size:13px;color:var(--text2);line-height:1.5;max-width:290px;">
+        Your support of <strong style="color:var(--text);">₹${amount}</strong> genuinely helps keep SARVARC Workspace alive and growing. It means a lot.
+      </div>
+
+      <div style="position:relative;z-index:1;display:flex;align-items:center;gap:6px;margin-top:16px;padding:8px 14px;border-radius:999px;background:rgba(0,194,255,0.08);border:1px solid rgba(0,194,255,0.2);font-size:11.5px;color:var(--cyan);font-weight:600;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Payment verified & secured
+      </div>
+
+      <button onclick="document.getElementById('pdfedCoffeeThanksModal').remove()" style="position:relative;z-index:1;margin-top:20px;width:100%;padding:12px 0;border-radius:10px;border:none;background:linear-gradient(90deg, var(--blue), var(--purple));color:#fff;font-weight:700;font-size:14px;cursor:pointer;">
+        You're welcome 💙
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  if (!document.getElementById('pdfedThanksModalStyles')) {
+    const style = document.createElement('style');
+    style.id = 'pdfedThanksModalStyles';
+    style.textContent = `
+      @keyframes pdfedThanksFadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes pdfedThanksPop { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: none; } }
+      @keyframes pdfedSteamRise { 0% { opacity: 0; transform: translateY(0) scaleY(1); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px) scaleY(1.4); } }
+      .pdfed-steam { transform-origin: bottom; animation: pdfedSteamRise 1.8s ease-in-out infinite; }
+      .pdfed-steam-1 { animation-delay: 0s; }
+      .pdfed-steam-2 { animation-delay: 0.3s; }
+      .pdfed-steam-3 { animation-delay: 0.6s; }
+
+      /* Mascot: sips coffee twice, then waves thanks, on a 4s loop */
+      @keyframes pdfedMascotSip {
+        0%   { transform: rotate(0deg) translate(0,0); }
+        10%  { transform: rotate(-25deg) translate(-4px,-6px); }
+        20%  { transform: rotate(0deg) translate(0,0); }
+        30%  { transform: rotate(-25deg) translate(-4px,-6px); }
+        40%, 100% { transform: rotate(0deg) translate(0,0); }
+      }
+      @keyframes pdfedMascotWave {
+        0%, 45% { transform: rotate(0deg); }
+        52% { transform: rotate(-18deg); }
+        60% { transform: rotate(14deg); }
+        68% { transform: rotate(-16deg); }
+        76% { transform: rotate(12deg); }
+        84%, 100% { transform: rotate(0deg); }
+      }
+      @keyframes pdfedMascotNod {
+        0%, 45% { transform: rotate(0deg); }
+        55% { transform: rotate(-4deg); }
+        65% { transform: rotate(4deg); }
+        75% { transform: rotate(-3deg); }
+        85%, 100% { transform: rotate(0deg); }
+      }
+      .pdfed-arm-cup { animation: pdfedMascotSip 4s ease-in-out infinite; }
+      .pdfed-arm-wave { animation: pdfedMascotWave 4s ease-in-out infinite; }
+      .pdfed-mascot-head { animation: pdfedMascotNod 4s ease-in-out infinite; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  setTimeout(() => {
+    const m = document.getElementById('pdfedCoffeeThanksModal');
+    if (m) m.remove();
+  }, 9000);
 }
 
 
