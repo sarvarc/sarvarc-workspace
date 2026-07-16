@@ -25,6 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Roboto:ital,wght@0,400;0,700;1,400;1,700&family=Open+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Lato:ital,wght@0,400;0,700;1,400;1,700&family=Montserrat:ital,wght@0,400;0,700;1,400;1,700&family=Poppins:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Merriweather:ital,wght@0,400;0,700;1,400;1,700&family=Oswald:wght@400;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Source+Code+Pro:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -6197,6 +6198,9 @@ button.dg-show-chip.active { background:var(--blue); }
     <div class="sidebar-section">Info</div>
     <div class="nav-item" onclick="toast('All processing is client-side, your files never leave your browser.','info')" title="Privacy First">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Privacy First
+    </div>
+    <div class="nav-item" onclick="pdfedOpenCoffeeModal()" title="Support this project">
+      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span> Buy me a coffee ☕
     </div>
   </aside>
 
@@ -21997,7 +22001,130 @@ function pdfedInsertExtractedImg(idx) {
   pdfedActivateImgGhost(img.dataUrl);
 }
 
-// ============== STOCK PHOTO SEARCH (Pexels) ==============
+// ============== BUY ME A COFFEE (Razorpay) ==============
+// SECURITY NOTE: exactly the same pattern as the stock photo search above.
+// The Razorpay Key ID is safe to put here (it's meant to be public and is
+// used by Razorpay's own checkout widget). The Key Secret is NEVER put in
+// this file — it lives only in a backend proxy (Cloudflare Worker), which
+// creates orders and verifies payment signatures server-side. See
+// razorpay-proxy-worker.js for that backend code.
+const RAZORPAY_KEY_ID = 'rzp_test_TEAhwaKkOrSluW'; // public Key ID — safe in client code. Switch to your rzp_live_... key ID when ready to go live.
+const RAZORPAY_PROXY_ENDPOINT = 'https://sarvarc-razorpay-proxy.sarvarcworkspace.workers.dev'; // <-- update after deploying the Worker
+
+const pdfedCoffee = { amount: 99 }; // default preset, in INR
+
+function pdfedOpenCoffeeModal() {
+  const old = document.getElementById('pdfedCoffeeModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'pdfedCoffeeModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:24px;max-width:380px;width:90%;display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h3 style="font-size:16px;font-weight:700;">Buy me a coffee ☕</h3>
+        <button onclick="document.getElementById('pdfedCoffeeModal').remove()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1">×</button>
+      </div>
+      <div style="font-size:12.5px;color:var(--text2);">If SARVARC Workspace has been useful, a small tip helps keep it going. Thank you!</div>
+      <div style="display:flex;gap:8px;" id="pdfedCoffeeAmounts">
+        ${[49, 99, 199].map(v => `
+          <button class="pdfed-coffee-amt-btn" data-amt="${v}" onclick="pdfedSelectCoffeeAmount(${v}, this)"
+            style="flex:1;padding:10px 0;border-radius:8px;border:2px solid ${v === pdfedCoffee.amount ? 'var(--blue)' : 'var(--border2)'};background:var(--surface2);color:var(--text);font-weight:700;font-size:13px;cursor:pointer;">
+            ₹${v}
+          </button>`).join('')}
+      </div>
+      <input type="number" id="pdfedCoffeeCustomAmt" min="1" placeholder="Or enter a custom amount (₹)"
+        style="padding:9px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;"
+        oninput="pdfedCoffee.amount = parseInt(this.value,10) || pdfedCoffee.amount; pdfedSyncCoffeeAmtButtons();">
+      <button id="pdfedCoffeePayBtn" onclick="pdfedStartCoffeeCheckout()"
+        style="padding:11px 0;border-radius:8px;border:none;background:var(--blue);color:#fff;font-weight:700;font-size:14px;cursor:pointer;">
+        Pay ₹${pdfedCoffee.amount}
+      </button>
+      <div id="pdfedCoffeeStatus" style="font-size:11px;color:var(--text2);text-align:center;min-height:14px;"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function pdfedSelectCoffeeAmount(v, btn) {
+  pdfedCoffee.amount = v;
+  document.getElementById('pdfedCoffeeCustomAmt').value = '';
+  pdfedSyncCoffeeAmtButtons();
+}
+
+function pdfedSyncCoffeeAmtButtons() {
+  document.querySelectorAll('.pdfed-coffee-amt-btn').forEach(b => {
+    b.style.borderColor = (parseInt(b.dataset.amt, 10) === pdfedCoffee.amount) ? 'var(--blue)' : 'var(--border2)';
+  });
+  const payBtn = document.getElementById('pdfedCoffeePayBtn');
+  if (payBtn) payBtn.textContent = `Pay ₹${pdfedCoffee.amount}`;
+}
+
+async function pdfedStartCoffeeCheckout() {
+  const statusEl = document.getElementById('pdfedCoffeeStatus');
+  const amount = Math.max(1, Math.round(pdfedCoffee.amount || 0));
+  if (!amount) { if (statusEl) statusEl.textContent = 'Enter a valid amount.'; return; }
+  if (statusEl) statusEl.textContent = 'Starting checkout…';
+
+  try {
+    // 1. Ask our backend proxy to create the order (it holds the Key Secret,
+    //    never this page). We only ever send the amount — the proxy is what
+    //    actually talks to Razorpay's Orders API.
+    const orderRes = await fetch(`${RAZORPAY_PROXY_ENDPOINT}/create-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    if (!orderRes.ok) throw new Error('order_create_failed');
+    const order = await orderRes.json();
+
+    // 2. Open Razorpay's own checkout widget with that order.
+    const rzp = new Razorpay({
+      key: RAZORPAY_KEY_ID,
+      amount: order.amount,
+      currency: order.currency || 'INR',
+      order_id: order.id,
+      name: 'SARVARC Workspace',
+      description: 'Buy me a coffee ☕',
+      theme: { color: '#0073E6' },
+      handler: async function (response) {
+        // 3. After payment, ask the proxy to verify the signature server-side
+        //    before treating this as a successful, real payment.
+        if (statusEl) statusEl.textContent = 'Verifying payment…';
+        try {
+          const verifyRes = await fetch(`${RAZORPAY_PROXY_ENDPOINT}/verify-payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(response),
+          });
+          const verify = await verifyRes.json();
+          if (verify && verify.verified) {
+            const modal = document.getElementById('pdfedCoffeeModal');
+            if (modal) modal.remove();
+            toast('Thank you so much for the coffee! ☕', 'success');
+          } else {
+            if (statusEl) statusEl.textContent = 'Could not verify payment, please contact support.';
+          }
+        } catch (e) {
+          if (statusEl) statusEl.textContent = 'Could not verify payment, please contact support.';
+        }
+      },
+      modal: {
+        ondismiss: function () { if (statusEl) statusEl.textContent = ''; }
+      }
+    });
+    rzp.on('payment.failed', function () {
+      if (statusEl) statusEl.textContent = 'Payment failed or was cancelled.';
+    });
+    rzp.open();
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Could not start checkout, please try again.';
+  }
+}
+
+
 // SECURITY NOTE: this file is static client-side HTML/JS that ships to every
 // visitor's browser. A real Pexels API key must NEVER be hardcoded here —
 // anyone could open dev tools / view-source, copy it, and burn your quota or
