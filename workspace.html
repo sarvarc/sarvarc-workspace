@@ -3679,6 +3679,26 @@ a.nav-item:hover { color: var(--text); }
   font-size: 11px; font-weight: 700; color: var(--text); min-width: 34px; text-align: right;
 }
 
+/* ── Live border-color popover — small floating swatch + hex field, opened
+   from a placed border's own "Color" badge, mirrors the opacity popover's
+   look/positioning but edits color instead of alpha ── */
+.pdfed-border-color-popover {
+  position: fixed; z-index: 9999; display: none; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  pointer-events: auto; backdrop-filter: blur(6px); font-family: 'Inter', sans-serif;
+}
+.pdfed-border-color-popover.show { display: flex; }
+.pdfed-border-color-popover input[type=color] {
+  width: 26px; height: 26px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 6px;
+  padding: 0; cursor: pointer; background: none; flex-shrink: 0;
+}
+.pdfed-border-color-popover input[type=text] {
+  width: 76px; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 5px 7px; font-family: 'Inter', sans-serif; font-size: 11px;
+  font-weight: 600; text-transform: uppercase; outline: none;
+}
+
 /* zoom controls */
 .pdfed-zoom-controls {
   display: flex; align-items: center; gap: 6px;
@@ -5215,6 +5235,12 @@ th:hover .da-th-del { opacity:1; }
 .dg-upload-select { width:100%; padding:7px 9px; border-radius:8px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:12px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
 .dg-upload-select:focus { border-color:var(--blue); }
 .dg-upload-hint { font-size:10.5px; color:var(--text3); margin-top:8px; line-height:1.5; }
+.dg-upload-value-checks { display:flex; flex-direction:column; gap:2px; max-height:150px; overflow-y:auto; padding:6px 8px; border-radius:8px; background:var(--surface); border:1px solid var(--border); }
+.dg-upload-value-check { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text); cursor:pointer; padding:3px 2px; border-radius:5px; }
+.dg-upload-value-check:hover { background:var(--surface2, rgba(0,194,255,0.06)); }
+.dg-upload-value-check input { cursor:pointer; margin:0; flex:none; }
+.dg-upload-value-swatch { width:10px; height:10px; border-radius:3px; flex:none; }
+.dg-upload-value-check-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .dg-export-dropdown { width:250px; }
 .dg-export-dropdown .pdfed-export-menu-item { margin-bottom:2px; }
 .dg-export-dropdown .pdfed-export-menu-item:last-child { margin-bottom:0; }
@@ -6540,7 +6566,8 @@ button.dg-show-chip.active { background:var(--blue); }
             <button class="btn-secondary mf-back-btn" onclick="mfBackToGallery()">← Back to Forms</button>
             <input type="text" id="mfFormTitleInput" class="mf-title-input" placeholder="Untitled Form" oninput="mfUpdateTitle(this.value)">
             <div class="mf-editor-actions">
-              
+              <button class="btn-secondary" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
+              <button class="btn-secondary" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
               <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
               <button class="btn-pill" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
@@ -6892,6 +6919,48 @@ button.dg-show-chip.active { background:var(--blue); }
                   Redact
                 </button>
 
+                <!-- Border tool: decorative page frame for postcards, letters, designer borders -->
+                <div class="pdfed-color-picker-wrap" id="pdfedBorderWrap">
+                  <button class="pdfed-rbn-btn pdfed-color-trigger" id="pdfedBorderTrigger" onclick="pdfedToggleBorderPanel()" title="Add a border/frame around the page">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><rect x="7.5" y="7.5" width="9" height="9" rx="0.5" stroke-dasharray="2 2"/></svg>
+                    Border
+                  </button>
+                  <div class="pdfed-color-panel" id="pdfedBorderPanel" style="width:230px">
+                    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:700">Border Style</div>
+                    <div class="pdfed-shapes-dropdown-grid open" id="pdfedBorderStyleGrid" style="position:static;width:auto;padding:0;margin-bottom:2px"></div>
+                    <div style="margin-top:10px">
+                      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:700">Margin <span id="pdfedBorderMarginVal" style="color:var(--text)">6%</span></div>
+                      <input type="range" id="pdfedBorderMarginRange" min="2" max="15" value="6" step="1"
+                        oninput="pdfedBorderMarginInput(this.value)"
+                        style="width:100%;accent-color:var(--blue);cursor:pointer;">
+                    </div>
+                    <div style="margin-top:10px">
+                      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:700">Thickness <span id="pdfedBorderThicknessVal" style="color:var(--text)">6px</span></div>
+                      <input type="range" id="pdfedBorderThicknessRange" min="1" max="20" value="6" step="1"
+                        oninput="pdfedBorderThicknessInput(this.value)"
+                        style="width:100%;accent-color:var(--blue);cursor:pointer;">
+                    </div>
+                    <div style="margin-top:10px">
+                      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:700">Color</div>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <label for="pdfedBorderColorNative" style="width:28px;height:28px;border-radius:6px;background:#FFD600;border:2px solid rgba(255,255,255,0.2);flex-shrink:0;cursor:pointer;display:block;position:relative;overflow:hidden" id="pdfedBorderColorPreview">
+                          <input type="color" id="pdfedBorderColorNative" value="#FFD600"
+                            oninput="pdfedBorderColorInput(this.value)"
+                            style="position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);border:none;padding:0;cursor:pointer;opacity:0">
+                        </label>
+                        <input type="text" id="pdfedBorderColorHexInput" value="#FFD600" maxlength="7"
+                          style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;outline:none"
+                          oninput="pdfedBorderColorHexTyped(this.value)">
+                      </div>
+                      <div style="margin-top:6px;font-size:9.5px;color:var(--text3);line-height:1.4">Changes here update this frame's color live if it's already selected on the page.</div>
+                    </div>
+                    <div style="margin-top:10px;display:flex;gap:6px">
+                      <button class="pdfed-rbn-btn" style="flex:1;justify-content:center" onclick="pdfedApplyBorderCurrentPage()" title="Apply this border to the page currently open">This Page</button>
+                      <button class="pdfed-rbn-btn" style="flex:1;justify-content:center" onclick="pdfedApplyBorderAllPages()" title="Apply this border to every page in the document">All Pages</button>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Color wheel picker (shared style for annotate tools) -->
                 <div class="pdfed-color-picker-wrap" id="pdfedColorPickerWrap">
                   <button class="pdfed-rbn-btn pdfed-color-trigger" id="pdfedColorTrigger" onclick="pdfedToggleColorPanel()" title="Pick color">
@@ -6942,6 +7011,10 @@ button.dg-show-chip.active { background:var(--blue); }
                 <button class="pdfed-rbn-btn" id="pdfedTextBtn" onclick="pdfedToggleTextEdit()" title="Scan this page's text with OCR so you can edit it">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                   OCR
+                </button>
+                <button class="pdfed-rbn-btn" id="pdfedTranslateBtn" onclick="pdfedTranslatePageText()" title="Translate this page's text into another language (opt-in, sends only this page's text out)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+                  Translate
                 </button>
                 <button class="pdfed-rbn-btn" id="pdfedAddTextBtn" onclick="pdfedSetAnnotTool('addtext')" title="Add a new text label">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
@@ -7220,6 +7293,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 </div>
                 <!-- persistent placed/stamped images (movable + lockable, like Canva) -->
                 <div id="pdfedPlacedZoomWrap" style="position:absolute;top:0;left:0;pointer-events:none;">
+                  <div id="pdfedPlacedBordersLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedImagesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedTextsLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedTablesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
@@ -7595,7 +7669,7 @@ button.dg-show-chip.active { background:var(--blue); }
         <div class="page-header da-header-card" id="daHeaderCard">
           <div>
             <h2>Data Arrangement</h2>
-            <p id="daHeaderDesc">Upload any data file — or a photo/screenshot of a table — SARVARC Workspace reads it: tabular data gets clean, precisely structured tables with headers auto-detected (even past title rows, grouped column headers, or currency/percent formatting); full written content gets analysed and arranged topic by topic, so nothing comes out as a messy pile of lines. Then work it like a spreadsheet, type <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=SUM(A1:A5)</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=B2*C2</code>, or any formula straight into a cell.</p>
+            <p id="daHeaderDesc">Upload any data file — or a photo/screenshot of a table — SARVARC Workspace reads it: tabular data gets clean, precisely structured tables with headers auto-detected (even past title rows, grouped column headers, or currency/percent formatting); full written content gets analysed and arranged topic by topic, so nothing comes out as a messy pile of lines. Then work it like a spreadsheet, type <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=SUM(A1:A5)</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=B2*C2</code>, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=CONVERT(A2,"km","mi")</code>, or <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:'Source Code Pro',monospace;font-size:11.5px">=CURRENCY(A2,"USD","INR")</code> straight into a cell.</p>
           </div>
         </div>
 
@@ -7656,11 +7730,16 @@ button.dg-show-chip.active { background:var(--blue); }
               <input type="text" id="daSearchInput" placeholder="Search this table…" oninput="daRenderTable()">
             </div>
             <div class="da-toolbar-spacer"></div>
+            <span class="da-meta" id="daFxRatesLabel" style="opacity:0.7"></span>
+            <button class="da-tool-btn" onclick="daFetchExchangeRates()" title="Fetch live currency rates (opt-in, from Frankfurter/ECB) so =CURRENCY(...) works in formulas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Get Live Rates</button>
             <span class="da-meta" id="daMeta"></span>
             <button class="da-tool-btn" onclick="daToggleFreeze()" id="daFreezeBtn" title="Freeze header row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg> Freeze Header</button>
             <button class="da-tool-btn" onclick="daAutoFit()" title="Auto-fit column widths"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/></svg> Auto-fit</button>
             <button class="da-tool-btn" onclick="daAddRow()" title="Add a row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Row</button>
             <button class="da-tool-btn" onclick="daAddColumn()" title="Add a column"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Column</button>
+            <div class="da-tool-divider"></div>
+            <button class="da-tool-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>
+            <button class="da-tool-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo</button>
             <div class="da-tool-divider"></div>
             <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
             <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
@@ -7717,6 +7796,10 @@ button.dg-show-chip.active { background:var(--blue); }
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                     Bar Chart
                   </div>
+                  <div class="dg-type-tile" data-type="grouped" onclick="dgSetType('grouped')" title="Two or more values per category, side-by-side bars in different colours — e.g. Profit 2025 vs Profit 2026 per department">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="3" height="8"/><rect x="7" y="7" width="3" height="13"/><rect x="14" y="14" width="3" height="6"/><rect x="18" y="9" width="3" height="11"/></svg>
+                    Grouped Bar
+                  </div>
                   <div class="dg-type-tile" data-type="line" onclick="dgSetType('line')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="14 6 21 6 21 13"/></svg>
                     Line Chart
@@ -7737,6 +7820,14 @@ button.dg-show-chip.active { background:var(--blue); }
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="13" width="4" height="7"/><rect x="4" y="7" width="4" height="5"/><rect x="10" y="9" width="4" height="11"/><rect x="10" y="4" width="4" height="4"/><rect x="16" y="15" width="4" height="5"/><rect x="16" y="10" width="4" height="4"/></svg>
                     Stacked Bar
                   </div>
+                  <div class="dg-type-tile" data-type="hstacked" onclick="dgSetType('hstacked')" title="One horizontal bar per category, built from 2+ series — positive series stack rightward from zero, negative series (e.g. Wastage/Returns) stack leftward — e.g. ProductA + ProductB vs Wastage per month">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><rect x="12" y="6" width="8" height="3"/><rect x="12" y="10.5" width="5" height="3"/><rect x="7" y="15" width="5" height="3"/><rect x="4" y="6" width="1.5" height="3"/></svg>
+                    Diverging Stacked Bar
+                  </div>
+                  <div class="dg-type-tile" data-type="tornado" onclick="dgSetType('tornado')" title="Exactly two series, drawn as mirrored horizontal bars either side of a shared category column — e.g. Supplier A vs Supplier B, side-by-side by variable">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><rect x="4" y="5" width="8" height="2.6"/><rect x="6" y="9" width="6" height="2.6"/><rect x="2" y="13" width="10" height="2.6"/><rect x="7" y="17" width="5" height="2.6"/><rect x="12" y="5" width="5" height="2.6"/><rect x="12" y="9" width="9" height="2.6"/><rect x="12" y="13" width="4" height="2.6"/><rect x="12" y="17" width="7" height="2.6"/></svg>
+                    Tornado Chart
+                  </div>
                   <div class="dg-type-tile" data-type="waterfall" onclick="dgSetType('waterfall')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="4" height="7"/><rect x="8" y="7" width="4" height="7"/><rect x="14" y="3" width="4" height="6"/><rect x="20" y="9" width="2" height="5"/></svg>
                     Waterfall
@@ -7753,6 +7844,10 @@ button.dg-show-chip.active { background:var(--blue); }
                   <div class="dg-type-tile" data-type="3d-bar" data-label="3D Bar Chart" onclick="dgSetType('3d-bar')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l4-2v12z"/><path d="M10 20V6l4-2v16z"/><path d="M16 20V12l4-2v10z"/></svg>
                     3D Bar <span class="dg-3d-badge">3D</span>
+                  </div>
+                  <div class="dg-type-tile" data-type="3d-grouped-bar" data-label="3D Grouped Bar" onclick="dgSetType('3d-grouped-bar')" title="The Grouped Bar chart's categories/series, rendered as clustered 3D columns — supports Hologram mode too">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V13l3-1.5v8.5z"/><path d="M7.5 20V9l3-1.5v12.5z"/><path d="M13.5 20V11l3-1.5v10.5z"/><path d="M18 20V15l3-1.5v6.5z"/></svg>
+                    3D Grouped Bar <span class="dg-3d-badge">3D</span>
                   </div>
                   <div class="dg-type-tile" data-type="3d-histogram" data-label="3D Histogram" onclick="dgSetType('3d-histogram')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V13l3-1.5v8.5z"/><path d="M8 20V9l3-1.5v12.5z"/><path d="M13 20V6l3-1.5v15.5z"/><path d="M18 20v-6l3-1.5V20z"/></svg>
@@ -8043,6 +8138,23 @@ button.dg-show-chip.active { background:var(--blue); }
 
             <div class="dg-rbn-sep"></div>
 
+            <!-- UNDO/REDO -->
+            <div class="dg-rbn-group" id="dgUndoGroup">
+              <div class="dg-rbn-group-btns">
+                <button class="dg-rbn-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                  Undo
+                </button>
+                <button class="dg-rbn-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+                  Redo
+                </button>
+              </div>
+              <div class="dg-rbn-group-label">History</div>
+            </div>
+
+            <div class="dg-rbn-sep"></div>
+
             <!-- CLEAR ALL: wipes data points, text labels, title and axis titles back to a blank chart -->
             <div class="dg-rbn-group" id="dgClearGroup">
               <div class="dg-rbn-group-btns">
@@ -8161,9 +8273,9 @@ button.dg-show-chip.active { background:var(--blue); }
                       <div class="dg-upload-file-name" id="dgUploadFileName"></div>
                       <div class="dg-upload-preview" id="dgUploadPreview"></div>
                       <label class="dg-upload-field-label">Label column (categories)</label>
-                      <select id="dgLabelColSelect" class="dg-upload-select" onchange="dgGenerateChartFromUpload()"></select>
-                      <label class="dg-upload-field-label" style="margin-top:8px">Value column (numbers)</label>
-                      <select id="dgValueColSelect" class="dg-upload-select" onchange="dgGenerateChartFromUpload()"></select>
+                      <select id="dgLabelColSelect" class="dg-upload-select" onchange="dgOnLabelColSelectChange()"></select>
+                      <label class="dg-upload-field-label" style="margin-top:8px">Value column(s) — pick 2+ to compare</label>
+                      <div class="dg-upload-value-checks" id="dgValueColChecks"></div>
                       <div class="dg-upload-hint" id="dgUploadHint"></div>
                     </div>
                   </div>
@@ -8765,10 +8877,17 @@ button.dg-show-chip.active { background:var(--blue); }
     </div>
     <div class="dg-multi-suggest-stats" id="dgMultiSuggestStats"></div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestCompareBtn" onclick="dgConfirmMultiSuggest('compare')" style="display:none;border-color:var(--blue, #00C2FF)">
+      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestGroupedBtn" onclick="dgConfirmMultiSuggest('grouped')" style="display:none;border-color:var(--blue, #00C2FF)">
+        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="3" height="8"/><rect x="7" y="7" width="3" height="13"/><rect x="14" y="14" width="3" height="6"/><rect x="18" y="9" width="3" height="11"/></svg></div>
+        <div class="dg-push-choice-text">
+          <h4 id="dgMultiSuggestGroupedHead">Grouped bar chart (recommended)</h4>
+          <p id="dgMultiSuggestGroupedDesc">Puts one cluster of colour-coded bars per row — e.g. Profit 2025 next to Profit 2026 for every department — in a single chart, so the two values are compared directly.</p>
+        </div>
+      </button>
+      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestCompareBtn" onclick="dgConfirmMultiSuggest('compare')" style="display:none">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 19 7 19 17 12 22 5 17 5 7"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="5" y1="7" x2="19" y2="17"/><line x1="19" y1="7" x2="5" y2="17"/></svg></div>
         <div class="dg-push-choice-text">
-          <h4 id="dgMultiSuggestCompareHead">Compare side-by-side (recommended)</h4>
+          <h4 id="dgMultiSuggestCompareHead">Compare side-by-side</h4>
           <p id="dgMultiSuggestCompareDesc">Builds one bar chart per metric, plus a normalized radar overview, so differences between columns jump out immediately.</p>
         </div>
       </button>
@@ -9712,10 +9831,130 @@ function appRedo() {
   action.redo();
 }
 
+// ─── PER-MODULE SNAPSHOT UNDO/REDO ───
+// Beyond the hand-wired appHistory above (a handful of explicit actions), each
+// data-heavy module below gets its OWN undo/redo stack built from lightweight
+// JSON snapshots of its state. Every module already calls a single "something
+// changed, save + redraw" function after every mutating action it has
+// (daPersist, dgPersist, mfPersist) — checkpoint() piggybacks on that exact
+// choke point, so every button, drag-end, and field edit in these modules
+// gets undo/redo for free without hand-wiring each one individually. A
+// checkpoint only lands on the stack when the snapshot actually differs from
+// the last one recorded, so read-only re-renders (search filters, section
+// re-opens) are automatically no-ops.
+function createModuleHistory(getSnap, restoreSnap, cap) {
+  const undoStack = [], redoStack = [];
+  let last = null, restoring = false;
+  cap = cap || 60;
+  return {
+    checkpoint() {
+      if (restoring) return; // don't record snapshots caused by our own restore
+      let cur;
+      try { cur = getSnap(); } catch (e) { return; }
+      if (last === null) { last = cur; return; }
+      if (cur !== last) {
+        undoStack.push(last);
+        if (undoStack.length > cap) undoStack.shift();
+        redoStack.length = 0;
+        last = cur;
+      }
+    },
+    undo() {
+      if (!undoStack.length) return false;
+      let cur; try { cur = getSnap(); } catch (e) { cur = last; }
+      redoStack.push(cur);
+      const prev = undoStack.pop();
+      restoring = true;
+      try { restoreSnap(prev); } finally { restoring = false; }
+      last = prev;
+      return true;
+    },
+    redo() {
+      if (!redoStack.length) return false;
+      let cur; try { cur = getSnap(); } catch (e) { cur = last; }
+      undoStack.push(cur);
+      const next = redoStack.pop();
+      restoring = true;
+      try { restoreSnap(next); } finally { restoring = false; }
+      last = next;
+      return true;
+    },
+    hasUndo() { return undoStack.length > 0; },
+    hasRedo() { return redoStack.length > 0; }
+  };
+}
+
+// Data Arrangement — snapshots the full dataset list + which tab is active.
+const daHistory = createModuleHistory(
+  () => JSON.stringify({ datasets: daState.datasets, activeId: daState.activeId }),
+  (snap) => {
+    const s = JSON.parse(snap);
+    daState.datasets = s.datasets;
+    daState.activeId = s.activeId;
+    if (typeof daResetFormulaBar === 'function') daResetFormulaBar();
+    if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
+    if (typeof daRenderTabs === 'function') daRenderTabs();
+    if (typeof daRenderTable === 'function') daRenderTable();
+  }
+);
+function daUndo() { if (!daHistory.undo()) toast('Nothing to undo', 'info'); }
+function daRedo() { if (!daHistory.redo()) toast('Nothing to redo', 'info'); }
+
+// Diagrams & Graphs — snapshots the whole chart state (data rows, colours,
+// text labels, titles, chart type); wheelBase is an offscreen canvas cache,
+// not real data, so it's excluded and always rebuilt fresh on restore.
+const dgHistory = createModuleHistory(
+  () => { const { wheelBase, ...s } = dgState; return JSON.stringify(s); },
+  (snap) => {
+    const s = JSON.parse(snap);
+    Object.keys(dgState).forEach(k => { if (k !== 'wheelBase') delete dgState[k]; });
+    Object.assign(dgState, s);
+    dgState.wheelBase = null;
+    if (typeof dgRender === 'function') dgRender();
+  }
+);
+function dgUndo() { if (!dgHistory.undo()) toast('Nothing to undo', 'info'); }
+function dgRedo() { if (!dgHistory.redo()) toast('Nothing to redo', 'info'); }
+
+// Make Forms — snapshots the whole forms list (titles, fields, styling),
+// covering both form-level edits (create/duplicate/delete) and in-editor
+// field edits, since both paths funnel through mfPersist().
+const mfHistory = createModuleHistory(
+  () => JSON.stringify(mfState.forms),
+  (snap) => {
+    mfState.forms = JSON.parse(snap);
+    mfMemForms = mfState.forms;
+    const cur = mfState.currentId && mfState.forms.find(f => f.id === mfState.currentId);
+    if (cur) {
+      const t = document.getElementById('mfFormTitleInput'); if (t) t.value = cur.title || '';
+      const d = document.getElementById('mfFormDescInput'); if (d) d.value = cur.desc || '';
+      if (typeof mfRenderFieldList === 'function') mfRenderFieldList();
+      if (typeof mfRenderLogoThumb === 'function') mfRenderLogoThumb();
+      if (typeof mfRenderAccentSwatches === 'function') mfRenderAccentSwatches();
+      if (typeof mfRenderWatermarkControls === 'function') mfRenderWatermarkControls();
+      if (typeof mfRenderPreview === 'function') mfRenderPreview();
+    } else {
+      mfState.currentId = null;
+      if (typeof mfRenderFormsGrid === 'function') mfRenderFormsGrid();
+      if (typeof mfRenderTemplateGrid === 'function') mfRenderTemplateGrid();
+    }
+    if (typeof mfPersist === 'function') mfPersist();
+  }
+);
+function mfUndo() { if (!mfHistory.undo()) toast('Nothing to undo', 'info'); }
+function mfRedo() { if (!mfHistory.redo()) toast('Nothing to redo', 'info'); }
+
 // Single global handler for Ctrl+Z (undo) / Ctrl+Y or Ctrl+Shift+Z (redo).
 // Inside the PDF Editor, annotation strokes take priority (so brush/shape undo still
 // feels instant); everywhere else, and once stroke history is empty, it falls
 // back to the generic action history (image deletes, page deletes, pushes, etc.).
+// In Data Arrangement / Diagrams & Graphs / Make Forms, the module's own
+// snapshot history (above) takes priority while the section is open and has
+// something to undo/redo, so every edit in those tools is covered too.
+function unifiedActiveSection() {
+  const el = document.querySelector('.section.active');
+  return el ? el.id.replace(/^sec-/, '') : '';
+}
 function unifiedUndo() {
   const pdfedSection = document.getElementById('sec-pdfeditor');
   const inPdfEditor = !!(pdfedSection && pdfedSection.classList.contains('active'));
@@ -9723,6 +9962,10 @@ function unifiedUndo() {
     const idx = pdfed.active;
     if (pdfedStrokesFor(idx).length > 0) { pdfedUndo(); return; }
   }
+  const sec = unifiedActiveSection();
+  if (sec === 'dataarrange' && daHistory.hasUndo()) { daUndo(); return; }
+  if (sec === 'diagrams' && dgHistory.hasUndo()) { dgUndo(); return; }
+  if (sec === 'makeforms' && mfHistory.hasUndo()) { mfUndo(); return; }
   appUndo();
 }
 function unifiedRedo() {
@@ -9732,6 +9975,10 @@ function unifiedRedo() {
     const idx = pdfed.active;
     if (pdfedRedoStrokesFor(idx).length > 0) { pdfedRedo(); return; }
   }
+  const sec = unifiedActiveSection();
+  if (sec === 'dataarrange' && daHistory.hasRedo()) { daRedo(); return; }
+  if (sec === 'diagrams' && dgHistory.hasRedo()) { dgRedo(); return; }
+  if (sec === 'makeforms' && mfHistory.hasRedo()) { mfRedo(); return; }
   appRedo();
 }
 function onGlobalUndoRedoKeydown(e) {
@@ -12868,13 +13115,13 @@ async function pdfedGoto(idx) {
 }
 
 // Shows/hides the Duplicate Page / Delete Page toolbar (top-right, above the
-// canvas) and disables Delete when only one page remains.
+// canvas). Delete is now always enabled, even on the last remaining page.
 function pdfedUpdatePageActions() {
   const bar = document.getElementById('pdfedPageActions');
   if (!bar) return;
   bar.classList.toggle('show', pdfed.active >= 0 && !!pdfed.pages[pdfed.active]);
   const delBtn = document.getElementById('pdfedPgactDel');
-  if (delBtn) delBtn.disabled = pdfed.pages.length <= 1;
+  if (delBtn) delBtn.disabled = false;
   pdfedSyncCompareBtnVisibility();
 }
 
@@ -14831,20 +15078,30 @@ async function pdfedFlattenPageDataUrl(pg) {
 // matches on-screen stacking exactly, an image sent to front actually
 // paints over text underneath it, and vice versa, instead of images always
 // being drawn first no matter what Arrange says.
-async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts) {
+async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages) {
   const ordered = pdfedGetZOrderedItems(pg);
   for (const { kind, item } of ordered) {
     // skipTexts lets the "editable PDF" export path leave text boxes OUT of
     // the flattened raster entirely, so they can be re-added a moment later
     // as real, selectable/editable vector text (see pdfedRenderPlacedTextsAsPdfText)
-    // instead of being permanently baked into pixels.
+    // instead of being permanently baked into pixels. skipImages is the same
+    // idea, used when rotating a page: images now carry their own rotation
+    // and stay live objects instead of being flattened (see pdfedRotatePage).
     if (skipTexts && kind === 'text') continue;
+    if (skipImages && kind === 'image') continue;
     // Every placed object's own opacity (default fully opaque) is honored at
     // bake time via globalAlpha, so exports/thumbnails/permanent-bakes match
     // whatever the user dialed in on screen, reset right after so one faded
     // object never bleeds transparency into the next thing drawn.
     ctx.globalAlpha = pdfedGetOpacity(item);
-    if (kind === 'image') {
+    if (kind === 'border') {
+      pdfedDrawBorderOnCtx(ctx, item.w, item.h, {
+        style: item.style,
+        marginPct: item.marginPct,
+        thickness: item.thickness,
+        color: item.color
+      }, item.x, item.y);
+    } else if (kind === 'image') {
       try {
         const im = await new Promise((res, rej) => {
           const i2 = new Image();
@@ -14856,7 +15113,21 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts) {
         let dw, dh, dx, dy;
         if (imgRatio > boxRatio) { dw = item.w; dh = item.w / imgRatio; dx = item.x; dy = item.y + (item.h - dh) / 2; }
         else { dh = item.h; dw = item.h * imgRatio; dy = item.y; dx = item.x + (item.w - dw) / 2; }
-        ctx.drawImage(im, dx, dy, dw, dh);
+        // Rotate around the image's own box center (mirrors the CSS
+        // transform: rotate() the live on-screen box gets), so a rotated,
+        // still-editable image bakes at export time exactly where it
+        // visually sits on screen instead of snapping back upright.
+        if (item.rotation) {
+          const icx = item.x + item.w / 2, icy = item.y + item.h / 2;
+          ctx.save();
+          ctx.translate(icx, icy);
+          ctx.rotate(item.rotation * Math.PI / 180);
+          ctx.translate(-icx, -icy);
+          ctx.drawImage(im, dx, dy, dw, dh);
+          ctx.restore();
+        } else {
+          ctx.drawImage(im, dx, dy, dw, dh);
+        }
       } catch (e) { /* skip broken image, keep going */ }
     } else if (kind === 'text') {
       pdfedDrawPlacedTextsOnCtx(ctx, [item]);
@@ -14876,7 +15147,7 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts) {
 // edits, and always reflects this page's latest state as soon as it changes.
 async function pdfedComposeThumb(pg, idx) {
   const baseUrl = await pdfedFlattenPageDataUrl(pg);
-  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedTables && pg.placedTables.length);
+  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length);
   const strokes = pg.annotStrokes;
   const hasAnnot = strokes && strokes.length > 0;
   if (!hasPlaced && !hasAnnot) return baseUrl;
@@ -14916,7 +15187,7 @@ async function pdfedComposeThumb(pg, idx) {
 // layer, exactly like today's export.
 async function pdfedComposeExportBase(pg, idx) {
   const baseUrl = await pdfedFlattenPageDataUrl(pg);
-  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTables && pg.placedTables.length);
+  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length);
   const strokes = pg.annotStrokes;
   const hasAnnot = strokes && strokes.length > 0;
   if (!hasPlaced && !hasAnnot) return baseUrl;
@@ -15521,6 +15792,7 @@ function pdfedNextZ(pg) {
 // under-tables look those documents already had.
 function pdfedGetZOrderedItems(pg) {
   const combined = [];
+  (pg.placedBorders || []).forEach(it => combined.push({ kind: 'border', item: it }));
   (pg.placedImages || []).forEach(it => combined.push({ kind: 'image', item: it }));
   (pg.placedTexts  || []).forEach(it => combined.push({ kind: 'text',  item: it }));
   (pg.placedTables || []).forEach(it => combined.push({ kind: 'table', item: it }));
@@ -15534,13 +15806,14 @@ function pdfedGetZOrderedItems(pg) {
 // Re-renders every placed-object layer so a zIndex change made anywhere
 // (image, text, or table) is reflected on screen immediately.
 function pdfedRenderAllPlaced(idx) {
+  pdfedRenderPlacedBorders(idx);
   pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx); // also re-renders tables, see bottom of that fn
 }
 
 function pdfedReorderPlaced(kind, idx, id, toFront) {
   const pg = pdfed.pages[idx];
-  const key = kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : 'placedTexts');
+  const key = kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : (kind === 'border' ? 'placedBorders' : 'placedTexts'));
   const list = pg && pg[key];
   if (!list) return;
   const item = list.find(it => it.id === id);
@@ -15601,7 +15874,7 @@ function pdfedOpenArrangeMenu(ev, kind, idx, id) {
 const pdfedOpacityPop = { kind: null, idx: -1, id: null };
 
 function pdfedOpacityKey(kind) {
-  return kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : 'placedTexts');
+  return kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : (kind === 'border' ? 'placedBorders' : 'placedTexts'));
 }
 
 // Single lookup used by every opacity-popover consumer, so gallery images
@@ -15657,10 +15930,11 @@ function pdfedOpacityPopoverInput(value) {
     const card = document.querySelector(`.img-card[data-idx="${idx}"]`);
     if (card) { const im = card.querySelector('img'); if (im) im.style.opacity = v; }
   } else {
-    const selector = kind === 'image' ? '.pdfed-placed-img' : '.pdfed-placed-table';
+    const selector = kind === 'image' ? '.pdfed-placed-img' : (kind === 'border' ? '.pdfed-placed-border' : '.pdfed-placed-table');
     const el = document.querySelector(`${selector}[data-id="${CSS.escape(id)}"]`);
     if (el) {
       if (kind === 'image') { const im = el.querySelector('img'); if (im) im.style.opacity = v; }
+      else if (kind === 'border') { const cv = el.querySelector('canvas'); if (cv) cv.style.opacity = v; }
       else if (kind === 'table') { const g = el.querySelector('.pdfed-table-grid'); if (g) g.style.opacity = v; }
     }
     pdfedMarkModified(idx);
@@ -15684,6 +15958,7 @@ async function pdfedDuplicatePage(idx) {
     placedImages: JSON.parse(JSON.stringify(src.placedImages || [])),
     placedTexts: JSON.parse(JSON.stringify(src.placedTexts || [])),
     placedTables: JSON.parse(JSON.stringify(src.placedTables || [])),
+    placedBorders: JSON.parse(JSON.stringify(src.placedBorders || [])),
     edits: JSON.parse(JSON.stringify(src.edits || {})),
     textBlocks: JSON.parse(JSON.stringify(src.textBlocks || [])),
     // Deep-copy (not share) annotation history so drawing/undo on the copy
@@ -15696,6 +15971,24 @@ async function pdfedDuplicatePage(idx) {
   await pdfedBuildStrip();
   await pdfedGoto(idx + 1);
   toast('Page duplicated', 'success');
+
+  pushAppHistory({
+    label: 'Duplicate page',
+    undo: async () => {
+      if (pdfed.pages.length <= 1) { toast('Cannot remove last page', 'error'); return; }
+      pdfed.pages.splice(idx + 1, 1);
+      if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
+      await pdfedBuildStrip();
+      await pdfedGoto(pdfed.active);
+      toast('Duplicate removed', 'info');
+    },
+    redo: async () => {
+      pdfed.pages.splice(idx + 1, 0, clone);
+      await pdfedBuildStrip();
+      await pdfedGoto(idx + 1);
+      toast('Page duplicated', 'success');
+    }
+  });
 }
 
 function pdfedHandleCanvasContextMenu(e) {
@@ -15710,7 +16003,28 @@ function pdfedHandleCanvasContextMenu(e) {
 
   const imgEl = e.target.closest('.pdfed-placed-img');
   const txtEl = e.target.closest('.pdfed-placed-text');
+  const brdEl = e.target.closest('.pdfed-placed-border');
   const idx = pdfed.active;
+
+  if (brdEl) {
+    e.preventDefault();
+    const id = brdEl.dataset.id;
+    const item = (pdfed.pages[idx].placedBorders || []).find(i => i.id === id);
+    if (!item) return;
+    pdfedOpenCtxMenu(e.clientX, e.clientY, [
+      { type: 'label', label: 'Placed Border' },
+      { id: 'lock',   icon: item.locked ? 'unlock' : 'lock', label: item.locked ? 'Unlock' : 'Lock', onClick: () => pdfedTogglePlacedBorderLock(idx, id) },
+      { id: 'dup',    icon: 'duplicate', label: 'Duplicate', onClick: () => pdfedDuplicatePlacedBorder(idx, id) },
+      { type: 'sep' },
+      { id: 'fwd',    icon: 'fwd',   label: 'Forward', onClick: () => pdfedReorderPlacedStep('border', idx, id, 1) },
+      { id: 'bwd',    icon: 'bwd',   label: 'Backward', onClick: () => pdfedReorderPlacedStep('border', idx, id, -1) },
+      { id: 'front',  icon: 'front', label: 'Bring to Front', onClick: () => pdfedReorderPlaced('border', idx, id, true) },
+      { id: 'back',   icon: 'back',  label: 'Send to Back', onClick: () => pdfedReorderPlaced('border', idx, id, false) },
+      { type: 'sep' },
+      { id: 'del', icon: 'trash', label: 'Delete Border', danger: true, disabled: item.locked, onClick: () => pdfedDeletePlacedBorder(idx, id) }
+    ]);
+    return;
+  }
 
   if (imgEl) {
     e.preventDefault();
@@ -15783,7 +16097,7 @@ function pdfedHandleCanvasContextMenu(e) {
     { type: 'sep' },
     { id: 'dupPage',    icon: 'duplicate', label: 'Duplicate Page', onClick: () => pdfedDuplicatePage(idx) },
     { id: 'insertAfter', icon: 'plus',     label: 'Insert Page After', onClick: () => pdfedOpenInsert(idx) },
-    { id: 'delPage',    icon: 'trash', label: 'Delete Page', danger: true, disabled: pdfed.pages.length <= 1, onClick: () => pdfedDeletePage(idx) },
+    { id: 'delPage',    icon: 'trash', label: 'Delete Page', danger: true, onClick: () => pdfedDeletePage(idx) },
     { type: 'sep' },
     { id: 'clearAnnot', icon: 'clear',  label: 'Clear Annotations', onClick: () => pdfedClearAnnotations() },
     { id: 'revert',     icon: 'revert', label: 'Revert Page', disabled: !hasAnnots, onClick: () => pdfedRevertPage() },
@@ -15809,30 +16123,93 @@ async function pdfedRevertPage() {
 }
 
 // ─── DELETE PAGE ───
+
+// Shared cleanup used when the page just deleted was the last one — folds
+// the editor back to its "no document open" state, same chrome reset
+// pdfedClosePdf uses, just without the confirmation prompt (Delete Page
+// already is the confirmed action here).
+function pdfedResetToNoDocument() {
+  pdfedCancelTextEdit && pdfedCancelTextEdit();
+  pdfedCropOff && pdfedCropOff();
+  pdfedCancelAutoCollapse();
+  pdfed.pdfDoc = null; pdfed.file = null; pdfed.active = -1; pdfed.zoom = 1.0;
+  idbKvDelete(PDFED_STORAGE_KEY).catch(e => console.warn('[Workspace] could not clear saved document', e));
+  const strip = document.getElementById('pdfedStrip');
+  if (strip) strip.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 8px">Open a PDF to see pages</div>';
+  document.getElementById('pdfedPageCount').textContent = '';
+  document.getElementById('prrTotalPages').textContent = '—';
+  document.getElementById('prrPageNum').textContent = '—';
+  document.getElementById('prrEdits').textContent = '0 pages modified';
+  document.getElementById('pdfedPlaceholder').style.display = 'flex';
+  document.getElementById('pdfedCanvasWrap').style.display = 'none';
+  pdfedUpdatePageActions();
+  document.getElementById('pdfedExportBtn').style.display = 'none';
+  const exportBtn2 = document.getElementById('pdfedExportBtn2');
+  if (exportBtn2) exportBtn2.style.display = 'none';
+  document.getElementById('pdfedCloseBtn').style.display = 'none';
+  const pageInfoPill = document.getElementById('pdfedPageInfoPill');
+  if (pageInfoPill) pageInfoPill.style.display = 'none';
+  if (typeof pdfedRefreshSelectionPanel === 'function') pdfedRefreshSelectionPanel();
+  const upBtn = document.getElementById('pdfedUploadBtn');
+  if (upBtn) upBtn.style.display = '';
+  const fnEl = document.getElementById('pdfedFileName');
+  if (fnEl) fnEl.textContent = 'No file open';
+  const overlay = document.getElementById('pdfedTextOverlay');
+  if (overlay) { overlay.innerHTML = ''; overlay.classList.remove('active'); }
+}
+
+// Undo-side counterpart: brings the editor chrome back when the deleted page
+// (which was the last one) gets restored.
+function pdfedReopenAfterLastPageUndo(restoredFileName) {
+  pdfed.pdfDoc = null;
+  pdfed.file = { name: restoredFileName || 'Untitled Document' };
+  ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+  const upBtn = document.getElementById('pdfedUploadBtn'); if (upBtn) upBtn.style.display = 'none';
+  const fnEl = document.getElementById('pdfedFileName'); if (fnEl) fnEl.textContent = pdfed.file.name;
+  const ph = document.getElementById('pdfedPlaceholder'); if (ph) ph.style.display = 'none';
+  const cw = document.getElementById('pdfedCanvasWrap'); if (cw) cw.style.display = 'inline-block';
+  const tb = document.getElementById('pdfedToolbar'); if (tb) tb.style.visibility = 'visible';
+}
+
 async function pdfedDeletePage(idx) {
-  if (pdfed.pages.length <= 1) { toast('Cannot remove last page', 'error'); return; }
   const removedPage = pdfed.pages[idx];
+  const wasLastPage = pdfed.pages.length <= 1;
+  const fileNameAtDelete = pdfed.file && pdfed.file.name;
   pdfed.pages.splice(idx, 1);
-  if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
-  await pdfedBuildStrip();
-  await pdfedGoto(pdfed.active);
-  toast('Page removed', 'info');
+
+  if (wasLastPage) {
+    pdfedResetToNoDocument();
+    toast('Last page removed, document closed', 'info');
+  } else {
+    if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
+    await pdfedBuildStrip();
+    await pdfedGoto(pdfed.active);
+    toast('Page removed', 'info');
+  }
 
   pushAppHistory({
     label: 'Delete PDF page',
     undo: async () => {
       pdfed.pages.splice(idx, 0, removedPage);
+      if (wasLastPage) pdfedReopenAfterLastPageUndo(fileNameAtDelete);
       await pdfedBuildStrip();
       await pdfedGoto(idx);
       toast('Page restored', 'success');
     },
     redo: async () => {
-      if (pdfed.pages.length <= 1) { toast('Cannot remove last page', 'error'); return; }
       pdfed.pages.splice(idx, 1);
-      if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
-      await pdfedBuildStrip();
-      await pdfedGoto(pdfed.active);
-      toast('Page removed', 'info');
+      if (wasLastPage) {
+        pdfedResetToNoDocument();
+        toast('Last page removed, document closed', 'info');
+      } else {
+        if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
+        await pdfedBuildStrip();
+        await pdfedGoto(pdfed.active);
+        toast('Page removed', 'info');
+      }
     }
   });
 }
@@ -18525,6 +18902,626 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// ── BORDER TOOL ──────────────────────────────────────────────────────────────
+// Frames the whole page with a decorative border, for postcards, letter
+// boundaries, and designer frames. Unlike the drag-to-draw shapes, this is a
+// one-click "stamp the whole page" action: pick a style + margin + thickness
+// (color comes from the same shared color picker every other annotate tool
+// already uses), then Apply. It's baked straight onto the annotation canvas
+// using the exact same push-undo / commit-stroke pattern as every other
+// annotation, so Ctrl+Z, page reorder, and export all keep working for free.
+const pdfedBorderState = { style: 'simple', margin: 6, thickness: 6, color: '#FFD600' };
+let pdfedBorderSeq = 0;
+
+const pdfedBorderStyleDefs = {
+  simple:   { label: 'Simple',   svg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18"/></svg>' },
+  double:   { label: 'Double',   svg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="2.5" width="19" height="19"/><rect x="6.5" y="6.5" width="11" height="11"/></svg>' },
+  dashed:   { label: 'Dashed',   svg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"><rect x="3" y="3" width="18" height="18"/></svg>' },
+  postcard: { label: 'Postcard', svg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="19" height="19" rx="3"/><rect x="6.5" y="6.5" width="11" height="11" stroke-dasharray="2 1.6"/></svg>' },
+  letter:   { label: 'Letter',   svg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="19" height="19"/><rect x="5.5" y="5.5" width="13" height="13"/></svg>' },
+  designer: { label: 'Designer', svg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="4.5" width="15" height="15"/><path d="M2 6.5V2.5H6M18 2.5H22V6.5M22 17.5V21.5H18M6 21.5H2V17.5"/></svg>' }
+};
+
+function pdfedRenderBorderStyleGrid() {
+  const grid = document.getElementById('pdfedBorderStyleGrid');
+  if (!grid) return;
+  grid.innerHTML = Object.keys(pdfedBorderStyleDefs).map(key => {
+    const d = pdfedBorderStyleDefs[key];
+    const activeCls = key === pdfedBorderState.style ? ' active' : '';
+    return '<div class="pdfed-shapes-opt-grid' + activeCls + '" id="pdfedBorderOpt-' + key + '" onclick="pdfedBorderSelectStyle(\'' + key + '\')">' + d.svg + '<span>' + d.label + '</span></div>';
+  }).join('');
+}
+
+function pdfedBorderSelectStyle(style) {
+  pdfedBorderState.style = style;
+  pdfedRenderBorderStyleGrid();
+}
+
+function pdfedBorderMarginInput(val) {
+  pdfedBorderState.margin = parseFloat(val) || 0;
+  const lbl = document.getElementById('pdfedBorderMarginVal');
+  if (lbl) lbl.textContent = val + '%';
+}
+
+function pdfedBorderThicknessInput(val) {
+  pdfedBorderState.thickness = parseFloat(val) || 1;
+  const lbl = document.getElementById('pdfedBorderThicknessVal');
+  if (lbl) lbl.textContent = val + 'px';
+}
+
+function pdfedToggleBorderPanel() {
+  const panel = document.getElementById('pdfedBorderPanel');
+  const trigger = document.getElementById('pdfedBorderTrigger');
+  if (!panel || !trigger) return;
+  // Only one floating ribbon panel should be open at a time
+  const colorPanel = document.getElementById('pdfedColorPanel');
+  if (colorPanel) colorPanel.classList.remove('open');
+  const isOpen = panel.classList.toggle('open');
+  if (isOpen) {
+    const rect = trigger.getBoundingClientRect();
+    const panelW = 230;
+    let left = rect.left + rect.width / 2 - panelW / 2;
+    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
+    if (left < 8) left = 8;
+    panel.style.top = (rect.bottom + 6) + 'px';
+    panel.style.left = left + 'px';
+    pdfedRenderBorderStyleGrid();
+    const prev = document.getElementById('pdfedBorderColorPreview');
+    const nativeInput = document.getElementById('pdfedBorderColorNative');
+    const hexInput = document.getElementById('pdfedBorderColorHexInput');
+    if (prev) prev.style.background = pdfedBorderState.color;
+    if (nativeInput) nativeInput.value = pdfedBorderState.color;
+    if (hexInput) hexInput.value = pdfedBorderState.color;
+  }
+}
+// Close border panel when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('pdfedBorderWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const panel = document.getElementById('pdfedBorderPanel');
+    if (panel) panel.classList.remove('open');
+  }
+});
+
+// Standalone rounded-rect path helper, scoped to the border tool (kept separate
+// from the shape tool's own version, which is a private closure inside pdfedAnnotInit).
+function pdfedBorderRoundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.arcTo(x + w, y, x + w, y + rr, rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  ctx.lineTo(x + rr, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rr, rr);
+  ctx.lineTo(x, y + rr);
+  ctx.arcTo(x, y, x + rr, y, rr);
+  ctx.closePath();
+}
+
+// Draws the chosen border style directly onto a 2D context sized w x h.
+// margin is expressed as a % of the shorter page side so it scales sensibly
+// across different page sizes (A4, letter, postcard, etc).
+function pdfedDrawBorderOnCtx(ctx, w, h, opts, offsetX, offsetY) {
+  const style = opts.style, color = opts.color;
+  const margin = Math.min(w, h) * (opts.marginPct / 100);
+  const t = Math.max(1, opts.thickness);
+  ctx.save();
+  if (offsetX || offsetY) ctx.translate(offsetX || 0, offsetY || 0);
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'butt';
+  ctx.lineJoin = 'miter';
+  ctx.setLineDash([]);
+
+  if (style === 'simple') {
+    ctx.lineWidth = t;
+    ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
+
+  } else if (style === 'double') {
+    ctx.lineWidth = Math.max(1, t * 0.55);
+    ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
+    const m2 = margin + t * 2.5 + margin * 0.12;
+    ctx.strokeRect(m2, m2, w - m2 * 2, h - m2 * 2);
+
+  } else if (style === 'dashed') {
+    ctx.lineWidth = t;
+    ctx.setLineDash([t * 3, t * 2]);
+    ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
+    ctx.setLineDash([]);
+
+  } else if (style === 'postcard') {
+    // Rounded outer frame plus a dashed inner rule — the stamp/postcard look
+    ctx.lineWidth = Math.max(1, t * 0.6);
+    const r = Math.max(6, margin * 0.3);
+    pdfedBorderRoundRectPath(ctx, margin, margin, w - margin * 2, h - margin * 2, r);
+    ctx.stroke();
+    const m2 = margin + t * 2.4;
+    ctx.setLineDash([t, t * 1.5]);
+    ctx.lineWidth = Math.max(1, t * 0.5);
+    ctx.strokeRect(m2, m2, w - m2 * 2, h - m2 * 2);
+    ctx.setLineDash([]);
+
+  } else if (style === 'letter') {
+    // Formal double-rule with small corner ticks, like a letterhead frame
+    ctx.lineWidth = Math.max(1, t * 0.5);
+    ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
+    const m2 = margin + t * 3.5;
+    ctx.lineWidth = Math.max(1, t * 0.35);
+    ctx.strokeRect(m2, m2, w - m2 * 2, h - m2 * 2);
+    const tick = Math.min(w, h) * 0.03 + margin * 0.15;
+    ctx.lineWidth = Math.max(1, t * 0.4);
+    [[margin, margin, 1, 1], [w - margin, margin, -1, 1], [margin, h - margin, 1, -1], [w - margin, h - margin, -1, -1]].forEach(function(c) {
+      const cx = c[0], cy = c[1], dx = c[2], dy = c[3];
+      ctx.beginPath();
+      ctx.moveTo(cx, cy); ctx.lineTo(cx + dx * tick, cy);
+      ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + dy * tick);
+      ctx.stroke();
+    });
+
+  } else if (style === 'designer') {
+    // Solid frame plus ornamental corner brackets floating just outside it
+    ctx.lineWidth = t;
+    ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
+    const bracket = Math.min(w, h) * 0.07 + t * 2;
+    const off = t * 1.8;
+    ctx.lineWidth = Math.max(2, t * 0.8);
+    ctx.lineCap = 'round';
+    [
+      { x: margin - off, y: margin - off, dx: 1, dy: 1 },
+      { x: w - margin + off, y: margin - off, dx: -1, dy: 1 },
+      { x: margin - off, y: h - margin + off, dx: 1, dy: -1 },
+      { x: w - margin + off, y: h - margin + off, dx: -1, dy: -1 }
+    ].forEach(function(c) {
+      ctx.beginPath();
+      ctx.moveTo(c.x + c.dx * bracket, c.y);
+      ctx.lineTo(c.x, c.y);
+      ctx.lineTo(c.x, c.y + c.dy * bracket);
+      ctx.stroke();
+    });
+  }
+  ctx.restore();
+}
+
+// Applies the current border settings to whichever page is active right now,
+// as a live, editable placed object — draggable, resizable from any edge or
+// corner, lockable, and reorderable via Arrange (Bring to Front/Send to Back/
+// Forward/Backward) exactly like placed images and text boxes, instead of
+// being permanently baked into the page's pixels. Defaults to covering the
+// full page (the classic "frame the page" look) but can be dragged/resized
+// afterwards into a smaller decorative frame anywhere on the page.
+function pdfedApplyBorderCurrentPage() {
+  if (pdfed.active < 0) { toast('Open a PDF or start a blank page first', 'info'); return; }
+  const idx = pdfed.active;
+  const pg = pdfed.pages[idx];
+  const pc = document.getElementById('pdfedPageCanvas');
+  if (!pc || !pc.width) { toast('Page is not ready yet, try again in a moment', 'info'); return; }
+  if (!pg.placedBorders) pg.placedBorders = [];
+  pg.placedBorders.push({
+    id: 'pbrd_' + (++pdfedBorderSeq),
+    style: pdfedBorderState.style,
+    marginPct: pdfedBorderState.margin,
+    thickness: pdfedBorderState.thickness,
+    color: pdfedBorderState.color,
+    x: 0, y: 0, w: pc.width, h: pc.height,
+    locked: false,
+    zIndex: pdfedNextZ(pg)
+  });
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedBorders(idx);
+  toast('Border added — drag to move, resize from any edge/corner, right-click to Arrange', 'success');
+}
+
+// Applies the current border settings to every page in the document as its
+// own independent, still-editable placed border object (one per page, sized
+// to that page's own rendered pixel dimensions). Each page's real raster size
+// only exists on the live #pdfedPageCanvas element while it's the one being
+// displayed, so this briefly visits each page (pdfedGoto) to read its actual
+// width/height before adding that page's border, then returns to wherever the
+// user started.
+async function pdfedApplyBorderAllPages() {
+  if (!pdfed.pages || !pdfed.pages.length) { toast('Open a PDF or start a blank page first', 'info'); return; }
+  const total = pdfed.pages.length;
+  const startActive = pdfed.active;
+  for (let i = 0; i < total; i++) {
+    await pdfedGoto(i);
+    const pg = pdfed.pages[i];
+    const pc = document.getElementById('pdfedPageCanvas');
+    if (!pc || !pc.width) continue;
+    if (!pg.placedBorders) pg.placedBorders = [];
+    pg.placedBorders.push({
+      id: 'pbrd_' + (++pdfedBorderSeq),
+      style: pdfedBorderState.style,
+      marginPct: pdfedBorderState.margin,
+      thickness: pdfedBorderState.thickness,
+      color: pdfedBorderState.color,
+      x: 0, y: 0, w: pc.width, h: pc.height,
+      locked: false,
+      zIndex: pdfedNextZ(pg)
+    });
+    pdfedMarkModified(i);
+  }
+  if (startActive >= 0) await pdfedGoto(startActive);
+  pdfedRenderPlacedBorders(pdfed.active);
+  toast('Border added to all ' + total + ' page' + (total !== 1 ? 's' : '') + ' — each is still editable', 'success');
+}
+
+// ─── PLACED BORDER LAYER (persistent, movable, resizable, lockable — same
+// Canva-style overlay as placed images/text, but redraws a live <canvas>
+// with the chosen border style instead of showing a static bitmap) ─────────
+
+// (Re)draws one placed border's own little canvas element at its current
+// box size. Called on first render and again on every resize step, so the
+// frame's margin/thickness always look correct at whatever size the user
+// has dragged it to, instead of stretching a fixed-size bitmap.
+function pdfedRedrawBorderCanvas(canvasEl, item) {
+  const w = Math.max(1, Math.round(item.w));
+  const h = Math.max(1, Math.round(item.h));
+  if (canvasEl.width !== w) canvasEl.width = w;
+  if (canvasEl.height !== h) canvasEl.height = h;
+  const ctx = canvasEl.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  pdfedDrawBorderOnCtx(ctx, w, h, {
+    style: item.style,
+    marginPct: item.marginPct,
+    thickness: item.thickness,
+    color: item.color
+  });
+}
+
+// Re-renders all placed borders for the given page as DOM overlay elements,
+// mirroring pdfedRenderPlacedImages exactly (same badges, same resize
+// handles, same z-index/opacity handling) so a border is a first-class
+// placed object right alongside images/text/tables.
+function pdfedRenderPlacedBorders(idx) {
+  const layer = document.getElementById('pdfedPlacedBordersLayer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  const pg = pdfed.pages[idx];
+  if (pg) pdfedGetZOrderedItems(pg); // seeds zIndex on any legacy/missing items
+  const list = (pg && pg.placedBorders) || [];
+  const pc = document.getElementById('pdfedPageCanvas');
+  if (!pc || !pc.width) return;
+
+  list.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'pdfed-placed-border' + (item.locked ? ' locked' : '');
+    el.dataset.id = item.id;
+    el.style.cssText = `position:absolute;box-sizing:border-box;
+      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
+      border-radius:2px;user-select:none;
+      pointer-events:${item.locked ? 'none' : 'auto'};
+      cursor:${item.locked ? 'default' : 'move'};
+      z-index:${item.zIndex || 0};`;
+    pdfedPositionPlacedEl(el, item, pc);
+
+    const canvasEl = document.createElement('canvas');
+    canvasEl.style.cssText = `width:100%;height:100%;display:block;pointer-events:none;opacity:${pdfedGetOpacity(item)};`;
+    el.appendChild(canvasEl);
+    pdfedRedrawBorderCanvas(canvasEl, item);
+
+    // Lock/unlock toggle badge, always interactive, even when the border itself is locked
+    const lockBtn = document.createElement('button');
+    lockBtn.title = item.locked ? 'Unlock to move/resize' : 'Lock in place';
+    lockBtn.className = 'pdfed-badge-btn' + (item.locked ? ' is-locked' : '');
+    lockBtn.style.cssText = `position:absolute;top:4px;right:4px;pointer-events:auto;z-index:2;`;
+    lockBtn.innerHTML = item.locked
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.45-2"/></svg>';
+    lockBtn.onclick = (ev) => { ev.stopPropagation(); pdfedTogglePlacedBorderLock(idx, item.id); };
+    el.appendChild(lockBtn);
+
+    if (!item.locked) {
+      // Bring Forward, one-click step toward the front (unified z-order,
+      // so it can step past an image, text box, or table too)
+      const fwdBtn = document.createElement('button');
+      fwdBtn.title = 'Bring forward';
+      fwdBtn.className = 'pdfed-badge-btn';
+      fwdBtn.style.cssText = `position:absolute;top:4px;right:116px;pointer-events:auto;z-index:2;`;
+      fwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>';
+      fwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('border', idx, item.id, 1); };
+      el.appendChild(fwdBtn);
+
+      // Send Backward, one-click step toward the back
+      const bwdBtn = document.createElement('button');
+      bwdBtn.title = 'Send backward';
+      bwdBtn.className = 'pdfed-badge-btn';
+      bwdBtn.style.cssText = `position:absolute;top:4px;right:88px;pointer-events:auto;z-index:2;`;
+      bwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      bwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('border', idx, item.id, -1); };
+      el.appendChild(bwdBtn);
+
+      // Arrange (layer order) badge, jump straight To Front / To Back
+      const arrBtn = document.createElement('button');
+      arrBtn.title = 'Arrange, bring to front/back';
+      arrBtn.className = 'pdfed-badge-btn';
+      arrBtn.style.cssText = `position:absolute;top:4px;right:60px;pointer-events:auto;z-index:2;`;
+      arrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+      arrBtn.onclick = (ev) => pdfedOpenArrangeMenu(ev, 'border', idx, item.id);
+      el.appendChild(arrBtn);
+
+      // Opacity badge, opens the shared opacity popover for this border
+      const opBtn = document.createElement('button');
+      opBtn.title = 'Opacity';
+      opBtn.className = 'pdfed-badge-btn pdfed-opacity-btn';
+      opBtn.style.cssText = `position:absolute;top:4px;right:144px;pointer-events:auto;z-index:2;`;
+      opBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
+      opBtn.onclick = (ev) => pdfedOpenOpacityPopover(ev, 'border', idx, item.id);
+      el.appendChild(opBtn);
+
+      // Color badge — opens a small floating color popover; dragging/typing
+      // in it recolors THIS border object live, redrawing its canvas on
+      // every input event (not just on close), so the change is visible
+      // immediately while picking, exactly like Canva-style live recoloring.
+      const colBtn = document.createElement('button');
+      colBtn.title = 'Border color';
+      colBtn.className = 'pdfed-badge-btn';
+      colBtn.style.cssText = `position:absolute;top:4px;right:172px;pointer-events:auto;z-index:2;`;
+      colBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0-9 9c0 1.5 1 2.5 2.3 2.5H8a1.8 1.8 0 0 1 1.8 1.8v.4A2.3 2.3 0 0 0 12 21a9 9 0 0 0 0-18z" fill="currentColor" stroke="none" opacity="0.9"/></svg>';
+      colBtn.onclick = (ev) => pdfedOpenBorderColorPopover(ev, idx, item.id);
+      el.appendChild(colBtn);
+
+      // Delete button, only available while unlocked
+      const delBtn = document.createElement('button');
+      delBtn.title = 'Remove border';
+      delBtn.className = 'pdfed-badge-btn is-danger';
+      delBtn.style.cssText = `position:absolute;top:4px;right:32px;pointer-events:auto;z-index:2;`;
+      delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+      delBtn.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePlacedBorder(idx, item.id); };
+      el.appendChild(delBtn);
+
+      const handles = {};
+      ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].forEach(dir => {
+        const rh = pdfedMakeImgResizeHandle(dir);
+        el.appendChild(rh);
+        handles[dir] = rh;
+      });
+
+      pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl);
+    }
+
+    layer.appendChild(el);
+  });
+}
+
+// Drag/resize handling for a placed border — same smart-snap-to-page/other-
+// objects behavior as placed images (pdfedAttachPlacedDragHandlers), plus a
+// live canvas redraw on every resize step so the frame's margin/thickness
+// always look right at the new size instead of a stretched bitmap.
+function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
+  let dragging = false, resizing = false, resizeDir = null;
+  let ox = 0, oy = 0, startRect = null;
+  let startX = 0, startY = 0, snapTargets = null;
+  const pc = document.getElementById('pdfedPageCanvas');
+  const SNAP = 10; // canvas-px snap threshold, same as placed images/text
+
+  el.addEventListener('mousedown', (e) => {
+    if (item.locked) return;
+    const dir = e.target && e.target.dataset ? e.target.dataset.dir : null;
+    if (dir && handles[dir] === e.target) {
+      resizing = true; resizeDir = dir;
+      ox = e.clientX; oy = e.clientY;
+      startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
+    } else if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+      dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
+      snapTargets = pdfedCollectSnapTargets(item.id);
+    } else { return; }
+    document.querySelectorAll('.pdfed-placed-border.selected').forEach(n => n.classList.remove('selected'));
+    el.classList.add('selected');
+    e.preventDefault(); e.stopPropagation();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging && !resizing) return;
+    const pcRect = pc.getBoundingClientRect();
+    const scale = pc.width / pcRect.width;
+    const guideV = document.getElementById('pdfedSmartGuideV');
+    const guideH = document.getElementById('pdfedSmartGuideH');
+    if (dragging) {
+      let nx = startX + (e.clientX - ox) * scale;
+      let ny = startY + (e.clientY - oy) * scale;
+
+      const bestX = pdfedBestSnap([nx, nx + item.w / 2, nx + item.w], (snapTargets || { x: [] }).x, SNAP);
+      const bestY = pdfedBestSnap([ny, ny + item.h / 2, ny + item.h], (snapTargets || { y: [] }).y, SNAP);
+      if (bestX) nx += bestX.delta;
+      if (bestY) ny += bestY.delta;
+      if (pdfed.snapGrid) {
+        if (!bestX) nx = pdfedSnapToGrid(nx);
+        if (!bestY) ny = pdfedSnapToGrid(ny);
+      }
+      if (guideV) {
+        guideV.style.display = bestX ? 'block' : 'none';
+        if (bestX) guideV.style.left = (bestX.at * (pdfed.zoom || 1)) + 'px';
+      }
+      if (guideH) {
+        guideH.style.display = bestY ? 'block' : 'none';
+        if (bestY) guideH.style.top = (bestY.at * (pdfed.zoom || 1)) + 'px';
+      }
+
+      item.x = nx; item.y = ny;
+      pdfedPositionPlacedEl(el, item, pc);
+    } else if (resizing) {
+      const dx = (e.clientX - ox) * scale, dy = (e.clientY - oy) * scale;
+      const r = pdfedResizeRect(resizeDir, startRect, dx, dy, 30, e.shiftKey);
+      item.x = r.x; item.y = r.y; item.w = r.w; item.h = r.h;
+      pdfedPositionPlacedEl(el, item, pc);
+      pdfedRedrawBorderCanvas(canvasEl, item);
+    }
+  });
+  document.addEventListener('mouseup', () => {
+    if (resizing && pdfed.snapGrid) {
+      const newX = pdfedSnapToGrid(item.x), newY = pdfedSnapToGrid(item.y);
+      item.w = Math.max(30, pdfedSnapToGrid(item.x + item.w) - newX);
+      item.h = Math.max(30, pdfedSnapToGrid(item.y + item.h) - newY);
+      item.x = newX; item.y = newY;
+      pdfedPositionPlacedEl(el, item, pc);
+      pdfedRedrawBorderCanvas(canvasEl, item);
+    }
+    if (dragging || resizing) pdfedMarkModified(idx);
+    dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
+    const guideV = document.getElementById('pdfedSmartGuideV');
+    const guideH = document.getElementById('pdfedSmartGuideH');
+    if (guideV) guideV.style.display = 'none';
+    if (guideH) guideH.style.display = 'none';
+  });
+}
+
+function pdfedTogglePlacedBorderLock(idx, id) {
+  const list = (pdfed.pages[idx] && pdfed.pages[idx].placedBorders) || [];
+  const item = list.find(i => i.id === id);
+  if (!item) return;
+  item.locked = !item.locked;
+  pdfedRenderPlacedBorders(idx);
+  toast(item.locked ? 'Border locked, unlock to move it' : 'Border unlocked, drag to move', 'info');
+}
+
+function pdfedDeletePlacedBorder(idx, id) {
+  const pg = pdfed.pages[idx];
+  if (!pg || !pg.placedBorders) return;
+  pg.placedBorders = pg.placedBorders.filter(i => i.id !== id);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedBorders(idx);
+  toast('Border removed', 'success');
+}
+
+function pdfedDuplicatePlacedBorder(idx, id) {
+  const pg = pdfed.pages[idx];
+  const list = (pg && pg.placedBorders) || [];
+  const item = list.find(i => i.id === id);
+  if (!item) return;
+  const clone = Object.assign({}, item, { id: 'pbrd_' + (++pdfedBorderSeq), x: item.x + 18, y: item.y + 18, locked: false, zIndex: pdfedNextZ(pg) });
+  pg.placedBorders.push(clone);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedBorders(idx);
+  toast('Border duplicated', 'success');
+}
+
+window.pdfedRenderPlacedBorders = pdfedRenderPlacedBorders;
+window.pdfedTogglePlacedBorderLock = pdfedTogglePlacedBorderLock;
+window.pdfedDeletePlacedBorder = pdfedDeletePlacedBorder;
+window.pdfedDuplicatePlacedBorder = pdfedDuplicatePlacedBorder;
+
+// ─── LIVE BORDER COLOR ──────────────────────────────────────────────────────
+// Two color entry points, both fully "live" (repaint on every input event,
+// not just on close/blur):
+//   1. The small floating popover opened from a placed border's own "Color"
+//      badge — recolors THAT one object only, instantly, while dragging.
+//   2. The Border panel's own swatch/hex/native-color controls — set the
+//      DEFAULT color new borders will be created with, and ALSO live-recolor
+//      whichever border object is currently selected (.selected class,
+//      toggled on mousedown same as images/text), so adjusting color while a
+//      frame is selected updates it on the page in real time too.
+
+const pdfedBorderColorPop = { idx: -1, id: null };
+
+function pdfedIsValidHex(hex) {
+  return typeof hex === 'string' && /^#([0-9a-fA-F]{6})$/.test(hex);
+}
+
+// Repaints one placed border's live canvas + its little preview chip with a
+// new color, without touching anything else about it (position/size/style).
+function pdfedApplyBorderColorToItem(idx, id, hex) {
+  const pg = pdfed.pages[idx];
+  const item = (pg && pg.placedBorders || []).find(i => i.id === id);
+  if (!item) return;
+  item.color = hex;
+  const el = document.querySelector(`.pdfed-placed-border[data-id="${CSS.escape(id)}"]`);
+  const canvasEl = el && el.querySelector('canvas');
+  if (canvasEl) pdfedRedrawBorderCanvas(canvasEl, item);
+  pdfedMarkModified(idx);
+}
+
+function pdfedOpenBorderColorPopover(ev, idx, id) {
+  ev.stopPropagation();
+  const pop = document.getElementById('pdfedBorderColorPopover');
+  if (!pop) return;
+  const item = (pdfed.pages[idx] && pdfed.pages[idx].placedBorders || []).find(i => i.id === id);
+  if (!item) return;
+  pdfedBorderColorPop.idx = idx; pdfedBorderColorPop.id = id;
+  const hex = item.color || '#FFD600';
+  document.getElementById('pdfedBorderColorPopoverNative').value = hex;
+  document.getElementById('pdfedBorderColorPopoverHex').value = hex;
+  pop.classList.add('show');
+  let left = ev.clientX - 30;
+  let top = ev.clientY + 14;
+  const popW = 170, popH = 44;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
+  if (top + popH > window.innerHeight - 8) top = ev.clientY - popH - 14;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+}
+
+function pdfedCloseBorderColorPopover() {
+  const pop = document.getElementById('pdfedBorderColorPopover');
+  if (pop) pop.classList.remove('show');
+  pdfedBorderColorPop.idx = -1; pdfedBorderColorPop.id = null;
+}
+
+// Fired on every native <input type=color> drag tick — genuinely live.
+function pdfedBorderColorPopoverInput(hex) {
+  const { idx, id } = pdfedBorderColorPop;
+  if (id == null) return;
+  document.getElementById('pdfedBorderColorPopoverHex').value = hex;
+  pdfedApplyBorderColorToItem(idx, id, hex);
+}
+
+// Fired as the person types a hex value directly; only repaints once it's a
+// complete, valid 6-digit hex so partial typing doesn't flash odd colors.
+function pdfedBorderColorPopoverHexTyped(hex) {
+  if (!hex.startsWith('#')) hex = '#' + hex;
+  if (!pdfedIsValidHex(hex)) return;
+  const { idx, id } = pdfedBorderColorPop;
+  if (id == null) return;
+  document.getElementById('pdfedBorderColorPopoverNative').value = hex;
+  pdfedApplyBorderColorToItem(idx, id, hex);
+}
+
+document.addEventListener('mousedown', (e) => {
+  const pop = document.getElementById('pdfedBorderColorPopover');
+  if (!pop || !pop.classList.contains('show')) return;
+  if (e.target.closest('#pdfedBorderColorPopover') || e.target.closest('.pdfed-badge-btn')) return;
+  pdfedCloseBorderColorPopover();
+});
+
+// ── Border-panel default color (used for every new border going forward) ──
+// Also live-recolors whichever placed border is currently selected on the
+// active page, if any, so changing the default while a frame is selected
+// updates that frame on the spot instead of only affecting future ones.
+function pdfedBorderApplyLiveToSelected(hex) {
+  if (pdfed.active < 0) return;
+  const selEl = document.querySelector('.pdfed-placed-border.selected');
+  if (!selEl) return;
+  pdfedApplyBorderColorToItem(pdfed.active, selEl.dataset.id, hex);
+}
+
+function pdfedBorderColorInput(hex) {
+  pdfedBorderState.color = hex;
+  const prev = document.getElementById('pdfedBorderColorPreview');
+  const hexInput = document.getElementById('pdfedBorderColorHexInput');
+  if (prev) prev.style.background = hex;
+  if (hexInput) hexInput.value = hex;
+  pdfedBorderApplyLiveToSelected(hex);
+}
+
+function pdfedBorderColorHexTyped(hex) {
+  if (!hex.startsWith('#')) hex = '#' + hex;
+  if (!pdfedIsValidHex(hex)) return;
+  pdfedBorderState.color = hex;
+  const prev = document.getElementById('pdfedBorderColorPreview');
+  const nativeInput = document.getElementById('pdfedBorderColorNative');
+  if (prev) prev.style.background = hex;
+  if (nativeInput) nativeInput.value = hex;
+  pdfedBorderApplyLiveToSelected(hex);
+}
+
+window.pdfedOpenBorderColorPopover = pdfedOpenBorderColorPopover;
+window.pdfedCloseBorderColorPopover = pdfedCloseBorderColorPopover;
+window.pdfedBorderColorPopoverInput = pdfedBorderColorPopoverInput;
+window.pdfedBorderColorPopoverHexTyped = pdfedBorderColorPopoverHexTyped;
+window.pdfedBorderColorInput = pdfedBorderColorInput;
+window.pdfedBorderColorHexTyped = pdfedBorderColorHexTyped;
+
 // ── COLOR WHEEL ──────────────────────────────────────────────────────────────
 // Store last picked position in canvas coords for accurate indicator
 let pdfedWheelIndicator = { x: null, y: null };
@@ -18803,6 +19800,47 @@ function pdfedMarkModified(idx) {
   if (liveTag) liveTag.classList.add('on');
   clearTimeout(_pdfedThumbRefreshTimers[idx]);
   _pdfedThumbRefreshTimers[idx] = setTimeout(() => { _pdfedThumbRefreshTimers[idx] = null; pdfedRefreshThumb(idx); }, 90);
+}
+
+// ─── Translate page text (opt-in) ───────────────────────────────────────
+// Translates every text box on the current page in place. This edit is
+// undoable (Ctrl+Z / the Undo button) like any other change on the page, so
+// nothing is permanently lost if the result isn't wanted. Only this page's
+// text is sent out, and only after the user picks a language and confirms.
+let pdfedTranslating = false;
+async function pdfedTranslatePageText() {
+  if (pdfedTranslating) { toast('Already translating — please wait for it to finish', 'info'); return; }
+  const idx = pdfed.active;
+  const pg = pdfed.pages[idx];
+  const items = (pg && pg.placedTexts) || [];
+  const translatable = items.filter(it => (it.text || '').trim());
+  if (!translatable.length) { toast('No text on this page yet — click "OCR" first to scan the page\'s text, or add some with "Add Text"', 'info'); return; }
+
+  const targetLang = prompt('Translate this page\'s text into which language?\n\nType a language code, for example:\n' + SARVARC_LANG_HINTS, 'hi');
+  if (!targetLang || !targetLang.trim()) return;
+  const lang = targetLang.trim().toLowerCase();
+
+  const ok = confirm(`Send this page's text to MyMemory Translation API to translate into "${lang}"?\n\nThe text on this page will be replaced with the translation — press Ctrl+Z afterwards if you want it back. Only this page's text is sent, nothing else in your workspace leaves the browser.`);
+  if (!ok) return;
+
+  pdfedTranslating = true;
+  toast('Translating this page…', 'info');
+  let translatedCount = 0, errorCount = 0;
+  for (const item of translatable) {
+    try {
+      const translated = await sarvarcTranslateText(item.text.trim(), lang);
+      item.text = translated;
+      item.html = daEsc(translated);
+      translatedCount++;
+    } catch (e) {
+      errorCount++;
+    }
+    await new Promise(r => setTimeout(r, 350)); // stay well within the free API's rate limit
+  }
+  pdfedRenderPlacedTexts(idx);
+  pdfedMarkModified(idx);
+  pdfedTranslating = false;
+  toast(errorCount ? `Translated ${translatedCount} text boxes, ${errorCount} failed (try again for those)` : `Translated ${translatedCount} text boxes into "${lang}"`, errorCount ? 'error' : 'success');
 }
 
 // Bake annotation canvas INTO the page canvas (called before page navigation / export)
@@ -19590,6 +20628,22 @@ function pdfedPlaceTextLabel(x, y) {
     const el = document.querySelector(`.pdfed-placed-text[data-id="${item.id}"] .pdfed-ptxt-content`);
     if (el) { el.focus(); document.execCommand && pdfedSelectAllText(el); }
   });
+
+  pushAppHistory({
+    label: 'Add text',
+    undo: () => {
+      const i = pg.placedTexts.indexOf(item);
+      if (i > -1) pg.placedTexts.splice(i, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Text add undone', 'info');
+    },
+    redo: () => {
+      if (pg.placedTexts.indexOf(item) === -1) pg.placedTexts.push(item);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTexts(idx);
+    }
+  });
 }
 
 function pdfedSelectAllText(el) {
@@ -19931,6 +20985,228 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
+// Remembers the last spot the person clicked on the page canvas (in raw
+// canvas-px, same coordinate space as every placed item's x/y), purely so a
+// Ctrl/Cmd+V paste below has somewhere sensible to land instead of always
+// dropping in the same corner. Capture phase so it's recorded even when a
+// placed box's own mousedown handler stops the event from bubbling further.
+let pdfedLastCanvasPos = null;
+document.addEventListener('mousedown', function (e) {
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  if (!wrap || wrap.style.display === 'none' || wrap.offsetParent === null) return;
+  if (e.target === wrap || e.target.id === 'pdfedPageCanvas' ||
+      e.target.closest('.pdfed-placed-text, .pdfed-placed-img, .pdfed-placed-table')) {
+    pdfedLastCanvasPos = pdfedCtxCanvasPos(e);
+  }
+}, true);
+
+// ── Paste anywhere on the canvas (Ctrl/Cmd+V) ──────────────────────────────
+// Drops whatever's on the clipboard straight onto the page as a new, fully
+// editable object — an image, a table (from a spreadsheet or a plain
+// tab-separated copy), or plain text — the same way a bare paste behaves on
+// a Canva/Figma/PowerPoint canvas. Only kicks in when focus ISN'T already
+// inside a text box, input, or textarea; a paste while actually editing a
+// text box keeps using that box's own paste handler (which normalizes
+// pasted text into it, see pdfedRenderPlacedTexts), and a paste into any
+// other form field on the page is left completely alone.
+document.addEventListener('paste', async function (e) {
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  if (!wrap || wrap.style.display === 'none' || wrap.offsetParent === null) return;
+  const idx = pdfed.active;
+  if (idx < 0 || !pdfed.pages[idx]) return;
+  const cd = e.clipboardData || window.clipboardData;
+  if (!cd) return;
+
+  const pc = document.getElementById('pdfedPageCanvas');
+  const pos = pdfedLastCanvasPos || { x: Math.round(((pc && pc.width) || 600) / 2), y: Math.round(((pc && pc.height) || 800) / 2) };
+
+  // 1) An actual image on the clipboard (screenshot, copied photo, an image
+  // copied from another tab/app) takes priority over any text that might be
+  // riding along with it.
+  const imgFile = Array.from(cd.items || []).find(it => it.kind === 'file' && it.type && it.type.startsWith('image/'));
+  if (imgFile) {
+    e.preventDefault();
+    const file = imgFile.getAsFile();
+    if (!file) return;
+    const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsDataURL(file); });
+    pdfedPastePlacedImage(dataUrl, pos.x, pos.y);
+    return;
+  }
+
+  // 2) Tabular data — a real <table> (Excel/Sheets/Word all put one on the
+  // clipboard alongside plain text) or tab-separated plain text — becomes a
+  // live, editable table instead of a wall of tab characters dumped into a
+  // text box.
+  const html = cd.getData('text/html');
+  const plain = cd.getData('text/plain');
+  let rowsData = null;
+  if (html && /<table[\s>]/i.test(html)) {
+    rowsData = pdfedParseHtmlTableClipboard(html);
+  } else if (plain && plain.includes('\t')) {
+    rowsData = plain.replace(/\r\n/g, '\n').split('\n').filter(l => l.length).map(l => l.split('\t'));
+  }
+  if (rowsData && rowsData.length && rowsData.some(r => r.length > 1)) {
+    e.preventDefault();
+    pdfedPasteTableFromRows(rowsData, pos.x, pos.y);
+    return;
+  }
+
+  // 3) Plain text, the common case — becomes a new text box with the pasted
+  // content, keeping every line break exactly as copied.
+  if (plain) {
+    e.preventDefault();
+    pdfedPastePlacedText(plain, pos.x, pos.y);
+  }
+});
+
+// Places a pasted image centered on `cx,cy` (raw canvas-px), sized to the
+// same 35%-of-page-width default the file-picker's Insert Image ghost uses,
+// but landing already-stamped and editable instead of requiring an extra
+// drag-then-Stamp step — matching how a paste should feel.
+function pdfedPastePlacedImage(dataUrl, cx, cy) {
+  const idx = pdfed.active;
+  const pg = pdfed.pages[idx];
+  if (!pg) return;
+  if (!pg.placedImages) pg.placedImages = [];
+  const pc = document.getElementById('pdfedPageCanvas');
+  const defaultW = Math.round(((pc && pc.width) || 1000) * 0.35);
+  const probe = new Image();
+  probe.onload = () => {
+    const h = probe.naturalWidth ? Math.round(defaultW * (probe.naturalHeight / probe.naturalWidth)) : defaultW;
+    const item = {
+      id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
+      dataUrl,
+      x: Math.round(cx - defaultW / 2),
+      y: Math.round(cy - h / 2),
+      w: defaultW, h,
+      locked: false,
+      zIndex: pdfedNextZ(pg)
+    };
+    pg.placedImages.push(item);
+    pdfedMarkModified(idx);
+    pdfedRenderPlacedImages(idx);
+    pdfedRenderPlacedTexts(idx);
+    toast('Image pasted, drag to move, then lock it in place', 'success');
+
+    pushAppHistory({
+      label: 'Paste image',
+      undo: () => {
+        const i = pg.placedImages.indexOf(item);
+        if (i > -1) pg.placedImages.splice(i, 1);
+        pdfedMarkModified(idx);
+        pdfedRenderPlacedImages(idx);
+        toast('Image paste undone', 'info');
+      },
+      redo: () => {
+        if (pg.placedImages.indexOf(item) === -1) pg.placedImages.push(item);
+        pdfedMarkModified(idx);
+        pdfedRenderPlacedImages(idx);
+      }
+    });
+  };
+  probe.src = dataUrl;
+}
+
+// Places pasted plain text as a new, immediately editable text box centered
+// on `cx,cy`, keeping the same defaults (size/color) Add Text uses so a
+// pasted box looks consistent with a typed one.
+function pdfedPastePlacedText(text, cx, cy) {
+  const idx = pdfed.active;
+  const pg = pdfed.pages[idx];
+  if (!pg) return;
+  if (!pg.placedTexts) pg.placedTexts = [];
+  const fontSize = pdfedAnnotState.textSize || 20;
+  const color = pdfedAnnotState.colorTouched ? (pdfedAnnotState.color || '#101820') : '#101820';
+  const item = {
+    id: 'ptxt_' + (++pdfedPlacedTextSeq),
+    text: text.replace(/\r\n/g, '\n'),
+    x: Math.round(cx - 80), y: Math.round(cy - 12),
+    fontSize, fontFamily: 'Inter', color,
+    bold: false, italic: false, underline: false, align: 'left',
+    locked: false, zIndex: pdfedNextZ(pg)
+  };
+  pg.placedTexts.push(item);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTexts(idx);
+  toast('Text pasted, drag to move, double-click to edit', 'success');
+
+  pushAppHistory({
+    label: 'Paste text',
+    undo: () => {
+      const i = pg.placedTexts.indexOf(item);
+      if (i > -1) pg.placedTexts.splice(i, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Text paste undone', 'info');
+    },
+    redo: () => {
+      if (pg.placedTexts.indexOf(item) === -1) pg.placedTexts.push(item);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTexts(idx);
+    }
+  });
+}
+
+// Turns clipboard <table> HTML (Excel/Sheets/Word all include one when you
+// copy a cell range) into a plain rows-of-strings array, cell text only —
+// the placed-table model below builds its own fresh grid from that, so
+// mismatched source formatting/merged cells never leak into the pasted table.
+function pdfedParseHtmlTableClipboard(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const table = tmp.querySelector('table');
+  if (!table) return null;
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const row = [];
+    tr.querySelectorAll('th,td').forEach(cell => row.push((cell.textContent || '').trim()));
+    if (row.length) rows.push(row);
+  });
+  return rows.length ? rows : null;
+}
+
+// Builds a new placed table from parsed clipboard rows, same shape as
+// pdfedInsertTable's own item model, sized/positioned to be centered on
+// `cx,cy` and ready to drag/type into immediately, exactly like a table
+// added from the toolbar.
+function pdfedPasteTableFromRows(rowsData, cx, cy) {
+  const idx = pdfed.active;
+  const pg = pdfed.pages[idx];
+  if (!pg) return;
+  if (!pg.placedTables) pg.placedTables = [];
+  const rows = Math.max(1, Math.min(60, rowsData.length));
+  const cols = Math.max(1, Math.min(20, rowsData.reduce((m, r) => Math.max(m, r.length), 1)));
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) row.push((rowsData[r][c] || '').toString());
+    cells.push(row);
+  }
+  const pc = document.getElementById('pdfedPageCanvas');
+  const pageW = (pc && pc.width) || 600;
+  const colW = Math.max(60, Math.min(140, Math.floor((pageW * 0.8) / cols)));
+  const rowH = 30;
+  const w = colW * cols, h = rowH * rows;
+  const item = {
+    id: 'tbl_' + (++pdfedTableSeq),
+    x: Math.round(cx - w / 2), y: Math.round(cy - h / 2),
+    rows, cols,
+    colWidths: new Array(cols).fill(colW),
+    rowHeights: new Array(rows).fill(rowH),
+    fontSize: 12,
+    headerRow: false,
+    cells,
+    locked: false,
+    zIndex: pdfedNextZ(pg)
+  };
+  pg.placedTables.push(item);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTables(idx);
+  toast(`${rows} x ${cols} table pasted, drag to move, click a cell to type`, 'success');
+}
+
 
 // Click/tap anywhere outside a placed-text box (or its floating toolbar) —
 // blank canvas, another element, the sidebar, another tool, deselects it.
@@ -20076,12 +21352,14 @@ function pdfedPtxtSetSize(value) {
   if (!item) return;
   const v = Math.max(6, Math.min(300, parseInt(value, 10) || item.fontSize));
   item.fontSize = v;
-  const pc = document.getElementById('pdfedPageCanvas');
-  if (content && pc && pc.width) {
-    const pcRect = pc.getBoundingClientRect();
-    const displayScale = pcRect.width / pc.width;
-    content.style.fontSize = (v * displayScale) + 'px';
-  }
+  // Use the raw canvas-px value directly, matching every other place that
+  // sets this style (initial render, drag-resize handles). The whole
+  // placed-text layer is already scaled once as a unit for zoom via a CSS
+  // transform (pdfedSyncPlacedTextsZoom), so multiplying by displayScale
+  // here on top of that was double-scaling the live preview — the text
+  // looked one size while editing, then visibly jumped bigger the moment
+  // the box was deselected or locked and re-rendered at the true size.
+  if (content) content.style.fontSize = v + 'px';
   if (el) pdfedPositionPtxtToolbar();
   pdfedMarkModified(idx);
 }
@@ -20352,7 +21630,16 @@ function pdfedParseRichLines(html) {
       });
     }
   }
-  const lineHtmls = html.split(/<br\s*\/?>/i);
+  // Normalize block-level paragraph wrappers a browser may have inserted
+  // (typically from an old paste, before pastes were normalized to plain
+  // <br> breaks) into explicit <br> breaks too, so a </div><div> or </p><p>
+  // boundary is treated as a new line exactly like the on-screen box
+  // renders it, instead of silently merging separate paragraphs into one.
+  const normalized = html
+    .replace(/<\/(div|p)>\s*<(div|p)[^>]*>/gi, '<br>')
+    .replace(/<(div|p)[^>]*>/gi, '')
+    .replace(/<\/(div|p)>/gi, '');
+  const lineHtmls = normalized.split(/<br\s*\/?>/i);
   return lineHtmls.map(lineHtml => {
     const tmp = document.createElement('div');
     tmp.innerHTML = lineHtml;
@@ -20475,6 +21762,26 @@ function pdfedRenderPlacedTexts(idx) {
         document.execCommand('insertHTML', false, '<br>');
       }
     });
+    // Pasted text is the other way a browser sneaks in its own per-line
+    // <div>/<p> wrapper elements (Enter already forces plain <br> above, but
+    // that only covers typing — a paste goes through the clipboard's own
+    // HTML, and Chrome/Firefox both split multi-line pasted content into
+    // block elements, not <br>). Left alone, the box LOOKS right on screen
+    // (browser gives each block its own line, sometimes with a bit of
+    // default margin) but pdfedParseRichLines below only recognizes <br> as
+    // a line break, so those <div>-separated lines silently ran together
+    // into one line — or lost their gaps — the moment the same content was
+    // baked into a thumbnail or an exported file. Normalizing every paste to
+    // plain text, re-joined with the same explicit <br> breaks as typing,
+    // keeps what's on screen and what gets exported permanently in sync.
+    content.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      const withBreaks = text.split(/\r\n|\r|\n/).map(line =>
+        line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      ).join('<br>');
+      document.execCommand('insertHTML', false, withBreaks);
+    });
     el.appendChild(content);
     pdfedPositionPlacedTextEl(el, item);
 
@@ -20491,11 +21798,27 @@ function pdfedRenderPlacedTexts(idx) {
     el.appendChild(lockBtn);
 
     if (!item.locked) {
+      // Bring Forward, one-click step toward the front (unified z-order, so
+      // it can step past an image or table too, not just another text box).
+      // Mirrors the badge already on placed images (pdfedRenderPlacedImages).
+      const fwdBtn = document.createElement('button');
+      fwdBtn.title = 'Bring forward';
+      fwdBtn.className = 'pdfed-badge-btn ptxt-chrome';
+      fwdBtn.style.cssText = `position:absolute;top:-8px;right:100px;z-index:2;`;
+      fwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>';
+      fwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('text', idx, item.id, 1); };
+      el.appendChild(fwdBtn);
+
+      // Send Backward, one-click step toward the back
+      const bwdBtn = document.createElement('button');
+      bwdBtn.title = 'Send backward';
+      bwdBtn.className = 'pdfed-badge-btn ptxt-chrome';
+      bwdBtn.style.cssText = `position:absolute;top:-8px;right:72px;z-index:2;`;
+      bwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      bwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('text', idx, item.id, -1); };
+      el.appendChild(bwdBtn);
+
       // Arrange (layer order) badge, jump straight To Front / To Back
-      // (the one-step Forward/Backward badges used to live here too, but
-      // that made for 5 crowded buttons hovering right above the box,
-      // often covering the very text being edited on smaller boxes;
-      // step-by-step reordering is still available from the right-click menu).
       const arrBtn = document.createElement('button');
       arrBtn.title = 'Arrange, bring to front/back';
       arrBtn.className = 'pdfed-badge-btn ptxt-chrome';
@@ -20565,6 +21888,13 @@ function pdfedPositionPlacedTextEl(el, item) {
   }
   const content = el.querySelector('.pdfed-ptxt-content');
   if (content) content.style.fontSize = item.fontSize + 'px';
+  // A page rotate (pdfedRotatePage) no longer bakes text boxes into pixels —
+  // each one carries its own accumulated rotation through instead, applied
+  // here as a plain CSS rotate around the box's own center. Position (x/y)
+  // and wrap width are untouched by this, so the box stays exactly as
+  // editable, draggable, and lockable as it was before any rotation, through
+  // any number of turns including a full round trip back to 0°.
+  el.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : '';
 }
 
 // Sizes pdfedPlacedTextsLayer to the canvas's raw pixel dimensions and scales
@@ -20957,6 +22287,22 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
       });
     }
 
+    // A rotated box (see pdfedRotatePage) is still stored/wrapped in its own
+    // UNROTATED local frame — same x/y/width/wrap math as an upright box —
+    // and only spun around its own center at the very last step, here, so
+    // the baked thumbnail/export pixels land exactly where the live DOM box
+    // (rotated the same way via CSS transform) visually sits on screen.
+    const boxRotation = item.rotation ? item.rotation * Math.PI / 180 : 0;
+    if (boxRotation) {
+      const boxW = (item.w || contentWidth) + padX * 2;
+      const boxH = lines.length * lineHeight + padY * 2;
+      const bcx = item.x + boxW / 2, bcy = item.y + boxH / 2;
+      ctx.save();
+      ctx.translate(bcx, bcy);
+      ctx.rotate(boxRotation);
+      ctx.translate(-bcx, -bcy);
+    }
+
     lines.forEach((runs, i) => {
       const tyTop = item.y + padY + i * lineHeight;
       const widths = runs.map(r => { setRunFont(r); return ctx.measureText(r.text).width; });
@@ -20989,6 +22335,7 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
         cx += widths[ri];
       });
     });
+    if (boxRotation) ctx.restore();
   });
 }
 
@@ -21114,6 +22461,22 @@ function pdfedInsertTable(rows, cols, opts) {
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
   toast(`${rows} x ${cols} table added, drag to move, click a cell to type`, 'success');
+
+  pushAppHistory({
+    label: 'Insert table',
+    undo: () => {
+      const i = pg.placedTables.indexOf(item);
+      if (i > -1) pg.placedTables.splice(i, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTables(idx);
+      toast('Table insert undone', 'info');
+    },
+    redo: () => {
+      if (pg.placedTables.indexOf(item) === -1) pg.placedTables.push(item);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTables(idx);
+    }
+  });
 }
 
 // Re-renders every placed table for the given page as DOM overlay elements —
@@ -21668,26 +23031,56 @@ function pdfedDrawPlacedTablesOnCtx(ctx, list) {
 
 // ─── PAGE ROTATE ──────────────────────────────────────────────────────────────
 
+let pdfedRotateReplaying = false;
 async function pdfedRotatePage(deg) {
   const idx = pdfed.active;
   if (idx < 0 || !pdfed.pages[idx]) { toast('No page loaded', 'error'); return; }
+  const pg = pdfed.pages[idx];
 
-  // Bake any annotations first
+  // Snapshot enough of the page to fully undo this rotation: the flat image,
+  // and every placed text/image box's position + rotation (all mutated below).
+  const rotateUndoSnap = {
+    dataUrl: pg.dataUrl,
+    modified: pg.modified,
+    placedImages: JSON.parse(JSON.stringify(pg.placedImages || [])),
+    placedTexts: JSON.parse(JSON.stringify(pg.placedTexts || []))
+  };
+
+  // Bake any pen/highlighter/shape/redact annotations first — those were
+  // never meant to be re-editable objects, so flattening them is fine.
   pdfedBakeAnnotations();
-  // Also bake any placed/locked images first, their x/y/w/h are tied to the
-  // current (pre-rotation) canvas orientation and can't be carried through a rotate.
-  if ((pdfed.pages[idx].placedImages && pdfed.pages[idx].placedImages.length) ||
-      (pdfed.pages[idx].placedTexts && pdfed.pages[idx].placedTexts.length) ||
-      (pdfed.pages[idx].placedTables && pdfed.pages[idx].placedTables.length)) {
-    pdfed.pages[idx].dataUrl = document.getElementById('pdfedPageCanvas').toDataURL('image/png');
-    await pdfedBakePlacedImagesIntoDataUrl(pdfed.pages[idx], idx);
-    const fresh = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = pdfed.pages[idx].dataUrl; });
-    const pc0 = document.getElementById('pdfedPageCanvas');
-    pc0.width = fresh.naturalWidth; pc0.height = fresh.naturalHeight;
-    pc0.getContext('2d').drawImage(fresh, 0, 0);
+
+  // Tables don't carry their own rotation yet (their rows/cols/cells assume
+  // an upright grid), so they're still baked into the flat page before
+  // rotating, same as before. Placed TEXT and IMAGE boxes are handled
+  // differently below: instead of being destroyed here, each one now
+  // carries its own `rotation` and rides through the page turn as a live,
+  // still-fully-editable object — including a full round trip (e.g. Right
+  // then Left, or four Rights) landing every box back at its exact original
+  // spot, still typeable/movable/lockable, instead of permanently flattened
+  // into pixels the moment Rotate was clicked even once.
+  if (pg.placedTables && pg.placedTables.length) {
+    const baseUrl = await pdfedPageUrlBase(pg);
+    const baseImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = baseUrl; });
+    const can = document.createElement('canvas');
+    can.width = baseImg.naturalWidth; can.height = baseImg.naturalHeight;
+    const ctx = can.getContext('2d');
+    ctx.drawImage(baseImg, 0, 0);
+    await pdfedDrawOrderedPlacedOnCtx(ctx, pg, true, true); // skip texts AND images, bake tables only
+    pg.dataUrl = can.toDataURL('image/png');
+    pg.placedTables = [];
   }
 
   const pc = document.getElementById('pdfedPageCanvas');
+  // If tables were just baked above, make sure the on-screen canvas reflects
+  // those pixels before we snapshot it below for the actual page rotation.
+  if (pg.dataUrl) {
+    const fresh = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = pg.dataUrl; });
+    pc.width = fresh.naturalWidth; pc.height = fresh.naturalHeight;
+    pc.getContext('2d').drawImage(fresh, 0, 0);
+  }
+
+  const oldW = pc.width, oldH = pc.height;
   const src = pc.toDataURL('image/png');
   const img = await new Promise(res => {
     const i = new Image(); i.onload = () => res(i); i.src = src;
@@ -21707,9 +23100,55 @@ async function pdfedRotatePage(deg) {
   const newDataUrl = tmp.toDataURL('image/png');
   pdfed.pages[idx].dataUrl = newDataUrl;
   pdfed.pages[idx].modified = true;
+
+  // Carry every placed text/image box through the same turn the page itself
+  // just took: rotate its center point around the page's center (swapping
+  // width/height on a ±90° turn) and add this turn to the box's own
+  // accumulated rotation. The box's own width/height and text wrap are left
+  // completely alone — only position and angle change — so nothing about
+  // its content or editability is touched, and repeated/opposite rotations
+  // cancel out exactly.
+  const pdfedRotateItemsList = (list, layerId) => {
+    if (!list || !list.length) return;
+    const layer = document.getElementById(layerId);
+    list.forEach(item => {
+      const el = layer && layer.querySelector(`[data-id="${item.id}"]`);
+      const w = item.w || (el ? el.offsetWidth : 0);
+      const h = item.h || (el ? el.offsetHeight : (item.fontSize ? item.fontSize * 1.25 : 0));
+      const cx = item.x + w / 2, cy = item.y + h / 2;
+      let ncx, ncy;
+      if (deg === 90) { ncx = oldH - cy; ncy = cx; }
+      else if (deg === -90) { ncx = cy; ncy = oldW - cx; }
+      else { ncx = oldW - cx; ncy = oldH - cy; } // 180
+      item.rotation = ((item.rotation || 0) + deg + 360) % 360;
+      item.x = ncx - w / 2;
+      item.y = ncy - h / 2;
+    });
+  };
+  pdfedRotateItemsList(pg.placedImages, 'pdfedPlacedImagesLayer');
+  pdfedRotateItemsList(pg.placedTexts, 'pdfedPlacedTextsLayer');
   await pdfedGoto(idx);
   await pdfedBuildStrip();
   toast('Page rotated ' + (deg > 0 ? 'right' : 'left'), 'success');
+
+  if (!pdfedRotateReplaying) {
+    pushAppHistory({
+      label: 'Rotate page',
+      undo: async () => {
+        pg.dataUrl = rotateUndoSnap.dataUrl;
+        pg.modified = rotateUndoSnap.modified;
+        pg.placedImages = rotateUndoSnap.placedImages;
+        pg.placedTexts = rotateUndoSnap.placedTexts;
+        await pdfedGoto(idx);
+        await pdfedBuildStrip();
+        toast('Rotation undone', 'info');
+      },
+      redo: async () => {
+        pdfedRotateReplaying = true;
+        try { await pdfedRotatePage(deg); } finally { pdfedRotateReplaying = false; }
+      }
+    });
+  }
 }
 
 // ─── IMAGE INSERT ─────────────────────────────────────────────────────────────
@@ -21946,13 +23385,47 @@ function pdfedSigConfirm() {
   toast('Position your signature, then click Stamp to place it', 'info');
 }
 
+// Auto-creates a single blank A4 page and switches into the editor when the
+// person tries to insert something (image, gallery pick, etc.) before any
+// PDF or canvas is open — so tools like "Insert Image" work standalone
+// instead of requiring a document to be opened first. No-op (besides the
+// return value) if a live page already exists. Mirrors the bootstrap steps
+// used elsewhere (see pdfedAppendTableFitPages / dgInsertAnalysisIntoWorkspace)
+// so the resulting blank document behaves identically either way.
+async function pdfedEnsureBlankDocument() {
+  if (pdfed.active >= 0 && pdfed.pages[pdfed.active]) return true;
+  const mmW = 210, mmH = 297;
+  const url = await pdfedRenderBlankPage('', '#ffffff', mmW, mmH);
+  pdfed.pages = [{
+    type: 'blank', dataUrl: url, modified: true, edits: {},
+    textBlocks: [], placedTexts: [], placedImages: [], placedTables: [],
+    label: 'Page 1', bgColor: '#ffffff', pageMM: [mmW, mmH]
+  }];
+  pdfed.pdfDoc = null;
+  pdfed.file = { name: 'Untitled Document' };
+  ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+  const upBtn = document.getElementById('pdfedUploadBtn'); if (upBtn) upBtn.style.display = 'none';
+  const fnEl = document.getElementById('pdfedFileName'); if (fnEl) fnEl.textContent = pdfed.file.name;
+  const ph = document.getElementById('pdfedPlaceholder'); if (ph) ph.style.display = 'none';
+  const cw = document.getElementById('pdfedCanvasWrap'); if (cw) cw.style.display = 'inline-block';
+  const tb = document.getElementById('pdfedToolbar'); if (tb) tb.style.visibility = 'visible';
+  if (state && state.stats) { state.stats.pdfs++; state.stats.pages++; }
+  if (typeof updateStats === 'function') updateStats();
+  if (typeof navigate === 'function') navigate('pdfeditor');
+  if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+  if (typeof pdfedGoto === 'function') await pdfedGoto(0);
+  setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
+  return true;
+}
+
 function pdfedTriggerImgInsert() {
-  if (pdfed.active < 0) { toast('Open a PDF page first', 'error'); return; }
   document.getElementById('pdfedImgInsertInput').click();
 }
 
-function pdfedInsertFromExtracted() {
-  if (pdfed.active < 0) { toast('Open a PDF page first', 'error'); return; }
+async function pdfedInsertFromExtracted() {
   if (!state.extractedImages || state.extractedImages.length === 0) {
     toast('Gallery is empty, go to Extract Images, load a PDF, and run extraction first', 'info');
     // Optionally prompt the user to navigate there
@@ -21961,6 +23434,7 @@ function pdfedInsertFromExtracted() {
     }
     return;
   }
+  await pdfedEnsureBlankDocument();
   // Show picker modal
   pdfedShowGalleryPicker();
 }
@@ -22374,8 +23848,75 @@ async function pdfedLoadInsertImage(e) {
   e.target.value = '';
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => pdfedActivateImgGhost(ev.target.result);
+  reader.onload = async ev => {
+    const dataUrl = ev.target.result;
+    if (pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
+      // No document open — open the image directly as a page at its own
+      // real pixel dimensions, instead of forcing it onto a blank A4 sheet.
+      await pdfedOpenImageAsPage(dataUrl, file);
+    } else {
+      // A page is already open — keep placing images as a draggable/resizable
+      // overlay on top of it, same as before.
+      pdfedActivateImgGhost(dataUrl);
+    }
+  };
   reader.readAsDataURL(file);
+}
+
+// Opens an image file as a new page sized to the image's own pixel
+// dimensions (mapped at 96dpi, same assumption pdfedRenderBlankPage/export
+// use) — the page IS the photo at its real size, not a shrunken overlay
+// dropped onto an unrelated A4 canvas. If a document is already open, the
+// page is appended after the current one instead of replacing everything.
+async function pdfedOpenImageAsPage(dataUrl, file) {
+  const PXMM = 3.7795;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = dataUrl; });
+  const w = img.naturalWidth || 1000, h = img.naturalHeight || 1400;
+  const mmW = w / PXMM, mmH = h / PXMM;
+
+  // Bake onto a canvas at native resolution — no scaling, no letterboxing —
+  // so the page comes out exactly the size and aspect ratio of the source file.
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, w, h);
+  const pageUrl = c.toDataURL('image/png');
+
+  const label = (file && file.name) ? file.name.replace(/\.[^.]+$/, '') : 'Image Page';
+  const pg = {
+    type: 'image', dataUrl: pageUrl, modified: false, edits: {},
+    textBlocks: [], placedTexts: [], placedImages: [], placedTables: [],
+    label, sourceFormat: (file && file.type) || 'image/png', pageMM: [mmW, mmH]
+  };
+
+  const isNewDoc = !pdfed.pages || pdfed.pages.length === 0;
+  if (isNewDoc) pdfed.pages = [pg];
+  else pdfed.pages.splice(pdfed.active + 1, 0, pg);
+  const newIdx = isNewDoc ? 0 : pdfed.active + 1;
+
+  if (isNewDoc) {
+    pdfed.pdfDoc = null;
+    pdfed.file = { name: label || 'Untitled Document' };
+    ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    const upBtn = document.getElementById('pdfedUploadBtn'); if (upBtn) upBtn.style.display = 'none';
+    const fnEl = document.getElementById('pdfedFileName'); if (fnEl) fnEl.textContent = pdfed.file.name;
+    const ph = document.getElementById('pdfedPlaceholder'); if (ph) ph.style.display = 'none';
+    const cw = document.getElementById('pdfedCanvasWrap'); if (cw) cw.style.display = 'inline-block';
+    const tb = document.getElementById('pdfedToolbar'); if (tb) tb.style.visibility = 'visible';
+    if (state && state.stats) { state.stats.pdfs++; }
+  }
+  if (state && state.stats) { state.stats.pages++; }
+  if (typeof updateStats === 'function') updateStats();
+  if (typeof navigate === 'function') navigate('pdfeditor');
+  if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+  if (typeof pdfedGoto === 'function') await pdfedGoto(newIdx);
+  setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
+  toast('Image opened at its original size', 'success');
 }
 
 function pdfedActivateImgGhost(dataUrl) {
@@ -22635,6 +24176,12 @@ function pdfedPositionPlacedEl(el, item) {
   el.style.top = item.y + 'px';
   el.style.width = item.w + 'px';
   el.style.height = item.h + 'px';
+  // Rotating the page (pdfedRotatePage) no longer bakes images into pixels —
+  // it carries each one through as a live object with its own accumulated
+  // rotation instead, applied here the same way a text box's rotation is
+  // (see pdfedPositionPlacedTextEl), so it stays a real, draggable, lockable,
+  // deletable image no matter how many times the page gets rotated.
+  el.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : '';
 }
 
 // Generic anchored-resize math shared by every free-form image resize UI in
@@ -22815,8 +24362,9 @@ async function pdfedGetBakedPageUrl(pg) {
   const list = pg.placedImages;
   const textList = pg.placedTexts;
   const tableList = pg.placedTables;
+  const borderList = pg.placedBorders;
   const baseUrl = await pdfedPageUrlBase(pg);
-  if ((!list || list.length === 0) && (!textList || textList.length === 0) && (!tableList || tableList.length === 0)) return baseUrl;
+  if ((!list || list.length === 0) && (!textList || textList.length === 0) && (!tableList || tableList.length === 0) && (!borderList || borderList.length === 0)) return baseUrl;
   const baseImg = await new Promise((res, rej) => {
     const im = new Image();
     im.onload = () => res(im);
@@ -22840,7 +24388,8 @@ async function pdfedBakePlacedImagesIntoDataUrl(pg, idx) {
   const list = pg.placedImages;
   const textList = pg.placedTexts;
   const tableList = pg.placedTables;
-  if ((!list || list.length === 0) && (!textList || textList.length === 0) && (!tableList || tableList.length === 0)) return;
+  const borderList = pg.placedBorders;
+  if ((!list || list.length === 0) && (!textList || textList.length === 0) && (!tableList || tableList.length === 0) && (!borderList || borderList.length === 0)) return;
   const baseUrl = await pdfedPageUrlBase(pg);
   const baseImg = await new Promise((res, rej) => {
     const im = new Image();
@@ -22861,6 +24410,7 @@ async function pdfedBakePlacedImagesIntoDataUrl(pg, idx) {
   pg.placedImages = [];
   pg.placedTexts = [];
   pg.placedTables = [];
+  pg.placedBorders = [];
   if (pdfed.active === idx) {
     // IMPORTANT: the overlay (draggable <div>) is what was showing the image on
     // screen. Now that it's cleared, the actual <canvas> pixels must be updated
@@ -22869,6 +24419,7 @@ async function pdfedBakePlacedImagesIntoDataUrl(pg, idx) {
     const pc = document.getElementById('pdfedPageCanvas');
     const pctx = pc.getContext('2d');
     pctx.drawImage(can, 0, 0, pc.width, pc.height);
+    pdfedRenderPlacedBorders(idx);
     pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx);
   }
@@ -22893,6 +24444,7 @@ pdfedGoto = async function(idx) {
   ac.height = pc.height;
   pdfedApplyAnnotZoom();
   // Re-draw this page's persistent placed/locked images
+  pdfedRenderPlacedBorders(idx);
   pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx);
 };
@@ -23389,14 +24941,14 @@ function pdfedToggleLeftPanel() {
     : '<polyline points="15 18 9 12 15 6"/>';   // point left (close)
 }
 
-// ─── SMART AUTO-COLLAPSE (more canvas room after a quiet 10s) ───
-// Fired once per freshly-opened document, 10s after it opens. Collapses the
+// ─── SMART AUTO-COLLAPSE (more canvas room after a quiet 3s) ───
+// Fired once per freshly-opened document, 3s after it opens. Collapses the
 // main app sidebar (left) and the Panel/My Notes panel (right) to give the
 // canvas more breathing room, the PDF Editor's own page-thumbnail strip is
 // left alone entirely, since that one's useful to keep visible at all times.
 // Never overrides a choice the person already made in that window: if
 // they've manually opened/closed the sidebar or right panel themselves in
-// those 10s, that one is left exactly as they set it, only the untouched
+// those 3s, that one is left exactly as they set it, only the untouched
 // side(s) auto-collapse. A no-op if both are already collapsed, or if the
 // editor was closed/the person navigated to a different tool before the
 // timer fires.
@@ -23423,7 +24975,7 @@ function pdfedScheduleAutoCollapse() {
     if (collapsedAny) {
       toast('Tucked the side panels away for more canvas room, the arrows on the edges bring them back anytime', 'info');
     }
-  }, 10000);
+  }, 3000);
 }
 
 function pdfedCancelAutoCollapse() {
@@ -23478,6 +25030,7 @@ const DA_PROSE_SUFFIX = ' — Content found on the page';
 const DA_STORAGE_KEY = 'sarvarcDaState_v1';
 let daPersistTimer = null;
 function daPersist() {
+  if (typeof daHistory !== 'undefined') daHistory.checkpoint();
   clearTimeout(daPersistTimer);
   daPersistTimer = setTimeout(() => {
     try {
@@ -25332,6 +26885,8 @@ const DA_FUNCTIONS = [
   { name: 'UPPER',        syntax: 'UPPER(text)',             desc: 'Convert to UPPERCASE' },
   { name: 'LOWER',        syntax: 'LOWER(text)',             desc: 'Convert to lowercase' },
   { name: 'TRIM',         syntax: 'TRIM(text)',              desc: 'Remove extra spaces' },
+  { name: 'CONVERT',      syntax: 'CONVERT(value, "from", "to")', desc: 'Convert units, e.g. km↔mi, kg↔lb, °C↔°F' },
+  { name: 'CURRENCY',     syntax: 'CURRENCY(amount, "USD", "INR")', desc: 'Convert currency using live rates (click "Get Live Rates" first)' },
 ];
 
 function daColToLetters(idx) {
@@ -25528,8 +27083,126 @@ function daNumericList(argNodes, ds, visiting) {
     .map(v => parseFloat(daCleanNum(v)));
 }
 
+// ─── CONVERT: offline unit conversion (length, mass, volume, area, speed,
+// temperature, data storage) — no network call, works instantly, forever. ──
+const DA_UNIT_GROUPS = {
+  length: { base: 'm',  units: { m:1, km:1000, cm:0.01, mm:0.001, mi:1609.344, yd:0.9144, ft:0.3048, in:0.0254, nmi:1852 } },
+  mass:   { base: 'kg', units: { kg:1, g:0.001, mg:0.000001, t:1000, lb:0.45359237, oz:0.028349523125, st:6.35029318 } },
+  volume: { base: 'l',  units: { l:1, ml:0.001, gal:3.785411784, qt:0.946352946, pt:0.473176473, cup:0.2365882365, floz:0.0295735295625, m3:1000 } },
+  area:   { base: 'm2', units: { m2:1, km2:1000000, ha:10000, ft2:0.09290304, acre:4046.8564224, mi2:2589988.110336 } },
+  speed:  { base: 'mps',units: { mps:1, kmh:0.277777778, mph:0.44704, knot:0.514444444 } },
+  data:   { base: 'b',  units: { b:1, kb:1024, mb:1048576, gb:1073741824, tb:1099511627776 } },
+};
+// Common ways people actually type units, mapped to the codes above — so
+// "kilometers", "pounds", "celsius" etc. just work instead of erroring.
+const DA_UNIT_ALIASES = {
+  kilometer:'km', kilometers:'km', centimeter:'cm', centimeters:'cm', millimeter:'mm', millimeters:'mm',
+  meter:'m', meters:'m', metre:'m', metres:'m', mile:'mi', miles:'mi', yard:'yd', yards:'yd',
+  foot:'ft', feet:'ft', inch:'in', inches:'in',
+  kilogram:'kg', kilograms:'kg', gram:'g', grams:'g', milligram:'mg', milligrams:'mg',
+  tonne:'t', tonnes:'t', ton:'t', pound:'lb', pounds:'lb', lbs:'lb', ounce:'oz', ounces:'oz', stone:'st',
+  liter:'l', liters:'l', litre:'l', litres:'l', milliliter:'ml', milliliters:'ml',
+  gallon:'gal', gallons:'gal', quart:'qt', quarts:'qt', pint:'pt', pints:'pt', cups:'cup',
+  sqm:'m2', sqkm:'km2', hectare:'ha', hectares:'ha', acres:'acre', sqft:'ft2', sqmi:'mi2',
+  kmph:'kmh', kph:'kmh', knots:'knot',
+  kilobyte:'kb', kilobytes:'kb', megabyte:'mb', megabytes:'mb', gigabyte:'gb', gigabytes:'gb', terabyte:'tb', terabytes:'tb',
+};
+// Common nicknames/typos for currency codes, mapped to the real ISO code —
+// "IND", "RS", "RUPEE" all mean the same thing a person is reaching for.
+const DA_CURRENCY_ALIASES = {
+  IND: 'INR', RS: 'INR', RUPEE: 'INR', RUPEES: 'INR', INDIA: 'INR',
+  DOLLAR: 'USD', DOLLARS: 'USD', US: 'USD', AMERICA: 'USD',
+  POUND: 'GBP', POUNDS: 'GBP', STERLING: 'GBP', UK: 'GBP',
+  EURO: 'EUR', EUROS: 'EUR',
+  YEN: 'JPY', JAPAN: 'JPY', YUAN: 'CNY', RMB: 'CNY', CHINA: 'CNY',
+  DIRHAM: 'AED', DIRHAMS: 'AED', UAE: 'AED',
+};
+// Small edit-distance check so a near-miss like "INT" still gets a helpful
+// "did you mean INR?" instead of a bare error code.
+function daLevenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...new Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+    d[i][j] = a[i - 1] === b[j - 1] ? d[i - 1][j - 1] : 1 + Math.min(d[i - 1][j], d[i][j - 1], d[i - 1][j - 1]);
+  return d[m][n];
+}
+function daSuggestClosest(code, knownList) {
+  let best = null, bestDist = 3; // only suggest reasonably close matches
+  for (const c of knownList) {
+    const dist = daLevenshtein(code, c);
+    if (dist < bestDist) { best = c; bestDist = dist; }
+  }
+  return best;
+}
+
+
+function daFindUnitGroup(unit) {
+  let u = String(unit || '').trim().toLowerCase();
+  if (DA_UNIT_ALIASES[u]) u = DA_UNIT_ALIASES[u];
+  for (const key in DA_UNIT_GROUPS) if (Object.prototype.hasOwnProperty.call(DA_UNIT_GROUPS[key].units, u)) return { group: key, unit: u };
+  return null;
+}
+function daConvertUnits(value, fromUnit, toUnit) {
+  const from = String(fromUnit || '').trim().toLowerCase();
+  const to = String(toUnit || '').trim().toLowerCase();
+  // Temperature needs offset math, not a simple ratio, so handle separately.
+  const tempUnits = ['c', 'f', 'k', 'celsius', 'fahrenheit', 'kelvin'];
+  const normTemp = (u) => ({ c: 'c', celsius: 'c', f: 'f', fahrenheit: 'f', k: 'k', kelvin: 'k' }[u]);
+  if (tempUnits.includes(from) && tempUnits.includes(to)) {
+    const f = normTemp(from), t = normTemp(to);
+    let celsius;
+    if (f === 'c') celsius = value;
+    else if (f === 'f') celsius = (value - 32) * 5 / 9;
+    else celsius = value - 273.15;
+    if (t === 'c') return celsius;
+    if (t === 'f') return celsius * 9 / 5 + 32;
+    return celsius + 273.15;
+  }
+  const fromInfo = daFindUnitGroup(from), toInfo = daFindUnitGroup(to);
+  const allUnits = Object.values(DA_UNIT_GROUPS).flatMap(g => Object.keys(g.units));
+  if (!fromInfo) throw { formulaError: '#UNIT?', hint: `"${fromUnit}" isn't a unit I recognize.` + daSuggestionText(from, allUnits) };
+  if (!toInfo) throw { formulaError: '#UNIT?', hint: `"${toUnit}" isn't a unit I recognize.` + daSuggestionText(to, allUnits) };
+  if (fromInfo.group !== toInfo.group) throw { formulaError: '#UNIT?', hint: `"${fromUnit}" and "${toUnit}" are different kinds of measurement (${fromInfo.group} vs ${toInfo.group}) — they can't convert into each other.` };
+  const group = DA_UNIT_GROUPS[fromInfo.group];
+  const baseValue = value * group.units[fromInfo.unit];
+  return baseValue / group.units[toInfo.unit];
+}
+
+// ─── CURRENCY: live exchange rates, fetched on demand (opt-in) via the
+// daFetchExchangeRates() button so no data leaves the browser silently.
+// Rates are cached in memory once fetched and reused by every formula. ──
+let daFxRates = null; // { base: 'USD', date: '2026-07-17', rates: { INR: 83.1, ... } }
+function daConvertCurrency(amount, fromCode, toCode) {
+  let from = String(fromCode || '').trim().toUpperCase();
+  let to = String(toCode || '').trim().toUpperCase();
+  if (DA_CURRENCY_ALIASES[from]) from = DA_CURRENCY_ALIASES[from];
+  if (DA_CURRENCY_ALIASES[to]) to = DA_CURRENCY_ALIASES[to];
+  if (!daFxRates) throw { formulaError: '#NORATES!', hint: 'Click "Get Live Rates" in the toolbar above the table first, then try this formula again.' };
+  const rates = daFxRates.rates;
+  if (from === to) return amount;
+  const knownCodes = [daFxRates.base, ...Object.keys(rates)];
+  const fromRate = from === daFxRates.base ? 1 : rates[from];
+  const toRate = to === daFxRates.base ? 1 : rates[to];
+  if (fromRate == null) throw { formulaError: '#CCY?', hint: `"${fromCode}" isn't a currency code I recognize.` + daSuggestionText(from, knownCodes) };
+  if (toRate == null) throw { formulaError: '#CCY?', hint: `"${toCode}" isn't a currency code I recognize.` + daSuggestionText(to, knownCodes) };
+  return (amount / fromRate) * toRate;
+}
+function daSuggestionText(code, knownList) {
+  const guess = daSuggestClosest(code, knownList);
+  return guess ? ` Did you mean "${guess}"?` : '';
+}
+
 function daCallFunction(name, argNodes, ds, visiting) {
   switch (name) {
+    case 'CONVERT': {
+      const v = daEvalArgsFlat(argNodes, ds, visiting);
+      return daConvertUnits(daToNumber(v[0]), v[1], v[2]);
+    }
+    case 'CURRENCY': {
+      const v = daEvalArgsFlat(argNodes, ds, visiting);
+      return daConvertCurrency(daToNumber(v[0]), v[1], v[2]);
+    }
     case 'SUM': return daNumericList(argNodes, ds, visiting).reduce((s, v) => s + v, 0);
     case 'AVERAGE': case 'AVG': {
       const vals = daNumericList(argNodes, ds, visiting);
@@ -25655,6 +27328,55 @@ function daComputedRowsForExport(ds) {
     if (!val.trim().startsWith('=')) return val;
     return daFormulaDisplayValue(ds, ri, ci).display;
   }));
+}
+
+// ─── Live exchange rates (opt-in) ───────────────────────────────────────
+// Only called when the user clicks "Get Live Rates" — never automatically.
+// Sends nothing but a request for public currency rates; no document data
+// is transmitted. Source: Frankfurter (European Central Bank reference
+// rates), free, no API key, no signup.
+let daFxFetching = false;
+async function daFetchExchangeRates() {
+  if (daFxFetching) return;
+  if (!daFxRates) {
+    const ok = confirm('Get live currency rates from Frankfurter (api.frankfurter.dev), an exchange-rate service backed by the European Central Bank?\n\nOnly currency codes are sent — none of your document or spreadsheet data leaves your browser.');
+    if (!ok) return;
+  }
+  daFxFetching = true;
+  daUpdateRatesLabel('Fetching rates…');
+  try {
+    const res = await fetch('https://api.frankfurter.dev/v1/latest?base=USD');
+    if (!res.ok) throw new Error('Request failed: ' + res.status);
+    const json = await res.json();
+    daFxRates = { base: json.base || 'USD', date: json.date || '', rates: json.rates || {} };
+    const activeDs = daGetActive();
+    if (activeDs) { activeDs._calcCache = new Map(); daRenderTable(); }
+    daUpdateRatesLabel('Rates as of ' + daFxRates.date + ' (base ' + daFxRates.base + ')');
+    toast('Live exchange rates loaded. Use =CURRENCY(amount,"USD","INR") in any cell.', 'success');
+  } catch (e) {
+    daUpdateRatesLabel('Rates unavailable — try again');
+    toast('Could not fetch exchange rates. Check your connection and try again.', 'error');
+  } finally {
+    daFxFetching = false;
+  }
+}
+function daUpdateRatesLabel(text) {
+  const el = document.getElementById('daFxRatesLabel');
+  if (el) el.textContent = text;
+}
+
+// ─── Shared translation helper (opt-in) ─────────────────────────────────
+// Used by the PDF Editor's "Translate" tool. Uses MyMemory Translation API:
+// free, no signup, no API key required.
+const SARVARC_LANG_HINTS = 'hi = Hindi, gu = Gujarati, mr = Marathi, ta = Tamil, te = Telugu, bn = Bengali, es = Spanish, fr = French, de = German, ar = Arabic, zh = Chinese, ja = Japanese';
+async function sarvarcTranslateText(text, targetLang) {
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 490))}&langpair=en|${encodeURIComponent(targetLang)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Translation request failed: ' + res.status);
+  const json = await res.json();
+  const translated = json && json.responseData && json.responseData.translatedText;
+  if (!translated) throw new Error('No translation returned');
+  return translated;
 }
 
 // ─── Formula bar + fx picker + AutoSum ──────────────────────────────────
@@ -25981,7 +27703,30 @@ function daUpdateCell(rowIdx, colIdx, newVal) {
   if (daActiveCell && daActiveCell.row === rowIdx && daActiveCell.col === colIdx) {
     daUpdateFormulaBar(rowIdx, colIdx, val);
   }
+  // Only the cell that was just typed into gets a guidance toast — recalculated
+  // cells elsewhere on the sheet stay silent so this never turns into spam.
+  if (val.trim().startsWith('=')) {
+    ds._calcCache = new Map();
+    try {
+      daGetCellComputedValue(ds, rowIdx, colIdx, new Set());
+    } catch (e) {
+      const code = e && e.formulaError;
+      const hint = (e && e.hint) || DA_ERROR_HINTS[code] || 'Check the formula and try again.';
+      toast(hint, 'error');
+    }
+  }
 }
+// Plain-English fallback explanations for error codes that don't already
+// carry a specific hint (e.g. thrown by other formula functions).
+const DA_ERROR_HINTS = {
+  '#DIV/0!': "Can't divide by zero — check the cell you're dividing by.",
+  '#VALUE!': "One of the values in this formula isn't a number where a number is expected.",
+  '#REF!':   "This formula points to a cell that doesn't exist. Check the cell reference.",
+  '#CIRCULAR!': "This formula refers to itself, directly or through other cells — that's a loop, so it can't calculate.",
+  '#NAME?':  "That function name isn't recognized. Click the ƒx button to see the full list.",
+  '#NUM!':   "That calculation doesn't produce a valid number (e.g. square root of a negative number).",
+  '#NORATES!': 'Click "Get Live Rates" in the toolbar above the table first, then try this formula again.',
+};
 
 function daAddRow() {
   const ds = daGetActive(); if (!ds) { toast('Upload a file first', 'info'); return; }
@@ -30129,6 +31874,15 @@ async function rdxInsertIntoWorkspace(mode) {
   <span id="pdfedOpacityPopoverVal" class="pdfed-opacity-popover-val">100%</span>
 </div>
 
+<!-- Live color popover for placed borders — one native color input + hex
+     field, opened from a border object's own "Color" badge. Lives at the top
+     level like the opacity popover so it's reachable anywhere, and repaints
+     that border's canvas on every drag/keystroke, not just on close. -->
+<div id="pdfedBorderColorPopover" class="pdfed-border-color-popover">
+  <input type="color" id="pdfedBorderColorPopoverNative" value="#FFD600" onmousedown="event.stopPropagation()" oninput="pdfedBorderColorPopoverInput(this.value)">
+  <input type="text" id="pdfedBorderColorPopoverHex" value="#FFD600" maxlength="7" onmousedown="event.stopPropagation()" oninput="pdfedBorderColorPopoverHexTyped(this.value)">
+</div>
+
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
 // ── MAKE FORMS ── build editable form templates, fill, print, or export as PDF
@@ -30153,6 +31907,7 @@ function mfLoad() {
   }
 }
 function mfPersist() {
+  if (typeof mfHistory !== 'undefined') mfHistory.checkpoint();
   mfMemForms = mfState.forms; // always keep in-memory mirror in sync
   try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(mfState.forms)); }
   catch(e) { console.warn('[Make Forms] could not persist to localStorage', e); }
@@ -31519,6 +33274,12 @@ const DG_PALETTE = DG_PALETTES.vibrant; // default scheme, kept for back-compat 
 const dgState = {
   type: 'bar',
   rows: [],
+  // Used only when type === 'grouped': one shared set of category labels (e.g. departments)
+  // plus 2+ named, coloured series (e.g. "Profit 2025", "Profit 2026") each holding one value
+  // per category — the data shape a clustered/grouped bar chart needs that a single {label,value}
+  // row list can't represent.
+  groupedCategories: [],
+  groupedSeries: [],
   paletteScheme: 'professional',
   customSwatches: [],
   sameColorMode: false,
@@ -31559,7 +33320,7 @@ function dgHologramOn() {
   return !!(el && el.checked);
 }
 
-const DG_3D_TYPES = ['3d-bar', '3d-histogram', '3d-scatter', '3d-boxplot'];
+const DG_3D_TYPES = ['3d-bar', '3d-grouped-bar', '3d-histogram', '3d-scatter', '3d-boxplot'];
 function dgIs3DType(type) { return DG_3D_TYPES.indexOf(type) !== -1; }
 
 const dg3D = {
@@ -31921,6 +33682,110 @@ function dg3DBuildBar() {
   dg3DAddTitleAndCaptions(opts);
 }
 
+// ── 3D Grouped Bar: same categories/series as the flat Grouped Bar chart, rendered as
+// clustered 3D columns — each category gets a slot on the X axis, and every series
+// ("Profit 2025", "Profit 2026", ...) gets its own colour-coded bar placed side-by-side
+// within that slot, mirroring how the 2D grouped bar chart lays things out. Every mesh this
+// builds is a plain THREE.Mesh with real geometry, so it needs no special-casing to pick up
+// Hologram mode — dg3DApplyHologramMaterials (called generically by dg3DBuild for every 3D
+// type) re-skins it exactly like a 3D Bar chart. ──
+function dg3DBuildGroupedBar() {
+  let categories = dgState.groupedCategories || [];
+  let series = dgState.groupedSeries || [];
+  // Safety net: the live editor's grouped state can be empty if the user switched to this
+  // type before ever loading a grouped chart (e.g. straight from the gallery, or after a
+  // page reload). Rather than silently render nothing, fall back to the first grouped spec
+  // still sitting in the chart gallery and sync it into dgState so it sticks.
+  if ((!categories.length || !series.length) && Array.isArray(dgMultiCharts) && dgMultiCharts.length) {
+    const fallback = dgMultiCharts.find(s => s.type === 'grouped');
+    if (fallback) {
+      dgState.groupedCategories = categories = fallback.categories.slice();
+      dgState.groupedSeries = series = fallback.series.map(s => ({ ...s, values: s.values.slice() }));
+    }
+  }
+  const opts = dgGetOpts();
+  dgClear3DGroup();
+  if (!categories.length || !series.length) {
+    toast('No grouped chart loaded yet \u2014 build or pick one from the chart gallery first', 'info');
+    return;
+  }
+
+  const n = categories.length;
+  const s = series.length;
+  const maxV = Math.max(1, ...series.flatMap(sr => sr.values.map(v => Math.abs(Number(v) || 0))));
+  // Series bars sit side-by-side along X within each category's slot (a classic clustered-column
+  // layout), not staggered along Z depth. Z-depth separation used to collapse visually once the
+  // camera zoomed out to fit many categories — a tiny depth gap between bars a few units apart on
+  // X becomes imperceptible from that distance, making multi-series data look like one bar per
+  // category. Side-by-side bars stay visually distinct at any camera distance or category count.
+  const barW = Math.max(0.34, Math.min(0.72, 2.0 / s));
+  const barGap = 0.22;
+  const barPitch = barW + barGap;
+  const clusterWidth = s * barPitch;
+  const catSpacing = Math.max(2.6, clusterWidth + 1.6);
+  const boxDepth = 0.85, boxHalfDepth = boxDepth / 2;
+  const totalW = (n - 1) * catSpacing;
+  dg3DAddFloor(Math.max(6, totalW / 2 + 3, clusterWidth / 2 + 3));
+
+  // Value-label sprites default to a fixed width sized for a single bar with room to spare —
+  // fine when bars are far apart, but with 2-3 narrow bars sharing one category slot that fixed
+  // width is wider than the gap between them, so neighbouring numbers overlap into an unreadable
+  // smear. Scale the label to the room actually available, and alternate its height between
+  // series within a cluster, so adjacent numbers land in different rows instead of on top of
+  // each other regardless of how tight the bars are packed.
+  const valueLabelW = Math.max(0.95, Math.min(3.2, barPitch * 2.3));
+  const nameLabelW = Math.min(2.6, catSpacing * 0.92);
+
+  categories.forEach((cat, ci) => {
+    const xCenter = ci * catSpacing - totalW / 2;
+    series.forEach((sr, si) => {
+      const v = Number(sr.values[ci]) || 0;
+      const h = Math.max(0.05, (Math.abs(v) / maxV) * 6.5);
+      const x = xCenter + (si - (s - 1) / 2) * barPitch;
+      const z = 0;
+      const geo = new THREE.BoxGeometry(barW, h, boxDepth);
+      const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(sr.color), metalness: 0.15, roughness: 0.45 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, h / 2, z);
+      mesh.userData = { dgHover: true, label: cat + ' \u2014 ' + sr.name, sub: dgFormatValueForOpts(v) };
+      dg3D.group.add(mesh);
+
+      if (opts.values) {
+        const valLabel = dgMakeLabelSprite(dgFormatValueForOpts(v), '#1a2230');
+        valLabel.scale.set(valueLabelW, 0.6, 1);
+        const stagger = (s > 1 && si % 2 === 1) ? 0.5 : 0;
+        valLabel.position.set(x, h + 0.5 + stagger, z);
+        dg3D.group.add(valLabel);
+      }
+    });
+
+    const nameLabel = dgMakeLabelSprite(cat, '#7a8496');
+    nameLabel.position.set(xCenter, -0.55, boxHalfDepth + 1.0);
+    nameLabel.scale.set(nameLabelW, 0.65, 1);
+    dg3D.group.add(nameLabel);
+  });
+
+  // A colour-keyed series legend along the right edge — the only thing telling the
+  // "Profit 2025" bars apart from the "Profit 2026" bars by name, since colour alone
+  // can be hard to eyeball precisely in 3D.
+  series.forEach((sr, si) => {
+    const legendLabel = dgMakeLabelSprite(sr.name, sr.color);
+    legendLabel.position.set(totalW / 2 + 2.3, 6.4 - si * 0.85, 0);
+    legendLabel.scale.set(2.5, 0.62, 1);
+    dg3D.group.add(legendLabel);
+  });
+
+  dg3DAddValueAxis({
+    x: -totalW / 2 - 1.7, z: -boxHalfDepth - 0.6, worldMax: 6.5,
+    valueAtFrac: f => f * maxV,
+    caption: opts.yAxisTitle || 'Value'
+  });
+  const xCap = dgMakeAxisCaptionSprite(opts.xAxisTitle || 'Category');
+  xCap.position.set(0, -1.15, boxHalfDepth + 2.3);
+  dg3D.group.add(xCap);
+  dg3DAddTitleAndCaptions(opts);
+}
+
 // ── 3D Histogram: bins the same values into frequency buckets, so it reads
 // as a true statistical distribution rather than one bar per row. ──
 function dg3DBuildHistogram() {
@@ -32200,6 +34065,7 @@ function dg3DBuild(type) {
   const holo = dgHologramOn();
   dg3DApplyHologramMood(holo);
   if (type === '3d-bar') dg3DBuildBar();
+  else if (type === '3d-grouped-bar') dg3DBuildGroupedBar();
   else if (type === '3d-histogram') dg3DBuildHistogram();
   else if (type === '3d-scatter') dg3DBuildScatter();
   else if (type === '3d-boxplot') dg3DBuildBoxPlot();
@@ -32542,8 +34408,8 @@ function dgClearAll() {
   if (uploadName) uploadName.textContent = '';
   const labelSel = document.getElementById('dgLabelColSelect');
   if (labelSel) labelSel.innerHTML = '';
-  const valueSel = document.getElementById('dgValueColSelect');
-  if (valueSel) valueSel.innerHTML = '';
+  const valueChecks = document.getElementById('dgValueColChecks');
+  if (valueChecks) valueChecks.innerHTML = '';
   const uploadHint = document.getElementById('dgUploadHint');
   if (uploadHint) uploadHint.textContent = '';
   const uploadPreview = document.getElementById('dgUploadPreview');
@@ -32599,6 +34465,7 @@ const DG_STORAGE_KEY = 'sarvarcDgState_v1';
 const DG_HISTORY_STORAGE_KEY = 'sarvarcDgHistory_v1';
 let dgPersistTimer = null;
 function dgPersist() {
+  if (typeof dgHistory !== 'undefined') dgHistory.checkpoint();
   clearTimeout(dgPersistTimer);
   dgPersistTimer = setTimeout(() => {
     try {
@@ -32819,15 +34686,163 @@ function dgDetectComparisonShape(info) {
   return numericIdxs.length >= 2 && numericIdxs.length <= 8 && rowCount >= 2 && rowCount <= 20;
 }
 
+// ── Smart grouped-bar clustering ──────────────────────────────────────────────────────────
+// Most uploaded tables are the OPPOSITE shape from the "metrics as rows" comparison matrix
+// above: one row per real-world category (a department, a month, a product) and several
+// numeric columns that are measures of it (Profit 2025, Profit 2026, Growth %, Employees).
+// The right chart for that shape is a single clustered/grouped bar chart — one bar per
+// comparable column, side by side, per category — but only for columns that are actually
+// comparable. Blindly grouping every numeric column together would put a $495,000 profit bar
+// next to an 18% growth bar on the same axis, which is meaningless. So columns are clustered
+// first, using two independent signals, and only clusters of 2+ columns become a grouped chart;
+// anything left on its own falls back to being its own single-series chart.
+//
+//   1. A shared unit/label stem — "Profit 2025 ($)" and "Profit 2026 ($)" share the "($)" unit
+//      AND the "profit" word stem once the year is stripped out. This is the strongest signal
+//      (it's literally the same measurement, tracked twice) and is checked first.
+//   2. Similar magnitude — lacking a clean text match, columns whose typical values sit within
+//      one order of magnitude of each other (e.g. two headcount-like columns) are still grouped,
+//      since a shared axis won't visually crush either of them.
+function dgColumnUnit(header) {
+  const h = String(header || '').trim();
+  const paren = h.match(/\(([^)]+)\)\s*$/);
+  if (paren) return paren[1].trim().toLowerCase();
+  if (/%\s*$/.test(h)) return '%';
+  if (/\$/.test(h)) return '$';
+  return null;
+}
+
+// Strips a trailing year/number and unit parenthetical so "Profit 2025 ($)" and
+// "Profit 2026 ($)" reduce to the same stem ("profit"), while leaving genuinely different
+// metrics ("Growth %", "Employees") distinct.
+function dgColumnStem(header) {
+  return String(header || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)\s*$/, '')
+    .replace(/\b(19|20)\d{2}\b/g, '')
+    .replace(/[^a-z]+/g, ' ')
+    .trim();
+}
+
+function dgColumnMagnitude(rows, colIdx) {
+  const vals = rows.map(r => Math.abs(dgParseNumericCell(r[colIdx]))).filter(v => !isNaN(v) && v > 0);
+  if (!vals.length) return null;
+  vals.sort((a, b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)];
+  return Math.log10(median || 1);
+}
+
+// Groups numeric column indices into clusters of columns worth showing on one shared axis.
+// Returns an array of arrays of column indices, in first-seen order.
+function dgGroupNumericColumns(headers, numericIdxs, rows) {
+  const meta = numericIdxs.map(idx => ({
+    idx,
+    unit: dgColumnUnit(headers[idx]),
+    stem: dgColumnStem(headers[idx]),
+    mag: dgColumnMagnitude(rows, idx)
+  }));
+  const groups = [];
+  meta.forEach(col => {
+    let target = null;
+    for (const g of groups) {
+      const head = g[0];
+      const sameUnitAndStem = head.unit && col.unit && head.unit === col.unit && head.stem && col.stem && head.stem === col.stem;
+      const closeMagnitude = head.mag != null && col.mag != null && Math.abs(head.mag - col.mag) <= 1 &&
+        // Only fall back to magnitude-only matching when neither column carries a unit that
+        // would otherwise disqualify the pairing (e.g. never group a "%" column with a "$" one
+        // just because the numbers happen to be similarly sized).
+        (!head.unit && !col.unit || head.unit === col.unit);
+      if (sameUnitAndStem || (!sameUnitAndStem && closeMagnitude && (head.unit === col.unit))) { target = g; break; }
+    }
+    if (target) target.push(col);
+    else groups.push([col]);
+  });
+  return groups.map(g => g.map(c => c.idx));
+}
+
+// True when at least one cluster of comparable numeric columns has 2+ members — i.e. there's
+// a genuine "one bar per column, grouped by row" chart worth offering.
+function dgDetectGroupedShape(info) {
+  if (!info) return false;
+  const { headers, numericIdxs, rows, rowCount } = info;
+  if (numericIdxs.length < 2 || rowCount < 1 || rowCount > 60) return false;
+  const groups = dgGroupNumericColumns(headers, numericIdxs, rows);
+  return groups.some(g => g.length >= 2);
+}
+
+// Builds the grouped-bar chart set: one clustered bar chart per group of 2+ comparable
+// numeric columns (categories = the label column's rows, series = the grouped columns), plus
+// a plain single-series bar chart for any numeric column that didn't cluster with anything.
+function dgBuildSmartGroupedCharts() {
+  const info = dgAnalyzeUpload();
+  if (!info || info.numericIdxs.length < 2) { toast('Need at least two numeric columns to group', 'info'); return; }
+  const scheme = dgCurrentScheme();
+  const MAX_CATEGORIES = 30;
+  const groups = dgGroupNumericColumns(info.headers, info.numericIdxs, info.rows);
+
+  const categories = [];
+  const rowsUsed = [];
+  for (let i = 0; i < info.rows.length && categories.length < MAX_CATEGORIES; i++) {
+    const r = info.rows[i];
+    const label = String(r[info.labelIdx] ?? '').trim() || `Item ${categories.length + 1}`;
+    categories.push(label);
+    rowsUsed.push(r);
+  }
+  if (!categories.length) { toast('Could not find any rows to chart', 'error'); return; }
+
+  const specs = [];
+  groups.forEach(colIdxs => {
+    if (colIdxs.length >= 2) {
+      const series = colIdxs.map((colIdx, si) => ({
+        name: String(info.headers[colIdx] || ('Column ' + (colIdx + 1))),
+        color: scheme[si % scheme.length],
+        values: rowsUsed.map(r => { const v = dgParseNumericCell(r[colIdx]); return isNaN(v) ? 0 : v; })
+      }));
+      specs.push({
+        title: 'Grouped comparison \u2014 ' + series.map(s => s.name).join(' vs '),
+        type: 'grouped',
+        categories: categories.slice(),
+        series
+      });
+    } else {
+      const colIdx = colIdxs[0];
+      const built = rowsUsed.map((r, i) => {
+        const v = dgParseNumericCell(r[colIdx]);
+        return { label: categories[i], value: isNaN(v) ? 0 : v, color: scheme[i % scheme.length] };
+      });
+      specs.push({ title: String(info.headers[colIdx] || ('Column ' + (colIdx + 1))), type: 'bar', rows: built });
+    }
+  });
+
+  if (!specs.length) { toast('Could not build a chart from those columns', 'error'); return; }
+  dgMultiCharts = specs;
+  dgRenderMultiChartGallery();
+  const groupedCount = groups.filter(g => g.length >= 2).length;
+  toast(groupedCount
+    ? `Built ${groupedCount} grouped bar chart${groupedCount === 1 ? '' : 's'}\u2014 comparable columns clustered together automatically`
+    : `Built ${specs.length} charts`, 'success');
+  // Building the gallery alone doesn't populate dgState.groupedCategories/groupedSeries —
+  // that only happens when a card is clicked (dgLoadMultiChart). Without this, switching
+  // straight to 3D Grouped Bar or Hologram right after building finds empty series data and
+  // renders a blank scene with no indication why. Auto-load the first grouped result into the
+  // live editor immediately so 3D/Hologram have real data the moment they're switched on.
+  const firstGroupedIdx = specs.findIndex(s => s.type === 'grouped');
+  if (firstGroupedIdx !== -1) dgLoadMultiChart(firstGroupedIdx);
+}
+
 function dgMaybeSuggestMultiChart() {
   const info = dgAnalyzeUpload();
   if (!info) return;
   const manyMetrics = info.numericIdxs.length >= 2;
   const bigRowCount = info.rowCount > 40;
+  const isGrouped = dgDetectGroupedShape(info);
   const isComparison = dgDetectComparisonShape(info);
   if (!manyMetrics && !bigRowCount) return; // a plain small table — the single auto-built chart is enough
 
   const statsEl = document.getElementById('dgMultiSuggestStats');
+  const groupedBtn = document.getElementById('dgMultiSuggestGroupedBtn');
+  const groupedHead = document.getElementById('dgMultiSuggestGroupedHead');
+  const groupedDesc = document.getElementById('dgMultiSuggestGroupedDesc');
   const compareBtn = document.getElementById('dgMultiSuggestCompareBtn');
   const compareHead = document.getElementById('dgMultiSuggestCompareHead');
   const compareDesc = document.getElementById('dgMultiSuggestCompareDesc');
@@ -32844,25 +34859,38 @@ function dgMaybeSuggestMultiChart() {
     `;
   }
   if (titleEl) {
-    titleEl.textContent = isComparison ? 'This looks like a comparison table' : 'This looks like a rich dataset';
+    titleEl.textContent = isGrouped ? 'This looks like a per-category comparison'
+      : isComparison ? 'This looks like a comparison table' : 'This looks like a rich dataset';
   }
   if (subEl) {
-    subEl.textContent = isComparison
-      ? `Found ${info.numericIdxs.length} columns (${info.headers.filter((_, i) => info.numericIdxs.includes(i)).join(', ')}) measured across ${info.rowCount} metrics — that reads like a side-by-side comparison.`
-      : manyMetrics && bigRowCount
-        ? `Found ${info.numericIdxs.length} numeric columns across ${info.rowCount} rows — that's more than one chart usually shows cleanly.`
-        : manyMetrics
-          ? `Found ${info.numericIdxs.length} separate numeric columns — each could be its own chart.`
-          : `Found ${info.rowCount} rows — one chart may get crowded. Here's how you'd like it handled.`;
+    const numHeaders = info.headers.filter((_, i) => info.numericIdxs.includes(i)).join(', ');
+    subEl.textContent = isGrouped
+      ? `Found ${info.numericIdxs.length} numeric columns (${numHeaders}) tracked per row — comparable ones (e.g. matching units, same measure across periods) can be grouped into one clustered bar chart per row.`
+      : isComparison
+        ? `Found ${info.numericIdxs.length} columns (${numHeaders}) measured across ${info.rowCount} metrics — that reads like a side-by-side comparison.`
+        : manyMetrics && bigRowCount
+          ? `Found ${info.numericIdxs.length} numeric columns across ${info.rowCount} rows — that's more than one chart usually shows cleanly.`
+          : manyMetrics
+            ? `Found ${info.numericIdxs.length} separate numeric columns — each could be its own chart.`
+            : `Found ${info.rowCount} rows — one chart may get crowded. Here's how you'd like it handled.`;
   }
-  if (compareBtn) compareBtn.style.display = isComparison ? '' : 'none';
+  if (groupedBtn) groupedBtn.style.display = isGrouped ? '' : 'none';
+  if (groupedHead && groupedDesc) {
+    const groups = dgGroupNumericColumns(info.headers, info.numericIdxs, info.rows).filter(g => g.length >= 2);
+    const exampleGroup = groups[0];
+    groupedHead.textContent = 'Grouped bar chart (recommended)';
+    groupedDesc.textContent = exampleGroup
+      ? `Builds a clustered chart with ${exampleGroup.map(i => info.headers[i]).join(' and ')} shown as side-by-side coloured bars for every row${groups.length > 1 ? `, plus ${groups.length - 1} more grouped chart${groups.length - 1 === 1 ? '' : 's'} for the other comparable columns` : ''}.`
+      : `Puts side-by-side coloured bars per row for every group of comparable columns.`;
+  }
+  if (compareBtn) compareBtn.style.display = (isComparison && !isGrouped) ? '' : 'none';
   if (compareHead && compareDesc) {
     compareHead.textContent = `Compare side-by-side (recommended)`;
-    compareDesc.textContent = `Builds one bar chart per metric — a fair, correctly-scaled comparison for each row — plus one radar chart normalizing every metric onto a shared 0–100 scale so the overall pattern jumps out.`;
+    compareDesc.textContent = `Treats each row as its own metric and each numeric column as an entity being compared — one bar chart per metric, plus a normalized radar overview. Better fit when columns are options (e.g. competitors) rather than repeated measures.`;
   }
   if (perColBtn) perColBtn.style.display = manyMetrics ? '' : 'none';
   if (perColHead && perColDesc) {
-    perColHead.textContent = isComparison
+    perColHead.textContent = (isGrouped || isComparison)
       ? `One chart per column instead (${info.numericIdxs.length} charts)`
       : `One chart per numeric column (${info.numericIdxs.length} charts)`;
   }
@@ -32877,7 +34905,8 @@ function dgDismissMultiSuggest() {
 
 function dgConfirmMultiSuggest(choice) {
   dgDismissMultiSuggest();
-  if (choice === 'compare') dgBuildComparisonCharts();
+  if (choice === 'grouped') dgBuildSmartGroupedCharts();
+  else if (choice === 'compare') dgBuildComparisonCharts();
   else if (choice === 'perColumn') dgBuildMultiChartsPerColumn();
   else if (choice === 'topGrouped') dgGenerateChartFromUpload(true);
   // 'single' needs no further action — the auto-built chart is already showing
@@ -33031,6 +35060,15 @@ function dgLoadMultiChart(idx) {
     toast('This radar overview compares every metric at once — push it as-is, or open the per-metric cards to edit colours', 'info');
     return;
   }
+  if (spec.type === 'grouped' || spec.type === 'hstacked' || spec.type === 'tornado') {
+    dgState.groupedCategories = spec.categories.slice();
+    dgState.groupedSeries = spec.series.map(s => ({ ...s, values: s.values.slice() }));
+    dgState.type = spec.type;
+    const titleInput = document.getElementById('dgTitleInput');
+    if (titleInput) titleInput.value = spec.title;
+    dgRender();
+    return;
+  }
   dgState.rows = spec.rows.map(r => ({ ...r }));
   dgState.type = spec.type;
   const titleInput = document.getElementById('dgTitleInput');
@@ -33096,6 +35134,16 @@ function dgRenderSpecFullCanvas(spec) {
   else if (spec.type === 'pareto') dgDrawPareto(ctx, rows, area, opts);
   else if (spec.type === 'funnel') dgDrawFunnel(ctx, rows, area, opts);
   else if (spec.type === 'radar') { opts.legend = true; dgDrawRadar(ctx, spec.categories, spec.series, { x: 40, y: top, w: W - 80, h: bottom - top }, opts); }
+  else if (spec.type === 'grouped' || spec.type === 'hstacked' || spec.type === 'tornado') {
+    opts.legend = true;
+    const legendLines = dgLayoutLegend(ctx, spec.series.map(s => ({ label: s.name, value: 0, color: s.color })), { ...opts, values: false }, W - 60);
+    const legendH = legendLines.length ? legendLines.length * 24 + 16 : 0;
+    const groupedArea = { x: area.x, y: area.y, w: area.w, h: area.h - legendH };
+    if (spec.type === 'grouped') dgDrawGroupedBars(ctx, spec.categories, spec.series, groupedArea, opts);
+    else if (spec.type === 'hstacked') dgDrawDivergingStackedBars(ctx, spec.categories, spec.series, groupedArea, opts);
+    else dgDrawTornadoBars(ctx, spec.categories, spec.series, groupedArea, opts);
+    if (legendLines.length) dgDrawLegend(ctx, legendLines, W, H - legendH + 10, opts);
+  }
   return canvas;
 }
 
@@ -33234,6 +35282,9 @@ function dgDrawChartSpec(canvas, spec) {
   else if (spec.type === 'pareto') dgDrawPareto(ctx, rows, area, opts);
   else if (spec.type === 'funnel') dgDrawFunnel(ctx, rows, area, opts);
   else if (spec.type === 'radar') dgDrawRadar(ctx, spec.categories, spec.series, area, opts);
+  else if (spec.type === 'grouped') dgDrawGroupedBars(ctx, spec.categories, spec.series, area, opts);
+  else if (spec.type === 'hstacked') dgDrawDivergingStackedBars(ctx, spec.categories, spec.series, area, opts);
+  else if (spec.type === 'tornado') dgDrawTornadoBars(ctx, spec.categories, spec.series, area, opts);
 }
 
 function dgParseNumericCell(v) {
@@ -33259,12 +35310,10 @@ function dgPopulateUploadSelectors() {
   if (!dgUploadParsed) return;
   const { headers } = dgUploadParsed;
   const labelSel = document.getElementById('dgLabelColSelect');
-  const valueSel = document.getElementById('dgValueColSelect');
-  if (!labelSel || !valueSel) return;
+  if (!labelSel) return;
   const numericFlags = headers.map((_, i) => dgColumnIsNumeric(i));
   const optionsHtml = headers.map((h, i) => `<option value="${i}">${daEsc(h)}</option>`).join('');
   labelSel.innerHTML = optionsHtml;
-  valueSel.innerHTML = optionsHtml;
   const firstLabelIdx = numericFlags.findIndex(n => !n);
   const firstNumericIdx = numericFlags.findIndex(n => n);
   labelSel.value = firstLabelIdx >= 0 ? firstLabelIdx : 0;
@@ -33272,13 +35321,53 @@ function dgPopulateUploadSelectors() {
   if (valueIdx === parseInt(labelSel.value, 10) && headers.length > 1) {
     valueIdx = (valueIdx + 1) % headers.length;
   }
-  valueSel.value = valueIdx;
+  dgRenderValueColChecks(valueIdx);
   const hint = document.getElementById('dgUploadHint');
   if (hint) {
     const numCount = numericFlags.filter(Boolean).length;
-    hint.textContent = `${dgUploadParsed.rows.length} rows detected \u00b7 ${numCount} numeric column${numCount === 1 ? '' : 's'} found. Switch columns above to re-plot instantly.`;
+    hint.textContent = `${dgUploadParsed.rows.length} rows detected \u00b7 ${numCount} numeric column${numCount === 1 ? '' : 's'} found. Tick just one column for a normal chart, or 2+ to build a side-by-side comparison.`;
   }
   dgRenderUploadPreview(numericFlags);
+}
+
+// Reads which value-column checkboxes the person has ticked, in the order they appear
+// (i.e. column order in the file) — a stable order so series colouring stays consistent
+// across re-renders instead of shuffling based on click order.
+function dgGetCheckedValueCols() {
+  return Array.from(document.querySelectorAll('#dgValueColChecks input[type="checkbox"]:checked'))
+    .map(cb => parseInt(cb.value, 10))
+    .sort((a, b) => a - b);
+}
+
+// Builds the "Value column(s)" checklist: every numeric column except whichever one is
+// currently chosen as the label column. Ticking just one behaves like the old single-value
+// dropdown; ticking 2+ is an explicit, no-guessing way to say "these are the same measure,
+// compare them" — the manual counterpart to the automatic Profit-2025/2026/2027 stem detector.
+function dgRenderValueColChecks(defaultIdx) {
+  const wrap = document.getElementById('dgValueColChecks');
+  if (!wrap || !dgUploadParsed) return;
+  const { headers } = dgUploadParsed;
+  const labelSel = document.getElementById('dgLabelColSelect');
+  const labelIdx = labelSel && labelSel.value !== '' ? parseInt(labelSel.value, 10) : -1;
+  const scheme = dgCurrentScheme();
+  const numericIdxs = headers.map((_, i) => i).filter(i => i !== labelIdx && dgColumnIsNumeric(i));
+  const prevChecked = new Set(dgGetCheckedValueCols());
+  wrap.innerHTML = numericIdxs.length ? numericIdxs.map((i, si) => {
+    const checked = prevChecked.size ? prevChecked.has(i) : (i === defaultIdx);
+    return `
+      <label class="dg-upload-value-check">
+        <input type="checkbox" value="${i}" ${checked ? 'checked' : ''} onchange="dgGenerateChartFromUpload()">
+        <span class="dg-upload-value-swatch" style="background:${scheme[si % scheme.length]}"></span>
+        <span class="dg-upload-value-check-label" title="${daEsc(headers[i])}">${daEsc(headers[i])}</span>
+      </label>`;
+  }).join('') : `<div class="dg-upload-hint" style="margin:0">No other numeric columns found</div>`;
+}
+
+// Changing the label column can change which columns are even eligible as value columns
+// (a column can't be both), so the checklist needs rebuilding before the chart re-plots.
+function dgOnLabelColSelectChange() {
+  dgRenderValueColChecks();
+  dgGenerateChartFromUpload();
 }
 
 // Complex uploads (many columns, mixed types, big row counts) are hard to reason about from a
@@ -33318,13 +35407,54 @@ function dgRenderUploadPreview(numericFlags) {
 function dgGenerateChartFromUpload(topGrouped) {
   if (!dgUploadParsed) { toast('Upload a data file first', 'info'); return; }
   const labelSel = document.getElementById('dgLabelColSelect');
-  const valueSel = document.getElementById('dgValueColSelect');
-  if (!labelSel || !valueSel || labelSel.value === '' || valueSel.value === '') return;
+  if (!labelSel || labelSel.value === '') return;
   const labelIdx = parseInt(labelSel.value, 10);
-  const valueIdx = parseInt(valueSel.value, 10);
+  const valueIdxs = dgGetCheckedValueCols();
+  if (!valueIdxs.length) { toast('Tick at least one value column to plot', 'info'); return; }
   const scheme = dgCurrentScheme();
   const MAX_POINTS = 40;
   const rawRows = dgUploadParsed.rows;
+
+  if (valueIdxs.length >= 2) {
+    // 2+ columns ticked \u2014 an explicit "compare these" request. Build the same
+    // categories/series shape the automatic stem detector builds, so it plugs straight
+    // into the existing 2D grouped bar, 3D grouped bar, and Hologram renderers untouched.
+    const MAX_CATEGORIES = 30;
+    const categories = [];
+    const rowsUsed = [];
+    for (let i = 0; i < rawRows.length && categories.length < MAX_CATEGORIES; i++) {
+      const r = rawRows[i];
+      categories.push(String(r[labelIdx] ?? '').trim() || `Item ${categories.length + 1}`);
+      rowsUsed.push(r);
+    }
+    if (!categories.length) { toast('Could not find any rows to chart', 'error'); return; }
+    const series = valueIdxs.map((colIdx, si) => ({
+      name: String(dgUploadParsed.headers[colIdx] || ('Column ' + (colIdx + 1))),
+      color: scheme[si % scheme.length],
+      values: rowsUsed.map(r => { const v = dgParseNumericCell(r[colIdx]); return isNaN(v) ? 0 : v; })
+    }));
+    dgState.groupedCategories = categories;
+    dgState.groupedSeries = series;
+    const titleInput = document.getElementById('dgTitleInput');
+    if (titleInput && (!titleInput.value || titleInput.value === 'Chart Title')) {
+      titleInput.value = 'Comparison \u2014 ' + series.map(s => s.name).join(' vs ');
+    }
+    // Land on whichever grouped view fits the current context: if a grouped view (2D or
+    // 3D) is already showing, keep it as-is so this just updates its data in place. Any
+    // OTHER chart type — including other 3D types like 3D Bar, which physically cannot
+    // render more than one series — must switch to the grouped equivalent instead of
+    // being left alone, or the tick here gets silently ignored on screen.
+    let nextType;
+    if (dgState.type === '3d-grouped-bar' || dgState.type === 'grouped' || dgState.type === 'hstacked' || dgState.type === 'tornado') nextType = dgState.type;
+    else if (dgIs3DType(dgState.type)) nextType = '3d-grouped-bar';
+    else nextType = 'grouped';
+    if (nextType !== dgState.type) dgSetType(nextType); else dgRender();
+    toast(`Comparing ${series.length} columns side-by-side \u2014 ${series.map(s => s.name).join(', ')}`, 'success');
+    return;
+  }
+
+  // Exactly one value column ticked \u2014 original single-series behaviour.
+  const valueIdx = valueIdxs[0];
   const parsed = [];
   for (let i = 0; i < rawRows.length; i++) {
     const r = rawRows[i];
@@ -33426,13 +35556,24 @@ function dgRenderCustomSwatches() {
   `).join('');
 }
 
+// Grouped Bar, Diverging Stacked Bar, and Tornado charts all share one categories+series
+// data model (dgState.groupedCategories / dgState.groupedSeries) instead of the single-series
+// dgState.rows list — colour tools below need to know which one to recolour.
+function dgUsesGroupedData() {
+  return dgState.type === 'grouped' || dgState.type === 'hstacked' || dgState.type === 'tornado';
+}
+
 function dgApplyPaletteFrom(startIdx) {
   const scheme = dgCurrentScheme();
   dgState.sameColorMode = false;
   const toggle = document.getElementById('dgSameColorToggle');
   if (toggle) toggle.checked = false;
-  dgState.rows.forEach((r, i) => { r.color = scheme[(startIdx + i) % scheme.length]; });
-  dgRenderRows();
+  if (dgUsesGroupedData()) {
+    dgState.groupedSeries.forEach((s, i) => { s.color = scheme[(startIdx + i) % scheme.length]; });
+  } else {
+    dgState.rows.forEach((r, i) => { r.color = scheme[(startIdx + i) % scheme.length]; });
+    dgRenderRows();
+  }
   dgRefreshChart();
 }
 
@@ -33442,8 +35583,12 @@ function dgApplyCustomSwatchFrom(startIdx) {
   dgState.sameColorMode = false;
   const toggle = document.getElementById('dgSameColorToggle');
   if (toggle) toggle.checked = false;
-  dgState.rows.forEach((r, i) => { r.color = arr[(startIdx + i) % arr.length]; });
-  dgRenderRows();
+  if (dgUsesGroupedData()) {
+    dgState.groupedSeries.forEach((s, i) => { s.color = arr[(startIdx + i) % arr.length]; });
+  } else {
+    dgState.rows.forEach((r, i) => { r.color = arr[(startIdx + i) % arr.length]; });
+    dgRenderRows();
+  }
   dgRefreshChart();
 }
 
@@ -33466,7 +35611,8 @@ function dgToggleSameColor(checked) {
   if (checked) {
     const master = document.getElementById('dgSameColorInput').value;
     dgState.sameColor = master;
-    dgState.rows.forEach(r => { r.color = master; });
+    if (dgUsesGroupedData()) dgState.groupedSeries.forEach(s => { s.color = master; });
+    else dgState.rows.forEach(r => { r.color = master; });
   }
   dgRenderRows();
   dgRefreshChart();
@@ -33475,7 +35621,8 @@ function dgToggleSameColor(checked) {
 function dgOnSameColorInput(val) {
   dgState.sameColor = val;
   if (dgState.sameColorMode) {
-    dgState.rows.forEach(r => { r.color = val; });
+    if (dgUsesGroupedData()) dgState.groupedSeries.forEach(s => { s.color = val; });
+    else dgState.rows.forEach(r => { r.color = val; });
     dgRenderRows();
     dgRefreshChart();
   }
@@ -33489,7 +35636,8 @@ function dgApplyWheelToAll() {
   const input = document.getElementById('dgSameColorInput');
   if (toggle) toggle.checked = true;
   if (input) input.value = hex;
-  dgState.rows.forEach(r => { r.color = hex; });
+  if (dgUsesGroupedData()) dgState.groupedSeries.forEach(s => { s.color = hex; });
+  else dgState.rows.forEach(r => { r.color = hex; });
   dgRenderRows();
   dgRefreshChart();
   toast('Applied to every data point', 'success');
@@ -34178,6 +36326,14 @@ function dgDrawChart() {
   const opts = dgGetOpts();
   const rows = dgState.rows;
   const type = dgState.type;
+  const isGrouped = type === 'grouped' || type === 'hstacked' || type === 'tornado';
+  const gcats = dgState.groupedCategories || [];
+  const gseries = dgState.groupedSeries || [];
+  // Grouped charts always show their series legend — that's the only thing that tells
+  // "Profit 2025" bars apart from "Profit 2026" bars — regardless of the global legend toggle.
+  // Diverging stacked and tornado charts are built from the same multi-series data and need
+  // the same series legend for the same reason.
+  if (isGrouped) opts.legend = true;
 
   // The canvas height flexes (width stays fixed) to fit whatever legend rows / rotated
   // axis labels the current data needs, capped at MAX_H — so a 12-category legend gets
@@ -34186,19 +36342,29 @@ function dgDrawChart() {
   const BASE_W = 1200, BASE_H = 675, MAX_H = 900;
   let W = BASE_W, H = BASE_H;
   let legendLines = [], legendH = 0;
-  const axisChartTypes = ['bar', 'stacked', 'waterfall', 'pareto', 'line', 'area'];
+  const axisChartTypes = ['bar', 'stacked', 'waterfall', 'pareto', 'line', 'area', 'grouped'];
   const hasAxes = axisChartTypes.includes(type);
   // Extra chrome reserved only when this is an axis-based chart AND the user has actually
   // typed an axis title — a bar chart with no title set keeps its original compact layout.
   const xTitleExtra = hasAxes && opts.xAxisTitle ? 24 : 0;
   const yTitleExtra = hasAxes && opts.yAxisTitle ? 20 : 0;
 
-  if (rows.length) {
-    const maxLabelLen = Math.max(0, ...rows.map(r => String(r.label || '').length));
-    opts.rotateLabels = axisChartTypes.includes(type) && (rows.length > 8 || maxLabelLen > 10);
+  const dataLen = isGrouped ? gcats.length : rows.length;
+  if (dataLen) {
+    const maxLabelLen = isGrouped
+      ? Math.max(0, ...gcats.map(c => String(c || '').length))
+      : Math.max(0, ...rows.map(r => String(r.label || '').length));
+    opts.rotateLabels = axisChartTypes.includes(type) && (dataLen > 8 || maxLabelLen > 10);
 
     ctx.font = '12px Inter, sans-serif';
-    legendLines = opts.legend ? dgLayoutLegend(ctx, rows, opts, W - 40) : [];
+    // Grouped charts need a legend of SERIES (Profit 2025 / Profit 2026), not one entry per
+    // category bar — so it's laid out from pseudo-rows built off dgState.groupedSeries instead
+    // of the category rows dgLayoutLegend normally expects.
+    const legendSourceRows = isGrouped
+      ? gseries.map(s => ({ label: s.name, value: 0, color: s.color }))
+      : rows;
+    const legendOpts = isGrouped ? { ...opts, values: false } : opts;
+    legendLines = opts.legend ? dgLayoutLegend(ctx, legendSourceRows, legendOpts, W - 40) : [];
     legendH = legendLines.length ? legendLines.length * 24 + 16 : 0;
 
     const topSpace = opts.title ? 78 : 30;
@@ -34241,13 +36407,13 @@ function dgDrawChart() {
     top = 78;
   }
 
-  if (!rows.length) {
+  if (!dataLen) {
     ctx.fillStyle = '#b8c0cc';
     ctx.font = '600 14px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('No data yet', W / 2, H / 2 - 10);
     ctx.font = '400 12px Inter, sans-serif';
-    ctx.fillText('Add a data point or upload a file to build a chart', W / 2, H / 2 + 12);
+    ctx.fillText(isGrouped ? 'Upload a file with 2+ comparable numeric columns to build a grouped chart' : 'Add a data point or upload a file to build a chart', W / 2, H / 2 + 12);
     dgDrawCardBorder();
     dgRenderInsightsStrip();
     return;
@@ -34264,7 +36430,7 @@ function dgDrawChart() {
   // widest one (plus room for the tick mark itself).
   let dynLeftMargin = 70;
   if (hasAxes && type !== 'funnel') {
-    const vals = rows.map(r => r.value);
+    const vals = isGrouped ? gseries.flatMap(s => s.values) : rows.map(r => r.value);
     const probeScale = dgYScale(vals, { y: 0, h: 100 });
     ctx.font = '11px Inter, sans-serif';
     let maxLabelW = 0;
@@ -34274,11 +36440,24 @@ function dgDrawChart() {
       if (w > maxLabelW) maxLabelW = w;
     }
     dynLeftMargin = Math.max(70, Math.ceil(maxLabelW) + 11 /* tick mark */ + 20 /* padding */);
+  } else if (type === 'hstacked') {
+    // Diverging stacked bars carry their category labels (month names, department names,
+    // etc.) in the left margin instead of along a bottom axis, so the margin needs to fit
+    // the widest ACTUAL label text, not a fixed 70px guess that clips longer names.
+    ctx.font = '600 12px Inter, sans-serif';
+    const maxLabelW = Math.max(0, ...gcats.map(c => ctx.measureText(String(c || '')).width));
+    dynLeftMargin = Math.max(70, Math.ceil(maxLabelW) + 24 /* padding */);
   }
   const leftMargin = dynLeftMargin + yTitleExtra;
   const chartArea = { x: leftMargin, y: top, w: W - leftMargin - rightMargin, h: bottom - top };
 
-  if (type === 'bar' || type === 'stacked') {
+  if (type === 'grouped') {
+    dgDrawGroupedBars(ctx, gcats, gseries, chartArea, opts);
+  } else if (type === 'hstacked') {
+    dgDrawDivergingStackedBars(ctx, gcats, gseries, chartArea, opts);
+  } else if (type === 'tornado') {
+    dgDrawTornadoBars(ctx, gcats, gseries, chartArea, opts);
+  } else if (type === 'bar' || type === 'stacked') {
     dgDrawBars(ctx, rows, chartArea, opts, type === 'stacked');
   } else if (type === 'line' || type === 'area') {
     dgDrawLine(ctx, rows, chartArea, opts, type === 'area');
@@ -34479,6 +36658,215 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
     const xs = rows.map((r, i) => startX + i * (barW + gap) + barW / 2);
     dgDrawTrendline(ctx, rows, area, xs, scale);
   }
+}
+
+// Clustered/grouped bar chart: one shared category axis (e.g. departments), with 2+ named,
+// coloured series (e.g. "Profit 2025" vs "Profit 2026") drawn as adjacent bars per category —
+// the same visual comparison as putting two colours side-by-side for every row of a table,
+// instead of one bar chart per metric or one flattened single-series chart.
+function dgDrawGroupedBars(ctx, categories, series, area, opts) {
+  if (!categories.length || !series.length) return;
+  const allVals = series.reduce((acc, s) => acc.concat(s.values), []);
+  const scale = dgYScale(allVals, area);
+  dgDrawAxisGrid(ctx, area, scale, opts);
+  const zeroY = scale.toY(0);
+
+  const n = categories.length;
+  const s = series.length;
+  const gap = 24; // space between category clusters
+  const barGap = Math.max(2, 6 - s); // tighter inner gap as more series get packed in
+  const clusterW = Math.min(s * 44, (area.w - gap * (n + 1)) / n);
+  const barW = Math.max(3, (clusterW - barGap * (s - 1)) / s);
+  const usedW = clusterW * n + gap * (n + 1);
+  const startX = area.x + Math.max(0, (area.w - usedW) / 2) + gap;
+
+  categories.forEach((cat, ci) => {
+    const clusterX = startX + ci * (clusterW + gap);
+    series.forEach((sr, si) => {
+      const v = sr.values[ci] || 0;
+      const x = clusterX + si * (barW + barGap);
+      const valY = scale.toY(v);
+      const y = Math.min(zeroY, valY);
+      const h = Math.max(1, Math.abs(zeroY - valY));
+      ctx.fillStyle = sr.color;
+      const rad = Math.min(opts.barRadius != null ? opts.barRadius : 8, barW / 2, h / 2);
+      dgRoundRectPath(ctx, x, y, barW, h, rad);
+      ctx.fill();
+      if (opts.values && barW > 16) {
+        ctx.fillStyle = '#101820';
+        ctx.font = '700 10.5px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        const labelY = v >= 0 ? y - 6 : y + h + 13;
+        ctx.fillText(dgFitLabel(ctx, dgFormatNumber(v, opts.numberFormat), barW + barGap + 4), x + barW / 2, labelY);
+      }
+    });
+
+    // One tick + one category label centred under the whole cluster (not per-bar), so
+    // "Sales" reads once under its Profit-2025/Profit-2026 pair, not twice.
+    const centerX = clusterX + clusterW / 2;
+    ctx.strokeStyle = '#9aa4b2';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(centerX, area.y + area.h);
+    ctx.lineTo(centerX, area.y + area.h + 5);
+    ctx.stroke();
+    ctx.fillStyle = '#5b6474';
+    ctx.font = '11.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    dgDrawAxisLabel(ctx, cat, centerX, area.y + area.h + 20, clusterW + gap - 6, opts.rotateLabels);
+  });
+}
+
+// Value→pixel scale for the horizontal-axis comparison charts below — the same idea as
+// dgYScale, just mapped along x instead of y (and given an explicit min/max instead of
+// deriving them from a plain array, since both charts below need to pad differently).
+function dgXScaleFromRange(min, max, area) {
+  const range = (max - min) || 1;
+  return { min, max, range, toX: v => area.x + ((v - min) / range) * area.w };
+}
+
+// Diverging (horizontal) stacked bar chart: one bar per category, built from 2+ series —
+// series with a positive value for that category stack rightward from zero in series order,
+// series with a negative value (e.g. a "Wastage"/"Returns" series) stack leftward from zero.
+// This is the horizontal-bar equivalent of dgDrawBars(stacked), except a stack can straddle
+// zero instead of only ever building upward from it, so a loss/waste series reads as visually
+// distinct from the positive segments rather than being forced into the same one-directional
+// stack (or silently flipped positive, which would misrepresent it).
+function dgDrawDivergingStackedBars(ctx, categories, series, area, opts) {
+  if (!categories.length || !series.length) return;
+  const n = categories.length;
+  let maxPos = 0, maxNeg = 0;
+  categories.forEach((cat, i) => {
+    let pos = 0, neg = 0;
+    series.forEach(s => { const v = s.values[i] || 0; if (v >= 0) pos += v; else neg += Math.abs(v); });
+    if (pos > maxPos) maxPos = pos;
+    if (neg > maxNeg) maxNeg = neg;
+  });
+  const min = maxNeg > 0 ? -maxNeg * 1.2 : 0;
+  const max = maxPos > 0 ? maxPos * 1.2 : 1;
+  const scale = dgXScaleFromRange(min, max, area);
+  const zeroX = scale.toX(0);
+
+  // Vertical gridlines + a value axis along the bottom — the horizontal-chart mirror of
+  // dgDrawAxisGrid's horizontal gridlines/left axis.
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= 4; i++) {
+    const v = scale.min + scale.range * i / 4;
+    const x = scale.toX(v);
+    ctx.strokeStyle = '#eef1f5';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, area.y);
+    ctx.lineTo(x, area.y + area.h);
+    ctx.stroke();
+    ctx.strokeStyle = '#9aa4b2';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, area.y + area.h);
+    ctx.lineTo(x, area.y + area.h + 5);
+    ctx.stroke();
+    ctx.fillStyle = '#5b6474';
+    ctx.fillText(dgFormatNumber(v, opts.numberFormat), x, area.y + area.h + 18);
+  }
+  // Zero baseline, drawn heavier than the gridlines so positive vs negative segments read
+  // as unambiguously on one side or the other of it.
+  ctx.strokeStyle = '#2b3341';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(zeroX, area.y);
+  ctx.lineTo(zeroX, area.y + area.h);
+  ctx.stroke();
+
+  const gap = 10;
+  const barH = Math.max(4, Math.min(34, (area.h - gap * (n + 1)) / n));
+  let y = area.y + gap;
+  categories.forEach((cat, i) => {
+    let cursorPos = zeroX, cursorNeg = zeroX;
+    series.forEach(s => {
+      const v = s.values[i] || 0;
+      if (!v) return;
+      const w = (Math.abs(v) / scale.range) * area.w;
+      ctx.fillStyle = s.color;
+      if (v > 0) { ctx.fillRect(cursorPos, y, w, barH); cursorPos += w; }
+      else { ctx.fillRect(cursorNeg - w, y, w, barH); cursorNeg -= w; }
+    });
+    ctx.fillStyle = '#2b3341';
+    ctx.font = '600 12px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(dgFitLabel(ctx, String(cat), area.x - 20), area.x - 14, y + barH / 2 + 4);
+    y += barH + gap;
+  });
+}
+
+// Tornado / back-to-back bar chart: the first two series, drawn as mirrored horizontal bars
+// either side of a shared category column in the middle — e.g. "Supplier A" vs "Supplier B"
+// quoted per line item, or a low/high sensitivity pair per variable — so the two sides read
+// as one direct left-vs-right comparison instead of two separate bar charts a reader has to
+// mentally line up themselves. Both sides share one magnitude scale so bar lengths stay
+// directly comparable across the center line.
+function dgDrawTornadoBars(ctx, categories, series, area, opts) {
+  if (!categories.length || series.length < 2) return;
+  const sr0 = series[0], sr1 = series[1];
+  const n = categories.length;
+  const maxAbs = Math.max(1, ...sr0.values.map(v => Math.abs(v || 0)), ...sr1.values.map(v => Math.abs(v || 0)));
+
+  // Gutter sizes itself to the widest actual category label (with a sane floor/ceiling)
+  // rather than a fixed fraction of the chart width, so longer category names (e.g.
+  // "Operations", "Variable 12") don't get clipped while short ones ("HR") don't waste space.
+  ctx.font = '600 11.5px Inter, sans-serif';
+  const maxCatW = Math.max(0, ...categories.map(c => ctx.measureText(String(c || '')).width));
+  const gutter = Math.min(240, Math.max(90, maxCatW + 28, area.w * 0.2));
+  const sideW = (area.w - gutter) / 2;
+  const leftX1 = area.x + sideW;
+  const rightX0 = leftX1 + gutter;
+  const headerH = 26;
+
+  ctx.textAlign = 'center';
+  ctx.font = '700 12px Inter, sans-serif';
+  ctx.fillStyle = sr0.color;
+  ctx.fillText(dgFitLabel(ctx, sr0.name, sideW - 8), area.x + sideW / 2, area.y + 14);
+  ctx.fillStyle = sr1.color;
+  ctx.fillText(dgFitLabel(ctx, sr1.name, sideW - 8), rightX0 + sideW / 2, area.y + 14);
+
+  const plotY = area.y + headerH;
+  const plotH = area.h - headerH;
+  const gap = 10;
+  const barH = Math.max(4, Math.min(30, (plotH - gap * (n + 1)) / n));
+  let y = plotY + gap;
+
+  // Center dividers the two sides mirror against, one per side of the label gutter.
+  ctx.strokeStyle = '#c7cfd8';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(leftX1, plotY); ctx.lineTo(leftX1, plotY + plotH);
+  ctx.moveTo(rightX0, plotY); ctx.lineTo(rightX0, plotY + plotH);
+  ctx.stroke();
+
+  categories.forEach((cat, i) => {
+    const v0 = sr0.values[i] || 0, v1 = sr1.values[i] || 0;
+    const w0 = (Math.abs(v0) / maxAbs) * sideW;
+    const w1 = (Math.abs(v1) / maxAbs) * sideW;
+    ctx.fillStyle = sr0.color;
+    ctx.fillRect(leftX1 - w0, y, w0, barH);
+    ctx.fillStyle = sr1.color;
+    ctx.fillRect(rightX0, y, w1, barH);
+
+    if (opts.values) {
+      ctx.font = '600 10.5px Inter, sans-serif';
+      ctx.fillStyle = '#2b3341';
+      ctx.textAlign = 'right';
+      ctx.fillText(dgFormatNumber(v0, opts.numberFormat), leftX1 - w0 - 6, y + barH / 2 + 4);
+      ctx.textAlign = 'left';
+      ctx.fillText(dgFormatNumber(v1, opts.numberFormat), rightX0 + w1 + 6, y + barH / 2 + 4);
+    }
+
+    ctx.fillStyle = '#101820';
+    ctx.font = '600 11.5px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(dgFitLabel(ctx, String(cat), gutter - 10), leftX1 + gutter / 2, y + barH / 2 + 4);
+    y += barH + gap;
+  });
 }
 
 function dgDrawTrendline(ctx, rows, area, xs, scale) {
@@ -35027,7 +37415,7 @@ function dgRender() {
   dgInitWheel();
   if (dgIs3DType(dgState.type)) {
     dgActivate3D(dgState.type);
-    if (!dg3D.renderer) { dgState.type = 'bar'; dgDeactivate3D(); dgDrawChart(); } // 3D engine unavailable, fall back
+    if (!dg3D.renderer) { dgState.type = (dgState.type === '3d-grouped-bar') ? 'grouped' : 'bar'; dgDeactivate3D(); dgDrawChart(); } // 3D engine unavailable, fall back
   } else {
     dgDeactivate3D();
     dgDrawChart();
@@ -36382,6 +38770,28 @@ window.dgOpenMultiPushChoice = dgOpenMultiPushChoice;
 window.dgCloseMultiPushChoice = dgCloseMultiPushChoice;
 window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
 
+})();
+</script>
+<script>
+// ── Global: mouse-wheel vertical scroll → horizontal slide, on every ribbon bar ──
+// Applies to any ribbon toolbar in the app (PDF Editor, Make Forms, Diagrams & Graphs,
+// and any future one) without needing to wire each one up individually — it just
+// looks for the ribbon classes via event delegation on wheel.
+(function () {
+  const RIBBON_SELECTOR = '.pdfed-ribbon, .dg-ribbon-bar';
+
+  document.addEventListener('wheel', function (e) {
+    const ribbon = e.target.closest(RIBBON_SELECTOR);
+    if (!ribbon) return;
+    // Only take over when there's actually something to scroll horizontally,
+    // and the gesture is a normal vertical wheel (not already horizontal, e.g.
+    // a trackpad swipe, which should pass through untouched).
+    if (ribbon.scrollWidth <= ribbon.clientWidth) return;
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+
+    e.preventDefault();
+    ribbon.scrollLeft += e.deltaY;
+  }, { passive: false });
 })();
 </script>
 </body>
