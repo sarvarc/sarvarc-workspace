@@ -705,6 +705,36 @@ a.nav-item:hover { color: var(--text); }
   transform: translateY(-1px);
 }
 
+/* "or start blank" divider + button, sits under the upload zone */
+.upload-zone-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 16px; width: 100%; max-width: 360px;
+}
+.upload-zone-divider::before, .upload-zone-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.upload-zone-divider span { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.upload-blank-btn {
+  margin-top: 14px;
+  padding: 9px 20px;
+  background: transparent;
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.18s;
+}
+.upload-blank-btn:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: rgba(0,194,255,0.05);
+}
+
 /* RIGHT PANEL, live canvas preview */
 .preview-panel {
   background: var(--bg2);
@@ -1757,6 +1787,76 @@ a.nav-item:hover { color: var(--text); }
 .pdfed-rbn-btn.active { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); }
 .pdfed-rbn-btn svg { flex-shrink: 0; }
 .pdfed-rbn-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; margin: 0 5px; align-self: center; }
+
+/* ─── SARVARC EYE — one-click premium canvas refine ───
+   Kept deliberately small and quiet: an icon-only button, same footprint as
+   the other compact ribbon controls, with just a faint gradient tint so it
+   reads as "the special one" without shouting. */
+.sarvarc-eye-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(0,194,255,0.10), rgba(168,85,247,0.10));
+  border: 1px solid rgba(0,194,255,0.18);
+  color: var(--cyan);
+}
+.sarvarc-eye-btn:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.18), rgba(168,85,247,0.18));
+  border-color: rgba(0,194,255,0.32);
+  color: var(--text);
+}
+.sarvarc-eye-btn svg { flex-shrink: 0; }
+.sarvarc-eye-btn.sarvarc-eye-busy { pointer-events: none; opacity: 0.65; }
+.sarvarc-eye-btn.sarvarc-eye-busy svg { animation: sarvarcEyeSpin 0.9s linear infinite; }
+@keyframes sarvarcEyeSpin { to { transform: rotate(360deg); } }
+
+/* Round variant when SARVARC Eye sits in the floating page-actions pill,
+   right beside the Duplicate icon — same 28px circular footprint as its
+   neighbours, just keeping its own quiet gradient tint. */
+.pdfed-page-actions .sarvarc-eye-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, rgba(0,194,255,0.22), rgba(168,85,247,0.22));
+}
+.pdfed-page-actions .sarvarc-eye-btn:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.32), rgba(168,85,247,0.32));
+  color: var(--cyan);
+  box-shadow: 0 0 10px rgba(0,194,255,0.35);
+}
+
+/* Quiet, single-pass shimmer across the canvas — confirms SARVARC Eye did
+   something without any confetti/sparkle theatrics. A thin, low-opacity
+   diagonal band sweeps once and is gone; nothing repeats, nothing loops. */
+.sarvarc-eye-shimmer {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(115deg,
+    rgba(255,255,255,0) 42%,
+    rgba(255,255,255,0.16) 50%,
+    rgba(0,194,255,0.10) 53%,
+    rgba(255,255,255,0) 62%);
+  background-size: 240% 240%;
+  background-position: -40% -40%;
+  z-index: 6;
+}
+.sarvarc-eye-shimmer.play {
+  animation: sarvarcEyeShimmerSweep 1.1s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes sarvarcEyeShimmerSweep {
+  0%   { opacity: 0;    background-position: -40% -40%; }
+  12%  { opacity: 0.9; }
+  55%  { opacity: 0.9;  background-position: 60% 60%; }
+  100% { opacity: 0;    background-position: 140% 140%; }
+}
 
 /* Zoom controls in ribbon */
 .pdfed-rbn-zoom {
@@ -4679,6 +4779,73 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   }
 }
 
+/* ─── MAKE FORMS: FILL & RESPONSES MODE ─── */
+.mf-mode-tabs { display:flex; gap:22px; margin-bottom:20px; border-bottom:1px solid var(--border); }
+.mf-mode-tab {
+  background:transparent; border:none; color:var(--text2); font-family:'Inter',sans-serif;
+  font-size:12.5px; font-weight:700; padding:10px 2px; cursor:pointer;
+  border-bottom:2px solid transparent; display:flex; align-items:center; gap:7px; transition:all .15s;
+}
+.mf-mode-tab:hover { color:var(--text); }
+.mf-mode-tab.active { color:var(--text); border-bottom-color:var(--blue); }
+.mf-mode-tab-badge {
+  background:var(--blue); color:#fff; font-size:9.5px; font-weight:800;
+  min-width:16px; text-align:center; padding:2px 5px; border-radius:9px; line-height:1.3;
+}
+
+.mf-fill-body { display:grid; grid-template-columns: 300px 1fr; gap:20px; align-items:start; }
+@media (max-width: 900px) { .mf-fill-body { grid-template-columns: 1fr; } }
+
+.mf-responses-panel {
+  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px; display:flex; flex-direction:column; gap:12px;
+}
+.mf-resp-head { display:flex; align-items:center; justify-content:space-between; }
+.mf-resp-head h4 { font-family:'Inter',sans-serif; font-size:13px; font-weight:700; }
+.mf-resp-count { font-size:10.5px; color:var(--text3); }
+.mf-resp-actions-row { display:flex; flex-direction:column; gap:8px; }
+.mf-resp-actions-row button { width:100%; justify-content:center; }
+.mf-resp-sep { height:1px; background:var(--border); margin:2px 0; }
+.mf-resp-list { display:flex; flex-direction:column; gap:8px; max-height:44vh; overflow-y:auto; padding-right:2px; }
+.mf-resp-item {
+  background:var(--bg3); border:1px solid var(--border); border-radius:10px;
+  padding:10px 12px; cursor:pointer; transition:all .15s;
+}
+.mf-resp-item:hover { border-color:var(--border2); }
+.mf-resp-item.active { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+.mf-resp-item-title { font-size:12px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mf-resp-item-meta { font-size:9.5px; color:var(--text3); margin-top:2px; }
+.mf-resp-item-btns { display:flex; gap:6px; margin-top:8px; }
+.mf-resp-item-btns button {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text2);
+  font-size:10px; padding:4px 8px; border-radius:6px; cursor:pointer; transition:all .15s;
+}
+.mf-resp-item-btns button:hover { color:var(--text); border-color:var(--border2); }
+.mf-resp-item-btns button.mf-danger:hover { color:#ef4444; border-color:rgba(239,68,68,0.5); }
+.mf-resp-empty { text-align:center; color:var(--text3); font-size:11px; padding:22px 8px; line-height:1.5; }
+
+.mf-fill-preview-col { display:flex; flex-direction:column; }
+.mf-fill-toolbar {
+  display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;
+  background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:10px 14px;
+}
+.mf-fill-status { font-size:11.5px; color:var(--text2); margin-right:auto; font-weight:600; }
+.mf-fill-status .mf-fill-status-dot {
+  display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--text3); margin-right:6px;
+}
+.mf-fill-status.mf-editing .mf-fill-status-dot { background:var(--amber, #F59E0B); }
+.mf-fill-toolbar button { padding:8px 14px; font-size:11.5px; }
+.mf-preview-panel.mf-preview-visible { position:static !important; }
+.mf-fill-preview-col .mf-preview-scroll { max-height:none; }
+
+/* Mail-merge mapping modal */
+.mf-merge-field { margin-bottom:14px; }
+.mf-merge-field label { display:block; font-size:11px; color:var(--text2); margin-bottom:5px; }
+.mf-merge-map-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.mf-merge-map-row span { flex:0 0 40%; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mf-merge-map-row select { flex:1; }
+.mf-merge-hint { font-size:10.5px; color:var(--text3); margin-top:-4px; margin-bottom:14px; line-height:1.5; }
+
 /* ─── MAKE FORMS: CANVAS MODE ─── */
 .mfc-ribbon-shell {
   border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);
@@ -6575,7 +6742,19 @@ button.dg-show-chip.active { background:var(--blue); }
             </div>
           </div>
 
-          <div class="mf-editor-body">
+          <div class="mf-mode-tabs" id="mfModeTabs">
+            <button class="mf-mode-tab active" id="mfTabDesign" onclick="mfSwitchMode('design')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Design
+            </button>
+            <button class="mf-mode-tab" id="mfTabFill" onclick="mfSwitchMode('fill')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Fill &amp; Responses
+              <span class="mf-mode-tab-badge" id="mfRespBadge" style="display:none">0</span>
+            </button>
+          </div>
+
+          <div class="mf-editor-body" id="mfEditorBodyDesign">
             <div class="mf-fields-panel">
               <div class="mf-brand-row">
                 <div class="mf-brand-logo-block">
@@ -6625,11 +6804,67 @@ button.dg-show-chip.active { background:var(--blue); }
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="mf-preview-panel">
+          <!-- Off-screen home for the preview panel while in Design mode: kept
+               laid-out (not display:none) so Print/Export PDF/Push still work
+               no matter which mode tab is active; mfSwitchMode() relocates the
+               actual .mf-preview-panel node between here and mfFillPreviewSlot. -->
+          <div id="mfPreviewOffscreenHolder" style="position:fixed;top:0;left:-99999px;width:1px;height:1px;overflow:hidden">
+            <div class="mf-preview-panel" id="mfPreviewPanel">
               <div class="mf-preview-scroll">
                 <div class="mf-preview-page" id="mfPreviewPage"></div>
               </div>
+            </div>
+          </div>
+
+          <!-- FILL & RESPONSES BODY -->
+          <div class="mf-fill-body" id="mfEditorBodyFill" style="display:none">
+            <div class="mf-responses-panel">
+              <div class="mf-resp-head">
+                <h4>Responses</h4>
+                <span class="mf-resp-count" id="mfRespCount">0 saved</span>
+              </div>
+              <div class="mf-resp-actions-row">
+                <button class="btn-primary" onclick="mfNewResponseDraft()">+ New Response</button>
+                <button class="btn-secondary" onclick="mfOpenMergeModal()" title="Bulk-fill this form from a Data Arrangement table, one response per row">Generate from Table…</button>
+              </div>
+              <div class="mf-resp-sep"></div>
+              <div class="mf-resp-list" id="mfRespList"></div>
+              <div class="mf-resp-empty" id="mfRespEmpty">No saved responses yet. Fill the form on the right and click "Save Response", or generate a batch from a Data Arrangement table.</div>
+              <div class="mf-resp-sep"></div>
+              <div class="mf-resp-actions-row">
+                <button class="btn-secondary" onclick="mfExportResponsesToDA()" title="Send every saved response into Data Arrangement as a spreadsheet table">Export to Data Arrangement</button>
+                <button class="btn-secondary" onclick="mfExportAllResponsesPDF()" title="One combined PDF, every saved response on its own page">Export All as PDF</button>
+              </div>
+            </div>
+
+            <div class="mf-fill-preview-col" id="mfFillPreviewSlot">
+              <div class="mf-fill-toolbar">
+                <span class="mf-fill-status" id="mfFillStatus"><span class="mf-fill-status-dot"></span>New response</span>
+                <button class="btn-secondary" onclick="mfClearDraft()">Clear</button>
+                <button class="btn-secondary" onclick="mfPrintForm()">Print This</button>
+                <button class="btn-primary" onclick="mfSaveResponse()" id="mfSaveRespBtn">Save Response</button>
+              </div>
+              <!-- .mf-preview-panel gets moved in here by mfSwitchMode('fill') -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Mail-merge: bulk-fill from a Data Arrangement table -->
+        <div class="modal-overlay" id="mfMergeModalOverlay" onmousedown="if(event.target===this)mfCloseMergeModal()">
+          <div class="modal" style="max-width:460px">
+            <h2>Generate from Table</h2>
+            <p>Pick a Data Arrangement table, match its columns to this form's fields, and get one saved response per row.</p>
+            <div class="mf-merge-field">
+              <label>Table</label>
+              <select id="mfMergeDatasetSelect" class="mf-field-select" onchange="mfRenderMergeMapping()"></select>
+            </div>
+            <div id="mfMergeMappingWrap"></div>
+            <div class="mf-merge-hint">Rows become responses you can review, edit, print, or export, exactly like ones filled by hand.</div>
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick="mfCloseMergeModal()">Cancel</button>
+              <button class="btn-primary" onclick="mfConfirmMergeImport()">Import Rows</button>
             </div>
           </div>
         </div>
@@ -6930,7 +7165,7 @@ button.dg-show-chip.active { background:var(--blue); }
                     <div class="pdfed-shapes-dropdown-grid open" id="pdfedBorderStyleGrid" style="position:static;width:auto;padding:0;margin-bottom:2px"></div>
                     <div style="margin-top:10px">
                       <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:700">Margin <span id="pdfedBorderMarginVal" style="color:var(--text)">6%</span></div>
-                      <input type="range" id="pdfedBorderMarginRange" min="2" max="15" value="6" step="1"
+                      <input type="range" id="pdfedBorderMarginRange" min="0" max="15" value="6" step="1"
                         oninput="pdfedBorderMarginInput(this.value)"
                         style="width:100%;accent-color:var(--blue);cursor:pointer;">
                     </div>
@@ -7222,6 +7457,9 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="pdfed-pgact-btn" id="pdfedPgactDup" onclick="pdfedDuplicatePage(pdfed.active)" title="Duplicate this page">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
+              <button class="pdfed-pgact-btn sarvarc-eye-btn" id="sarvarcEyeBtn" onclick="sarvarcEyeApply()" title="SARVARC Eye — one click. It looks at the page, decides what kind of design this is (cool environment, premium, soft aesthetic, or bold print-ready), and refines it to match — no picking required.">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
               <button class="pdfed-pgact-btn danger" id="pdfedPgactDel" onclick="pdfedDeletePage(pdfed.active)" title="Delete this page">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               </button>
@@ -7273,6 +7511,11 @@ button.dg-show-chip.active { background:var(--blue); }
                 <canvas id="pdfedPageCanvas"></canvas>
                 <!-- annotation canvas (draws on top) -->
                 <canvas id="pdfedAnnotCanvas" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+                <!-- SARVARC Eye shimmer — a single, quiet sweep of light that plays once
+                     right after the filter bakes in, just enough to register as "something
+                     just happened" without being a flashy effect. Stays invisible (opacity:0,
+                     no animation) until sarvarcEyePlayShimmer() adds .play. -->
+                <div id="sarvarcEyeShimmer" class="sarvarc-eye-shimmer"></div>
                 <!-- text highlight drag overlay -->
                 <div id="pdfedTextHlLayer"></div>
                 <div id="pdfedHlDragBox" style="display:none;position:absolute;pointer-events:none;z-index:5;border-radius:2px;"></div>
@@ -7303,7 +7546,7 @@ button.dg-show-chip.active { background:var(--blue); }
                        would. All its coordinates are stored/used in raw canvas-px (unscaled
                        by zoom); the wrap's own CSS transform handles the visual scaling. -->
                   <div id="pdfedImgGhost" style="display:none;position:absolute;border:2px dashed var(--blue);border-radius:4px;box-shadow:0 0 0 4px rgba(0,194,255,0.15);cursor:move;overflow:visible;user-select:none;pointer-events:auto;">
-                    <img id="pdfedImgGhostImg" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">
+                    <img id="pdfedImgGhostImg" style="width:100%;height:100%;object-fit:fill;pointer-events:none;">
                     <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:4px;padding:5px;background:rgba(8,12,24,0.82);">
                       <button onclick="pdfedBakeImage()" style="flex:1;font-size:10px;font-weight:700;padding:4px;border:none;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer;">Stamp</button>
                       <button onclick="pdfedCancelImgInsert()" style="font-size:10px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text2);cursor:pointer;">✕</button>
@@ -7693,6 +7936,12 @@ button.dg-show-chip.active { background:var(--blue); }
         </div>
         <input type="file" id="daFileInput" accept=".csv,.tsv,.txt,.xlsx,.xls,.json,.docx,.pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none" onchange="daHandleFileSelect(event)">
 
+        <!-- Skip the upload entirely and just start typing, spreadsheet-style -->
+        <div class="upload-zone-divider" id="daBlankDivider"><span>or</span></div>
+        <button type="button" class="upload-blank-btn" id="daBlankTableBtn" onclick="daCreateBlankTable()" title="Start an empty table and fill it in yourself, no file needed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          Create Blank Table
+        </button>
 
         <!-- Parsing progress -->
         <div class="da-progress" id="daProgress" style="display:none">
@@ -7725,6 +7974,7 @@ button.dg-show-chip.active { background:var(--blue); }
           <!-- Toolbar -->
           <div class="da-toolbar">
             <button class="da-tool-btn" id="daAddFileBtn" onclick="document.getElementById('daFileInput').click()" title="Add another file"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add File</button>
+            <button class="da-tool-btn" id="daNewTableBtn" onclick="daCreateBlankTable()" title="Add a new blank table, no file needed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg> New Table</button>
             <div class="da-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" id="daSearchInput" placeholder="Search this table…" oninput="daRenderTable()">
@@ -15109,10 +15359,11 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages) {
           i2.onerror = rej;
           i2.src = item.dataUrl;
         });
-        const boxRatio = item.w / item.h, imgRatio = im.naturalWidth / im.naturalHeight;
-        let dw, dh, dx, dy;
-        if (imgRatio > boxRatio) { dw = item.w; dh = item.w / imgRatio; dx = item.x; dy = item.y + (item.h - dh) / 2; }
-        else { dh = item.h; dw = item.h * imgRatio; dy = item.y; dx = item.x + (item.w - dw) / 2; }
+        // Fill the exact box (matches the on-screen object-fit:fill), instead
+        // of the old letterboxed/aspect-preserving math — otherwise the
+        // exported PDF would show blank gaps around the picture that the
+        // editor itself no longer shows.
+        const dw = item.w, dh = item.h, dx = item.x, dy = item.y;
         // Rotate around the image's own box center (mirrors the CSS
         // transform: rotate() the live on-screen box gets), so a rotated,
         // still-editable image bakes at export time exactly where it
@@ -15514,6 +15765,315 @@ function pdfedResetFilters() {
 function pdfedOpenAdjust() {
   const p = document.getElementById('pdfedAdjustPanel');
   if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
+}
+
+// ─── SARVARC EYE ───────────────────────────────────────────────────────
+// One click, no sliders, no picker: SARVARC Eye samples the page's own
+// colors and tonal range, decides for itself what kind of design it's
+// looking at — cool/vibrant environment, premium/luxury, soft aesthetic,
+// or bold print-ready — and applies the enhancement recipe built for that
+// look (see the brain: SARVARC_EYE_PROFILES / sarvarcEyeDetectStyle below).
+// Pipeline per style: fast contrast/saturation/brightness pass -> per-
+// channel auto-levels (histogram black/white point stretch, clip strength
+// tuned per style) -> unsharp-mask sharpen (amount tuned per style) ->
+// vignette tinted/weighted to match. Baked straight into the page's
+// dataUrl the same way Adjust/Rotate/Border do, so it survives export,
+// thumbnails, and reload exactly like any other edit.
+let pdfedEyeReplaying = false;
+
+// Plays the shimmer overlay's single sweep. Restarts cleanly even if fired
+// twice in quick succession (re-triggering a CSS animation requires forcing
+// a reflow after removing the class, otherwise the browser just no-ops).
+function sarvarcEyePlayShimmer() {
+  const el = document.getElementById('sarvarcEyeShimmer');
+  if (!el) return;
+  el.classList.remove('play');
+  void el.offsetWidth; // force reflow so the animation restarts
+  el.classList.add('play');
+  el.addEventListener('animationend', () => el.classList.remove('play'), { once: true });
+}
+
+// ─── THE BRAIN ──────────────────────────────────────────────────────────
+// SARVARC Eye looks at the page before touching it and decides, on its
+// own, what kind of design this is — then reaches for the enhancement
+// recipe built for that look instead of applying one generic pass to
+// everything. No prompt, no picker: it samples the page's own colors and
+// tonal range and classifies it into one of four profiles below.
+const SARVARC_EYE_PROFILES = {
+  // Blues / teals / greens dominate and the palette has real saturation —
+  // nature, water, tech, outdoor scenes. Leans cooler and brighter, extra
+  // saturation to make that environment feel alive.
+  cool: {
+    label: 'cool, vibrant environment',
+    filter: 'contrast(110%) saturate(138%) brightness(105%) hue-rotate(-3deg)',
+    clipPct: 0.005,
+    sharpen: 0.40,
+    vignette: ['rgba(0,20,40,0)', 'rgba(0,28,52,0.14)']
+  },
+  // Dark, low-key, restrained saturation, often warm gold/silver accents
+  // against near-black — the classic luxury-brand palette. Pulled back
+  // saturation, deeper blacks, a heavier corner vignette instead of a
+  // punchy color boost.
+  premium: {
+    label: 'premium, high-end look',
+    filter: 'contrast(118%) saturate(88%) brightness(97%)',
+    clipPct: 0.003,
+    sharpen: 0.28,
+    vignette: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.26)']
+  },
+  // Bright, airy, low-saturation, mostly pastel — minimalist or "soft"
+  // social-style design. Gentle lift only, so it stays soft instead of
+  // turning punchy.
+  aesthetic: {
+    label: 'soft, aesthetic look',
+    filter: 'contrast(104%) saturate(112%) brightness(107%)',
+    clipPct: 0.002,
+    sharpen: 0.20,
+    vignette: ['rgba(30,20,10,0)', 'rgba(30,20,10,0.06)']
+  },
+  // Fallback: bold, saturated, high-contrast — flyers/menus/posters that
+  // just need to pop. This is the original SARVARC Eye recipe.
+  punchy: {
+    label: 'bold, punchy print-ready look',
+    filter: 'contrast(112%) saturate(124%) brightness(102%)',
+    clipPct: 0.005,
+    sharpen: 0.35,
+    vignette: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.10)']
+  }
+};
+
+// Samples the page at a capped resolution (bounded work regardless of the
+// source image size) and scores brightness, saturation, cool-hue coverage,
+// warm-gold-hue coverage, and pastel coverage. Those four numbers feed a
+// simple decision tree — no ML model needed, just the same cues a designer
+// would eyeball first.
+function sarvarcEyeDetectStyle(img, w, h) {
+  const sampleCan = document.createElement('canvas');
+  sampleCan.width = w; sampleCan.height = h;
+  const sctx = sampleCan.getContext('2d');
+  sctx.drawImage(img, 0, 0);
+  const data = sctx.getImageData(0, 0, w, h).data;
+
+  const total = w * h;
+  const step = Math.max(1, Math.floor(total / 30000)); // cap ~30k sampled pixels
+
+  let n = 0, sumBrightness = 0, sumSqBrightness = 0, sumSat = 0, coolHue = 0, warmGoldHue = 0, pastelish = 0;
+  let minBright = 1, maxBright = 0;
+
+  for (let p = 0; p < total; p += step) {
+    const i = p * 4;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const d = max - min;
+    const bright = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    const sat = max === 0 ? 0 : d / max;
+    sumBrightness += bright;
+    sumSqBrightness += bright * bright;
+    sumSat += sat;
+    if (bright < minBright) minBright = bright;
+    if (bright > maxBright) maxBright = bright;
+
+    if (d > 6) {
+      let hue;
+      if (max === r) hue = ((g - b) / d + (g < b ? 6 : 0));
+      else if (max === g) hue = (b - r) / d + 2;
+      else hue = (r - g) / d + 4;
+      hue *= 60;
+      if (hue >= 165 && hue <= 255) coolHue++;                               // blue / teal / cyan
+      else if (hue >= 30 && hue <= 55 && sat > 0.25 && bright > 0.35) warmGoldHue++; // gold / amber
+    }
+    if (sat < 0.28 && bright > 0.55) pastelish++;
+    n++;
+  }
+
+  const avgBrightness = sumBrightness / n;
+  const avgSat = sumSat / n;
+  const coolRatio = coolHue / n;
+  const warmGoldRatio = warmGoldHue / n;
+  const pastelRatio = pastelish / n;
+  // Population variance of sampled brightness — a genuinely blank page (flat
+  // white, or any single flat color) has essentially zero spread here, which
+  // is a much more reliable "is there anything on this page" signal than
+  // brightness alone (a solid dark page would otherwise look "premium").
+  const brightnessVariance = Math.max(0, sumSqBrightness / n - avgBrightness * avgBrightness);
+  const metrics = { avgBrightness, avgSat, coolRatio, warmGoldRatio, pastelRatio, brightnessVariance, spread: maxBright - minBright };
+
+  // Nothing drawn: near-zero brightness variance and near-zero tonal spread
+  // means every sampled pixel is basically the same flat color — an empty
+  // page, not a design choice.
+  if (brightnessVariance < 0.00006 && (maxBright - minBright) < 0.03 && avgSat < 0.03) {
+    return { key: 'empty', metrics };
+  }
+
+  // Dark + restrained saturation + a gold/warm accent (or just very dark) →
+  // premium/luxury palette.
+  if (avgBrightness < 0.42 && avgSat < 0.42 && (warmGoldRatio > 0.03 || avgBrightness < 0.30)) {
+    return { key: 'premium', metrics };
+  }
+  // Real coverage of blue/teal/green hues with actual saturation → cool,
+  // lively environment.
+  if (coolRatio > 0.16 && avgSat > 0.25) {
+    return { key: 'cool', metrics };
+  }
+  // Bright and mostly low-saturation pastel → soft aesthetic look.
+  if (pastelRatio > 0.35 && avgBrightness > 0.60) {
+    return { key: 'aesthetic', metrics };
+  }
+  // Otherwise: treat it as bold print work and give it the punchy pass.
+  return { key: 'punchy', metrics };
+}
+
+async function sarvarcEyeApply() {
+  const idx = pdfed.active;
+  if (idx < 0 || !pdfed.pages[idx]) { toast('Open a PDF or start a blank page first', 'info'); return; }
+  const pg = pdfed.pages[idx];
+
+  // Idempotent by design: one click is meant to be "the" refine action.
+  // Running it twice on top of itself would blow out contrast/sharpening,
+  // so a second click just points at Undo instead of stacking passes.
+  if (pg.edits && pg.edits.sarvarcEye) {
+    toast('SARVARC Eye is already applied — undo (Ctrl+Z) first if you want to re-run it', 'info');
+    return;
+  }
+
+  const btn = document.getElementById('sarvarcEyeBtn');
+  if (btn) btn.classList.add('sarvarc-eye-busy');
+
+  const eyeUndoSnap = { dataUrl: pg.dataUrl, modified: pg.modified };
+
+  try {
+    const srcUrl = await pdfedPageUrl(pg);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = srcUrl; });
+
+    const w = img.naturalWidth, h = img.naturalHeight;
+
+    // The brain decides for itself what kind of design this is — cool
+    // environment, premium/luxury, soft aesthetic, or bold print-ready —
+    // by sampling the page's own colors. No prompt, no picker. This also
+    // catches the case where there's simply nothing on the page yet.
+    const detected = sarvarcEyeDetectStyle(img, w, h);
+
+    if (detected.key === 'empty') {
+      toast('Canvas is empty', 'info');
+      return;
+    }
+
+    const profile = SARVARC_EYE_PROFILES[detected.key];
+    const can = document.createElement('canvas');
+    can.width = w; can.height = h;
+    const ctx = can.getContext('2d');
+
+    // Fast native pass first: the contrast/saturation/brightness lift the
+    // detected style calls for.
+    ctx.filter = profile.filter;
+    ctx.drawImage(img, 0, 0);
+    ctx.filter = 'none';
+
+    // Auto black/white point stretch — clip strength tuned per style so a
+    // premium/aesthetic look doesn't get stretched as hard as a punchy one.
+    let imgData = ctx.getImageData(0, 0, w, h);
+    sarvarcEyeAutoLevels(imgData, profile.clipPct);
+
+    // Unsharp-mask sharpen, amount tuned per style so text/edges read crisp
+    // without over-sharpening a soft aesthetic look.
+    sarvarcEyeSharpen(imgData, w, h, profile.sharpen);
+    ctx.putImageData(imgData, 0, 0);
+
+    // Vignette tinted and weighted to match the detected style.
+    const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
+    grad.addColorStop(0, profile.vignette[0]);
+    grad.addColorStop(1, profile.vignette[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    pg.dataUrl = can.toDataURL('image/png');
+    pg.modified = true;
+    pg.edits = pg.edits || {};
+    pg.edits.sarvarcEye = true;
+    pg.edits.sarvarcEyeStyle = detected.key;
+
+    await pdfedGoto(idx);
+    await pdfedBuildStrip();
+    sarvarcEyePlayShimmer();
+    toast(`SARVARC Eye applied — detected a ${profile.label}, refined to match`, 'success');
+
+    if (!pdfedEyeReplaying) {
+      pushAppHistory({
+        label: 'SARVARC Eye',
+        undo: async () => {
+          pg.dataUrl = eyeUndoSnap.dataUrl;
+          pg.modified = eyeUndoSnap.modified;
+          if (pg.edits) pg.edits.sarvarcEye = false;
+          await pdfedGoto(idx);
+          await pdfedBuildStrip();
+          toast('SARVARC Eye undone', 'info');
+        },
+        redo: async () => {
+          pdfedEyeReplaying = true;
+          try { await sarvarcEyeApply(); } finally { pdfedEyeReplaying = false; }
+        }
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Could not apply SARVARC Eye, try again', 'error');
+  } finally {
+    if (btn) btn.classList.remove('sarvarc-eye-busy');
+  }
+}
+
+// Per-channel histogram stretch: finds the black/white point that clips the
+// darkest and lightest ~0.5% of pixels, then remaps that range to full
+// 0–255. Mutates imgData in place.
+function sarvarcEyeAutoLevels(imgData, clipPct) {
+  const data = imgData.data;
+  const histR = new Array(256).fill(0), histG = new Array(256).fill(0), histB = new Array(256).fill(0);
+  const total = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) {
+    histR[data[i]]++; histG[data[i + 1]]++; histB[data[i + 2]]++;
+  }
+  const clip = Math.max(1, Math.floor(total * (clipPct != null ? clipPct : 0.005)));
+  const findBounds = (hist) => {
+    let lo = 0, acc = 0;
+    while (lo < 255 && acc < clip) { acc += hist[lo]; lo++; }
+    let hi = 255; acc = 0;
+    while (hi > 0 && acc < clip) { acc += hist[hi]; hi--; }
+    if (hi <= lo) { lo = 0; hi = 255; }
+    return [lo, hi];
+  };
+  const [rLo, rHi] = findBounds(histR);
+  const [gLo, gHi] = findBounds(histG);
+  const [bLo, bHi] = findBounds(histB);
+  const rSpan = Math.max(1, rHi - rLo), gSpan = Math.max(1, gHi - gLo), bSpan = Math.max(1, bHi - bLo);
+  for (let i = 0; i < data.length; i += 4) {
+    data[i]     = Math.max(0, Math.min(255, (data[i]     - rLo) * 255 / rSpan));
+    data[i + 1] = Math.max(0, Math.min(255, (data[i + 1] - gLo) * 255 / gSpan));
+    data[i + 2] = Math.max(0, Math.min(255, (data[i + 2] - bLo) * 255 / bSpan));
+  }
+}
+
+// Lightweight unsharp mask: box-blurs a copy, then pushes the original away
+// from that blur by `amount`. Cheap enough at this kernel size to add crisp,
+// print-ready edges without visible haloing. Mutates imgData in place.
+function sarvarcEyeSharpen(imgData, w, h, amount) {
+  const src = imgData.data;
+  const out = new Uint8ClampedArray(src);
+  const idxAt = (x, y) => (y * w + x) * 4;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = idxAt(x, y);
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        sum += src[idxAt(x - 1, y - 1) + c] + src[idxAt(x, y - 1) + c] + src[idxAt(x + 1, y - 1) + c];
+        sum += src[idxAt(x - 1, y)     + c] + src[idxAt(x, y)     + c] + src[idxAt(x + 1, y)     + c];
+        sum += src[idxAt(x - 1, y + 1) + c] + src[idxAt(x, y + 1) + c] + src[idxAt(x + 1, y + 1) + c];
+        const blur = sum / 9;
+        out[i + c] = src[i + c] + (src[i + c] - blur) * amount;
+      }
+    }
+  }
+  imgData.data.set(out);
 }
 
 // ─── MY NOTES ───────────────────────────────────────────────────────────
@@ -19097,13 +19657,20 @@ function pdfedApplyBorderCurrentPage() {
   const pc = document.getElementById('pdfedPageCanvas');
   if (!pc || !pc.width) { toast('Page is not ready yet, try again in a moment', 'info'); return; }
   if (!pg.placedBorders) pg.placedBorders = [];
+  // Bake the chosen margin straight into the object's own box at creation
+  // time, instead of storing it as a live inset drawn inside a full-page
+  // box. That way the box IS the frame — the resize/drag outline and
+  // handles sit exactly on the visible line with zero gap, no matter what
+  // margin % was picked, and dragging/resizing from then on is a true
+  // 1:1 match between what you grab and what you see.
+  const m = Math.min(pc.width, pc.height) * (pdfedBorderState.margin / 100);
   pg.placedBorders.push({
     id: 'pbrd_' + (++pdfedBorderSeq),
     style: pdfedBorderState.style,
-    marginPct: pdfedBorderState.margin,
+    marginPct: 0,
     thickness: pdfedBorderState.thickness,
     color: pdfedBorderState.color,
-    x: 0, y: 0, w: pc.width, h: pc.height,
+    x: m, y: m, w: pc.width - m * 2, h: pc.height - m * 2,
     locked: false,
     zIndex: pdfedNextZ(pg)
   });
@@ -19129,13 +19696,15 @@ async function pdfedApplyBorderAllPages() {
     const pc = document.getElementById('pdfedPageCanvas');
     if (!pc || !pc.width) continue;
     if (!pg.placedBorders) pg.placedBorders = [];
+    // Same bake-the-margin-into-the-box approach as the single-page path above.
+    const m = Math.min(pc.width, pc.height) * (pdfedBorderState.margin / 100);
     pg.placedBorders.push({
       id: 'pbrd_' + (++pdfedBorderSeq),
       style: pdfedBorderState.style,
-      marginPct: pdfedBorderState.margin,
+      marginPct: 0,
       thickness: pdfedBorderState.thickness,
       color: pdfedBorderState.color,
-      x: 0, y: 0, w: pc.width, h: pc.height,
+      x: m, y: m, w: pc.width - m * 2, h: pc.height - m * 2,
       locked: false,
       zIndex: pdfedNextZ(pg)
     });
@@ -19292,6 +19861,12 @@ function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
   let dragging = false, resizing = false, resizeDir = null;
   let ox = 0, oy = 0, startRect = null;
   let startX = 0, startY = 0, snapTargets = null;
+  // Whether this resize interaction already locked the x/y axis onto the
+  // page boundary (hard clamp) or a smart-snap target. When true, the
+  // release-time grid-snap below must leave that axis alone — otherwise
+  // a border you just dragged flush to the edge visibly hops a few grid
+  // px away the instant you let go, which reads as a bug, not a feature.
+  let edgeLockedX = false, edgeLockedY = false;
   const pc = document.getElementById('pdfedPageCanvas');
   const SNAP = 10; // canvas-px snap threshold, same as placed images/text
 
@@ -19302,6 +19877,8 @@ function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
       resizing = true; resizeDir = dir;
       ox = e.clientX; oy = e.clientY;
       startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
+      snapTargets = pdfedCollectSnapTargets(item.id);
+      edgeLockedX = false; edgeLockedY = false;
     } else if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
       dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
       snapTargets = pdfedCollectSnapTargets(item.id);
@@ -19339,10 +19916,82 @@ function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
       }
 
       item.x = nx; item.y = ny;
+      // Hard clamp: the border can never be dragged off the page — this is
+      // what actually guarantees an edge-to-edge fit is reachable/holdable,
+      // on top of the magnetic snap above (which only catches you within
+      // SNAP px; this clamp is the real "can't leave the canvas" wall).
+      item.x = Math.max(0, Math.min(item.x, pc.width - item.w));
+      item.y = Math.max(0, Math.min(item.y, pc.height - item.h));
       pdfedPositionPlacedEl(el, item, pc);
     } else if (resizing) {
       const dx = (e.clientX - ox) * scale, dy = (e.clientY - oy) * scale;
       const r = pdfedResizeRect(resizeDir, startRect, dx, dy, 30, e.shiftKey);
+
+      // Snap whichever edge(s) this handle is moving to the page edges/center
+      // and other objects' edges — same magnetism as moving the whole border,
+      // so a corner/edge handle can be dragged flush to the page boundary
+      // instead of needing pixel-perfect precision.
+      const north = resizeDir.indexOf('n') !== -1, south = resizeDir.indexOf('s') !== -1;
+      const west  = resizeDir.indexOf('w') !== -1, east  = resizeDir.indexOf('e') !== -1;
+      const targets = snapTargets || { x: [], y: [] };
+      let snapAtX = null, snapAtY = null;
+
+      if (west) {
+        const right = r.x + r.w;
+        const best = pdfedBestSnap([r.x], targets.x, SNAP);
+        if (best) { r.x += best.delta; r.w = Math.max(30, right - r.x); snapAtX = best.at; edgeLockedX = true; }
+      } else if (east) {
+        const right = r.x + r.w;
+        const best = pdfedBestSnap([right], targets.x, SNAP);
+        if (best) { r.w = Math.max(30, (right + best.delta) - r.x); snapAtX = best.at; edgeLockedX = true; }
+      }
+      if (north) {
+        const bottom = r.y + r.h;
+        const best = pdfedBestSnap([r.y], targets.y, SNAP);
+        if (best) { r.y += best.delta; r.h = Math.max(30, bottom - r.y); snapAtY = best.at; edgeLockedY = true; }
+      } else if (south) {
+        const bottom = r.y + r.h;
+        const best = pdfedBestSnap([bottom], targets.y, SNAP);
+        if (best) { r.h = Math.max(30, (bottom + best.delta) - r.y); snapAtY = best.at; edgeLockedY = true; }
+      }
+
+      if (guideV) {
+        guideV.style.display = snapAtX !== null ? 'block' : 'none';
+        if (snapAtX !== null) guideV.style.left = (snapAtX * (pdfed.zoom || 1)) + 'px';
+      }
+      if (guideH) {
+        guideH.style.display = snapAtY !== null ? 'block' : 'none';
+        if (snapAtY !== null) guideH.style.top = (snapAtY * (pdfed.zoom || 1)) + 'px';
+      }
+
+      // Hard clamp: whatever edge this handle pushed past the page
+      // boundary gets pulled back to exactly 0 / pc.width / pc.height,
+      // keeping the OPPOSITE (anchored) edge exactly where it was —
+      // the border can never be resized outside the canvas, and lands
+      // flush on the edge instead of overshooting or getting stuck short.
+      if (west) {
+        const right = r.x + r.w;
+        r.x = Math.max(0, r.x);
+        r.w = right - r.x;
+        if (r.x === 0) edgeLockedX = true;
+      } else if (east) {
+        const right = Math.min(pc.width, r.x + r.w);
+        r.w = right - r.x;
+        if (right === pc.width) edgeLockedX = true;
+      }
+      if (north) {
+        const bottom = r.y + r.h;
+        r.y = Math.max(0, r.y);
+        r.h = bottom - r.y;
+        if (r.y === 0) edgeLockedY = true;
+      } else if (south) {
+        const bottom = Math.min(pc.height, r.y + r.h);
+        r.h = bottom - r.y;
+        if (bottom === pc.height) edgeLockedY = true;
+      }
+      r.w = Math.max(30, r.w);
+      r.h = Math.max(30, r.h);
+
       item.x = r.x; item.y = r.y; item.w = r.w; item.h = r.h;
       pdfedPositionPlacedEl(el, item, pc);
       pdfedRedrawBorderCanvas(canvasEl, item);
@@ -19350,15 +19999,26 @@ function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
   });
   document.addEventListener('mouseup', () => {
     if (resizing && pdfed.snapGrid) {
-      const newX = pdfedSnapToGrid(item.x), newY = pdfedSnapToGrid(item.y);
-      item.w = Math.max(30, pdfedSnapToGrid(item.x + item.w) - newX);
-      item.h = Math.max(30, pdfedSnapToGrid(item.y + item.h) - newY);
-      item.x = newX; item.y = newY;
+      // Only grid-snap an axis that wasn't already locked to the page edge
+      // or a smart-snap target during this resize — otherwise a border you
+      // just placed flush against the page boundary would visibly hop a
+      // few grid px away the instant you release the handle.
+      if (!edgeLockedX) {
+        const newX = pdfedSnapToGrid(item.x);
+        item.w = Math.max(30, pdfedSnapToGrid(item.x + item.w) - newX);
+        item.x = newX;
+      }
+      if (!edgeLockedY) {
+        const newY = pdfedSnapToGrid(item.y);
+        item.h = Math.max(30, pdfedSnapToGrid(item.y + item.h) - newY);
+        item.y = newY;
+      }
       pdfedPositionPlacedEl(el, item, pc);
       pdfedRedrawBorderCanvas(canvasEl, item);
     }
     if (dragging || resizing) pdfedMarkModified(idx);
     dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
+    edgeLockedX = false; edgeLockedY = false;
     const guideV = document.getElementById('pdfedSmartGuideV');
     const guideH = document.getElementById('pdfedSmartGuideH');
     if (guideV) guideV.style.display = 'none';
@@ -24091,7 +24751,14 @@ function pdfedRenderPlacedImages(idx) {
 
     const img = document.createElement('img');
     img.src = item.dataUrl;
-    img.style.cssText = `width:100%;height:100%;object-fit:contain;pointer-events:none;display:block;opacity:${pdfedGetOpacity(item)};`;
+    // object-fit:fill (not contain) so the image content always exactly
+    // fills its own box no matter how you resize it — resizing
+    // non-uniformly (e.g. just the width) used to leave the picture
+    // letterboxed inside the box while the handles stayed on the box's
+    // edges, so there was a visible gap between what you're dragging and
+    // what you actually see. Filling the box means the handles are always
+    // flush against the visible picture, true edge-to-edge.
+    img.style.cssText = `width:100%;height:100%;object-fit:fill;pointer-events:none;display:block;opacity:${pdfedGetOpacity(item)};`;
     el.appendChild(img);
 
     // Lock/unlock toggle badge, always interactive, even when image itself is locked
@@ -24252,6 +24919,10 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
   let dragging = false, resizing = false, resizeDir = null;
   let ox = 0, oy = 0, startRect = null;
   let startX = 0, startY = 0, snapTargets = null;
+  // Same edge-lock tracking as the border tool: true once this resize has
+  // already snapped/clamped that axis to the page edge or another object,
+  // so the release-time grid-snap below doesn't undo it.
+  let edgeLockedX = false, edgeLockedY = false;
   const pc = document.getElementById('pdfedPageCanvas');
   const SNAP = 10; // canvas-px snap threshold, same as placed text
 
@@ -24262,6 +24933,8 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       resizing = true; resizeDir = dir;
       ox = e.clientX; oy = e.clientY;
       startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
+      snapTargets = pdfedCollectSnapTargets(item.id);
+      edgeLockedX = false; edgeLockedY = false;
     } else if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
       dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
       snapTargets = pdfedCollectSnapTargets(item.id);
@@ -24302,6 +24975,9 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       }
 
       item.x = nx; item.y = ny;
+      // Hard clamp: the image can never be dragged off the page.
+      item.x = Math.max(0, Math.min(item.x, pc.width - item.w));
+      item.y = Math.max(0, Math.min(item.y, pc.height - item.h));
       pdfedPositionPlacedEl(el, item, pc);
     } else if (resizing) {
       // Edge-to-edge free resize: whichever of the 8 handles is being dragged,
@@ -24310,22 +24986,93 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       // Hold Shift while dragging to keep the image's aspect ratio locked.
       const dx = (e.clientX - ox) * scale, dy = (e.clientY - oy) * scale;
       const r = pdfedResizeRect(resizeDir, startRect, dx, dy, 20, e.shiftKey);
+
+      // Snap whichever edge(s) this handle is moving to the page edges/center
+      // and other objects' edges — same magnetism as moving the whole image.
+      const north = resizeDir.indexOf('n') !== -1, south = resizeDir.indexOf('s') !== -1;
+      const west  = resizeDir.indexOf('w') !== -1, east  = resizeDir.indexOf('e') !== -1;
+      const targets = snapTargets || { x: [], y: [] };
+      let snapAtX = null, snapAtY = null;
+
+      if (west) {
+        const right = r.x + r.w;
+        const best = pdfedBestSnap([r.x], targets.x, SNAP);
+        if (best) { r.x += best.delta; r.w = Math.max(20, right - r.x); snapAtX = best.at; edgeLockedX = true; }
+      } else if (east) {
+        const right = r.x + r.w;
+        const best = pdfedBestSnap([right], targets.x, SNAP);
+        if (best) { r.w = Math.max(20, (right + best.delta) - r.x); snapAtX = best.at; edgeLockedX = true; }
+      }
+      if (north) {
+        const bottom = r.y + r.h;
+        const best = pdfedBestSnap([r.y], targets.y, SNAP);
+        if (best) { r.y += best.delta; r.h = Math.max(20, bottom - r.y); snapAtY = best.at; edgeLockedY = true; }
+      } else if (south) {
+        const bottom = r.y + r.h;
+        const best = pdfedBestSnap([bottom], targets.y, SNAP);
+        if (best) { r.h = Math.max(20, (bottom + best.delta) - r.y); snapAtY = best.at; edgeLockedY = true; }
+      }
+
+      if (guideV) {
+        guideV.style.display = snapAtX !== null ? 'block' : 'none';
+        if (snapAtX !== null) guideV.style.left = (snapAtX * (pdfed.zoom || 1)) + 'px';
+      }
+      if (guideH) {
+        guideH.style.display = snapAtY !== null ? 'block' : 'none';
+        if (snapAtY !== null) guideH.style.top = (snapAtY * (pdfed.zoom || 1)) + 'px';
+      }
+
+      // Hard clamp: whatever edge this handle pushed past the page
+      // boundary gets pulled back to exactly 0 / pc.width / pc.height,
+      // keeping the opposite (anchored) edge exactly where it was.
+      if (west) {
+        const right = r.x + r.w;
+        r.x = Math.max(0, r.x);
+        r.w = right - r.x;
+        if (r.x === 0) edgeLockedX = true;
+      } else if (east) {
+        const right = Math.min(pc.width, r.x + r.w);
+        r.w = right - r.x;
+        if (right === pc.width) edgeLockedX = true;
+      }
+      if (north) {
+        const bottom = r.y + r.h;
+        r.y = Math.max(0, r.y);
+        r.h = bottom - r.y;
+        if (r.y === 0) edgeLockedY = true;
+      } else if (south) {
+        const bottom = Math.min(pc.height, r.y + r.h);
+        r.h = bottom - r.y;
+        if (bottom === pc.height) edgeLockedY = true;
+      }
+      r.w = Math.max(20, r.w);
+      r.h = Math.max(20, r.h);
+
       item.x = r.x; item.y = r.y; item.w = r.w; item.h = r.h;
       pdfedPositionPlacedEl(el, item, pc);
     }
   });
   document.addEventListener('mouseup', () => {
     if (resizing && pdfed.snapGrid) {
-      // Snap the final box edges to the grid so a resized image lines up
-      // cleanly with everything else, same as a resized text box.
-      const newX = pdfedSnapToGrid(item.x), newY = pdfedSnapToGrid(item.y);
-      item.w = Math.max(20, pdfedSnapToGrid(item.x + item.w) - newX);
-      item.h = Math.max(20, pdfedSnapToGrid(item.y + item.h) - newY);
-      item.x = newX; item.y = newY;
+      // Only grid-snap an axis that wasn't already locked to the page edge
+      // or a smart-snap target during this resize — otherwise an image you
+      // just placed flush against the page boundary would visibly hop a
+      // few grid px away the instant you release the handle.
+      if (!edgeLockedX) {
+        const newX = pdfedSnapToGrid(item.x);
+        item.w = Math.max(20, pdfedSnapToGrid(item.x + item.w) - newX);
+        item.x = newX;
+      }
+      if (!edgeLockedY) {
+        const newY = pdfedSnapToGrid(item.y);
+        item.h = Math.max(20, pdfedSnapToGrid(item.y + item.h) - newY);
+        item.y = newY;
+      }
       pdfedPositionPlacedEl(el, item, pc);
     }
     if (dragging || resizing) pdfedMarkModified(idx);
     dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
+    edgeLockedX = false; edgeLockedY = false;
     const guideV = document.getElementById('pdfedSmartGuideV');
     const guideH = document.getElementById('pdfedSmartGuideH');
     if (guideV) guideV.style.display = 'none';
@@ -26737,6 +27484,24 @@ function daAddDataset(name, aoa) {
   const id = 'ds' + (++daIdCounter);
   daState.datasets.push({ id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, frozen: true });
   daState.activeId = id;
+}
+
+// ─── Create Blank Table: spreadsheet-style, no file needed. Starts with a
+// small empty grid (generic "Column N" headers, blank rows) that the person
+// fills in by hand using the same cell editing, formulas, Row/Column
+// buttons, and export pipeline as an uploaded table. ───
+function daCreateBlankTable() {
+  const colCount = 4, rowCount = 8;
+  const headers = Array.from({ length: colCount }, (_, i) => `Column ${i + 1}`);
+  const rows = Array.from({ length: rowCount }, () => new Array(colCount).fill(''));
+  const existingBlankCount = daState.datasets.filter(d => /^Table \d+$/.test(d.name)).length;
+  const id = 'ds' + (++daIdCounter);
+  daState.datasets.push({ id, name: `Table ${existingBlankCount + 1}`, headers, rows, frozen: true });
+  daState.activeId = id;
+  daWorkspaceRefreshVisibility();
+  daRenderTabs();
+  daRenderTable();
+  toast('Blank table created, click any cell to start typing', 'success');
 }
 
 function daWorkspaceRefreshVisibility() {
@@ -31892,6 +32657,12 @@ async function rdxInsertIntoWorkspace(mode) {
 const MF_STORAGE_KEY = 'sarvarcForms';
 let mfMemForms = null; // in-memory fallback if localStorage is unavailable
 let mfState = { forms: [], currentId: null };
+// Fill & Responses mode: which tab is active, the field values currently
+// showing in the live preview (keyed by field id), and which saved response
+// (if any) those values belong to. null activeResponseId = an unsaved draft.
+let mfMode = 'design';
+let mfDraftValues = {};
+let mfActiveResponseId = null;
 
 function mfUid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
@@ -32174,15 +32945,30 @@ function mfOpenEditor(id) {
   if (!f) return;
   if (f.kind === 'canvas') { mfcOpenEditor(id); return; }
   mfState.currentId = id;
+  mfMode = 'design';
+  mfActiveResponseId = null;
+  mfDraftValues = {};
   document.getElementById('mfGalleryView').style.display = 'none';
   document.getElementById('mfEditorView').style.display = 'block';
   document.getElementById('mfFormTitleInput').value = f.title || '';
   document.getElementById('mfFormDescInput').value = f.desc || '';
+  // Reset to the Design tab and make sure the preview panel lives back in
+  // its off-screen home, in case a previously-open form was left mid-Fill.
+  const tabD = document.getElementById('mfTabDesign'), tabF = document.getElementById('mfTabFill');
+  if (tabD) tabD.classList.add('active');
+  if (tabF) tabF.classList.remove('active');
+  const bodyD = document.getElementById('mfEditorBodyDesign'), bodyF = document.getElementById('mfEditorBodyFill');
+  if (bodyD) bodyD.style.display = 'grid';
+  if (bodyF) bodyF.style.display = 'none';
+  const panel = document.getElementById('mfPreviewPanel'), holder = document.getElementById('mfPreviewOffscreenHolder');
+  if (panel && holder && panel.parentElement !== holder) { panel.classList.remove('mf-preview-visible'); holder.appendChild(panel); }
   mfRenderFieldList();
   mfRenderLogoThumb();
   mfRenderAccentSwatches();
   mfRenderWatermarkControls();
   mfRenderPreview();
+  mfUpdateFillStatus();
+  mfRenderResponsesList();
 }
 
 function mfBackToGallery() {
@@ -32401,6 +33187,7 @@ function mfRenderPreview() {
   const f = mfGetCurrentForm();
   const page = document.getElementById('mfPreviewPage');
   if (!f || !page) return;
+  const vals = (typeof mfDraftValues !== 'undefined' && mfDraftValues) || {};
   page.style.setProperty('--mf-accent', f.accentColor || '#0073E6');
   let watermarkHtml = '';
   if (f.logoDataUrl && f.watermarkOn !== false) {
@@ -32419,37 +33206,352 @@ function mfRenderPreview() {
   }
   f.fields.forEach(fl => {
     const req = fl.required ? '<span class="mf-pv-req">*</span>' : '';
+    const id = 'mfin_' + fl.id;
+    const v = vals[fl.id];
     switch(fl.type) {
       case 'heading':
         html += `<div class="mf-pv-heading">${mfEsc(fl.label)}</div>`;
         break;
       case 'text':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="text" class="mf-pv-input"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
         break;
       case 'number':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="number" class="mf-pv-input"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="number" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
         break;
       case 'date':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="date" class="mf-pv-input"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="date" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
         break;
       case 'paragraph':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><textarea class="mf-pv-textarea" rows="3"></textarea></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><textarea id="${id}" data-fid="${fl.id}" class="mf-pv-textarea" rows="3">${mfEsc(v||'')}</textarea></div>`;
         break;
       case 'select':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><select class="mf-pv-select-real">` +
-          (fl.options||[]).map(o => `<option>${mfEsc(o)}</option>`).join('') + `</select></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><select id="${id}" data-fid="${fl.id}" class="mf-pv-select-real">` +
+          (fl.options||[]).map(o => `<option ${o===v?'selected':''}>${mfEsc(o)}</option>`).join('') + `</select></div>`;
         break;
       case 'checkbox':
-        html += `<div class="mf-pv-field mf-pv-check"><input type="checkbox" id="pvchk_${fl.id}"><label for="pvchk_${fl.id}">${mfEsc(fl.label)}${req}</label></div>`;
+        html += `<div class="mf-pv-field mf-pv-check"><input type="checkbox" id="${id}" data-fid="${fl.id}" ${v?'checked':''}><label for="${id}">${mfEsc(fl.label)}${req}</label></div>`;
         break;
       case 'signature':
         html += `<div class="mf-pv-field"><div class="mf-pv-sig"></div><div class="mf-pv-sig-label">${mfEsc(fl.label)}</div></div>`;
         break;
       default:
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}</label><input type="text" class="mf-pv-input"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
     }
   });
   page.innerHTML = watermarkHtml + `<div class="mf-pv-content">${html}</div>`;
+}
+
+// ─── FILL & RESPONSES ───
+function mfGetResponses(f) {
+  if (!f.responses) f.responses = [];
+  return f.responses;
+}
+
+// Moves the one real preview-panel node between its off-screen Design home
+// and the visible Fill-mode slot, rather than keeping two copies in sync.
+function mfSwitchMode(mode) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  mfMode = mode;
+  const tabD = document.getElementById('mfTabDesign'), tabF = document.getElementById('mfTabFill');
+  if (tabD) tabD.classList.toggle('active', mode === 'design');
+  if (tabF) tabF.classList.toggle('active', mode === 'fill');
+  const bodyD = document.getElementById('mfEditorBodyDesign'), bodyF = document.getElementById('mfEditorBodyFill');
+  if (bodyD) bodyD.style.display = mode === 'design' ? 'grid' : 'none';
+  if (bodyF) bodyF.style.display = mode === 'fill' ? 'grid' : 'none';
+  const panel = document.getElementById('mfPreviewPanel');
+  const slot = document.getElementById('mfFillPreviewSlot');
+  const holder = document.getElementById('mfPreviewOffscreenHolder');
+  if (panel && slot && holder) {
+    if (mode === 'fill') { panel.classList.add('mf-preview-visible'); slot.appendChild(panel); }
+    else { panel.classList.remove('mf-preview-visible'); holder.appendChild(panel); }
+  }
+  if (mode === 'fill') mfRenderResponsesList();
+  mfRenderPreview();
+}
+
+function mfUpdateFillStatus() {
+  const el = document.getElementById('mfFillStatus');
+  const btn = document.getElementById('mfSaveRespBtn');
+  if (!el) return;
+  if (mfActiveResponseId) {
+    el.innerHTML = '<span class="mf-fill-status-dot"></span>Editing a saved response';
+    el.classList.add('mf-editing');
+    if (btn) btn.textContent = 'Update Response';
+  } else {
+    el.innerHTML = '<span class="mf-fill-status-dot"></span>New response';
+    el.classList.remove('mf-editing');
+    if (btn) btn.textContent = 'Save Response';
+  }
+}
+
+function mfNewResponseDraft() {
+  mfActiveResponseId = null;
+  mfDraftValues = {};
+  mfRenderPreview();
+  mfUpdateFillStatus();
+  mfRenderResponsesList();
+}
+function mfClearDraft() { mfNewResponseDraft(); }
+
+function mfLoadResponse(id) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const r = mfGetResponses(f).find(x => x.id === id);
+  if (!r) return;
+  mfActiveResponseId = id;
+  mfDraftValues = { ...r.values };
+  mfRenderPreview();
+  mfUpdateFillStatus();
+  mfRenderResponsesList();
+}
+
+// Reads whatever is currently typed into the live preview inputs, keyed by
+// field id — the source of truth while filling is the DOM itself, not a
+// shadow copy, so nothing needs to sync on every keystroke.
+function mfCollectDraftFromDOM() {
+  const f = mfGetCurrentForm(); if (!f) return {};
+  const values = {};
+  f.fields.forEach(fl => {
+    if (fl.type === 'heading' || fl.type === 'signature') return;
+    const el = document.getElementById('mfin_' + fl.id);
+    if (!el) return;
+    values[fl.id] = (fl.type === 'checkbox') ? !!el.checked : el.value;
+  });
+  return values;
+}
+
+function mfSaveResponse() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const values = mfCollectDraftFromDOM();
+  const hasAny = Object.values(values).some(v => v !== '' && v !== false);
+  if (!hasAny) { toast('Fill in at least one field first', 'info'); return; }
+  const responses = mfGetResponses(f);
+  const now = Date.now();
+  if (mfActiveResponseId) {
+    const r = responses.find(x => x.id === mfActiveResponseId);
+    if (r) { r.values = values; r.updatedAt = now; }
+  } else {
+    const r = { id: mfUid('resp'), createdAt: now, updatedAt: now, values };
+    responses.push(r);
+    mfActiveResponseId = r.id;
+  }
+  mfDraftValues = { ...values };
+  mfTouch(f);
+  mfUpdateFillStatus();
+  mfRenderResponsesList();
+  toast('Response saved', 'success');
+}
+
+function mfDeleteResponse(id, ev) {
+  if (ev) ev.stopPropagation();
+  const f = mfGetCurrentForm(); if (!f) return;
+  if (!confirm('Delete this response? This cannot be undone.')) return;
+  f.responses = mfGetResponses(f).filter(x => x.id !== id);
+  if (mfActiveResponseId === id) {
+    mfActiveResponseId = null;
+    mfDraftValues = {};
+    mfRenderPreview();
+    mfUpdateFillStatus();
+  }
+  mfTouch(f);
+  mfRenderResponsesList();
+  toast('Response deleted', 'info');
+}
+
+function mfResponseSummary(f, r) {
+  const parts = [];
+  for (const fl of f.fields) {
+    if (fl.type === 'heading' || fl.type === 'signature' || fl.type === 'checkbox') continue;
+    const v = r.values[fl.id];
+    if (v) { parts.push(String(v)); if (parts.length === 2) break; }
+  }
+  return parts.length ? parts.join(' · ') : 'Untitled response';
+}
+
+function mfRenderResponsesList() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const responses = mfGetResponses(f).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  const list = document.getElementById('mfRespList');
+  const empty = document.getElementById('mfRespEmpty');
+  const count = document.getElementById('mfRespCount');
+  const badge = document.getElementById('mfRespBadge');
+  if (!list) return;
+  if (count) count.textContent = responses.length + ' saved';
+  if (badge) { badge.style.display = responses.length ? 'inline-block' : 'none'; badge.textContent = responses.length; }
+  if (!responses.length) { list.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = responses.map(r => `
+    <div class="mf-resp-item ${r.id === mfActiveResponseId ? 'active' : ''}" onclick="mfLoadResponse('${r.id}')">
+      <div class="mf-resp-item-title">${mfEsc(mfResponseSummary(f, r))}</div>
+      <div class="mf-resp-item-meta">${new Date(r.updatedAt).toLocaleString()}</div>
+      <div class="mf-resp-item-btns">
+        <button onclick="event.stopPropagation();mfLoadResponse('${r.id}')">Edit</button>
+        <button onclick="mfExportSingleResponsePDF('${r.id}', event)">PDF</button>
+        <button class="mf-danger" onclick="mfDeleteResponse('${r.id}', event)">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function mfRasterizePreviewCanvas() {
+  const page = document.getElementById('mfPreviewPage');
+  return await html2canvas(page, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+}
+
+async function mfExportSingleResponsePDF(id, ev) {
+  if (ev) ev.stopPropagation();
+  const f = mfGetCurrentForm(); if (!f) return;
+  const r = mfGetResponses(f).find(x => x.id === id); if (!r) return;
+  if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const savedDraft = mfDraftValues, savedActive = mfActiveResponseId;
+  toast('Preparing PDF…', 'info');
+  try {
+    mfDraftValues = { ...r.values };
+    mfRenderPreview();
+    await new Promise(res => setTimeout(res, 30));
+    const canvas = await mfRasterizePreviewCanvas();
+    const { jsPDF } = window.jspdf;
+    const imgW = canvas.width, imgH = canvas.height;
+    const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795);
+    const pdf = new jsPDF({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] });
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+    const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_response.pdf';
+    pdf.save(sarvarcBrandFilename(fname));
+    if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+    toast('Response exported as PDF', 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    mfDraftValues = savedDraft; mfActiveResponseId = savedActive;
+    mfRenderPreview();
+  }
+}
+
+async function mfExportAllResponsesPDF() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const responses = mfGetResponses(f).slice().sort((a, b) => a.createdAt - b.createdAt);
+  if (!responses.length) { toast('No saved responses yet', 'info'); return; }
+  if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  toast(`Preparing PDF for ${responses.length} response${responses.length > 1 ? 's' : ''}…`, 'info');
+  const savedDraft = mfDraftValues, savedActive = mfActiveResponseId;
+  try {
+    const { jsPDF } = window.jspdf;
+    let pdf = null;
+    for (let i = 0; i < responses.length; i++) {
+      mfDraftValues = { ...responses[i].values };
+      mfRenderPreview();
+      await new Promise(res => setTimeout(res, 30));
+      const canvas = await mfRasterizePreviewCanvas();
+      const imgW = canvas.width, imgH = canvas.height;
+      const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795);
+      const orientation = mmW > mmH ? 'landscape' : 'portrait';
+      if (!pdf) pdf = new jsPDF({ orientation, unit: 'mm', format: [mmW, mmH] });
+      else pdf.addPage([mmW, mmH], orientation);
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+    }
+    const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_responses.pdf';
+    pdf.save(sarvarcBrandFilename(fname));
+    if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+    toast(`Exported ${responses.length} response${responses.length > 1 ? 's' : ''} as one PDF`, 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    mfDraftValues = savedDraft; mfActiveResponseId = savedActive;
+    mfRenderPreview();
+  }
+}
+
+// ─── EXPORT RESPONSES → DATA ARRANGEMENT ───
+// daAddDataset/daWorkspaceRefreshVisibility/daRenderTabs/daRenderTable and
+// daState all live at global scope (defined outside any IIFE), same call
+// pattern Data Arrangement itself uses after ingesting a file.
+function mfExportResponsesToDA() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const responses = mfGetResponses(f).slice().sort((a, b) => a.createdAt - b.createdAt);
+  if (!responses.length) { toast('No saved responses yet', 'info'); return; }
+  const dataFields = f.fields.filter(fl => fl.type !== 'heading' && fl.type !== 'signature');
+  if (!dataFields.length) { toast('This form has no fillable fields to export', 'info'); return; }
+  if (typeof daAddDataset !== 'function') { toast('Data Arrangement is unavailable right now', 'error'); return; }
+  const headers = dataFields.map(fl => fl.label || 'Field');
+  const rows = responses.map(r => dataFields.map(fl => {
+    const v = r.values[fl.id];
+    if (fl.type === 'checkbox') return v ? 'Yes' : 'No';
+    return v == null ? '' : String(v);
+  }));
+  daAddDataset(`${f.title || 'Form'} — Responses`, [headers, ...rows]);
+  if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
+  if (typeof daRenderTabs === 'function') daRenderTabs();
+  if (typeof daRenderTable === 'function') daRenderTable();
+  navigate('dataarrange');
+  toast(`${responses.length} response${responses.length > 1 ? 's' : ''} sent to Data Arrangement`, 'success');
+}
+
+// ─── MAIL MERGE: BULK-IMPORT RESPONSES FROM A DATA ARRANGEMENT TABLE ───
+function mfOpenMergeModal() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const datasets = (typeof daState !== 'undefined' && daState.datasets) ? daState.datasets : [];
+  if (!datasets.length) { toast('No Data Arrangement tables yet, upload a file or create a blank table there first', 'info'); return; }
+  const sel = document.getElementById('mfMergeDatasetSelect');
+  sel.innerHTML = datasets.map(d => `<option value="${d.id}">${mfEsc(d.name)}</option>`).join('');
+  document.getElementById('mfMergeModalOverlay').classList.add('open');
+  mfRenderMergeMapping();
+}
+function mfCloseMergeModal() {
+  const el = document.getElementById('mfMergeModalOverlay');
+  if (el) el.classList.remove('open');
+}
+function mfRenderMergeMapping() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const sel = document.getElementById('mfMergeDatasetSelect');
+  const ds = (typeof daState !== 'undefined') ? daState.datasets.find(d => d.id === sel.value) : null;
+  const wrap = document.getElementById('mfMergeMappingWrap');
+  if (!wrap) return;
+  if (!ds) { wrap.innerHTML = ''; return; }
+  const dataFields = f.fields.filter(fl => fl.type !== 'heading' && fl.type !== 'signature');
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  wrap.innerHTML = dataFields.map(fl => {
+    const flNorm = norm(fl.label);
+    let bestIdx = -1;
+    ds.headers.forEach((h, i) => {
+      if (bestIdx === -1 && flNorm && (norm(h) === flNorm || norm(h).includes(flNorm) || flNorm.includes(norm(h)))) bestIdx = i;
+    });
+    const options = ['<option value="-1">— Leave blank —</option>'].concat(
+      ds.headers.map((h, i) => `<option value="${i}" ${i === bestIdx ? 'selected' : ''}>${mfEsc(h)}</option>`)
+    );
+    return `<div class="mf-merge-map-row"><span title="${mfEsc(fl.label)}">${mfEsc(fl.label)}</span><select class="mf-field-select" data-merge-field="${fl.id}" data-merge-type="${fl.type}">${options.join('')}</select></div>`;
+  }).join('');
+}
+function mfConfirmMergeImport() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const sel = document.getElementById('mfMergeDatasetSelect');
+  const ds = (typeof daState !== 'undefined') ? daState.datasets.find(d => d.id === sel.value) : null;
+  if (!ds) { toast('Pick a table first', 'error'); return; }
+  const selects = Array.from(document.querySelectorAll('#mfMergeMappingWrap select'));
+  const mapping = selects.map(s => ({ fieldId: s.dataset.mergeField, type: s.dataset.mergeType, colIdx: parseInt(s.value, 10) }));
+  if (mapping.every(m => m.colIdx === -1)) { toast('Map at least one column first', 'info'); return; }
+  const responses = mfGetResponses(f);
+  const now = Date.now();
+  let imported = 0;
+  ds.rows.forEach((row, i) => {
+    const values = {};
+    let any = false;
+    mapping.forEach(m => {
+      if (m.colIdx === -1) return;
+      let v = row[m.colIdx];
+      v = v == null ? '' : String(v);
+      if (m.type === 'checkbox') v = /^(y|yes|true|1)$/i.test(v.trim());
+      values[m.fieldId] = v;
+      if (v) any = true;
+    });
+    if (!any) return;
+    responses.push({ id: mfUid('resp'), createdAt: now + i, updatedAt: now + i, values, source: 'mailmerge' });
+    imported++;
+  });
+  mfTouch(f);
+  mfCloseMergeModal();
+  mfRenderResponsesList();
+  toast(`Imported ${imported} row${imported !== 1 ? 's' : ''} as response${imported !== 1 ? 's' : ''}`, 'success');
 }
 
 // ─── PRINT / EXPORT ───
@@ -33218,6 +34320,19 @@ window.mfSetWatermarkOpacity = mfSetWatermarkOpacity;
 window.mfPrintForm = mfPrintForm;
 window.mfExportPDF = mfExportPDF;
 window.mfPushToWorkspace = mfPushToWorkspace;
+window.mfSwitchMode = mfSwitchMode;
+window.mfNewResponseDraft = mfNewResponseDraft;
+window.mfClearDraft = mfClearDraft;
+window.mfLoadResponse = mfLoadResponse;
+window.mfSaveResponse = mfSaveResponse;
+window.mfDeleteResponse = mfDeleteResponse;
+window.mfExportSingleResponsePDF = mfExportSingleResponsePDF;
+window.mfExportAllResponsesPDF = mfExportAllResponsesPDF;
+window.mfExportResponsesToDA = mfExportResponsesToDA;
+window.mfOpenMergeModal = mfOpenMergeModal;
+window.mfCloseMergeModal = mfCloseMergeModal;
+window.mfRenderMergeMapping = mfRenderMergeMapping;
+window.mfConfirmMergeImport = mfConfirmMergeImport;
 window.mfStartCanvas = mfStartCanvas;
 window.mfcOpenEditor = mfcOpenEditor;
 window.mfcBackToGallery = mfcBackToGallery;
