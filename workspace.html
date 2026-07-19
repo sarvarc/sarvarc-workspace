@@ -34,6 +34,10 @@
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.7.2/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- Mermaid: text-to-diagram engine for the Diagrams & Graphs "Flowchart / Diagram" mode
+     (flowcharts, sequence diagrams, org charts, mind maps, Gantt). Loaded as a plain global
+     (window.mermaid), matching how every other third-party library in this file is wired up. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-RN93D87JZH"></script>
 <script>
@@ -8442,6 +8446,20 @@ button.dg-show-chip.active { background:var(--blue); }
           <p>Pick an element, plug in your data, and get a clean multi-colour bar, line, area, pie, or donut chart, then drop it straight onto your Workspace page.</p>
         </div>
 
+        <!-- Mode switch: "Data Charts" is the existing canvas-based chart builder (untouched below).
+             "Flowchart / Diagram" is the new Mermaid-based text-to-diagram panel, added as a sibling
+             so it never interferes with dgState/dgDrawChart. dgSetDgMode() toggles which is visible. -->
+        <div class="dg-mode-tabs" id="dgModeTabs" style="display:flex;gap:6px;padding:0 2px 10px;">
+          <button type="button" class="dg-mode-tab active" id="dgModeChartTab" onclick="dgSetDgMode('chart')"
+            style="padding:7px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border2);background:var(--pdfed-accent-bg);color:var(--pdfed-accent);cursor:pointer;">
+            Data Charts
+          </button>
+          <button type="button" class="dg-mode-tab" id="dgModeFlowTab" onclick="dgSetDgMode('flow')"
+            style="padding:7px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
+            Flowchart / Diagram
+          </button>
+        </div>
+
         <div class="dg-body">
           <!-- WORKSPACE-STYLE RIBBON BAR: everything needed to build a chart, one row, dropdowns for the heavier panels -->
           <div class="dg-ribbon-bar" id="dgRibbonBar">
@@ -9096,6 +9114,41 @@ button.dg-show-chip.active { background:var(--blue); }
               </div>
             </div>
             <div class="dg-multi-gallery-strip" id="dgMultiGalleryStrip"></div>
+          </div>
+
+          <!-- FLOWCHART / DIAGRAM PANEL (Mermaid-based). Sibling of dgRibbonBar/dgMainRow above —
+               dgSetDgMode() shows this and hides those, and vice versa. Its own small toolbar reuses
+               the existing dgDownloadPNG()/dgOpenPushChoiceModal()/dgExportChart() pipeline unchanged;
+               dgGetExportCanvas() is the single point that was taught to return this panel's rasterized
+               canvas when dgActiveMode === 'flow'. -->
+          <div class="dg-flow-panel" id="dgFlowPanel" style="display:none;flex-direction:column;gap:14px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <input type="text" id="dgFlowTitleInput" placeholder="e.g. Approval Process" value="Diagram" oninput="dgFlowPersist()"
+                style="flex:1;min-width:180px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:12.5px;">
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('flowchart')" title="Insert a starter flowchart">Flowchart</button>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('sequence')" title="Insert a starter sequence diagram">Sequence</button>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('org')" title="Insert a starter org chart">Org Chart</button>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('mindmap')" title="Insert a starter mind map">Mind Map</button>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('gantt')" title="Insert a starter Gantt chart">Gantt</button>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;">
+              <div style="flex:1 1 320px;min-width:280px;display:flex;flex-direction:column;">
+                <textarea id="dgFlowInput" oninput="dgFlowDebouncedRender()" spellcheck="false"
+                  placeholder="flowchart TD&#10;    A[Start] --&gt; B{Decision}&#10;    B -->|Yes| C[Continue]&#10;    B -->|No| D[Stop]"
+                  style="width:100%;min-height:300px;padding:12px;border-radius:10px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:'Source Code Pro',monospace;font-size:12.5px;line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>
+                <div id="dgFlowError" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(255,80,80,0.1);color:#ff6b6b;font-size:11.5px;"></div>
+                <p style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.5;">
+                  Powered by <strong style="color:var(--pdfed-accent);font-weight:700;">SARVARC FlowIQ</strong> — flowcharts, sequence diagrams, org charts, mind maps, and Gantt charts, generated live from plain text. Pick a template above or write your own, and it renders instantly on the right.
+                </p>
+              </div>
+              <div style="flex:1 1 320px;min-width:280px;display:flex;flex-direction:column;">
+                <div id="dgFlowPreview" style="flex:1;min-height:300px;padding:16px;border-radius:10px;border:1px solid var(--border);background:#ffffff;overflow:auto;display:flex;align-items:center;justify-content:center;"></div>
+                <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+                  <button type="button" class="btn-secondary" style="padding:7px 14px;font-size:11.5px" onclick="dgDownloadPNG()" title="Download this diagram as a PNG">Download PNG</button>
+                  <button type="button" class="btn-primary dg-rbn-btn-push" style="padding:7px 16px;font-size:11.5px" onclick="dgOpenPushChoiceModal()" title="Insert this diagram into Workspace">Push to Workspace</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -13133,7 +13186,7 @@ const SM_MODULE_STORAGE = {
   workspace:   { idb: ['workspaceDoc_v1'] },
   dataarrange: { ls:  ['sarvarcDaState_v1'] },
   makeforms:   { ls:  ['sarvarcForms'] },
-  diagrams:    { ls:  ['sarvarcDgHistory_v1', 'sarvarcDgState_v1'] },
+  diagrams:    { ls:  ['sarvarcDgHistory_v1', 'sarvarcDgState_v1', 'sarvarcDgFlowState_v1'] },
   extract:     { idb: ['sarvarcExtractState_v1'] },
   redact:      { idb: ['sarvarcRedactState_v1'] }
 };
@@ -16378,7 +16431,7 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
       maxWidth = Math.max(10, item.w - padX * 2);
     } else {
       const pageWpx = iw;
-      maxWidth = Math.max(10, (pageWpx ? (pageWpx - item.x - 12) : 99999) - padX);
+      maxWidth = Math.max(10, (pageWpx ? (pageWpx - item.x - 12) : 99999) - padX * 2); // same border-box fix as pdfedDrawPlacedTextsOnCtx
     }
     const wrapped = [];
     lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(mctx, runs, maxWidth, fontCtx)));
@@ -16488,7 +16541,7 @@ function pdfedAddPlacedTextLinkAnnotations(pdf, pg, wmm, iw) {
       maxWidth = Math.max(10, item.w - padX * 2);
     } else {
       const pageWpx = iw;
-      maxWidth = Math.max(10, (pageWpx ? (pageWpx - item.x - 12) : 99999) - padX);
+      maxWidth = Math.max(10, (pageWpx ? (pageWpx - item.x - 12) : 99999) - padX * 2); // same border-box fix as pdfedDrawPlacedTextsOnCtx
     }
     const wrapped = [];
     lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(mctx, runs, maxWidth, fontCtx)));
@@ -24591,8 +24644,18 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     if (item.w) {
       maxWidth = Math.max(10, item.w - padX * 2);
     } else {
+      // The live DOM box sets CSS max-width on a border-box element to
+      // pageW - x - 12, and border-box max-width already has padding+border
+      // subtracted on BOTH sides by the box model itself. This raster path
+      // wraps directly in content-space, so it must subtract that same padX
+      // twice too — subtracting it only once (the old behavior) made this
+      // wrap width ~padX px WIDER than the editor's true content width,
+      // letting one extra word fit per line here that the live box already
+      // wrapped to the next line. That's what made the thumbnail/exported
+      // page's line breaks (and box height) drift from the live editor the
+      // longer an auto-width paragraph got.
       const pageW = ctx.canvas ? ctx.canvas.width : 0;
-      maxWidth = Math.max(10, (pageW ? (pageW - item.x - 12) : 99999) - padX);
+      maxWidth = Math.max(10, (pageW ? (pageW - item.x - 12) : 99999) - padX * 2);
     }
     const wrapped = [];
     lines.forEach(runs => wrapped.push(...pdfedWrapRichLine(ctx, runs, maxWidth, fontCtx)));
@@ -36312,6 +36375,186 @@ const dgState = {
 
 function dgCurrentScheme() { return DG_PALETTES[dgState.paletteScheme] || DG_PALETTES.vibrant; }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FLOWCHART / DIAGRAM MODE (Mermaid) — additive sibling to the canvas-based
+// chart engine above. Never reads or writes dgState/dg3D, so switching
+// modes can't corrupt an in-progress data chart. The only shared surface
+// is dgGetExportCanvas(), which is taught below to branch on dgActiveMode
+// so Download/Export/Push-to-Workspace all keep working unmodified.
+// ═══════════════════════════════════════════════════════════════════════
+let dgActiveMode = 'chart'; // 'chart' | 'flow'
+let dgFlowCanvasCache = null; // last successfully rendered diagram, rasterized to a <canvas>
+let dgFlowDebounceTimer = null;
+
+if (typeof mermaid !== 'undefined') {
+  try {
+    mermaid.initialize({
+      startOnLoad: false, theme: 'default', securityLevel: 'loose', fontFamily: 'Inter, sans-serif',
+      // htmlLabels:false forces plain SVG <text> instead of <foreignObject><div>...</div></foreignObject>.
+      // foreignObject content taints the canvas the moment we drawImage() it in, so toDataURL() (used by
+      // both Download PNG and Push to Workspace) throws a silent SecurityError. Plain SVG text avoids that.
+      flowchart: { htmlLabels: false }
+    });
+  }
+  catch (e) { console.error('Mermaid init failed', e); }
+}
+
+const DG_FLOW_TEMPLATES = {
+  flowchart: 'flowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Continue]\n    B -->|No| D[Stop]\n    C --> E[End]\n    D --> E',
+  sequence: 'sequenceDiagram\n    participant U as User\n    participant S as System\n    U->>S: Request\n    S-->>U: Response\n    S->>U: Confirmation',
+  org: 'flowchart TD\n    CEO[CEO] --> VP1[VP Sales]\n    CEO --> VP2[VP Engineering]\n    VP1 --> M1[Sales Manager]\n    VP2 --> M2[Engineering Manager]',
+  mindmap: 'mindmap\n  root((Topic))\n    Idea 1\n      Detail A\n      Detail B\n    Idea 2\n    Idea 3',
+  gantt: 'gantt\n    title Project Timeline\n    dateFormat YYYY-MM-DD\n    section Phase 1\n    Task A :a1, 2026-01-01, 10d\n    Task B :after a1, 8d'
+};
+
+function dgFlowInsertTemplate(name) {
+  const ta = document.getElementById('dgFlowInput');
+  if (!ta || !DG_FLOW_TEMPLATES[name]) return;
+  ta.value = DG_FLOW_TEMPLATES[name];
+  dgFlowRender();
+}
+
+// ─── Persistence: same mechanism as the chart builder's dgPersist/dgRestore —
+// browser-only (localStorage), nothing uploaded anywhere. Registered under
+// SM_MODULE_STORAGE.diagrams above, so it's automatically picked up by
+// "Save Your Workflow", Saved Sessions, and cleared by "New Project" —
+// no extra wiring needed in any of those three places. ───
+const DG_FLOW_STORAGE_KEY = 'sarvarcDgFlowState_v1';
+let dgFlowPersistTimer = null;
+function dgFlowPersist() {
+  clearTimeout(dgFlowPersistTimer);
+  dgFlowPersistTimer = setTimeout(() => {
+    try {
+      const code = (document.getElementById('dgFlowInput') || {}).value || '';
+      const title = (document.getElementById('dgFlowTitleInput') || {}).value || '';
+      localStorage.setItem(DG_FLOW_STORAGE_KEY, JSON.stringify({ code, title }));
+    } catch (e) { console.warn('[Diagrams] could not persist flowchart state', e); }
+  }, 300);
+}
+function dgFlowRestore() {
+  try {
+    const raw = localStorage.getItem(DG_FLOW_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || typeof saved !== 'object') return;
+    const ta = document.getElementById('dgFlowInput');
+    const ti = document.getElementById('dgFlowTitleInput');
+    if (ta && typeof saved.code === 'string') ta.value = saved.code;
+    if (ti && typeof saved.title === 'string' && saved.title) ti.value = saved.title;
+  } catch (e) { console.warn('[Diagrams] could not restore flowchart state', e); }
+}
+dgFlowRestore();
+
+// Reads width/height straight off the Mermaid SVG string (viewBox fallback) so the
+// rasterized canvas matches the diagram's real proportions instead of a guessed size.
+function dgFlowSvgSize(svgString) {
+  const wm = svgString.match(/<svg[^>]*\swidth="([\d.]+)(px)?"/);
+  const hm = svgString.match(/<svg[^>]*\sheight="([\d.]+)(px)?"/);
+  if (wm && hm && parseFloat(wm[1]) > 0 && parseFloat(hm[1]) > 0) {
+    return { w: parseFloat(wm[1]), h: parseFloat(hm[1]) };
+  }
+  const vb = svgString.match(/viewBox="[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)"/);
+  if (vb) return { w: parseFloat(vb[1]), h: parseFloat(vb[2]) };
+  return { w: 900, h: 600 };
+}
+
+// Rasterizes the given Mermaid SVG onto an offscreen canvas (white background, 2x
+// supersampled for crisp PNG/PDF export) and caches it for dgGetExportCanvas().
+function dgFlowRasterizeAndCache(svgString) {
+  return new Promise((resolve) => {
+    const size = dgFlowSvgSize(svgString);
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = function () {
+      const scale = 2;
+      const w = Math.max(1, Math.round((img.naturalWidth || size.w) * scale));
+      const h = Math.max(1, Math.round((img.naturalHeight || size.h) * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      try {
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toDataURL('image/png'); // probe now, not later — surfaces a tainted-canvas error immediately instead of silently at export/push time
+        dgFlowCanvasCache = canvas;
+        resolve(canvas);
+      } catch (e) {
+        console.error('Diagram rasterization failed (likely a tainted canvas):', e);
+        dgFlowCanvasCache = null;
+        const errEl = document.getElementById('dgFlowError');
+        if (errEl) { errEl.textContent = 'Could not prepare this diagram for export. Try simplifying it or removing custom styling.'; errEl.style.display = 'block'; }
+        resolve(null);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+function dgFlowDebouncedRender() {
+  clearTimeout(dgFlowDebounceTimer);
+  dgFlowDebounceTimer = setTimeout(dgFlowRender, 500);
+}
+
+async function dgFlowRender() {
+  dgFlowPersist();
+  const code = ((document.getElementById('dgFlowInput') || {}).value || '').trim();
+  const previewEl = document.getElementById('dgFlowPreview');
+  const errEl = document.getElementById('dgFlowError');
+  if (errEl) errEl.style.display = 'none';
+  if (!code) { if (previewEl) previewEl.innerHTML = ''; dgFlowCanvasCache = null; return; }
+  if (typeof mermaid === 'undefined') {
+    if (errEl) { errEl.textContent = 'Flowchart engine failed to load — check your connection and reload.'; errEl.style.display = 'block'; }
+    return;
+  }
+  try {
+    const id = 'dgMermaidGraph' + Date.now();
+    const { svg } = await mermaid.render(id, code);
+    if (previewEl) previewEl.innerHTML = svg;
+    await dgFlowRasterizeAndCache(svg);
+  } catch (e) {
+    console.error(e);
+    if (errEl) { errEl.textContent = 'Syntax error: ' + (e && e.message ? e.message.split('\n')[0] : 'could not parse this diagram.'); errEl.style.display = 'block'; }
+    // Clean up any partial error markup Mermaid injects into the DOM on failed parses
+    const stray = document.getElementById('dMermaidGraph' + id); if (stray) stray.remove();
+  }
+}
+
+// Switches between the existing canvas-based chart builder and the new Mermaid panel.
+// Purely a visibility/state toggle — never touches dgState, dgDrawChart, or dg3D.
+function dgSetDgMode(mode) {
+  dgActiveMode = (mode === 'flow') ? 'flow' : 'chart';
+  const isFlow = dgActiveMode === 'flow';
+
+  const ribbon = document.getElementById('dgRibbonBar');
+  const mainRow = document.getElementById('dgMainRow');
+  const gallery = document.getElementById('dgMultiGallery');
+  const flowPanel = document.getElementById('dgFlowPanel');
+  if (ribbon) ribbon.style.display = isFlow ? 'none' : '';
+  if (mainRow) mainRow.style.display = isFlow ? 'none' : '';
+  if (gallery) gallery.style.display = isFlow ? 'none' : '';
+  if (flowPanel) flowPanel.style.display = isFlow ? 'flex' : 'none';
+
+  const chartTab = document.getElementById('dgModeChartTab');
+  const flowTab = document.getElementById('dgModeFlowTab');
+  if (chartTab) {
+    chartTab.style.background = isFlow ? 'var(--surface)' : 'var(--pdfed-accent-bg)';
+    chartTab.style.color = isFlow ? 'var(--text2)' : 'var(--pdfed-accent)';
+    chartTab.style.borderColor = isFlow ? 'var(--border)' : 'var(--border2)';
+  }
+  if (flowTab) {
+    flowTab.style.background = isFlow ? 'var(--pdfed-accent-bg)' : 'var(--surface)';
+    flowTab.style.color = isFlow ? 'var(--pdfed-accent)' : 'var(--text2)';
+    flowTab.style.borderColor = isFlow ? 'var(--border2)' : 'var(--border)';
+  }
+
+  if (isFlow) dgFlowRender();
+}
+
 // ── Info popover: replaces the old always-visible title+description header. Opens on click of the small (i) icon,
 // closes on outside click, so the ribbon/canvas keep the space by default. ──
 function dgToggleInfoPopover(e) {
@@ -40445,17 +40688,24 @@ function dgRender() {
 
 function dgDownloadPNG() {
   const canvas = dgGetExportCanvas();
-  if (!canvas) return;
-  const a = document.createElement('a');
-  a.download = sarvarcBrandFilename(((document.getElementById('dgTitleInput') || {}).value || 'chart').trim().replace(/\s+/g, '_') + '.png');
-  a.href = canvas.toDataURL('image/png');
-  a.click();
-  toast('Chart downloaded', 'success');
+  if (!canvas) { if (dgActiveMode === 'flow') toast('Write or pick a diagram first', 'error'); return; }
+  const titleId = (dgActiveMode === 'flow') ? 'dgFlowTitleInput' : 'dgTitleInput';
+  try {
+    const a = document.createElement('a');
+    a.download = sarvarcBrandFilename(((document.getElementById(titleId) || {}).value || 'chart').trim().replace(/\s+/g, '_') + '.png');
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    toast((dgActiveMode === 'flow' ? 'Diagram' : 'Chart') + ' downloaded', 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Download failed: ' + e.message, 'error');
+  }
 }
 
 // ── Export dropdown: PDF / Word / JPEG / PNG ──
 function dgExportFilename(ext) {
-  const raw = ((document.getElementById('dgTitleInput') || {}).value || 'chart').trim().replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.' + ext;
+  const titleId = (dgActiveMode === 'flow') ? 'dgFlowTitleInput' : 'dgTitleInput';
+  const raw = ((document.getElementById(titleId) || {}).value || 'chart').trim().replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.' + ext;
   return sarvarcBrandFilename(raw);
 }
 
@@ -40558,7 +40808,7 @@ async function dgExportDOCX() {
 // page in the Workspace, or be dropped onto the page currently open there.
 function dgOpenPushChoiceModal() {
   const canvas = dgGetExportCanvas();
-  if (!canvas) { toast('Build a chart first before pushing to Workspace', 'error'); return; }
+  if (!canvas) { toast((dgActiveMode === 'flow' ? 'Write or pick a diagram' : 'Build a chart') + ' first before pushing to Workspace', 'error'); return; }
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
   const overlay = document.getElementById('dgPushChoiceOverlay');
   if (overlay) overlay.classList.add('open');
@@ -40577,7 +40827,14 @@ async function dgInsertIntoWorkspace(mode) {
   if (!canvas) return;
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
 
-  const dataUrl = canvas.toDataURL('image/png');
+  let dataUrl;
+  try {
+    dataUrl = canvas.toDataURL('image/png');
+  } catch (e) {
+    console.error(e);
+    toast('Could not prepare this for Workspace: ' + e.message, 'error');
+    return;
+  }
   const noWorkspaceYet = !pdfed.pages || pdfed.pages.length === 0;
 
   try {
@@ -41550,6 +41807,7 @@ function dgDrawTextsOnCtx(ctx) {
 // The real #dgCanvas is never touched, so the live preview and the
 // overlay's drag/edit state are completely unaffected by exporting.
 function dgGetExportCanvas() {
+  if (dgActiveMode === 'flow') return dgFlowCanvasCache || null;
   if (dgIs3DType(dgState.type) && dg3D.renderer) {
     // Force one fresh frame right before capture (renderer has
     // preserveDrawingBuffer:true so toDataURL reads the last-rendered frame)
@@ -41799,6 +42057,11 @@ window.dgConfirmMultiSuggest = dgConfirmMultiSuggest;
 window.dgCloseMultiGallery = dgCloseMultiGallery;
 window.dgLoadMultiChart = dgLoadMultiChart;
 window.dgPushAllMultiCharts = dgPushAllMultiCharts;
+window.dgSetDgMode = dgSetDgMode;
+window.dgFlowRender = dgFlowRender;
+window.dgFlowDebouncedRender = dgFlowDebouncedRender;
+window.dgFlowInsertTemplate = dgFlowInsertTemplate;
+window.dgFlowPersist = dgFlowPersist;
 window.dgOpenMultiPushChoice = dgOpenMultiPushChoice;
 window.dgCloseMultiPushChoice = dgCloseMultiPushChoice;
 window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
