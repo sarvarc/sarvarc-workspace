@@ -7670,7 +7670,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="pdfed-pgact-btn" id="pdfedPgactDup" onclick="pdfedDuplicatePage(pdfed.active)" title="Duplicate this page">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
-              <button class="pdfed-pgact-btn sarvarc-eye-btn" id="sarvarcEyeBtn" onclick="sarvarcEyeApply()" title="SARVARC Eye — one click. It looks at the page, decides what kind of design this is (cool environment, premium, soft aesthetic, or bold print-ready), and refines it to match — no picking required.">
+              <button class="pdfed-pgact-btn sarvarc-eye-btn" id="sarvarcEyeBtn" onclick="sarvarcEyeApply()" title="SARVARC Eye — one click. It looks at the page and every image placed on it, decides what kind of design each is (cool environment, premium, soft aesthetic, or bold print-ready), and refines each to match — no picking required.">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
               <button class="pdfed-pgact-btn danger" id="pdfedPgactDel" onclick="pdfedDeletePage(pdfed.active)" title="Delete this page">
@@ -16667,6 +16667,53 @@ function sarvarcEyeDetectStyle(img, w, h) {
   return { key: 'punchy', metrics };
 }
 
+// Shared refine pipeline: given any image dataUrl, detects its style and
+// runs the full SARVARC Eye recipe (filter pass -> auto-levels -> sharpen ->
+// vignette), returning the refined dataUrl plus which style was detected —
+// or null if the source is blank/empty. Used both for a page's own flat
+// bitmap (a scanned/photo page) AND for each individual image placed as a
+// movable overlay on top of a page, so the exact same one-click refine
+// quality reaches both workflows instead of only the flat-page case.
+async function sarvarcEyeRefineDataUrl(srcDataUrl) {
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = srcDataUrl; });
+  const w = img.naturalWidth, h = img.naturalHeight;
+  if (!w || !h) return null;
+
+  const detected = sarvarcEyeDetectStyle(img, w, h);
+  if (detected.key === 'empty') return null;
+
+  const profile = SARVARC_EYE_PROFILES[detected.key];
+  const can = document.createElement('canvas');
+  can.width = w; can.height = h;
+  const ctx = can.getContext('2d');
+
+  // Fast native pass first: the contrast/saturation/brightness lift the
+  // detected style calls for.
+  ctx.filter = profile.filter;
+  ctx.drawImage(img, 0, 0);
+  ctx.filter = 'none';
+
+  // Auto black/white point stretch — clip strength tuned per style so a
+  // premium/aesthetic look doesn't get stretched as hard as a punchy one.
+  let imgData = ctx.getImageData(0, 0, w, h);
+  sarvarcEyeAutoLevels(imgData, profile.clipPct);
+
+  // Unsharp-mask sharpen, amount tuned per style so text/edges read crisp
+  // without over-sharpening a soft aesthetic look.
+  sarvarcEyeSharpen(imgData, w, h, profile.sharpen);
+  ctx.putImageData(imgData, 0, 0);
+
+  // Vignette tinted and weighted to match the detected style.
+  const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
+  grad.addColorStop(0, profile.vignette[0]);
+  grad.addColorStop(1, profile.vignette[1]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  return { dataUrl: can.toDataURL('image/png'), key: detected.key, label: profile.label };
+}
+
 async function sarvarcEyeApply() {
   const idx = pdfed.active;
   if (idx < 0 || !pdfed.pages[idx]) { toast('Open a PDF or start a blank page first', 'info'); return; }
@@ -16683,64 +16730,60 @@ async function sarvarcEyeApply() {
   const btn = document.getElementById('sarvarcEyeBtn');
   if (btn) btn.classList.add('sarvarc-eye-busy');
 
-  const eyeUndoSnap = { dataUrl: pg.dataUrl, modified: pg.modified };
+  // Placed images — the movable/lockable photos dropped onto this page via
+  // Insert Image or Stock Photos — are refined right alongside the page's
+  // own flat bitmap. Snapshot every dataUrl SARVARC Eye might touch so a
+  // single Undo restores everything exactly as it was.
+  const placedList = pg.placedImages || [];
+  const eyeUndoSnap = {
+    dataUrl: pg.dataUrl,
+    modified: pg.modified,
+    placedUrls: placedList.map(it => it.dataUrl)
+  };
 
   try {
+    // 1) The page's own flat bitmap — a scanned page, a photo opened as its
+    //    own page, or just a plain/blank canvas background.
     const srcUrl = await pdfedPageUrl(pg);
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = srcUrl; });
+    const pageRefined = await sarvarcEyeRefineDataUrl(srcUrl);
 
-    const w = img.naturalWidth, h = img.naturalHeight;
+    // 2) Every image placed on top of the page, refined individually (each
+    //    photo gets its own style detection, since two placed images can
+    //    easily be completely different kinds of shots) — same recipe, same
+    //    quality, just applied per-object instead of to one flat bitmap.
+    //    Position, size, lock state, and layer order are left untouched;
+    //    only each image's own pixels change.
+    const placedResults = [];
+    for (const item of placedList) {
+      placedResults.push(await sarvarcEyeRefineDataUrl(item.dataUrl));
+    }
 
-    // The brain decides for itself what kind of design this is — cool
-    // environment, premium/luxury, soft aesthetic, or bold print-ready —
-    // by sampling the page's own colors. No prompt, no picker. This also
-    // catches the case where there's simply nothing on the page yet.
-    const detected = sarvarcEyeDetectStyle(img, w, h);
-
-    if (detected.key === 'empty') {
+    const refinedCount = placedResults.filter(Boolean).length;
+    if (!pageRefined && !refinedCount) {
       toast('Canvas is empty', 'info');
       return;
     }
 
-    const profile = SARVARC_EYE_PROFILES[detected.key];
-    const can = document.createElement('canvas');
-    can.width = w; can.height = h;
-    const ctx = can.getContext('2d');
+    if (pageRefined) pg.dataUrl = pageRefined.dataUrl;
+    placedList.forEach((item, i) => { if (placedResults[i]) item.dataUrl = placedResults[i].dataUrl; });
 
-    // Fast native pass first: the contrast/saturation/brightness lift the
-    // detected style calls for.
-    ctx.filter = profile.filter;
-    ctx.drawImage(img, 0, 0);
-    ctx.filter = 'none';
-
-    // Auto black/white point stretch — clip strength tuned per style so a
-    // premium/aesthetic look doesn't get stretched as hard as a punchy one.
-    let imgData = ctx.getImageData(0, 0, w, h);
-    sarvarcEyeAutoLevels(imgData, profile.clipPct);
-
-    // Unsharp-mask sharpen, amount tuned per style so text/edges read crisp
-    // without over-sharpening a soft aesthetic look.
-    sarvarcEyeSharpen(imgData, w, h, profile.sharpen);
-    ctx.putImageData(imgData, 0, 0);
-
-    // Vignette tinted and weighted to match the detected style.
-    const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
-    grad.addColorStop(0, profile.vignette[0]);
-    grad.addColorStop(1, profile.vignette[1]);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    pg.dataUrl = can.toDataURL('image/png');
     pg.modified = true;
     pg.edits = pg.edits || {};
     pg.edits.sarvarcEye = true;
-    pg.edits.sarvarcEyeStyle = detected.key;
+    pg.edits.sarvarcEyeStyle = (pageRefined && pageRefined.key) || ((placedResults.find(Boolean) || {}).key);
 
     await pdfedGoto(idx);
+    if (placedList.length) pdfedRenderPlacedImages(idx);
     await pdfedBuildStrip();
     sarvarcEyePlayShimmer();
-    toast(`SARVARC Eye applied — detected a ${profile.label}, refined to match`, 'success');
+
+    const styleLabel = (pageRefined && pageRefined.label) || ((placedResults.find(Boolean) || {}).label) || 'design';
+    const msg = pageRefined && refinedCount
+      ? `SARVARC Eye applied — refined the page and ${refinedCount} placed image${refinedCount > 1 ? 's' : ''} to match a ${styleLabel}`
+      : refinedCount
+        ? `SARVARC Eye applied — refined ${refinedCount} placed image${refinedCount > 1 ? 's' : ''} to match a ${styleLabel}`
+        : `SARVARC Eye applied — detected a ${styleLabel}, refined to match`;
+    toast(msg, 'success');
 
     if (!pdfedEyeReplaying) {
       pushAppHistory({
@@ -16748,8 +16791,10 @@ async function sarvarcEyeApply() {
         undo: async () => {
           pg.dataUrl = eyeUndoSnap.dataUrl;
           pg.modified = eyeUndoSnap.modified;
+          placedList.forEach((item, i) => { item.dataUrl = eyeUndoSnap.placedUrls[i]; });
           if (pg.edits) pg.edits.sarvarcEye = false;
           await pdfedGoto(idx);
+          if (placedList.length) pdfedRenderPlacedImages(idx);
           await pdfedBuildStrip();
           toast('SARVARC Eye undone', 'info');
         },
