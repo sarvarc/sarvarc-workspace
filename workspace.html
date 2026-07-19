@@ -3965,6 +3965,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: 8px; padding: 5px 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
   pointer-events: auto; backdrop-filter: blur(6px);
+  transition: top .12s ease, left .12s ease;
 }
 .pdfed-ptxt-tb-select {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
@@ -22675,6 +22676,32 @@ function pdfedSelectAllText(el) {
   sel.addRange(range);
 }
 
+// Drops the text caret at the exact screen point of a click, the same
+// primitive every real text editor uses when you click into existing
+// content. Chrome/Safari/Edge expose caretRangeFromPoint; Firefox exposes
+// the near-identical caretPositionFromPoint. Returns false (caller falls
+// back to select-all) only on something old enough to have neither.
+function pdfedPlaceCaretAtPoint(x, y) {
+  try {
+    let range = null;
+    if (document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(x, y);
+    } else if (document.caretPositionFromPoint) {
+      const pos = document.caretPositionFromPoint(x, y);
+      if (pos && pos.offsetNode) {
+        range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.collapse(true);
+      }
+    }
+    if (!range) return false;
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  } catch (e) { return false; }
+}
+
 // ── Floating font-formatting toolbar (family / size / B / I / U) for placed text ──
 const pdfedPtxtTb = { item: null, idx: -1, content: null, el: null };
 
@@ -24126,6 +24153,20 @@ function pdfedRenderPlacedTexts(idx) {
       el.classList.remove('editing');
       setTimeout(() => pdfedMaybeHidePtxtToolbar(), 120);
     });
+    // Keeps item.text/html current the whole time someone is typing, not just
+    // the instant they click away. Before this, the thumbnail/nav strip and
+    // the auto-saved copy only ever reflected what was in the box as of the
+    // LAST blur — so a long editing session looked frozen/stale in every
+    // other part of the UI until you happened to click elsewhere. The actual
+    // expensive work (thumbnail re-bake, IndexedDB save) is already debounced
+    // inside pdfedMarkModified/pdfedRefreshThumb, so this stays cheap even on
+    // fast typing — only the plain string sync below runs on every keystroke.
+    content.addEventListener('input', () => {
+      item.text = content.innerText || content.textContent || '';
+      item.html = content.innerHTML;
+      item.bullet = !!content.querySelector('ul');
+      pdfedMarkModified(idx);
+    });
     content.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Escape') { content.blur(); return; }
@@ -24442,6 +24483,15 @@ function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
     }
     if (e.target.closest('button')) return;
     if (document.activeElement === content) return; // already editing, let native click position the caret
+    // If a DIFFERENT box was still mid-edit, hand focus off explicitly. A
+    // preventDefault() below stops the browser's own focus-shift, so without
+    // this the old box silently kept the actual text cursor/keystrokes even
+    // though this box now visually looks selected — the "typed into the
+    // wrong box" bug that made switching between boxes feel unreliable.
+    if (document.activeElement && document.activeElement !== content &&
+        document.activeElement.classList && document.activeElement.classList.contains('pdfed-ptxt-content')) {
+      document.activeElement.blur();
+    }
     // Tap-to-select, tap-again-to-edit (Canva-style): first tap on a box just
     // selects it (shows the formatting toolbar); a second tap on an already-
     // selected box enters edit mode with all text pre-selected so the user can
@@ -24527,7 +24577,7 @@ function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
     pdfedPositionPlacedTextEl(el, item);
     if (pdfedPtxtTb.item === item) pdfedPositionPtxtToolbar();
   });
-  document.addEventListener('mouseup', () => {
+  document.addEventListener('mouseup', (e) => {
     if (resizing && pdfed.snapGrid) {
       // Snap the final box edges to the grid so a resized box lines up cleanly
       // with everything else, same as a dragged one.
@@ -24545,7 +24595,15 @@ function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
     if (guideH) guideH.style.display = 'none';
     if (wasTap && wasSelectedOnTapStart && !item.locked) {
       content.focus();
-      pdfedSelectAllText(content);
+      // A second tap on an already-selected box now drops the caret exactly
+      // where you clicked — the same as clicking into text in Word/Docs/
+      // Canva — instead of unconditionally selecting everything. That let
+      // someone tweak one word in the middle of a paragraph with a single
+      // click; before, every re-entry nuked the whole selection and a fix
+      // like that took three separate clicks (select box, enter+select-all,
+      // click again to actually place the caret). Falls back to select-all
+      // only on a browser too old to resolve a point to a caret position.
+      if (!pdfedPlaceCaretAtPoint(e.clientX, e.clientY)) pdfedSelectAllText(content);
     }
   });
 }
