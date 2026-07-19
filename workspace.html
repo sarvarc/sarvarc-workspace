@@ -612,6 +612,73 @@ a.nav-item:hover { color: var(--text); }
 .feat-card p { font-size: 12px; color: var(--text2); line-height: 1.5; }
 .feat-arrow { position: absolute; top: 20px; right: 20px; color: var(--text3); font-size: 12px; }
 
+/* ─── DASHBOARD: "Your Recent Work" — live pull from Diagrams/Charts + Data
+   Arrangement, so the dashboard reflects what's actually been built in this
+   browser instead of staying a static promo page. ─── */
+.dash-recent-section { margin-bottom: 28px; }
+.dash-recent-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.dash-recent-head h2 { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 800; }
+.dash-recent-head p { font-size: 12px; color: var(--text3); margin-top: 3px; }
+.dash-recent-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dash-recent-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+}
+.dash-recent-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+.dash-recent-panel-head h3 { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.dash-recent-panel-head h3 svg { color: var(--blue); flex-shrink: 0; }
+.dash-recent-count {
+  font-size: 10.5px; font-weight: 700; color: var(--text3);
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 1px 7px; border-radius: 99px;
+}
+.dash-open-link {
+  font-size: 11.5px; color: var(--blue); cursor: pointer; font-weight: 600;
+  white-space: nowrap; transition: opacity 0.15s;
+}
+.dash-open-link:hover { opacity: 0.7; }
+.dash-recent-grid { display: flex; flex-direction: column; gap: 8px; }
+.dash-recent-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.18s;
+  background: var(--surface);
+}
+.dash-recent-card:hover { border-color: rgba(0,194,255,0.35); background: var(--surface2); transform: translateY(-1px); }
+.dash-recent-card-icon {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.10); color: var(--blue);
+}
+.dash-recent-card-body { flex: 1; min-width: 0; }
+.dash-recent-card-title {
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash-recent-card-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.dash-recent-card-badge {
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 99px;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+  text-transform: capitalize;
+}
+.dash-recent-card-badge.is-current { background: rgba(16,185,129,0.14); color: #10B981; }
+.dash-recent-empty {
+  text-align: center; padding: 22px 12px; color: var(--text3);
+  font-size: 12px; line-height: 1.6; border: 1px dashed var(--border); border-radius: 10px;
+}
+.dash-recent-empty strong { display: block; color: var(--text2); font-size: 12.5px; margin-bottom: 3px; }
+.dash-recent-empty .btn-pill { margin-top: 10px; }
+@media (max-width: 900px) {
+  .dash-recent-cols { grid-template-columns: 1fr; }
+}
+
 /* ─── UPLOAD / EXTRACT ─── */
 .extract-section { padding: 20px 28px; position: relative; z-index: 1; display:flex; flex-direction:column; gap:14px; }
 
@@ -5548,8 +5615,8 @@ th:hover .da-th-del { opacity:1; }
 .da-fb-wrap { position:relative; flex:1; min-width:0; display:flex; }
 
 /* ─── DIAGRAMS & GRAPHS ─── */
-.dg-section { display:flex; flex-direction:column; gap:10px; padding:12px 24px 20px; position:relative; z-index:1; min-height:0; }
-.dg-body { display:flex; flex-direction:column; gap:12px; min-height:0; flex:1; }
+.dg-section { display:flex; flex-direction:column; gap:8px; padding:8px 24px 14px; position:relative; z-index:1; min-height:0; }
+.dg-body { display:flex; flex-direction:column; gap:8px; min-height:0; flex:1; }
 .dg-panel {
   background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
   padding:16px; display:flex; flex-direction:column; gap:14px;
@@ -5655,7 +5722,7 @@ th:hover .da-th-del { opacity:1; }
 
 /* ── Diagrams & Graphs ribbon bar, Workspace-style icon toolbar for fast chart building ── */
 .dg-ribbon-bar {
-  display:flex; align-items:center; gap:2px; height:58px; flex-shrink:0;
+  display:flex; align-items:center; gap:2px; height:52px; flex-shrink:0;
   border:1px solid var(--border); border-radius:12px;
   background:var(--bg2); padding:0 8px; overflow-x:auto; overflow-y:hidden;
 }
@@ -5770,7 +5837,7 @@ th:hover .da-th-del { opacity:1; }
 .dg-main-row.dg-insights-collapsed { gap:0; }
 .dg-preview-wrap {
   background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
-  padding:16px; display:flex; flex-direction:column; gap:12px; min-height:0;
+  padding:10px; display:flex; flex-direction:column; gap:8px; min-height:0;
   flex:1; min-width:0;
 }
 .dg-preview-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -5781,7 +5848,7 @@ th:hover .da-th-del { opacity:1; }
 }
 .dg-columns-group { position:relative; display:flex; }
 .dg-show-chip {
-  display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:6px;
+  display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px;
   font-size:11.5px; font-weight:600; color:var(--text2); cursor:pointer; user-select:none;
   transition:background 0.12s ease, color 0.12s ease; white-space:nowrap;
 }
@@ -6790,18 +6857,37 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
         </div>
 
+        <div class="dash-recent-section">
+          <div class="dash-recent-head">
+            <div>
+              <h2>Your Recent Work</h2>
+              <p>Charts, diagrams and data tables you've built — pulled live from those modules</p>
+            </div>
+          </div>
+          <div class="dash-recent-cols">
+            <div class="dash-recent-panel">
+              <div class="dash-recent-panel-head">
+                <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Charts &amp; Diagrams <span class="dash-recent-count" id="dashChartsCount" style="display:none">0</span></h3>
+                <span class="dash-open-link" onclick="navigate('diagrams')">Open module →</span>
+              </div>
+              <div class="dash-recent-grid" id="dashChartsGrid"></div>
+            </div>
+            <div class="dash-recent-panel">
+              <div class="dash-recent-panel-head">
+                <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg> Data Arrangement <span class="dash-recent-count" id="dashDataCount" style="display:none">0</span></h3>
+                <span class="dash-open-link" onclick="navigate('dataarrange')">Open module →</span>
+              </div>
+              <div class="dash-recent-grid" id="dashDataGrid"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="features-grid">
           <div class="feat-card" style="--feat-color:#00C2FF" onclick="navigate('extract')">
             <div class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
             <span class="feat-arrow">↗</span>
-            <h3>Smart PDF Upload</h3>
-            <p>Drag and drop any PDF, including password-protected files, large documents, and multi-PDF batches, all handled with ease.</p>
-          </div>
-          <div class="feat-card" style="--feat-color:#0073E6" onclick="navigate('extract')">
-            <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-            <span class="feat-arrow">↗</span>
-            <h3>AI Image Extraction</h3>
-            <p>Intelligently detects and extracts logos, photographs, illustrations, and icons with remarkable accuracy.</p>
+            <h3>Smart Upload &amp; AI Extraction</h3>
+            <p>Drag and drop any PDF, including password-protected files and multi-PDF batches, and let AI intelligently detect and extract logos, photos, illustrations, and icons with remarkable accuracy.</p>
           </div>
           <div class="feat-card" style="--feat-color:#F59E0B" onclick="navigate('export')">
             <div class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
@@ -6809,13 +6895,14 @@ button.dg-show-chip.active { background:var(--blue); }
             <h3>Export Center</h3>
             <p>Export effortlessly as ZIP, PNG, JPG, WebP, or transparent PNG, with full batch processing built in.</p>
           </div>
-          <div class="feat-card" style="--feat-color:#10B981;grid-column:1/-1" onclick="navigate('pdfeditor')">
+          <div class="feat-card" style="--feat-color:#10B981" onclick="navigate('pdfeditor')">
             <div class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></div>
             <span class="feat-arrow">↗</span>
             <h3>Workspace</h3>
             <p>Upload a complete PDF, refine images on any page, insert new blank or image pages exactly where you need them, then export a beautifully rebuilt document.</p>
           </div>
         </div>
+
       </div>
     </div>
 
@@ -8493,13 +8580,13 @@ button.dg-show-chip.active { background:var(--blue); }
         <!-- Mode switch: "Data Charts" is the existing canvas-based chart builder (untouched below).
              "Flowchart / Diagram" is the new Mermaid-based text-to-diagram panel, added as a sibling
              so it never interferes with dgState/dgDrawChart. dgSetDgMode() toggles which is visible. -->
-        <div class="dg-mode-tabs" id="dgModeTabs" style="display:flex;gap:6px;padding:0 2px 10px;">
+        <div class="dg-mode-tabs" id="dgModeTabs" style="display:flex;gap:6px;padding:0 2px 6px;">
           <button type="button" class="dg-mode-tab active" id="dgModeChartTab" onclick="dgSetDgMode('chart')"
-            style="padding:7px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border2);background:var(--pdfed-accent-bg);color:var(--pdfed-accent);cursor:pointer;">
+            style="padding:5px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border2);background:var(--pdfed-accent-bg);color:var(--pdfed-accent);cursor:pointer;">
             Data Charts
           </button>
           <button type="button" class="dg-mode-tab" id="dgModeFlowTab" onclick="dgSetDgMode('flow')"
-            style="padding:7px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
+            style="padding:5px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
             Flowchart / Diagram
           </button>
         </div>
@@ -10610,7 +10697,16 @@ button.dg-show-chip.active { background:var(--blue); }
 
 <script>
 // ─── PDF.JS INIT ───
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// Guarded: if the pdf.js CDN script hasn't finished loading yet (slow network,
+// blocked CDN, ad-blocker), `pdfjsLib` can be undefined here. Letting that throw
+// unguarded aborts this ENTIRE <script> block — which silently breaks every
+// later `const` in it (like dgHistory) and cascades into unrelated features
+// (e.g. Diagrams & Graphs chart-type picker opening but never redrawing).
+if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+} else {
+  console.warn('pdfjsLib did not load in time — PDF features will retry lazily; other modules are unaffected.');
+}
 
 // ─── STATE ───
 // Tiny fallback store for thumbnail -> PDF editor canvas drag-and-drop
@@ -10905,8 +11001,12 @@ function navigate(sec) {
   if(sec === 'dataarrange' && typeof daRender === 'function') {
     daRender();
   }
+  if(sec === 'dashboard' && typeof dashRenderRecent === 'function') {
+    dashRenderRecent();
+  }
   if(sec === 'diagrams' && typeof dgRender === 'function') {
     dgRender();
+    if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
   }
   if(sec === 'pdfeditor' && pdfed.active >= 0 && typeof pdfedZoomFit === 'function') {
     setTimeout(pdfedZoomFit, 0);
@@ -21502,10 +21602,29 @@ function pdfedTogglePlacedBorderLock(idx, id) {
 function pdfedDeletePlacedBorder(idx, id) {
   const pg = pdfed.pages[idx];
   if (!pg || !pg.placedBorders) return;
-  pg.placedBorders = pg.placedBorders.filter(i => i.id !== id);
+  const i = pg.placedBorders.findIndex(b => b.id === id);
+  if (i === -1) return;
+  const removedItem = pg.placedBorders[i], removedIndex = i;
+  pg.placedBorders.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedBorders(idx);
   toast('Border removed', 'success');
+  pushAppHistory({
+    label: 'Delete border',
+    undo: () => {
+      pg.placedBorders.splice(Math.min(removedIndex, pg.placedBorders.length), 0, removedItem);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedBorders(idx);
+      toast('Border restored', 'info');
+    },
+    redo: () => {
+      const at = pg.placedBorders.indexOf(removedItem);
+      if (at !== -1) pg.placedBorders.splice(at, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedBorders(idx);
+      toast('Border removed', 'success');
+    }
+  });
 }
 
 function pdfedDuplicatePlacedBorder(idx, id) {
@@ -21999,10 +22118,29 @@ function pdfedTogglePlacedShapeLock(idx, id) {
 function pdfedDeletePlacedShape(idx, id) {
   const pg = pdfed.pages[idx];
   if (!pg || !pg.placedShapes) return;
-  pg.placedShapes = pg.placedShapes.filter(i => i.id !== id);
+  const i = pg.placedShapes.findIndex(s => s.id === id);
+  if (i === -1) return;
+  const removedItem = pg.placedShapes[i], removedIndex = i;
+  pg.placedShapes.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedShapes(idx);
   toast('Shape removed', 'success');
+  pushAppHistory({
+    label: 'Delete shape',
+    undo: () => {
+      pg.placedShapes.splice(Math.min(removedIndex, pg.placedShapes.length), 0, removedItem);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedShapes(idx);
+      toast('Shape restored', 'info');
+    },
+    redo: () => {
+      const at = pg.placedShapes.indexOf(removedItem);
+      if (at !== -1) pg.placedShapes.splice(at, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedShapes(idx);
+      toast('Shape removed', 'success');
+    }
+  });
 }
 
 function pdfedDuplicatePlacedShape(idx, id) {
@@ -23916,8 +24054,15 @@ function pdfedSelectAllPlacedTexts() {
   document.querySelectorAll('#pdfedPlacedTablesLayer .pdfed-placed-table').forEach(n => {
     n.classList.toggle('selected', pdfedSelectedTables.has(n.dataset.id));
   });
+  // Shapes/borders only ever support a single active selection each (see
+  // their own click handlers), so Select All simply marks every one of them
+  // too — it just can't track them in a Set the way text/image/table do.
+  document.querySelectorAll('#pdfedPlacedShapesLayer .pdfed-placed-shape').forEach(n => n.classList.add('selected'));
+  document.querySelectorAll('#pdfedPlacedBordersLayer .pdfed-placed-border').forEach(n => n.classList.add('selected'));
 
-  const total = pdfedSelected.size + pdfedSelectedImgs.size + pdfedSelectedTables.size;
+  const total = pdfedSelected.size + pdfedSelectedImgs.size + pdfedSelectedTables.size
+    + document.querySelectorAll('#pdfedPlacedShapesLayer .pdfed-placed-shape').length
+    + document.querySelectorAll('#pdfedPlacedBordersLayer .pdfed-placed-border').length;
   if (total) toast('Selected ' + total + (total === 1 ? ' item' : ' items') + ' on this page', 'info');
 }
 
@@ -23929,23 +24074,202 @@ function pdfedClearMultiSelection() {
   pdfedSelected.clear();
   pdfedSelectedImgs.clear();
   pdfedSelectedTables.clear();
-  document.querySelectorAll('.pdfed-placed-text.selected, .pdfed-placed-img.selected, .pdfed-placed-table.selected').forEach(n => n.classList.remove('selected'));
+  document.querySelectorAll('.pdfed-placed-text.selected, .pdfed-placed-img.selected, .pdfed-placed-table.selected, .pdfed-placed-shape.selected, .pdfed-placed-border.selected').forEach(n => n.classList.remove('selected'));
 }
 
-// Deletes everything currently multi-selected (Delete/Backspace while 2+ things are selected).
-function pdfedDeleteSelectedPlacedTexts() {
-  const total = pdfedSelected.size + pdfedSelectedImgs.size + pdfedSelectedTables.size;
-  if (total < 2) return false;
+// Which page-array key and re-render function each kind of placed item uses.
+// Shared by the selection/delete/nudge helpers below so every one of them
+// (text, image, table, shape, border) is handled the exact same way instead
+// of five near-duplicate code paths.
+const PDFED_KIND_LIST_KEY = { text: 'placedTexts', image: 'placedImages', table: 'placedTables', shape: 'placedShapes', border: 'placedBorders' };
+function pdfedRenderKind(kind, idx) {
+  if (kind === 'text') pdfedRenderPlacedTexts(idx);
+  else if (kind === 'image') { pdfedRenderPlacedImages(idx); pdfedRenderPlacedTexts(idx); }
+  else if (kind === 'table') pdfedRenderPlacedTables(idx);
+  else if (kind === 'shape') pdfedRenderPlacedShapes(idx);
+  else if (kind === 'border') pdfedRenderPlacedBorders(idx);
+}
+
+// Gathers every placed item currently selected on the active page, across
+// all five kinds, from whichever source actually holds the selection right
+// now: the deliberate multi-select Sets (populated by a marquee drag or
+// Ctrl+A) AND the plain `.selected` class every single click already
+// applies. Combining both means "select one image" and "marquee-select six
+// things" are handled by the exact same code path below instead of the
+// single-item case needing its own separate delete/move logic.
+function pdfedGetActiveSelection() {
   const idx = (typeof pdfed !== 'undefined') ? pdfed.active : -1;
   const pg = (idx >= 0 && pdfed.pages) ? pdfed.pages[idx] : null;
+  const items = [];
+  if (!pg) return { idx, pg, items };
+  const seen = new Set();
+  const add = (kind, item) => {
+    if (!item || seen.has(item)) return;
+    seen.add(item);
+    items.push({ kind, item });
+  };
+  const bySet = (kind, set, list) => { if (set) (list || []).forEach(it => { if (set.has(it.id)) add(kind, it); }); };
+  bySet('text', pdfedSelected, pg.placedTexts);
+  bySet('image', pdfedSelectedImgs, pg.placedImages);
+  bySet('table', pdfedSelectedTables, pg.placedTables);
+  const byDom = (kind, selector, list) => {
+    document.querySelectorAll(selector).forEach(n => {
+      if (!n.classList.contains('selected')) return;
+      const it = (list || []).find(x => x.id === n.dataset.id);
+      if (it) add(kind, it);
+    });
+  };
+  byDom('text', '#pdfedPlacedTextsLayer .pdfed-placed-text.selected', pg.placedTexts);
+  byDom('image', '#pdfedPlacedImagesLayer .pdfed-placed-img.selected', pg.placedImages);
+  byDom('table', '#pdfedPlacedTablesLayer .pdfed-placed-table.selected', pg.placedTables);
+  byDom('shape', '#pdfedPlacedShapesLayer .pdfed-placed-shape.selected', pg.placedShapes);
+  byDom('border', '#pdfedPlacedBordersLayer .pdfed-placed-border.selected', pg.placedBorders);
+  return { idx, pg, items };
+}
+
+// Re-applies the `.selected` class after a re-render (which always rebuilds
+// fresh DOM nodes with no class on them) so a selection survives its own
+// delete-undo or a burst of arrow-key nudges instead of vanishing after the
+// very first change.
+function pdfedReapplySelectedClass(ids) {
+  if (!ids || !ids.length) return;
+  const idSet = new Set(ids);
+  document.querySelectorAll(
+    '#pdfedPlacedTextsLayer .pdfed-placed-text, #pdfedPlacedImagesLayer .pdfed-placed-img, ' +
+    '#pdfedPlacedTablesLayer .pdfed-placed-table, #pdfedPlacedShapesLayer .pdfed-placed-shape, ' +
+    '#pdfedPlacedBordersLayer .pdfed-placed-border'
+  ).forEach(n => { if (idSet.has(n.dataset.id)) n.classList.add('selected'); });
+  // pdfedRenderPlacedTexts always clears this Set on rebuild — put back
+  // whichever of the reselected ids were text boxes so Ctrl+A / marquee
+  // bookkeeping and the next pdfedGetActiveSelection() stay consistent.
+  ids.forEach(id => { if (document.querySelector('#pdfedPlacedTextsLayer .pdfed-placed-text[data-id="' + id + '"]')) pdfedSelected.add(id); });
+}
+
+// Deletes every currently-selected placed item (text/image/table/shape/
+// border) in one action — whether that's a single item selected by a plain
+// click, or many selected via marquee/Ctrl+A. Locked items are left alone
+// (same as their individual delete badges refusing to delete while locked).
+// Fully undoable: Ctrl+Z restores every removed item to its exact original
+// position in its original list; Ctrl+Y/Ctrl+Shift+Z redoes the delete.
+function pdfedDeleteSelectedPlacedItems() {
+  const { idx, pg, items } = pdfedGetActiveSelection();
   if (!pg) return false;
-  if (pg.placedTexts) pg.placedTexts = pg.placedTexts.filter(t => !pdfedSelected.has(t.id));
-  if (pg.placedImages) pg.placedImages = pg.placedImages.filter(t => !pdfedSelectedImgs.has(t.id));
-  if (pg.placedTables) pg.placedTables = pg.placedTables.filter(t => !pdfedSelectedTables.has(t.id));
-  pdfedClearMultiSelection();
-  pdfedMarkModified(idx);
-  pdfedRenderPlacedTexts(idx);
+  const removable = items.filter(o => !o.item.locked);
+  if (!removable.length) return false;
+
+  const removed = removable.map(o => {
+    const key = PDFED_KIND_LIST_KEY[o.kind];
+    const list = pg[key] || [];
+    return { kind: o.kind, key, index: list.indexOf(o.item), item: o.item };
+  }).filter(r => r.index !== -1);
+  if (!removed.length) return false;
+
+  const kindsOf = (list) => { const s = new Set(); list.forEach(r => s.add(r.kind)); return s; };
+
+  const doRemove = () => {
+    removed.forEach(r => {
+      const list = pg[r.key];
+      if (!list) return;
+      const at = list.indexOf(r.item);
+      if (at !== -1) list.splice(at, 1);
+    });
+    pdfedClearMultiSelection();
+    pdfedMarkModified(idx);
+    kindsOf(removed).forEach(k => pdfedRenderKind(k, idx));
+  };
+
+  doRemove();
+  const count = removed.length;
+  toast('Deleted ' + count + (count === 1 ? ' item' : ' items'), 'success');
+
+  pushAppHistory({
+    label: 'Delete',
+    undo: () => {
+      // Restore lowest original index first so earlier splices don't shift
+      // where the next one needs to land.
+      [...removed].sort((a, b) => a.index - b.index).forEach(r => {
+        if (!pg[r.key]) pg[r.key] = [];
+        pg[r.key].splice(Math.min(r.index, pg[r.key].length), 0, r.item);
+      });
+      pdfedMarkModified(idx);
+      kindsOf(removed).forEach(k => pdfedRenderKind(k, idx));
+      pdfedReapplySelectedClass(removed.map(r => r.item.id));
+      toast('Delete undone', 'info');
+    },
+    redo: () => {
+      doRemove();
+      toast('Deleted ' + count + (count === 1 ? ' item' : ' items'), 'success');
+    }
+  });
   return true;
+}
+
+// Backward-compatible name (still wired to the ribbon's Select All + used
+// elsewhere) — now just delegates to the unified version above so single AND
+// multi selections are both deletable through one code path.
+function pdfedDeleteSelectedPlacedTexts() { return pdfedDeleteSelectedPlacedItems(); }
+
+// Arrow-key nudge: moves every currently-selected, unlocked placed item by
+// (dx, dy) canvas-px. Consecutive presses within a short window (a "burst",
+// same idea as a mouse drag) are coalesced into a single undo step so
+// Ctrl+Z undoes the whole nudge back to where the burst started, not one
+// single pixel at a time.
+let pdfedNudgeBurst = null;
+function pdfedNudgeSelection(dx, dy) {
+  const { idx, items } = pdfedGetActiveSelection();
+  const movable = items.filter(o => !o.item.locked);
+  if (!movable.length) return false;
+
+  if (!pdfedNudgeBurst || pdfedNudgeBurst.idx !== idx) {
+    pdfedNudgeBurst = {
+      idx,
+      snaps: movable.map(o => ({ item: o.item, startX: o.item.x, startY: o.item.y })),
+      kinds: new Set(movable.map(o => o.kind)),
+      timer: null
+    };
+  } else {
+    // A later press may have a slightly different selection than the first
+    // one in this burst (e.g. selection grew) — fold in any newly-moving
+    // items without losing the original start position already recorded.
+    const already = new Set(pdfedNudgeBurst.snaps.map(s => s.item));
+    movable.forEach(o => {
+      if (!already.has(o.item)) pdfedNudgeBurst.snaps.push({ item: o.item, startX: o.item.x, startY: o.item.y });
+      pdfedNudgeBurst.kinds.add(o.kind);
+    });
+  }
+
+  movable.forEach(o => { o.item.x = (o.item.x || 0) + dx; o.item.y = (o.item.y || 0) + dy; });
+  pdfedMarkModified(idx);
+  pdfedNudgeBurst.kinds.forEach(k => pdfedRenderKind(k, idx));
+  pdfedReapplySelectedClass(movable.map(o => o.item.id));
+
+  clearTimeout(pdfedNudgeBurst.timer);
+  pdfedNudgeBurst.timer = setTimeout(pdfedCommitNudgeBurst, 500);
+  return true;
+}
+
+function pdfedCommitNudgeBurst() {
+  const burst = pdfedNudgeBurst;
+  pdfedNudgeBurst = null;
+  if (!burst || !burst.snaps.length) return;
+  const idx = burst.idx, kinds = burst.kinds;
+  const starts = burst.snaps.map(s => ({ item: s.item, x: s.startX, y: s.startY }));
+  const ends = burst.snaps.map(s => ({ item: s.item, x: s.item.x, y: s.item.y }));
+  pushAppHistory({
+    label: 'Move',
+    undo: () => {
+      starts.forEach(s => { s.item.x = s.x; s.item.y = s.y; });
+      pdfedMarkModified(idx);
+      kinds.forEach(k => pdfedRenderKind(k, idx));
+      pdfedReapplySelectedClass(starts.map(s => s.item.id));
+    },
+    redo: () => {
+      ends.forEach(s => { s.item.x = s.x; s.item.y = s.y; });
+      pdfedMarkModified(idx);
+      kinds.forEach(k => pdfedRenderKind(k, idx));
+      pdfedReapplySelectedClass(ends.map(s => s.item.id));
+    }
+  });
 }
 
 document.addEventListener('keydown', function (e) {
@@ -23957,11 +24281,21 @@ document.addEventListener('keydown', function (e) {
   if (mod && e.key.toLowerCase() === 'a') {
     e.preventDefault();
     pdfedSelectAllPlacedTexts();
-  } else if ((e.key === 'Delete' || e.key === 'Backspace') && (pdfedSelected.size + pdfedSelectedImgs.size + pdfedSelectedTables.size) >= 2) {
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && pdfedGetActiveSelection().items.length >= 1) {
     e.preventDefault();
-    pdfedDeleteSelectedPlacedTexts();
+    pdfedDeleteSelectedPlacedItems();
   } else if (e.key === 'Escape' && pdfedHasMultiSelection()) {
     pdfedDeselectAllPlacedTexts();
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if (!pdfedGetActiveSelection().items.length) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowUp') dy = -step;
+    else if (e.key === 'ArrowDown') dy = step;
+    else if (e.key === 'ArrowLeft') dx = -step;
+    else dx = step;
+    pdfedNudgeSelection(dx, dy);
   }
 });
 
@@ -25356,10 +25690,29 @@ function pdfedDeletePlacedText(idx, id) {
     if (tb) tb.style.display = 'none';
     pdfedPtxtTb.item = null; pdfedPtxtTb.idx = -1; pdfedPtxtTb.content = null; pdfedPtxtTb.el = null;
   }
-  pg.placedTexts = pg.placedTexts.filter(i => i.id !== id);
+  const i = pg.placedTexts.findIndex(t => t.id === id);
+  if (i === -1) return;
+  const removedItem = pg.placedTexts[i], removedIndex = i;
+  pg.placedTexts.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedTexts(idx);
   toast('Text removed', 'success');
+  pushAppHistory({
+    label: 'Delete text',
+    undo: () => {
+      pg.placedTexts.splice(Math.min(removedIndex, pg.placedTexts.length), 0, removedItem);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Text restored', 'info');
+    },
+    redo: () => {
+      const at = pg.placedTexts.indexOf(removedItem);
+      if (at !== -1) pg.placedTexts.splice(at, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Text removed', 'success');
+    }
+  });
 }
 
 // Re-flows one rich-text line (an array of {text,color} runs, already split on
@@ -25857,10 +26210,29 @@ function pdfedTogglePlacedTableLock(idx, id) {
 function pdfedDeletePlacedTable(idx, id) {
   const pg = pdfed.pages[idx];
   if (!pg || !pg.placedTables) return;
-  pg.placedTables = pg.placedTables.filter(i => i.id !== id);
+  const i = pg.placedTables.findIndex(t => t.id === id);
+  if (i === -1) return;
+  const removedItem = pg.placedTables[i], removedIndex = i;
+  pg.placedTables.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
   toast('Table removed', 'info');
+  pushAppHistory({
+    label: 'Delete table',
+    undo: () => {
+      pg.placedTables.splice(Math.min(removedIndex, pg.placedTables.length), 0, removedItem);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTables(idx);
+      toast('Table restored', 'info');
+    },
+    redo: () => {
+      const at = pg.placedTables.indexOf(removedItem);
+      if (at !== -1) pg.placedTables.splice(at, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedTables(idx);
+      toast('Table removed', 'info');
+    }
+  });
 }
 
 // Starts a move drag from any trigger point (the drag bar, or shift+click on
@@ -27946,11 +28318,32 @@ function pdfedTogglePlacedLock(idx, id) {
 function pdfedDeletePlacedImage(idx, id) {
   const pg = pdfed.pages[idx];
   if (!pg || !pg.placedImages) return;
-  pg.placedImages = pg.placedImages.filter(i => i.id !== id);
+  const i = pg.placedImages.findIndex(im => im.id === id);
+  if (i === -1) return;
+  const removedItem = pg.placedImages[i], removedIndex = i;
+  pg.placedImages.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx);
   toast('Image removed', 'success');
+  pushAppHistory({
+    label: 'Delete image',
+    undo: () => {
+      pg.placedImages.splice(Math.min(removedIndex, pg.placedImages.length), 0, removedItem);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedImages(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Image restored', 'info');
+    },
+    redo: () => {
+      const at = pg.placedImages.indexOf(removedItem);
+      if (at !== -1) pg.placedImages.splice(at, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedImages(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Image removed', 'success');
+    }
+  });
 }
 
 // Reference-based counterparts of the two above, used by the on-canvas
@@ -28002,11 +28395,30 @@ function pdfedDeletePlacedImageByRef(idx, item) {
   if (!pg || !pg.placedImages || !item) return;
   const i = pg.placedImages.indexOf(item);
   if (i === -1) return;
+  const removedIndex = i;
   pg.placedImages.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx);
   toast('Image removed', 'success');
+  pushAppHistory({
+    label: 'Delete image',
+    undo: () => {
+      pg.placedImages.splice(Math.min(removedIndex, pg.placedImages.length), 0, item);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedImages(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Image restored', 'info');
+    },
+    redo: () => {
+      const at = pg.placedImages.indexOf(item);
+      if (at !== -1) pg.placedImages.splice(at, 1);
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedImages(idx);
+      pdfedRenderPlacedTexts(idx);
+      toast('Image removed', 'success');
+    }
+  });
 }
 
 // Non-destructive: returns a baked PNG dataURL for this page (base bitmap + any
@@ -31536,6 +31948,10 @@ function daPushToDiagrams() {
 
   navigate('diagrams');
   dgOnUploadParsed(aoa, name);
+  // Record the pushed chart in history right away — this is what makes it
+  // show up (and stay counted) in the Dashboard's "Charts & Diagrams" panel
+  // even if it's later replaced by another push or edit.
+  if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
 }
 
 function daCancelDiagramPush() {
@@ -31556,6 +31972,7 @@ function daResolveDiagramPush(mode) {
   }
   navigate('diagrams');
   dgOnUploadParsed(aoa, name);
+  if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
 }
 
 async function daPushToWorkflow(mode) {
@@ -38710,7 +39127,12 @@ const DG_STORAGE_KEY = 'sarvarcDgState_v1';
 const DG_HISTORY_STORAGE_KEY = 'sarvarcDgHistory_v1';
 let dgPersistTimer = null;
 function dgPersist() {
-  if (typeof dgHistory !== 'undefined') dgHistory.checkpoint();
+  // try/catch, not just a typeof check: typeof does NOT protect against a
+  // `const` still stuck in its temporal dead zone (e.g. if an unrelated
+  // script earlier on the page threw before dgHistory could be assigned) —
+  // it would still throw here and, since this runs first inside dgRender(),
+  // silently prevent the chart from ever redrawing.
+  try { dgHistory.checkpoint(); } catch (e) { /* history unavailable this pass — chart still renders */ }
   clearTimeout(dgPersistTimer);
   dgPersistTimer = setTimeout(() => {
     try {
@@ -38765,16 +39187,24 @@ function dgSaveCurrentToHistory(label) {
     || (titleInput && titleInput.value.trim())
     || (dgUploadParsed && dgUploadParsed.fileName)
     || 'Untitled chart';
+  const isGrouped = dgState.type === 'grouped' || dgState.type === 'hstacked' || dgState.type === 'tornado';
   dgChartHistory.unshift({
     id: 'dgh_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     title,
     type: dgState.type,
     rows: JSON.parse(JSON.stringify(dgState.rows)),
+    groupedCategories: isGrouped ? JSON.parse(JSON.stringify(dgState.groupedCategories || [])) : [],
+    groupedSeries: isGrouped ? JSON.parse(JSON.stringify(dgState.groupedSeries || [])) : [],
     texts: JSON.parse(JSON.stringify(dgState.texts || [])),
     savedAt: Date.now()
   });
   if (dgChartHistory.length > DG_HISTORY_MAX) dgChartHistory.length = DG_HISTORY_MAX;
   dgRenderHistoryList();
+}
+
+function dgHistoryPointCount(h) {
+  const isGrouped = h.type === 'grouped' || h.type === 'hstacked' || h.type === 'tornado';
+  return isGrouped ? (h.groupedCategories || []).length : (h.rows || []).length;
 }
 
 function dgRenderHistoryList() {
@@ -38794,7 +39224,7 @@ function dgRenderHistoryList() {
     <div class="dg-history-item" data-id="${h.id}">
       <div class="dg-history-item-main" onclick="dgLoadHistoryItem('${h.id}')">
         <div class="dg-history-item-title">${dgEsc(h.title)}</div>
-        <div class="dg-history-item-meta">${dgEsc(h.type)} \u00b7 ${h.rows.length} point${h.rows.length !== 1 ? 's' : ''} \u00b7 ${dgHistoryTimeLabel(h.savedAt)}</div>
+        <div class="dg-history-item-meta">${dgEsc(h.type)} \u00b7 ${dgHistoryPointCount(h)} point${dgHistoryPointCount(h) !== 1 ? 's' : ''} \u00b7 ${dgHistoryTimeLabel(h.savedAt)}</div>
       </div>
       <button type="button" class="dg-history-item-del" onclick="dgDeleteHistoryItem('${h.id}')" title="Remove from history">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -38808,12 +39238,16 @@ function dgLoadHistoryItem(id) {
   if (!h) return;
   dgState.type = h.type;
   dgState.rows = JSON.parse(JSON.stringify(h.rows));
+  dgState.groupedCategories = JSON.parse(JSON.stringify(h.groupedCategories || []));
+  dgState.groupedSeries = JSON.parse(JSON.stringify(h.groupedSeries || []));
   dgState.texts = JSON.parse(JSON.stringify(h.texts || []));
   dgRenderRows();
   dgRender();
+  if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
   dgCloseAllDropdowns();
   toast(`Restored "${h.title}" from history`, 'success');
 }
+
 
 function dgDeleteHistoryItem(id) {
   dgChartHistory = dgChartHistory.filter(x => x.id !== id);
@@ -39312,6 +39746,7 @@ function dgLoadMultiChart(idx) {
     const titleInput = document.getElementById('dgTitleInput');
     if (titleInput) titleInput.value = spec.title;
     dgRender();
+    if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
     return;
   }
   dgState.rows = spec.rows.map(r => ({ ...r }));
@@ -39320,6 +39755,7 @@ function dgLoadMultiChart(idx) {
   if (titleInput) titleInput.value = spec.title;
   dgRenderRows();
   dgRender();
+  if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
 }
 
 function dgOpenMultiPushChoice() {
@@ -42028,6 +42464,34 @@ function dgZoomReset() {
   dgZoomLevel = 1;
   dgApplyZoom();
 }
+// Scales the chart preview to use the space actually available in the holder,
+// instead of always sitting at its fixed 1200×675 native size (which, on most
+// screens, left the chart looking small and low with a lot of dead space
+// around it). Mirrors the PDF editor's pdfedZoomFit — same idea, same math —
+// so it plugs into the existing dgZoomLevel/dgApplyZoom pipeline that pan,
+// marquee-select, and the text overlay already scale against.
+function dgFitZoomToHolder() {
+  const holder = document.getElementById('dgCanvasHolder');
+  const canvas = dgIs3DType(dgState.type) ? document.getElementById('dgCanvas3D') : document.getElementById('dgCanvas');
+  if (!holder || !canvas || !canvas.width || !canvas.height) return;
+  const availW = holder.clientWidth - 24;   // minus .dg-canvas-holder's 12px×2 padding
+  const availH = holder.clientHeight - 24;
+  if (availW <= 0 || availH <= 0) return;
+  const fit = Math.min(availW / canvas.width, availH / canvas.height);
+  dgZoomLevel = Math.max(DG_ZOOM_MIN, Math.min(DG_ZOOM_MAX, Math.round(fit * 100) / 100));
+  dgApplyZoom();
+}
+window.dgFitZoomToHolder = dgFitZoomToHolder;
+// Re-fit whenever the window resizes while the Diagrams & Graphs canvas view
+// is on screen, so resizing the browser doesn't leave the chart stranded at
+// a stale scale. Debounced since resize fires rapidly.
+let dgFitResizeTimer = null;
+window.addEventListener('resize', function () {
+  const sec = document.getElementById('sec-diagrams');
+  if (!sec || !sec.classList.contains('active')) return;
+  clearTimeout(dgFitResizeTimer);
+  dgFitResizeTimer = setTimeout(dgFitZoomToHolder, 150);
+});
 function dgInitCanvasZoom() {
   const holder = document.getElementById('dgCanvasHolder');
   if (!holder || holder.dataset.zoomBound) return;
@@ -43058,6 +43522,34 @@ window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
 (function () {
   const RIBBON_SELECTOR = '.pdfed-ribbon, .dg-ribbon-bar';
 
+  // Per-ribbon animation state: a running "target" scrollLeft that each
+  // wheel tick nudges, plus a rAF loop that eases the real scrollLeft
+  // toward that target. This is what gives the glide/momentum feel instead
+  // of the old hard jump — every frame closes ~16% of the remaining gap,
+  // so fast flicks feel snappy and small nudges feel soft, and repeated
+  // wheel ticks in flight just update the same target instead of stacking
+  // jerky little jumps.
+  const state = new WeakMap();
+  const EASE = 0.16; // lower = silkier/slower settle, higher = snappier
+  const SNAP_THRESHOLD = 0.5; // px gap below which we consider it "arrived"
+
+  function step(ribbon) {
+    const s = state.get(ribbon);
+    if (!s) return;
+
+    const current = ribbon.scrollLeft;
+    const diff = s.target - current;
+
+    if (Math.abs(diff) < SNAP_THRESHOLD) {
+      ribbon.scrollLeft = s.target;
+      s.raf = null;
+      return;
+    }
+
+    ribbon.scrollLeft = current + diff * EASE;
+    s.raf = requestAnimationFrame(() => step(ribbon));
+  }
+
   document.addEventListener('wheel', function (e) {
     const ribbon = e.target.closest(RIBBON_SELECTOR);
     if (!ribbon) return;
@@ -43068,9 +43560,205 @@ window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
     if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
 
     e.preventDefault();
-    ribbon.scrollLeft += e.deltaY;
+
+    let s = state.get(ribbon);
+    if (!s) {
+      s = { target: ribbon.scrollLeft, raf: null };
+      state.set(ribbon, s);
+    }
+
+    // Clamp the target to the real scrollable range so momentum can't
+    // "overshoot" into rubber-banding against the bar's own edges.
+    const maxScroll = ribbon.scrollWidth - ribbon.clientWidth;
+    s.target = Math.min(maxScroll, Math.max(0, s.target + e.deltaY));
+
+    if (!s.raf) {
+      s.raf = requestAnimationFrame(() => step(ribbon));
+    }
   }, { passive: false });
 })();
+</script>
+
+<script>
+// ─── DASHBOARD: "Your Recent Work" ───────────────────────────────────────
+// Pulls live from the Diagrams & Graphs module (dgState + dgChartHistory)
+// and the Data Arrangement module (daState.datasets) so the dashboard is a
+// real reflection of what's been built in this browser, not a static promo
+// page. Everything here is read-only display + "open in module" — actual
+// editing/deleting still happens inside each module, so there's exactly one
+// place that owns that logic.
+
+function dashChartTypeLabel(type) {
+  const labels = {
+    'bar': 'Bar', 'grouped': 'Grouped bar', 'line': 'Line', 'area': 'Area',
+    'pie': 'Pie', 'donut': 'Donut', 'stacked': 'Stacked', 'hstacked': 'Stacked (h)',
+    'tornado': 'Tornado', 'waterfall': 'Waterfall', 'pareto': 'Pareto', 'funnel': 'Funnel',
+    'radar': 'Radar', '3d-bar': '3D bar', '3d-grouped-bar': '3D grouped bar',
+    '3d-histogram': '3D histogram', '3d-scatter': '3D scatter', '3d-boxplot': '3D box plot'
+  };
+  return labels[type] || (type ? String(type).replace(/-/g, ' ') : 'Chart');
+}
+
+function dashChartPointCount(rows) {
+  return Array.isArray(rows) ? rows.length : 0;
+}
+
+// True when the chart currently open in Diagrams is the exact same data as
+// the most recent history entry — i.e. nothing has been saved-and-changed
+// since. Lets a Data Arrangement "Push to Diagrams" (which both loads the
+// chart live AND records it to history in the same action) show up as ONE
+// card instead of two identical-looking ones.
+function dashCurrentMatchesTopHistory() {
+  if (typeof dgState === 'undefined' || typeof dgChartHistory === 'undefined' || !dgChartHistory.length) return false;
+  const h = dgChartHistory[0];
+  if (h.type !== dgState.type) return false;
+  const isGrouped = dgState.type === 'grouped' || dgState.type === 'hstacked' || dgState.type === 'tornado';
+  try {
+    return isGrouped
+      ? JSON.stringify(h.groupedCategories || []) === JSON.stringify(dgState.groupedCategories || []) &&
+        JSON.stringify(h.groupedSeries || []) === JSON.stringify(dgState.groupedSeries || [])
+      : JSON.stringify(h.rows || []) === JSON.stringify(dgState.rows || []);
+  } catch (e) { return false; }
+}
+
+function dashRenderChartsPanel() {
+  const grid = document.getElementById('dashChartsGrid');
+  const headCount = document.getElementById('dashChartsCount');
+  if (!grid) return;
+
+  const cards = [];
+  const history = typeof dgChartHistory !== 'undefined' ? dgChartHistory : [];
+  const dupesTop = dashCurrentMatchesTopHistory();
+
+  // The chart currently loaded/live in the Diagrams module (if any real data
+  // exists) — unless it's identical to history[0], in which case that
+  // history card below is flagged "Live" instead so it isn't shown twice.
+  if (typeof dgState !== 'undefined' && !dupesTop) {
+    const isGroupedType = dgState.type === 'grouped' || dgState.type === 'hstacked' || dgState.type === 'tornado';
+    const hasCurrent = isGroupedType
+      ? !!(dgState.groupedCategories && dgState.groupedCategories.length)
+      : !!(dgState.rows && dgState.rows.length);
+    if (hasCurrent) {
+      const titleInput = document.getElementById('dgTitleInput');
+      const title = (titleInput && titleInput.value.trim()) || 'Current chart';
+      cards.push({
+        id: '__current__',
+        title,
+        type: dgState.type,
+        points: isGroupedType ? dgState.groupedCategories.length : dgState.rows.length,
+        meta: 'Currently open',
+        current: true
+      });
+    }
+  }
+
+  // Every saved chart — this includes ones explicitly kept from the History
+  // panel, and every table pushed over from Data Arrangement, which is
+  // auto-saved here the moment it lands so it stays counted even after
+  // later being replaced by another push or edit.
+  history.forEach((h, i) => {
+    cards.push({
+      id: h.id,
+      title: h.title,
+      type: h.type,
+      points: (typeof dgHistoryPointCount === 'function') ? dgHistoryPointCount(h) : dashChartPointCount(h.rows || []),
+      meta: (typeof dgHistoryTimeLabel === 'function' ? dgHistoryTimeLabel(h.savedAt) : ''),
+      current: i === 0 && dupesTop
+    });
+  });
+
+  if (headCount) { headCount.textContent = String(cards.length); headCount.style.display = cards.length ? '' : 'none'; }
+
+  if (!cards.length) {
+    grid.innerHTML = `
+      <div class="dash-recent-empty">
+        <strong>No charts yet</strong>
+        Upload a spreadsheet, build one from scratch, or push a table over from Data Arrangement.
+        <div><button type="button" class="btn-pill" onclick="navigate('diagrams')">Build a chart →</button></div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = cards.slice(0, 6).map(c => `
+    <div class="dash-recent-card" onclick="dashOpenChart('${c.id}')">
+      <div class="dash-recent-card-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <div class="dash-recent-card-body">
+        <div class="dash-recent-card-title">${escapeHtml(c.title)}</div>
+        <div class="dash-recent-card-meta">${c.points} point${c.points !== 1 ? 's' : ''} \u00b7 ${escapeHtml(c.meta)}</div>
+      </div>
+      <span class="dash-recent-card-badge${c.current ? ' is-current' : ''}">${c.current ? 'Live' : escapeHtml(dashChartTypeLabel(c.type))}</span>
+    </div>
+  `).join('');
+}
+
+function dashRenderDataPanel() {
+  const grid = document.getElementById('dashDataGrid');
+  const headCount = document.getElementById('dashDataCount');
+  if (!grid) return;
+
+  const datasets = (typeof daState !== 'undefined' && Array.isArray(daState.datasets)) ? daState.datasets : [];
+
+  if (headCount) { headCount.textContent = String(datasets.length); headCount.style.display = datasets.length ? '' : 'none'; }
+
+  if (!datasets.length) {
+    grid.innerHTML = `
+      <div class="dash-recent-empty">
+        <strong>No data uploaded yet</strong>
+        Import a CSV, Excel, PDF or scanned table in Data Arrangement to see it here.
+        <div><button type="button" class="btn-pill" onclick="navigate('dataarrange')">Upload data →</button></div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = datasets.slice(0, 6).map(ds => {
+    const cols = (ds.headers || []).length;
+    const rows = (ds.rows || []).length;
+    return `
+    <div class="dash-recent-card" onclick="dashOpenDataset('${ds.id}')">
+      <div class="dash-recent-card-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+      </div>
+      <div class="dash-recent-card-body">
+        <div class="dash-recent-card-title">${escapeHtml(ds.name || 'Untitled table')}</div>
+        <div class="dash-recent-card-meta">${cols} column${cols !== 1 ? 's' : ''} \u00b7 ${rows} row${rows !== 1 ? 's' : ''}</div>
+      </div>
+      <span class="dash-recent-card-badge">Table</span>
+    </div>`;
+  }).join('');
+}
+
+function dashRenderRecent() {
+  try { dashRenderChartsPanel(); } catch (e) { console.warn('[Dashboard] could not render recent charts', e); }
+  try { dashRenderDataPanel(); } catch (e) { console.warn('[Dashboard] could not render recent data', e); }
+}
+
+function dashOpenChart(id) {
+  navigate('diagrams');
+  if (id === '__current__') return; // navigate() already draws whatever's currently loaded
+  if (typeof dgLoadHistoryItem === 'function') dgLoadHistoryItem(id);
+  if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
+}
+
+function dashOpenDataset(id) {
+  navigate('dataarrange');
+  if (typeof daState === 'undefined') return;
+  daState.activeId = id;
+  if (typeof daResetFormulaBar === 'function') daResetFormulaBar();
+  if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
+  if (typeof daRenderTabs === 'function') daRenderTabs();
+  if (typeof daRenderTable === 'function') daRenderTable();
+  if (typeof daPersist === 'function') daPersist();
+}
+
+// Render once on first load (dgRestore()/daRestore() have already run by
+// this point in script execution, since this block loads after both).
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', dashRenderRecent);
+} else {
+  dashRenderRecent();
+}
 </script>
 </body>
 </html>
