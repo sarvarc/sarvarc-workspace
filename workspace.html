@@ -7758,7 +7758,7 @@ button.dg-show-chip.active { background:var(--blue); }
                        together with the canvas on zoom in/out, exactly like a stamped image
                        would. All its coordinates are stored/used in raw canvas-px (unscaled
                        by zoom); the wrap's own CSS transform handles the visual scaling. -->
-                  <div id="pdfedImgGhost" style="display:none;position:absolute;border:2px dashed var(--blue);border-radius:4px;box-shadow:0 0 0 4px rgba(0,194,255,0.15);cursor:move;overflow:visible;user-select:none;pointer-events:auto;">
+                  <div id="pdfedImgGhost" style="display:none;position:absolute;z-index:99999;border:2px dashed var(--blue);border-radius:4px;box-shadow:0 0 0 4px rgba(0,194,255,0.15);cursor:move;overflow:visible;user-select:none;pointer-events:auto;">
                     <img id="pdfedImgGhostImg" style="width:100%;height:100%;object-fit:fill;pointer-events:none;">
                     <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:4px;padding:5px;background:rgba(8,12,24,0.82);">
                       <button onclick="pdfedBakeImage()" style="flex:1;font-size:10px;font-weight:700;padding:4px;border:none;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer;">Stamp</button>
@@ -25734,6 +25734,31 @@ function pdfedActivateImgGhost(dataUrl) {
   const defaultW = Math.round((pc.width || 1000) * 0.35);
   let defaultH = defaultW;
 
+  // Center every newly inserted image on the page instead of dropping it
+  // near a corner. Corner placement (the previous fix's 40,40-based
+  // cascade) still put new images in the same region as whatever existing
+  // image already lived in that corner — e.g. a full-bleed background photo
+  // that already covers (0,0) — so the new image visually "underlapped"
+  // the existing one and stayed invisible until the user dragged the old
+  // image out of the way. Centering guarantees the new image lands in open,
+  // predictable space in the middle of the page, so it's the first thing
+  // the eye catches the moment it's inserted, on top of everything (highest
+  // zIndex is set in pdfedBakeImage). A small cascade offset is still added
+  // per already-placed image so a 2nd/3rd image dropped without moving the
+  // first isn't stacked pixel-for-pixel on top of it either — it stays
+  // near-center but visibly nudged, wrapping back around after a few steps
+  // and always clamped to the page so it can never end up off-canvas.
+  const pg = pdfed.pages && pdfed.pages[pdfed.active];
+  const existingCount = (pg && pg.placedImages) ? pg.placedImages.length : 0;
+  const cascadeStep = 26;
+  const maxCascadeSlots = 6; // wrap back to dead-center after this many
+  const cascadeOffset = (existingCount % maxCascadeSlots) * cascadeStep;
+  const pageW = pc.width || 1000, pageH = pc.height || 1400;
+  const centerX = Math.round((pageW - defaultW) / 2) + cascadeOffset;
+  const centerY = Math.round((pageH - defaultH) / 2) + cascadeOffset;
+  const startX = Math.max(20, Math.min(centerX, pageW - defaultW - 20));
+  const startY = Math.max(20, Math.min(centerY, pageH - defaultH - 20));
+
   const applyGhostRect = () => {
     const it = pdfedAnnotState.imgInsert;
     ghost.style.left = it.x + 'px';
@@ -25743,7 +25768,7 @@ function pdfedActivateImgGhost(dataUrl) {
   };
 
   pdfedAnnotState.imgInsertActive = true;
-  pdfedAnnotState.imgInsert = { dataUrl, x: 40, y: 40, w: defaultW, h: defaultH };
+  pdfedAnnotState.imgInsert = { dataUrl, x: startX, y: startY, w: defaultW, h: defaultH };
 
   const probe = new Image();
   probe.onload = () => {
@@ -25757,6 +25782,11 @@ function pdfedActivateImgGhost(dataUrl) {
 
   applyGhostRect();
   ghost.style.display = 'block';
+  // Belt-and-suspenders: keep the ghost above every already-stamped image
+  // (which carry their own explicit, positive z-index) no matter what — this
+  // is what was causing a new image-in-progress to render invisibly UNDER
+  // existing images until "Stamp" was clicked.
+  ghost.style.zIndex = '99999';
   ghostImg.src = dataUrl;
 
   // Drag to move / resize, mouse deltas are in screen-px, so they're divided
@@ -26052,48 +26082,82 @@ function pdfedMakeImgResizeHandle(dir) {
 // edges/center (with thin guide lines), and, where nothing sharper fires —
 // to the plain grid, so images line up exactly like text does. On resize,
 // the final box edges snap to the grid too, matching the text-box behavior.
+//
+// IMPORTANT: pdfedRenderPlacedImages wipes and rebuilds every placed-image
+// <div> from scratch on every insert, lock/unlock, delete, or drag-end — so
+// this function itself gets called fresh for every unlocked image on every
+// one of those re-renders. It used to bind its own document-level
+// 'mousemove'/'mouseup' listeners right here, once per call, and never
+// removed them. With 3+ images that meant every single click (lock, delete,
+// even just finishing a drag) piled a fresh, permanent set of document
+// listeners on top of all the previous ones — dozens of stale handlers all
+// firing on every mouse move, each one still holding a reference to an old
+// (already-removed) element and its own copy of drag state. That pile-up is
+// what showed up as images "glitching" and appearing to lock together. The
+// fix: keep per-element mousedown binding here (cheap, and naturally
+// discarded when the element is removed), but drive the actual drag/resize
+// off ONE shared document-level listener pair, bound a single time ever,
+// that reads/writes a single shared "which item is being dragged right now"
+// state object instead of a private closure per element.
 function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
-  let dragging = false, resizing = false, resizeDir = null;
-  let ox = 0, oy = 0, startRect = null;
-  let startX = 0, startY = 0, snapTargets = null;
-  // Same edge-lock tracking as the border tool: true once this resize has
-  // already snapped/clamped that axis to the page edge or another object,
-  // so the release-time grid-snap below doesn't undo it.
-  let edgeLockedX = false, edgeLockedY = false;
-  const pc = document.getElementById('pdfedPageCanvas');
   const SNAP = 10; // canvas-px snap threshold, same as placed text
 
   el.addEventListener('mousedown', (e) => {
     if (item.locked) return;
+    const pc = document.getElementById('pdfedPageCanvas');
     const dir = e.target && e.target.dataset ? e.target.dataset.dir : null;
+    const drag = pdfedPlacedImgDrag;
     if (dir && handles[dir] === e.target) {
-      resizing = true; resizeDir = dir;
-      ox = e.clientX; oy = e.clientY;
-      startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
-      snapTargets = pdfedCollectSnapTargets(item.id);
-      edgeLockedX = false; edgeLockedY = false;
+      drag.mode = 'resize'; drag.resizeDir = dir;
+      drag.ox = e.clientX; drag.oy = e.clientY;
+      drag.startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
+      drag.snapTargets = pdfedCollectSnapTargets(item.id);
+      drag.edgeLockedX = false; drag.edgeLockedY = false;
     } else if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-      dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
-      snapTargets = pdfedCollectSnapTargets(item.id);
+      drag.mode = 'drag'; drag.ox = e.clientX; drag.oy = e.clientY;
+      drag.startX = item.x; drag.startY = item.y;
+      drag.snapTargets = pdfedCollectSnapTargets(item.id);
     } else { return; }
+    drag.el = el; drag.item = item; drag.idx = idx; drag.pc = pc;
     document.querySelectorAll('.pdfed-placed-img.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
     e.preventDefault(); e.stopPropagation();
   });
 
+  pdfedEnsurePlacedImgDragListeners();
+}
+
+// Single shared drag/resize state for whichever placed image is currently
+// being manipulated. Populated by the mousedown handler above, consumed by
+// the one-time document listeners set up below.
+const pdfedPlacedImgDrag = {
+  mode: null, el: null, item: null, idx: null, pc: null,
+  resizeDir: null, ox: 0, oy: 0, startRect: null, startX: 0, startY: 0,
+  snapTargets: null, edgeLockedX: false, edgeLockedY: false
+};
+let pdfedPlacedImgDragListenersBound = false;
+
+function pdfedEnsurePlacedImgDragListeners() {
+  if (pdfedPlacedImgDragListenersBound) return;
+  pdfedPlacedImgDragListenersBound = true;
+  const SNAP = 10;
+
   document.addEventListener('mousemove', (e) => {
-    if (!dragging && !resizing) return;
+    const drag = pdfedPlacedImgDrag;
+    if (!drag.mode) return;
+    const { el, item, pc } = drag;
+    if (!el || !item || !pc) return;
     const pcRect = pc.getBoundingClientRect();
     const scale = pc.width / pcRect.width;
     const guideV = document.getElementById('pdfedSmartGuideV');
     const guideH = document.getElementById('pdfedSmartGuideH');
-    if (dragging) {
-      let nx = startX + (e.clientX - ox) * scale;
-      let ny = startY + (e.clientY - oy) * scale;
+    if (drag.mode === 'drag') {
+      let nx = drag.startX + (e.clientX - drag.ox) * scale;
+      let ny = drag.startY + (e.clientY - drag.oy) * scale;
 
       // Smart snapping, page edges/center plus every other object's edges/center.
-      const bestX = pdfedBestSnap([nx, nx + item.w / 2, nx + item.w], (snapTargets || { x: [] }).x, SNAP);
-      const bestY = pdfedBestSnap([ny, ny + item.h / 2, ny + item.h], (snapTargets || { y: [] }).y, SNAP);
+      const bestX = pdfedBestSnap([nx, nx + item.w / 2, nx + item.w], (drag.snapTargets || { x: [] }).x, SNAP);
+      const bestY = pdfedBestSnap([ny, ny + item.h / 2, ny + item.h], (drag.snapTargets || { y: [] }).y, SNAP);
       if (bestX) nx += bestX.delta;
       if (bestY) ny += bestY.delta;
       // Grid-to-grid snapping (Canva-style): only kicks in on an axis where no
@@ -26116,38 +26180,39 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       item.x = Math.max(0, Math.min(item.x, pc.width - item.w));
       item.y = Math.max(0, Math.min(item.y, pc.height - item.h));
       pdfedPositionPlacedEl(el, item, pc);
-    } else if (resizing) {
+    } else if (drag.mode === 'resize') {
       // Edge-to-edge free resize: whichever of the 8 handles is being dragged,
       // the opposite edge/corner stays anchored, drag the left edge and only
       // the left edge (and width) changes, the right edge never moves.
       // Hold Shift while dragging to keep the image's aspect ratio locked.
-      const dx = (e.clientX - ox) * scale, dy = (e.clientY - oy) * scale;
+      const resizeDir = drag.resizeDir, startRect = drag.startRect;
+      const dx = (e.clientX - drag.ox) * scale, dy = (e.clientY - drag.oy) * scale;
       const r = pdfedResizeRect(resizeDir, startRect, dx, dy, 20, e.shiftKey);
 
       // Snap whichever edge(s) this handle is moving to the page edges/center
       // and other objects' edges — same magnetism as moving the whole image.
       const north = resizeDir.indexOf('n') !== -1, south = resizeDir.indexOf('s') !== -1;
       const west  = resizeDir.indexOf('w') !== -1, east  = resizeDir.indexOf('e') !== -1;
-      const targets = snapTargets || { x: [], y: [] };
+      const targets = drag.snapTargets || { x: [], y: [] };
       let snapAtX = null, snapAtY = null;
 
       if (west) {
         const right = r.x + r.w;
         const best = pdfedBestSnap([r.x], targets.x, SNAP);
-        if (best) { r.x += best.delta; r.w = Math.max(20, right - r.x); snapAtX = best.at; edgeLockedX = true; }
+        if (best) { r.x += best.delta; r.w = Math.max(20, right - r.x); snapAtX = best.at; drag.edgeLockedX = true; }
       } else if (east) {
         const right = r.x + r.w;
         const best = pdfedBestSnap([right], targets.x, SNAP);
-        if (best) { r.w = Math.max(20, (right + best.delta) - r.x); snapAtX = best.at; edgeLockedX = true; }
+        if (best) { r.w = Math.max(20, (right + best.delta) - r.x); snapAtX = best.at; drag.edgeLockedX = true; }
       }
       if (north) {
         const bottom = r.y + r.h;
         const best = pdfedBestSnap([r.y], targets.y, SNAP);
-        if (best) { r.y += best.delta; r.h = Math.max(20, bottom - r.y); snapAtY = best.at; edgeLockedY = true; }
+        if (best) { r.y += best.delta; r.h = Math.max(20, bottom - r.y); snapAtY = best.at; drag.edgeLockedY = true; }
       } else if (south) {
         const bottom = r.y + r.h;
         const best = pdfedBestSnap([bottom], targets.y, SNAP);
-        if (best) { r.h = Math.max(20, (bottom + best.delta) - r.y); snapAtY = best.at; edgeLockedY = true; }
+        if (best) { r.h = Math.max(20, (bottom + best.delta) - r.y); snapAtY = best.at; drag.edgeLockedY = true; }
       }
 
       if (guideV) {
@@ -26166,21 +26231,21 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
         const right = r.x + r.w;
         r.x = Math.max(0, r.x);
         r.w = right - r.x;
-        if (r.x === 0) edgeLockedX = true;
+        if (r.x === 0) drag.edgeLockedX = true;
       } else if (east) {
         const right = Math.min(pc.width, r.x + r.w);
         r.w = right - r.x;
-        if (right === pc.width) edgeLockedX = true;
+        if (right === pc.width) drag.edgeLockedX = true;
       }
       if (north) {
         const bottom = r.y + r.h;
         r.y = Math.max(0, r.y);
         r.h = bottom - r.y;
-        if (r.y === 0) edgeLockedY = true;
+        if (r.y === 0) drag.edgeLockedY = true;
       } else if (south) {
         const bottom = Math.min(pc.height, r.y + r.h);
         r.h = bottom - r.y;
-        if (bottom === pc.height) edgeLockedY = true;
+        if (bottom === pc.height) drag.edgeLockedY = true;
       }
       r.w = Math.max(20, r.w);
       r.h = Math.max(20, r.h);
@@ -26189,27 +26254,32 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       pdfedPositionPlacedEl(el, item, pc);
     }
   });
+
   document.addEventListener('mouseup', () => {
-    if (resizing && pdfed.snapGrid) {
+    const drag = pdfedPlacedImgDrag;
+    if (!drag.mode) return;
+    const { el, item, idx, pc } = drag;
+    if (drag.mode === 'resize' && pdfed.snapGrid && el && item && pc) {
       // Only grid-snap an axis that wasn't already locked to the page edge
       // or a smart-snap target during this resize — otherwise an image you
       // just placed flush against the page boundary would visibly hop a
       // few grid px away the instant you release the handle.
-      if (!edgeLockedX) {
+      if (!drag.edgeLockedX) {
         const newX = pdfedSnapToGrid(item.x);
         item.w = Math.max(20, pdfedSnapToGrid(item.x + item.w) - newX);
         item.x = newX;
       }
-      if (!edgeLockedY) {
+      if (!drag.edgeLockedY) {
         const newY = pdfedSnapToGrid(item.y);
         item.h = Math.max(20, pdfedSnapToGrid(item.y + item.h) - newY);
         item.y = newY;
       }
       pdfedPositionPlacedEl(el, item, pc);
     }
-    if (dragging || resizing) pdfedMarkModified(idx);
-    dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
-    edgeLockedX = false; edgeLockedY = false;
+    if (drag.mode && idx != null) pdfedMarkModified(idx);
+    drag.mode = null; drag.el = null; drag.item = null; drag.idx = null; drag.pc = null;
+    drag.resizeDir = null; drag.startRect = null; drag.snapTargets = null;
+    drag.edgeLockedX = false; drag.edgeLockedY = false;
     const guideV = document.getElementById('pdfedSmartGuideV');
     const guideH = document.getElementById('pdfedSmartGuideH');
     if (guideV) guideV.style.display = 'none';
