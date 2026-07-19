@@ -1149,6 +1149,12 @@ a.nav-item:hover { color: var(--text); }
 .overlay-btn svg { width: 12px; height: 12px; }
 .overlay-btn:hover { background: var(--blue); border-color: var(--blue); }
 .overlay-btn.del:hover { background: #ef4444; border-color: #ef4444; }
+.overlay-btn.rsh-quick {
+  background: linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);
+  border-color: #c9962f; color: #1a1206;
+  box-shadow: 0 2px 10px rgba(201,150,47,0.55), 0 0 0 1px rgba(255,255,255,0.15) inset;
+}
+.overlay-btn.rsh-quick:hover { background: linear-gradient(135deg,#fff2c0,#e0a83a 55%,#a06f00); border-color:#e0a83a; transform: scale(1.08); }
 .img-info { padding: 10px 12px; }
 .img-name { font-size: 11px; font-weight: 600; truncate: ellipsis; white-space: nowrap; overflow: hidden; }
 .img-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
@@ -1750,6 +1756,87 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .crop-preset:hover, .crop-preset.active { background: rgba(0,194,255,0.12); border-color: var(--border2); color: var(--blue); }
 .crop-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ─── IMAGE RESHAPER ─── */
+.rsh-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 22px; width: 94vw; max-width: 980px;
+  max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.7), var(--glow-blue);
+}
+.rsh-modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.rsh-modal-header h2 { font-family:'Inter',sans-serif; font-size:18px; font-weight:800; display:flex; align-items:center; gap:8px; }
+.rsh-modal-header .rsh-badge {
+  font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  padding:3px 9px; border-radius:20px; color:#1a1206;
+  background: linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);
+  box-shadow: 0 2px 8px rgba(201,150,47,0.4);
+}
+.rsh-body { display:flex; gap:20px; overflow:hidden; flex:1; min-height:0; }
+.rsh-stage-col {
+  flex:1.15; display:flex; align-items:center; justify-content:center; min-width:0;
+  background:#0b0d12; border-radius:14px; padding:24px; position:relative; overflow:auto;
+}
+.rsh-stage-col::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255,255,255,0.06), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 10px, transparent 10px 20px);
+}
+.rsh-stage { position:relative; display:inline-block; max-width:100%; }
+.rsh-stage img#rshStageRef { max-width:100%; max-height:52vh; display:block; visibility:hidden; }
+.rsh-stage svg {
+  position:absolute; inset:0; width:100%; height:100%;
+  filter: drop-shadow(0 14px 32px rgba(0,0,0,0.55));
+}
+.rsh-panel { flex:1; display:flex; flex-direction:column; gap:14px; overflow-y:auto; padding-right:4px; min-width:270px; max-width:340px; }
+.rsh-section-label { font-size:10.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text3); margin-bottom:8px; }
+.rsh-shape-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px 8px; padding-bottom:6px; }
+.rsh-shape-swatch {
+  aspect-ratio:1; background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:all .15s; position:relative; padding:8px; margin-bottom:12px;
+}
+.rsh-shape-swatch svg { width:100%; height:100%; overflow:visible; }
+.rsh-shape-swatch:hover { border-color:var(--border2); background:var(--surface2); transform:translateY(-2px); }
+.rsh-shape-swatch.active { border-color:#c9962f; background:rgba(201,150,47,0.12); box-shadow:0 0 0 1px rgba(201,150,47,0.5), 0 6px 16px rgba(201,150,47,0.18); }
+.rsh-shape-swatch path { fill: var(--text3); transition: fill .15s; }
+.rsh-shape-swatch:hover path { fill: var(--text2); }
+.rsh-shape-swatch.active path { fill:#c9962f; }
+.rsh-shape-name {
+  position:absolute; bottom:-13px; left:0; right:0; text-align:center;
+  font-size:8px; font-weight:600; color:var(--text3); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+.rsh-bevel-toggle {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; cursor:pointer;
+  transition:border-color .15s;
+}
+.rsh-bevel-toggle:hover { border-color:var(--border2); }
+.rsh-bevel-toggle-label { display:flex; flex-direction:column; gap:2px; }
+.rsh-bevel-toggle-label b { font-size:12.5px; font-weight:700; color:var(--text); }
+.rsh-bevel-toggle-label span { font-size:10.5px; color:var(--text3); }
+.rsh-switch { width:38px; height:22px; border-radius:20px; background:var(--surface2); border:1px solid var(--border); position:relative; flex-shrink:0; transition:all .2s; }
+.rsh-switch::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:var(--text3); transition:all .2s; }
+.rsh-switch.on { background:linear-gradient(135deg,#e8c76b,#8a6100); border-color:#c9962f; }
+.rsh-switch.on::after { left:18px; background:#1a1206; }
+.rsh-bevel-styles { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.rsh-bevel-style { border-radius:12px; border:1px solid var(--border); padding:10px 6px 8px; cursor:pointer; text-align:center; transition:all .15s; }
+.rsh-bevel-style:hover { border-color:var(--border2); }
+.rsh-bevel-style.active { border-color:#c9962f; box-shadow:0 0 0 1px rgba(201,150,47,0.5); }
+.rsh-bevel-swatch-dot { width:100%; height:22px; border-radius:8px; margin-bottom:6px; }
+.rsh-bevel-style span { font-size:10px; font-weight:700; color:var(--text2); }
+.rsh-bevel-swatch-dot.gold { background:linear-gradient(135deg,#fff6d8,#e8c76b 45%,#8a6100); }
+.rsh-bevel-swatch-dot.silver { background:linear-gradient(135deg,#ffffff,#c7c7c7 45%,#5c5c5c); }
+.rsh-bevel-swatch-dot.graphite { background:linear-gradient(135deg,#6b6b6b,#2a2a2a 45%,#000000); }
+.rsh-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); flex-shrink:0; }
+@media (max-width:760px) {
+  .rsh-body { flex-direction:column; overflow-y:auto; }
+  .rsh-panel { max-width:none; }
+  .rsh-stage img#rshStageRef { max-height:34vh; }
+}
+
 
 /* ─── SIDEBAR FOLDER ─── */
 .sidebar-folder-header {
@@ -2854,6 +2941,20 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   background: rgba(239,68,68,0.88);
   border-color: rgba(239,68,68,0.6);
   color: #fff;
+}
+/* Reshape badge, same gold "premium" treatment as the gallery quick-action,
+   so this control reads as a distinct, higher-value action rather than
+   blending into the neutral lock/delete/arrange icons around it. */
+.pdfed-badge-btn.is-premium {
+  background: linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);
+  border-color: #c9962f; color: #1a1206;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(201,150,47,0.5), 0 0 0 1px rgba(255,255,255,0.15) inset;
+}
+.pdfed-badge-btn.is-premium:hover {
+  background: linear-gradient(135deg,#fff2c0,#e0a83a 55%,#a06f00);
+  border-color: #e0a83a;
+  transform: scale(1.12);
 }
 
 /* Text edit panel in right sidebar, compact, icon-driven toolbar instead
@@ -10128,8 +10229,70 @@ button.dg-show-chip.active { background:var(--blue); }
     <div class="modal-actions">
       <button class="btn-primary" onclick="downloadModalImg()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download</span></button>
       <button class="btn-secondary" onclick="cropModalImg()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg> Crop</span></button>
+      <button class="btn-secondary" onclick="reshapeModalImg()" style="background:linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);border-color:#c9962f;color:#1a1206;font-weight:700;box-shadow:0 2px 10px rgba(201,150,47,0.4)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg> Reshape</span></button>
       <button class="btn-secondary" onclick="deleteModalImg()" style="border-color:rgba(239,68,68,0.4);color:#ef4444"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove Image</span></button>
       <button class="btn-secondary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMAGE RESHAPER -->
+<div class="crop-overlay" id="reshapeOverlay">
+  <div class="rsh-modal">
+    <div class="rsh-modal-header">
+      <h2>Image Reshaper <span class="rsh-badge">Premium</span></h2>
+      <div class="crop-close" onclick="closeReshape()">&#10005;</div>
+    </div>
+    <div class="rsh-body">
+      <div class="rsh-stage-col">
+        <div class="rsh-stage" id="rshStage">
+          <img id="rshStageRef" src="" alt="">
+          <svg id="rshSvg" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+            <defs>
+              <clipPath id="rshClipPath" clipPathUnits="userSpaceOnUse">
+                <path id="rshClipPathShape" d=""></path>
+              </clipPath>
+              <linearGradient id="rshGradGold" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#fff6d8"/><stop offset="0.35" stop-color="#e8c76b"/>
+                <stop offset="0.65" stop-color="#b8860b"/><stop offset="1" stop-color="#5c4200"/>
+              </linearGradient>
+              <linearGradient id="rshGradSilver" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#ffffff"/><stop offset="0.35" stop-color="#d8d8d8"/>
+                <stop offset="0.65" stop-color="#8f8f8f"/><stop offset="1" stop-color="#333333"/>
+              </linearGradient>
+              <linearGradient id="rshGradGraphite" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#6b6b6b"/><stop offset="0.4" stop-color="#2b2b2b"/>
+                <stop offset="0.75" stop-color="#111111"/><stop offset="1" stop-color="#000000"/>
+              </linearGradient>
+            </defs>
+            <image id="rshPreviewImage" href="" x="0" y="0" width="1000" height="1000" preserveAspectRatio="none" clip-path="url(#rshClipPath)"></image>
+            <path id="rshRimOuter" d="" fill="none" stroke="url(#rshGradGold)" stroke-width="20" stroke-linejoin="round" style="display:none"></path>
+            <path id="rshRimInner" d="" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="5" stroke-linejoin="round" style="display:none"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="rsh-panel">
+        <div>
+          <div class="rsh-section-label">Choose a Border Shape</div>
+          <div class="rsh-shape-grid" id="rshShapeGrid"></div>
+        </div>
+        <div class="rsh-bevel-toggle" onclick="toggleReshapeBevel()">
+          <div class="rsh-bevel-toggle-label"><b>3D Premium Bevel</b><span>Embossed metallic edge + depth shadow</span></div>
+          <div class="rsh-switch" id="rshBevelSwitch"></div>
+        </div>
+        <div id="rshBevelStylesWrap" style="display:none">
+          <div class="rsh-section-label">Bevel Finish</div>
+          <div class="rsh-bevel-styles" id="rshBevelStyles">
+            <div class="rsh-bevel-style active" data-style="gold" onclick="setReshapeBevelStyle('gold',this)"><div class="rsh-bevel-swatch-dot gold"></div><span>Gold</span></div>
+            <div class="rsh-bevel-style" data-style="silver" onclick="setReshapeBevelStyle('silver',this)"><div class="rsh-bevel-swatch-dot silver"></div><span>Silver</span></div>
+            <div class="rsh-bevel-style" data-style="graphite" onclick="setReshapeBevelStyle('graphite',this)"><div class="rsh-bevel-swatch-dot graphite"></div><span>Graphite</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rsh-actions">
+      <button class="btn-secondary" onclick="closeReshape()">Cancel</button>
+      <button class="btn-primary" onclick="applyReshapeConfirm()">Apply Shape</button>
     </div>
   </div>
 </div>
@@ -10969,6 +11132,344 @@ document.addEventListener('touchmove', e => {
 
 document.addEventListener('touchend', () => { crop.dragging = false; crop.resizing = false; });
 
+// ─── IMAGE RESHAPER ───
+const RSH_SHAPES = [
+  {
+    "id": "circle",
+    "name": "Circle",
+    "d": "M990,500 A490,490 0 1,1 10,500 A490,490 0 1,1 990,500 Z"
+  },
+  {
+    "id": "squircle",
+    "name": "Squircle",
+    "d": "M 500.0,0.1 Q 999.9,0.1 999.9,500.0 L 999.9,500.0 Q 999.9,999.9 500.0,999.9 L 500.0,999.9 Q 0.1,999.9 0.1,500.0 L 0.1,500.0 Q 0.1,0.1 500.0,0.1 L 500.0,0.1 Z"
+  },
+  {
+    "id": "hexagon",
+    "name": "Hexagon",
+    "d": "M 386.0,95.8 Q 500.0,30.0 614.0,95.8 L 793.1,199.2 Q 907.0,265.0 907.0,396.6 L 907.0,603.4 Q 907.0,735.0 793.1,800.8 L 614.0,904.2 Q 500.0,970.0 386.0,904.2 L 206.9,800.8 Q 93.0,735.0 93.0,603.4 L 93.0,396.6 Q 93.0,265.0 206.9,199.2 L 386.0,95.8 Z"
+  },
+  {
+    "id": "octagon",
+    "name": "Octagon",
+    "d": "M 571.9,65.8 Q 679.9,65.8 756.2,142.1 L 857.9,243.8 Q 934.2,320.1 934.2,428.1 L 934.2,571.9 Q 934.2,679.9 857.9,756.2 L 756.2,857.9 Q 679.9,934.2 571.9,934.2 L 428.1,934.2 Q 320.1,934.2 243.8,857.9 L 142.1,756.2 Q 65.8,679.9 65.8,571.9 L 65.8,428.1 Q 65.8,320.1 142.1,243.8 L 243.8,142.1 Q 320.1,65.8 428.1,65.8 L 571.9,65.8 Z"
+  },
+  {
+    "id": "diamond",
+    "name": "Diamond",
+    "d": "M 390.0,110.0 Q 500.0,0.0 610.0,110.0 L 890.0,390.0 Q 1000.0,500.0 890.0,610.0 L 610.0,890.0 Q 500.0,1000.0 390.0,890.0 L 110.0,610.0 Q 0.0,500.0 110.0,390.0 L 390.0,110.0 Z"
+  },
+  {
+    "id": "shield",
+    "name": "Shield",
+    "d": "M 381.3,106.2 Q 500.0,20.0 618.7,106.2 L 837.8,265.4 Q 956.5,351.7 911.2,491.2 L 827.5,748.8 Q 782.1,888.3 635.4,888.3 L 364.6,888.3 Q 217.9,888.3 172.5,748.8 L 88.8,491.2 Q 43.5,351.7 162.2,265.4 L 381.3,106.2 Z"
+  },
+  {
+    "id": "arch",
+    "name": "Arch",
+    "d": "M 0,1000 V 500 A 500,500 0 0,1 1000,500 V 1000 Z"
+  },
+  {
+    "id": "wave",
+    "name": "Wave Edge",
+    "d": "M 0,0 H 1000 V 760 C 900,760 900,860 800,860 C 700,860 700,760 600,760 C 500,760 500,860 400,860 C 300,860 300,760 200,760 C 100,760 100,860 0,860 Z"
+  },
+  {
+    "id": "blob1",
+    "name": "Blob",
+    "d": "M 493,890 C 622,905 790,835 860,700 C 930,565 900,380 810,255 C 720,130 545,70 400,110 C 255,150 120,270 90,420 C 60,570 130,730 250,810 C 330,865 400,878 493,890 Z"
+  },
+  {
+    "id": "blob2",
+    "name": "Blob Two",
+    "d": "M 450,80 C 600,60 760,140 830,270 C 900,400 890,580 800,700 C 710,820 550,900 400,870 C 250,840 110,730 80,580 C 50,430 110,270 230,180 C 300,128 370,96 450,80 Z"
+  },
+  {
+    "id": "leaf",
+    "name": "Leaf",
+    "d": "M 500,20 C 780,180 920,420 860,650 C 810,840 650,960 500,980 C 350,960 190,840 140,650 C 80,420 220,180 500,20 Z"
+  },
+  {
+    "id": "ribbon",
+    "name": "Ribbon",
+    "d": "M 60,200 L 150,500 L 60,800 L 850,800 L 940,500 L 850,200 Z"
+  },
+  {
+    "id": "medallion",
+    "name": "Medallion",
+    "d": "M 500.0,-2.0 L 516.0,2.4 L 531.2,14.8 L 545.1,32.8 L 557.6,53.0 L 569.2,71.7 L 580.7,85.6 L 593.0,92.5 L 607.1,91.6 L 623.4,84.1 L 642.0,72.3 L 662.1,59.5 L 682.4,49.3 L 701.5,44.8 L 717.8,47.7 L 730.3,58.6 L 738.6,76.4 L 743.3,98.6 L 745.8,122.3 L 748.2,144.2 L 752.5,161.7 L 760.6,173.2 L 773.7,178.5 L 791.7,178.9 L 813.5,176.3 L 837.2,173.5 L 859.9,173.1 L 879.1,177.3 L 892.5,187.0 L 899.0,202.2 L 898.8,221.8 L 893.4,244.0 L 885.4,266.4 L 878.0,287.1 L 874.3,304.7 L 876.6,318.6 L 886.0,329.1 L 902.1,337.2 L 922.9,344.4 L 945.4,352.1 L 966.1,361.7 L 981.6,373.7 L 989.4,388.3 L 988.7,404.8 L 980.0,422.4 L 965.5,440.0 L 948.6,456.7 L 932.9,472.2 L 921.9,486.5 L 918.0,500.0 L 921.9,513.5 L 932.9,527.8 L 948.6,543.3 L 965.5,560.0 L 980.0,577.6 L 988.7,595.2 L 989.4,611.7 L 981.6,626.3 L 966.1,638.3 L 945.4,647.9 L 922.9,655.6 L 902.1,662.8 L 886.0,670.9 L 876.6,681.4 L 874.3,695.3 L 878.0,712.9 L 885.4,733.6 L 893.4,756.0 L 898.8,778.2 L 899.0,797.8 L 892.5,813.0 L 879.1,822.7 L 859.9,826.9 L 837.2,826.5 L 813.5,823.7 L 791.7,821.1 L 773.7,821.5 L 760.6,826.8 L 752.5,838.3 L 748.2,855.8 L 745.8,877.7 L 743.3,901.4 L 738.6,923.6 L 730.3,941.4 L 717.8,952.3 L 701.5,955.2 L 682.4,950.7 L 662.1,940.5 L 642.0,927.7 L 623.4,915.9 L 607.1,908.4 L 593.0,907.5 L 580.7,914.4 L 569.2,928.3 L 557.6,947.0 L 545.1,967.2 L 531.2,985.2 L 516.0,997.6 L 500.0,1002.0 L 484.0,997.6 L 468.8,985.2 L 454.9,967.2 L 442.4,947.0 L 430.8,928.3 L 419.3,914.4 L 407.0,907.5 L 392.9,908.4 L 376.6,915.9 L 358.0,927.7 L 337.9,940.5 L 317.6,950.7 L 298.5,955.2 L 282.2,952.3 L 269.7,941.4 L 261.4,923.6 L 256.7,901.4 L 254.2,877.7 L 251.8,855.8 L 247.5,838.3 L 239.4,826.8 L 226.3,821.5 L 208.3,821.1 L 186.5,823.7 L 162.8,826.5 L 140.1,826.9 L 120.9,822.7 L 107.5,813.0 L 101.0,797.8 L 101.2,778.2 L 106.6,756.0 L 114.6,733.6 L 122.0,712.9 L 125.7,695.3 L 123.4,681.4 L 114.0,670.9 L 97.9,662.8 L 77.1,655.6 L 54.6,647.9 L 33.9,638.3 L 18.4,626.3 L 10.6,611.7 L 11.3,595.2 L 20.0,577.6 L 34.5,560.0 L 51.4,543.3 L 67.1,527.8 L 78.1,513.5 L 82.0,500.0 L 78.1,486.5 L 67.1,472.2 L 51.4,456.7 L 34.5,440.0 L 20.0,422.4 L 11.3,404.8 L 10.6,388.3 L 18.4,373.7 L 33.9,361.7 L 54.6,352.1 L 77.1,344.4 L 97.9,337.2 L 114.0,329.1 L 123.4,318.6 L 125.7,304.7 L 122.0,287.1 L 114.6,266.4 L 106.6,244.0 L 101.2,221.8 L 101.0,202.2 L 107.5,187.0 L 120.9,177.3 L 140.1,173.1 L 162.8,173.5 L 186.5,176.3 L 208.3,178.9 L 226.3,178.5 L 239.4,173.2 L 247.5,161.7 L 251.8,144.2 L 254.2,122.3 L 256.7,98.6 L 261.4,76.4 L 269.7,58.6 L 282.2,47.7 L 298.5,44.8 L 317.6,49.3 L 337.9,59.5 L 358.0,72.3 L 376.6,84.1 L 392.9,91.6 L 407.0,92.5 L 419.3,85.6 L 430.8,71.7 L 442.4,53.0 L 454.9,32.8 L 468.8,14.8 L 484.0,2.4 Z"
+  },
+  {
+    "id": "gem",
+    "name": "Gem Cut",
+    "d": "M 500.0,20.0 L 603.5,113.6 L 740.0,84.3 L 782.8,217.2 L 915.7,260.0 L 886.4,396.5 L 980.0,500.0 L 886.4,603.5 L 915.7,740.0 L 782.8,782.8 L 740.0,915.7 L 603.5,886.4 L 500.0,980.0 L 396.5,886.4 L 260.0,915.7 L 217.2,782.8 L 84.3,740.0 L 113.6,603.5 L 20.0,500.0 L 113.6,396.5 L 84.3,260.0 L 217.2,217.2 L 260.0,84.3 L 396.5,113.6 Z"
+  },
+  {
+    "id": "starburst",
+    "name": "Starburst",
+    "d": "M 500.0,0.0 L 626.3,195.1 L 853.6,146.4 L 804.9,373.7 L 1000.0,500.0 L 804.9,626.3 L 853.6,853.6 L 626.3,804.9 L 500.0,1000.0 L 373.7,804.9 L 146.4,853.6 L 195.1,626.3 L 0.0,500.0 L 195.1,373.7 L 146.4,146.4 L 373.7,195.1 Z"
+  }
+];
+
+// `idx` addresses an entry in state.extractedImages (Extract Images gallery
+// flow). `placedRef` is the alternate target, an {pageIdx, itemId} pair
+// addressing an image dropped straight onto a PDF page in the page editor —
+// the two flows share every shape/bevel control and the same preview stage,
+// they only differ in where the result gets written back to (see
+// applyReshapeConfirm). Exactly one of idx/placedRef is set at a time.
+let reshape = { idx: null, placedRef: null, shapeId: 'circle', bevel: false, bevelStyle: 'gold', natW: 1, natH: 1 };
+
+function openReshapeForIndex(idx, e) {
+  if (e) e.stopPropagation();
+  state.currentEditIndex = idx;
+  openReshape();
+}
+
+function reshapeModalImg() {
+  if (modalImgIdx !== null) {
+    state.currentEditIndex = modalImgIdx;
+    closeModal();
+    openReshape();
+  }
+}
+
+function openReshape() {
+  if (state.currentEditIndex === null) { toast('Open an image in the editor first', 'error'); return; }
+  reshape.idx = state.currentEditIndex;
+  reshape.placedRef = null;
+  reshape.shapeId = 'circle';
+  reshape.bevel = false;
+  reshape.bevelStyle = 'gold';
+  const img = state.extractedImages[reshape.idx];
+  reshape.srcDataUrl = img.dataUrl;
+  openReshapeStage(img.dataUrl);
+}
+
+// Opens the same Reshape overlay for an image placed directly on a PDF
+// page in the page editor, so this feature is reachable right where the
+// person is already working instead of only from the Extract Images
+// gallery/modal. Takes the actual placed-image object (not just its id)
+// so the reshape result always writes back to the exact image the person
+// clicked, even in the rare case two images on a page ended up sharing an
+// id (e.g. a duplicated page whose items weren't re-keyed).
+function openReshapeForPlaced(pageIdx, item, e) {
+  if (e) e.stopPropagation();
+  if (!item) { toast('Image not found', 'error'); return; }
+  reshape.idx = null;
+  reshape.placedRef = { pageIdx, item };
+  reshape.shapeId = 'circle';
+  reshape.bevel = false;
+  reshape.bevelStyle = 'gold';
+  reshape.srcDataUrl = item.dataUrl;
+  openReshapeStage(item.dataUrl);
+}
+
+// Shared setup for the reshape preview stage, used by both entry points above.
+function openReshapeStage(dataUrl) {
+  const ref = document.getElementById('rshStageRef');
+  ref.onload = () => {
+    reshape.natW = ref.naturalWidth;
+    reshape.natH = ref.naturalHeight;
+    renderReshapeGrid();
+    document.getElementById('rshBevelSwitch').classList.remove('on');
+    document.getElementById('rshBevelStylesWrap').style.display = 'none';
+    document.querySelectorAll('.rsh-bevel-style').forEach((s, i) => s.classList.toggle('active', i === 0));
+    updateReshapePreview();
+  };
+  ref.src = dataUrl;
+  document.getElementById('rshPreviewImage').setAttribute('href', dataUrl);
+  document.getElementById('reshapeOverlay').classList.add('open');
+}
+
+function closeReshape() {
+  document.getElementById('reshapeOverlay').classList.remove('open');
+}
+
+function renderReshapeGrid() {
+  const grid = document.getElementById('rshShapeGrid');
+  grid.innerHTML = RSH_SHAPES.map(s => `
+    <div class="rsh-shape-swatch ${s.id === reshape.shapeId ? 'active' : ''}" data-shape="${s.id}" onclick="selectReshapeShape('${s.id}',this)" title="${s.name}">
+      <svg viewBox="0 0 1000 1000"><path d="${s.d}"></path></svg>
+      <span class="rsh-shape-name">${s.name}</span>
+    </div>
+  `).join('');
+}
+
+function selectReshapeShape(id, el) {
+  reshape.shapeId = id;
+  document.querySelectorAll('.rsh-shape-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  updateReshapePreview();
+}
+
+function toggleReshapeBevel() {
+  reshape.bevel = !reshape.bevel;
+  document.getElementById('rshBevelSwitch').classList.toggle('on', reshape.bevel);
+  document.getElementById('rshBevelStylesWrap').style.display = reshape.bevel ? '' : 'none';
+  updateReshapePreview();
+}
+
+function setReshapeBevelStyle(style, el) {
+  reshape.bevelStyle = style;
+  document.querySelectorAll('.rsh-bevel-style').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  updateReshapePreview();
+}
+
+function updateReshapePreview() {
+  const shape = RSH_SHAPES.find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
+  document.getElementById('rshClipPathShape').setAttribute('d', shape.d);
+  const rimOuter = document.getElementById('rshRimOuter');
+  const rimInner = document.getElementById('rshRimInner');
+  if (reshape.bevel) {
+    const gradId = reshape.bevelStyle === 'gold' ? 'rshGradGold' : reshape.bevelStyle === 'silver' ? 'rshGradSilver' : 'rshGradGraphite';
+    rimOuter.setAttribute('d', shape.d);
+    rimOuter.setAttribute('stroke', `url(#${gradId})`);
+    rimOuter.style.display = '';
+    rimInner.setAttribute('d', shape.d);
+    rimInner.style.display = '';
+  } else {
+    rimOuter.style.display = 'none';
+    rimInner.style.display = 'none';
+  }
+}
+
+function rshBuildBevelGradient(ctx, style) {
+  const grad = ctx.createLinearGradient(0, 0, 1000, 1000);
+  if (style === 'gold') {
+    grad.addColorStop(0, '#fff6d8'); grad.addColorStop(0.35, '#e8c76b');
+    grad.addColorStop(0.65, '#b8860b'); grad.addColorStop(1, '#5c4200');
+  } else if (style === 'silver') {
+    grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.35, '#d8d8d8');
+    grad.addColorStop(0.65, '#8f8f8f'); grad.addColorStop(1, '#333333');
+  } else {
+    grad.addColorStop(0, '#6b6b6b'); grad.addColorStop(0.4, '#2b2b2b');
+    grad.addColorStop(0.75, '#111111'); grad.addColorStop(1, '#000000');
+  }
+  return grad;
+}
+
+function applyReshapeConfirm() {
+  if (reshape.idx === null && !reshape.placedRef) return;
+  const shape = RSH_SHAPES.find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
+  const srcImg = new Image();
+  srcImg.onload = () => {
+    const w = srcImg.naturalWidth, h = srcImg.naturalHeight;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const sx = w / 1000, sy = h / 1000;
+    const avgScale = (sx + sy) / 2;
+    const p = new Path2D(shape.d);
+
+    ctx.save();
+    ctx.scale(sx, sy);
+
+    if (reshape.bevel) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = 40 / avgScale;
+      ctx.shadowOffsetY = 16 / avgScale;
+      ctx.fillStyle = 'rgba(0,0,0,0.001)';
+      ctx.fill(p);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.clip(p);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(srcImg, 0, 0, w, h);
+    ctx.restore();
+
+    if (reshape.bevel) {
+      ctx.save();
+      const grad = rshBuildBevelGradient(ctx, reshape.bevelStyle);
+      ctx.lineWidth = 20 / avgScale;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = grad;
+      ctx.stroke(p);
+      ctx.lineWidth = 5 / avgScale;
+      ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+      ctx.stroke(p);
+      ctx.restore();
+    }
+
+    ctx.restore();
+
+    const newDataUrl = canvas.toDataURL('image/png');
+
+    // Snapshot the pre-reshape state and register a single undo/redo action
+    // in the centralized app history so this feature gets Ctrl+Z / Ctrl+Y
+    // (and the Undo/Redo buttons) for free, exactly like every other edit.
+    if (reshape.placedRef) {
+      const { pageIdx, item } = reshape.placedRef;
+      const prevDataUrl = item.dataUrl;
+
+      item.dataUrl = newDataUrl;
+      pdfedMarkModified(pageIdx);
+      pdfedRenderPlacedImages(pageIdx);
+
+      pushAppHistory({
+        label: 'Reshape image',
+        undo: () => {
+          item.dataUrl = prevDataUrl;
+          pdfedMarkModified(pageIdx);
+          pdfedRenderPlacedImages(pageIdx);
+          toast('Reshape undone', 'info');
+        },
+        redo: () => {
+          item.dataUrl = newDataUrl;
+          pdfedMarkModified(pageIdx);
+          pdfedRenderPlacedImages(pageIdx);
+          toast('Shape applied, ' + shape.name, 'success');
+        }
+      });
+    } else {
+      const idxSnap = reshape.idx;
+      const imgRef = state.extractedImages[idxSnap];
+      const prevDataUrl = imgRef.dataUrl;
+      const prevWidth = imgRef.width;
+      const prevHeight = imgRef.height;
+
+      imgRef.dataUrl = newDataUrl;
+      imgRef.width = w;
+      imgRef.height = h;
+      if (document.getElementById('galleryWrap').style.display !== 'none') renderGallery();
+      if (modalImgIdx === idxSnap) {
+        document.getElementById('modalImg').src = newDataUrl;
+      }
+
+      pushAppHistory({
+        label: 'Reshape image',
+        undo: () => {
+          const im = state.extractedImages[idxSnap];
+          if (!im) return;
+          im.dataUrl = prevDataUrl;
+          im.width = prevWidth;
+          im.height = prevHeight;
+          if (document.getElementById('galleryWrap').style.display !== 'none') renderGallery();
+          if (modalImgIdx === idxSnap) document.getElementById('modalImg').src = prevDataUrl;
+          toast('Reshape undone', 'info');
+        },
+        redo: () => {
+          const im = state.extractedImages[idxSnap];
+          if (!im) return;
+          im.dataUrl = newDataUrl;
+          im.width = w;
+          im.height = h;
+          if (document.getElementById('galleryWrap').style.display !== 'none') renderGallery();
+          if (modalImgIdx === idxSnap) document.getElementById('modalImg').src = newDataUrl;
+          toast('Shape applied, ' + shape.name, 'success');
+        }
+      });
+    }
+
+    closeReshape();
+    toast('Shape applied, ' + shape.name, 'success');
+  };
+  srcImg.src = reshape.srcDataUrl;
+}
+
 function applyCrop() {
   if(state.currentEditIndex === null) return;
   const img = document.getElementById('cropImg');
@@ -11471,6 +11972,7 @@ function renderGallery() {
         <div class="overlay-btn" onclick="openPreview(${idx},event)" title="Preview"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z'/><circle cx='12' cy='12' r='3'/></svg></div>
         <div class="overlay-btn pdfed-opacity-btn" onclick="pdfedOpenOpacityPopover(event,'galleryImage',${idx},null)" title="Opacity"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2'><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></div>
         <div class="overlay-btn" onclick="downloadSingle(${idx},event)" title="Download"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg></div>
+        <div class="overlay-btn rsh-quick" onclick="openReshapeForIndex(${idx},event)" title="Reshape (Premium)"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2a10 10 0 1 0 10 10'/><path d='M12 2v10l7 4'/><circle cx='18' cy='6' r='3' fill='currentColor' stroke='none'/></svg></div>
         <div class="overlay-btn" onclick="pushImageToPdfEditor(${idx},event)" title="Push to Workspace"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="overlay-btn del" onclick="deleteImage(${idx},event)" title="Delete"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg></div>
       </div>
@@ -17317,6 +17819,15 @@ async function pdfedDuplicatePage(idx) {
     annotStrokes: (src.annotStrokes || []).slice(),
     annotRedoStrokes: (src.annotRedoStrokes || []).slice(),
     label: (src.label || 'Page') + ' Copy'
+  });
+  // Re-key every placed item on the copy with a fresh id. Without this, the
+  // duplicate page's images/texts/tables/borders keep the exact same ids as
+  // the source page's — harmless while they're each on their own page, but
+  // a latent collision waiting to happen the moment content from both pages
+  // is ever combined onto one page (lock/delete/reshape on one would then
+  // silently also hit the other, since they'd resolve to the same id).
+  ['placedImages', 'placedTexts', 'placedTables', 'placedBorders'].forEach(key => {
+    (clone[key] || []).forEach(item => { item.id = (item.id || 'itm') + '_dup' + (++pdfedAnnotState.placedImgSeq); });
   });
   pdfed.pages.splice(idx + 1, 0, clone);
   await pdfedBuildStrip();
@@ -25716,8 +26227,8 @@ async function pdfedOpenImageAsPage(dataUrl, file) {
   const w = img.naturalWidth || 1000, h = img.naturalHeight || 1400;
   const mmW = w / PXMM, mmH = h / PXMM;
 
-  // Bake onto a canvas at native resolution — no scaling, no letterboxing —
-  // so the page comes out exactly the size and aspect ratio of the source file.
+  // Bake the image at native resolution — no scaling, no letterboxing —
+  // so it comes out exactly the size and aspect ratio of the source file.
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const ctx = c.getContext('2d');
@@ -25726,10 +26237,28 @@ async function pdfedOpenImageAsPage(dataUrl, file) {
   ctx.drawImage(img, 0, 0, w, h);
   const pageUrl = c.toDataURL('image/png');
 
+  // The page itself is a blank white sheet the same size as the photo — the
+  // photo is placed on top of it as a normal, full-bleed placed image rather
+  // than flattened straight into the page background. That's what gives it
+  // move/resize/lock/opacity/arrange/delete AND Reshape controls, same as
+  // any other image you drop onto a page, instead of it becoming a fixed,
+  // uneditable backdrop the moment it's the very first/only image uploaded.
+  const bg = document.createElement('canvas');
+  bg.width = w; bg.height = h;
+  bg.getContext('2d').fillStyle = '#ffffff';
+  bg.getContext('2d').fillRect(0, 0, w, h);
+  const blankUrl = bg.toDataURL('image/png');
+
   const label = (file && file.name) ? file.name.replace(/\.[^.]+$/, '') : 'Image Page';
   const pg = {
-    type: 'image', dataUrl: pageUrl, modified: false, edits: {},
-    textBlocks: [], placedTexts: [], placedImages: [], placedTables: [],
+    type: 'image', dataUrl: blankUrl, modified: false, edits: {},
+    textBlocks: [], placedTexts: [],
+    placedImages: [{
+      id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
+      dataUrl: pageUrl, x: 0, y: 0, w, h,
+      locked: false, zIndex: 1
+    }],
+    placedTables: [],
     label, sourceFormat: (file && file.type) || 'image/png', pageMM: [mmW, mmH]
   };
 
@@ -25757,6 +26286,7 @@ async function pdfedOpenImageAsPage(dataUrl, file) {
   if (typeof navigate === 'function') navigate('pdfeditor');
   if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
   if (typeof pdfedGoto === 'function') await pdfedGoto(newIdx);
+  pdfedRenderPlacedImages(newIdx);
   setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
   toast('Image opened at its original size', 'success');
 }
@@ -25981,7 +26511,7 @@ function pdfedRenderPlacedImages(idx) {
     lockBtn.innerHTML = item.locked
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.45-2"/></svg>';
-    lockBtn.onclick = (ev) => { ev.stopPropagation(); pdfedTogglePlacedLock(idx, item.id); };
+    lockBtn.onclick = (ev) => { ev.stopPropagation(); pdfedTogglePlacedLockByRef(idx, item); };
     el.appendChild(lockBtn);
 
     if (!item.locked) {
@@ -26022,13 +26552,39 @@ function pdfedRenderPlacedImages(idx) {
       opBtn.onclick = (ev) => pdfedOpenOpacityPopover(ev, 'image', idx, item.id);
       el.appendChild(opBtn);
 
+      // Reshape badge, opens the Image Reshaper (circle/hexagon/star crop +
+      // optional gold/silver/graphite bevel) directly on this placed image,
+      // right on the canvas, instead of only being reachable from the
+      // Extract Images gallery. Gold "premium" styling makes it stand out
+      // as its own thing in a row of otherwise neutral controls.
+      const rshBtn = document.createElement('button');
+      rshBtn.title = 'Reshape image (Premium)';
+      rshBtn.className = 'pdfed-badge-btn is-premium';
+      rshBtn.style.cssText = `position:absolute;top:4px;right:172px;pointer-events:auto;z-index:2;`;
+      rshBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg>';
+      rshBtn.onclick = (ev) => openReshapeForPlaced(idx, item, ev);
+      el.appendChild(rshBtn);
+
+      // Fill Page badge, one click stretches/repositions this image to
+      // (0,0)-(page width, page height) — true edge-to-edge, no white
+      // margin left on any side — instead of having to drag/resize by
+      // hand to hit the exact page boundary. Any rotation is reset to 0
+      // so the filled image's edges land flush with the page's edges.
+      const fillBtn = document.createElement('button');
+      fillBtn.title = 'Fill page, edge to edge';
+      fillBtn.className = 'pdfed-badge-btn';
+      fillBtn.style.cssText = `position:absolute;top:4px;right:200px;pointer-events:auto;z-index:2;`;
+      fillBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+      fillBtn.onclick = (ev) => { ev.stopPropagation(); pdfedFillPageByRef(idx, item, pc); };
+      el.appendChild(fillBtn);
+
       // Delete button, only available while unlocked
       const delBtn = document.createElement('button');
       delBtn.title = 'Remove image';
       delBtn.className = 'pdfed-badge-btn is-danger';
       delBtn.style.cssText = `position:absolute;top:4px;right:32px;pointer-events:auto;z-index:2;`;
       delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
-      delBtn.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePlacedImage(idx, item.id); };
+      delBtn.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePlacedImageByRef(idx, item); };
       el.appendChild(delBtn);
 
       const handles = {};
@@ -26346,6 +26902,62 @@ function pdfedDeletePlacedImage(idx, id) {
   const pg = pdfed.pages[idx];
   if (!pg || !pg.placedImages) return;
   pg.placedImages = pg.placedImages.filter(i => i.id !== id);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedImages(idx);
+  pdfedRenderPlacedTexts(idx);
+  toast('Image removed', 'success');
+}
+
+// Reference-based counterparts of the two above, used by the on-canvas
+// image badges. Matching by id breaks down if two images on a page ever
+// end up sharing one (e.g. a duplicated page whose items weren't
+// re-keyed) — id-based lock/delete would then silently affect both.
+// Operating on the exact object clicked removes that possibility entirely:
+// it's always the one image you clicked, never its neighbor.
+function pdfedTogglePlacedLockByRef(idx, item) {
+  if (!item) return;
+  item.locked = !item.locked;
+  pdfedRenderPlacedImages(idx);
+  pdfedRenderPlacedTexts(idx);
+  toast(item.locked ? 'Image locked, unlock to move it' : 'Image unlocked, drag to move', 'info');
+}
+
+// Stretches/repositions a placed image so it exactly covers the page —
+// x:0, y:0, width/height = the page's own raw canvas size — leaving no gap
+// on any edge. Registers a single undo/redo action in the centralized app
+// history, same as every other placed-image edit, so Ctrl+Z instantly
+// brings back whatever position/size the image had before.
+function pdfedFillPageByRef(idx, item, pc) {
+  if (!item || !pc || !pc.width || !pc.height) return;
+  const prev = { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation };
+  const doFill = () => {
+    item.x = 0; item.y = 0; item.w = pc.width; item.h = pc.height; item.rotation = 0;
+    pdfedMarkModified(idx);
+    pdfedRenderPlacedImages(idx);
+  };
+  doFill();
+  toast('Image filled to page edges', 'success');
+  pushAppHistory({
+    label: 'Fill page',
+    undo: () => {
+      item.x = prev.x; item.y = prev.y; item.w = prev.w; item.h = prev.h; item.rotation = prev.rotation;
+      pdfedMarkModified(idx);
+      pdfedRenderPlacedImages(idx);
+      toast('Fill page undone', 'info');
+    },
+    redo: () => {
+      doFill();
+      toast('Image filled to page edges', 'success');
+    }
+  });
+}
+
+function pdfedDeletePlacedImageByRef(idx, item) {
+  const pg = pdfed.pages[idx];
+  if (!pg || !pg.placedImages || !item) return;
+  const i = pg.placedImages.indexOf(item);
+  if (i === -1) return;
+  pg.placedImages.splice(i, 1);
   pdfedMarkModified(idx);
   pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx);
