@@ -2781,6 +2781,25 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   opacity: 1;
   pointer-events: auto;
 }
+/* Text action badges (fwd/back/arrange/delete/lock): same "dim until
+   hovered" toolbar feel as placed shapes/images (.pdfed-badge-row), with the
+   identical asymmetric timing — quick brighten on hover, a touch slower
+   (with a brief grace delay) to dim back down on leave, so all three object
+   types (text/image/shape) feel like one consistent, polished toolbar.
+   Still fully hidden while not selected/editing (inherits that from
+   .ptxt-chrome above); once selected/editing it settles to a dim 0.42 and
+   the WHOLE row brightens to full opacity together as soon as the pointer
+   reaches any badge in it. */
+.pdfed-placed-text.selected .ptxt-badge-row,
+.pdfed-placed-text.editing .ptxt-badge-row {
+  opacity: 0.42;
+  transition: opacity 0.32s cubic-bezier(0.4,0,0.2,1) 0.12s;
+}
+.pdfed-placed-text.selected .ptxt-badge-row:hover,
+.pdfed-placed-text.editing .ptxt-badge-row:hover {
+  opacity: 1;
+  transition: opacity 0.12s cubic-bezier(0,0,0.2,1);
+}
 
 /* ── Placed tables (Excel-style insert, Canva-style move/resize) ── */
 .pdfed-placed-table {
@@ -2936,6 +2955,29 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .pdfed-badge-btn svg { width: 13px; height: 13px; }
 .pdfed-badge-btn:hover { opacity: 1; transform: scale(1.1); }
+/* Badge row: groups every action badge (lock/arrange/opacity/reshape/fill/
+   delete/etc) for a placed image or shape into one non-rotating strip. It
+   sits dim/translucent by default so it doesn't compete with the content,
+   and the WHOLE row (not just whichever icon the cursor happens to be over)
+   comes up to full opacity as soon as the pointer re-enters it, then fades
+   back down once the pointer leaves without picking an action — the same
+   "toolbar recedes until you reach for it" feel Canva/Figma use.
+   The fade is deliberately asymmetric: brightening on hover is near-instant
+   (nothing should feel laggy to reach for), while dimming back down on
+   leave is a touch slower with a brief grace delay, so a cursor that just
+   grazes past the row on its way somewhere else doesn't cause a visible
+   flicker. */
+.pdfed-badge-row {
+  position: absolute; top: 4px; right: 4px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+  opacity: 0.42;
+  transition: opacity 0.32s cubic-bezier(0.4,0,0.2,1) 0.12s;
+  pointer-events: auto;
+}
+.pdfed-badge-row:hover {
+  opacity: 1;
+  transition: opacity 0.12s cubic-bezier(0,0,0.2,1);
+}
 .pdfed-badge-btn.is-locked {
   background: rgba(0,194,255,0.85);
   border-color: rgba(0,194,255,0.5);
@@ -7859,6 +7901,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   <div id="pdfedPlacedImagesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedTextsLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedTablesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+                  <div id="pdfedPlacedShapesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedMarqueeBox" class="pdfed-marquee-box"></div>
                   <!-- image insert draggable ghost, lives INSIDE the zoom wrap so it scales
                        together with the canvas on zoom in/out, exactly like a stamped image
@@ -14227,7 +14270,7 @@ async function pdfedGoto(idx) {
   pdfedRenderTextLayer(pg, false);
   pdfedSearchSyncOverlaySize();
   pdfedSearchRenderHighlights();
-  pdfedRenderPlacedTexts(idx); // also syncs the grid-snap overlay to this page's canvas size
+  pdfedRenderAllPlaced(idx); // rebuilds every placed-object layer (borders/shapes/images/texts/tables) fresh for THIS page; also syncs the grid-snap overlay to this page's canvas size
 
   // update strip highlight
   document.querySelectorAll('#pdfedStrip .pdfed-thumb').forEach((el, i) => {
@@ -16237,6 +16280,16 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages) {
         thickness: item.thickness,
         color: item.color
       }, item.x, item.y);
+    } else if (kind === 'shape') {
+      const isDirectional = (item.tool === 'line' || item.tool === 'arrow' || item.tool === 'dblarrow');
+      const sx1 = isDirectional && item.flipX ? item.w : 0;
+      const sy1 = isDirectional && item.flipY ? item.h : 0;
+      const sx2 = isDirectional && item.flipX ? 0 : item.w;
+      const sy2 = isDirectional && item.flipY ? 0 : item.h;
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, sx1, sy1, sx2, sy2);
+      ctx.restore();
     } else if (kind === 'image') {
       try {
         const im = await new Promise((res, rej) => {
@@ -16319,7 +16372,7 @@ async function pdfedEnsureFontsLoaded(pg) {
 
 async function pdfedComposeThumb(pg, idx) {
   const baseUrl = await pdfedFlattenPageDataUrl(pg);
-  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length);
+  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length) || (pg.placedShapes && pg.placedShapes.length);
   const strokes = pg.annotStrokes;
   const hasAnnot = strokes && strokes.length > 0;
   if (!hasPlaced && !hasAnnot) return baseUrl;
@@ -16360,7 +16413,7 @@ async function pdfedComposeThumb(pg, idx) {
 // layer, exactly like today's export.
 async function pdfedComposeExportBase(pg, idx) {
   const baseUrl = await pdfedFlattenPageDataUrl(pg);
-  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length);
+  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length) || (pg.placedShapes && pg.placedShapes.length);
   const strokes = pg.annotStrokes;
   const hasAnnot = strokes && strokes.length > 0;
   if (!hasPlaced && !hasAnnot) return baseUrl;
@@ -17700,6 +17753,7 @@ function pdfedNextZ(pg) {
 function pdfedGetZOrderedItems(pg) {
   const combined = [];
   (pg.placedBorders || []).forEach(it => combined.push({ kind: 'border', item: it }));
+  (pg.placedShapes  || []).forEach(it => combined.push({ kind: 'shape',  item: it }));
   (pg.placedImages || []).forEach(it => combined.push({ kind: 'image', item: it }));
   (pg.placedTexts  || []).forEach(it => combined.push({ kind: 'text',  item: it }));
   (pg.placedTables || []).forEach(it => combined.push({ kind: 'table', item: it }));
@@ -17714,13 +17768,18 @@ function pdfedGetZOrderedItems(pg) {
 // (image, text, or table) is reflected on screen immediately.
 function pdfedRenderAllPlaced(idx) {
   pdfedRenderPlacedBorders(idx);
+  pdfedRenderPlacedShapes(idx);
   pdfedRenderPlacedImages(idx);
   pdfedRenderPlacedTexts(idx); // also re-renders tables, see bottom of that fn
 }
 
+function pdfedPlacedKeyForKind(kind) {
+  return kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : (kind === 'border' ? 'placedBorders' : (kind === 'shape' ? 'placedShapes' : 'placedTexts')));
+}
+
 function pdfedReorderPlaced(kind, idx, id, toFront) {
   const pg = pdfed.pages[idx];
-  const key = kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : (kind === 'border' ? 'placedBorders' : 'placedTexts'));
+  const key = pdfedPlacedKeyForKind(kind);
   const list = pg && pg[key];
   if (!list) return;
   const item = list.find(it => it.id === id);
@@ -17781,7 +17840,7 @@ function pdfedOpenArrangeMenu(ev, kind, idx, id) {
 const pdfedOpacityPop = { kind: null, idx: -1, id: null };
 
 function pdfedOpacityKey(kind) {
-  return kind === 'image' ? 'placedImages' : (kind === 'table' ? 'placedTables' : (kind === 'border' ? 'placedBorders' : 'placedTexts'));
+  return pdfedPlacedKeyForKind(kind);
 }
 
 // Single lookup used by every opacity-popover consumer, so gallery images
@@ -17837,11 +17896,12 @@ function pdfedOpacityPopoverInput(value) {
     const card = document.querySelector(`.img-card[data-idx="${idx}"]`);
     if (card) { const im = card.querySelector('img'); if (im) im.style.opacity = v; }
   } else {
-    const selector = kind === 'image' ? '.pdfed-placed-img' : (kind === 'border' ? '.pdfed-placed-border' : '.pdfed-placed-table');
+    const selector = kind === 'image' ? '.pdfed-placed-img' : (kind === 'border' ? '.pdfed-placed-border' : (kind === 'shape' ? '.pdfed-placed-shape' : '.pdfed-placed-table'));
     const el = document.querySelector(`${selector}[data-id="${CSS.escape(id)}"]`);
     if (el) {
       if (kind === 'image') { const im = el.querySelector('img'); if (im) im.style.opacity = v; }
       else if (kind === 'border') { const cv = el.querySelector('canvas'); if (cv) cv.style.opacity = v; }
+      else if (kind === 'shape') { const cv = el.querySelector('canvas'); if (cv) cv.style.opacity = v; }
       else if (kind === 'table') { const g = el.querySelector('.pdfed-table-grid'); if (g) g.style.opacity = v; }
     }
     pdfedMarkModified(idx);
@@ -17866,6 +17926,7 @@ async function pdfedDuplicatePage(idx) {
     placedTexts: JSON.parse(JSON.stringify(src.placedTexts || [])),
     placedTables: JSON.parse(JSON.stringify(src.placedTables || [])),
     placedBorders: JSON.parse(JSON.stringify(src.placedBorders || [])),
+    placedShapes: JSON.parse(JSON.stringify(src.placedShapes || [])),
     edits: JSON.parse(JSON.stringify(src.edits || {})),
     textBlocks: JSON.parse(JSON.stringify(src.textBlocks || [])),
     // Deep-copy (not share) annotation history so drawing/undo on the copy
@@ -17880,7 +17941,7 @@ async function pdfedDuplicatePage(idx) {
   // a latent collision waiting to happen the moment content from both pages
   // is ever combined onto one page (lock/delete/reshape on one would then
   // silently also hit the other, since they'd resolve to the same id).
-  ['placedImages', 'placedTexts', 'placedTables', 'placedBorders'].forEach(key => {
+  ['placedImages', 'placedTexts', 'placedTables', 'placedBorders', 'placedShapes'].forEach(key => {
     (clone[key] || []).forEach(item => { item.id = (item.id || 'itm') + '_dup' + (++pdfedAnnotState.placedImgSeq); });
   });
   pdfed.pages.splice(idx + 1, 0, clone);
@@ -17920,7 +17981,28 @@ function pdfedHandleCanvasContextMenu(e) {
   const imgEl = e.target.closest('.pdfed-placed-img');
   const txtEl = e.target.closest('.pdfed-placed-text');
   const brdEl = e.target.closest('.pdfed-placed-border');
+  const shpEl = e.target.closest('.pdfed-placed-shape');
   const idx = pdfed.active;
+
+  if (shpEl) {
+    e.preventDefault();
+    const id = shpEl.dataset.id;
+    const item = (pdfed.pages[idx].placedShapes || []).find(i => i.id === id);
+    if (!item) return;
+    pdfedOpenCtxMenu(e.clientX, e.clientY, [
+      { type: 'label', label: 'Placed Shape' },
+      { id: 'lock',   icon: item.locked ? 'unlock' : 'lock', label: item.locked ? 'Unlock' : 'Lock', onClick: () => pdfedTogglePlacedShapeLock(idx, id) },
+      { id: 'dup',    icon: 'duplicate', label: 'Duplicate', onClick: () => pdfedDuplicatePlacedShape(idx, id) },
+      { type: 'sep' },
+      { id: 'fwd',    icon: 'fwd',   label: 'Forward', onClick: () => pdfedReorderPlacedStep('shape', idx, id, 1) },
+      { id: 'bwd',    icon: 'bwd',   label: 'Backward', onClick: () => pdfedReorderPlacedStep('shape', idx, id, -1) },
+      { id: 'front',  icon: 'front', label: 'Bring to Front', onClick: () => pdfedReorderPlaced('shape', idx, id, true) },
+      { id: 'back',   icon: 'back',  label: 'Send to Back', onClick: () => pdfedReorderPlaced('shape', idx, id, false) },
+      { type: 'sep' },
+      { id: 'del', icon: 'trash', label: 'Delete Shape', danger: true, disabled: item.locked, onClick: () => pdfedDeletePlacedShape(idx, id) }
+    ]);
+    return;
+  }
 
   if (brdEl) {
     e.preventDefault();
@@ -21119,16 +21201,36 @@ function pdfedRenderPlacedBorders(idx) {
     el.className = 'pdfed-placed-border' + (item.locked ? ' locked' : '');
     el.dataset.id = item.id;
     el.style.cssText = `position:absolute;box-sizing:border-box;
-      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
       border-radius:2px;user-select:none;
       pointer-events:${item.locked ? 'none' : 'auto'};
       cursor:${item.locked ? 'default' : 'move'};
       z-index:${item.zIndex || 0};`;
+
+    // Rotation-carrying inner wrapper — matches placed shapes/images
+    // (.pdfed-rot-inner). Only this (and its children, the border canvas +
+    // resize handles) ever receives the rotate() transform that
+    // pdfedPositionPlacedEl applies. It MUST be created and attached to
+    // `el` BEFORE pdfedPositionPlacedEl runs below: that function looks
+    // for `.pdfed-rot-inner` in the DOM to decide where the rotate()
+    // transform goes, and if it isn't there yet it falls back to rotating
+    // `el` itself — spinning every badge below (lock/arrange/opacity/
+    // color/delete) right along with it, upside down, the instant an
+    // already-rotated border is re-rendered fresh (e.g. every time it's
+    // locked or unlocked, which fully rebuilds this element). Keeping
+    // badges as direct children of `el` (never inside rotInner), combined
+    // with this ordering, is what keeps them upright, readable, and fixed
+    // in place no matter how the border is rotated or locked.
+    const rotInner = document.createElement('div');
+    rotInner.className = 'pdfed-rot-inner';
+    rotInner.style.cssText = `position:absolute;inset:0;box-sizing:border-box;
+      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
+      border-radius:2px;transform-origin:50% 50%;`;
+    el.appendChild(rotInner);
     pdfedPositionPlacedEl(el, item, pc);
 
     const canvasEl = document.createElement('canvas');
     canvasEl.style.cssText = `width:100%;height:100%;display:block;pointer-events:none;opacity:${pdfedGetOpacity(item)};`;
-    el.appendChild(canvasEl);
+    rotInner.appendChild(canvasEl);
     pdfedRedrawBorderCanvas(canvasEl, item);
 
     // Lock/unlock toggle badge, always interactive, even when the border itself is locked
@@ -21204,7 +21306,7 @@ function pdfedRenderPlacedBorders(idx) {
       const handles = {};
       ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].forEach(dir => {
         const rh = pdfedMakeImgResizeHandle(dir);
-        el.appendChild(rh);
+        rotInner.appendChild(rh);
         handles[dir] = rh;
       });
 
@@ -21422,6 +21524,541 @@ window.pdfedRenderPlacedBorders = pdfedRenderPlacedBorders;
 window.pdfedTogglePlacedBorderLock = pdfedTogglePlacedBorderLock;
 window.pdfedDeletePlacedBorder = pdfedDeletePlacedBorder;
 window.pdfedDuplicatePlacedBorder = pdfedDuplicatePlacedBorder;
+
+// ─── PLACED SHAPE LAYER (persistent, draggable, resizable, lockable) ───────
+// Lines, arrows, and every other shape drawn with the Shapes tool used to be
+// baked straight into the annotation canvas's pixels the instant you let go
+// of the mouse, same dead-on-arrival problem placed borders used to have:
+// no moving it afterwards, no resizing, no picking it back up if it landed
+// a few px off. This turns every shape into a first-class placed object,
+// exactly like placed borders, images, text, and tables, drag to move,
+// resize from any edge/corner, lock, delete, and it participates in the
+// same unified Arrange (front/back/forward/backward) stacking order.
+
+// Standalone (non-preview) shape renderer, draws one shape into a 2D
+// context sized to exactly the shape's own box (0,0 → w,h), same geometry
+// as the live drag-preview used to use, just detached from that closure so
+// it can also be called here and at export/thumbnail-bake time.
+function pdfedDrawShapeOnCtx(ctx, tool, color, size, x1, y1, x2, y2) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (tool === 'rect') {
+    ctx.beginPath();
+    ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+  } else if (tool === 'roundrect') {
+    pdfedTraceRoundRectStandalone(ctx, x1, y1, x2, y2, Math.min(Math.abs(x2 - x1), Math.abs(y2 - y1)) * 0.18 || 8);
+    ctx.stroke();
+  } else if (tool === 'circle') {
+    const rx = (x2 - x1) / 2, ry = (y2 - y1) / 2;
+    ctx.beginPath();
+    ctx.ellipse(x1 + rx, y1 + ry, Math.abs(rx), Math.abs(ry), 0, 0, 2 * Math.PI);
+    ctx.stroke();
+  } else if (tool === 'arrow') {
+    pdfedDrawArrowStandalone(ctx, x1, y1, x2, y2, size);
+  } else if (tool === 'dblarrow') {
+    pdfedDrawArrowStandalone(ctx, x1, y1, x2, y2, size, true);
+  } else if (tool === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  } else if (tool === 'triangle' || tool === 'diamond' || tool === 'pentagon' || tool === 'star' || tool === 'hexagon') {
+    pdfedTracePolygonStandalone(ctx, tool, x1, y1, x2, y2);
+    ctx.stroke();
+  }
+}
+
+function pdfedDrawArrowStandalone(ctx, x1, y1, x2, y2, size, doubleHeaded) {
+  const headLen = Math.max(size * 5, 20);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 7), y2 - headLen * Math.sin(angle - Math.PI / 7));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 7), y2 - headLen * Math.sin(angle + Math.PI / 7));
+  ctx.closePath();
+  ctx.fill();
+  if (doubleHeaded) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 + headLen * Math.cos(angle - Math.PI / 7), y1 + headLen * Math.sin(angle - Math.PI / 7));
+    ctx.lineTo(x1 + headLen * Math.cos(angle + Math.PI / 7), y1 + headLen * Math.sin(angle + Math.PI / 7));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function pdfedTraceRoundRectStandalone(ctx, x1, y1, x2, y2, r) {
+  const x = Math.min(x1, x2), y = Math.min(y1, y2);
+  const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.arcTo(x + w, y, x + w, y + rr, rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  ctx.lineTo(x + rr, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rr, rr);
+  ctx.lineTo(x, y + rr);
+  ctx.arcTo(x, y, x + rr, y, rr);
+  ctx.closePath();
+}
+
+function pdfedTracePolygonStandalone(ctx, tool, x1, y1, x2, y2) {
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+  const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+  let pts = [];
+  if (tool === 'triangle') {
+    pts = [[0, -1], [0.866, 0.5], [-0.866, 0.5]];
+  } else if (tool === 'diamond') {
+    pts = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  } else if (tool === 'pentagon' || tool === 'hexagon') {
+    const n = tool === 'pentagon' ? 5 : 6;
+    const startAngle = -Math.PI / 2;
+    for (let i = 0; i < n; i++) {
+      const a = startAngle + (i * 2 * Math.PI) / n;
+      pts.push([Math.cos(a), Math.sin(a)]);
+    }
+  } else if (tool === 'star') {
+    const n = 5;
+    const startAngle = -Math.PI / 2;
+    for (let i = 0; i < n * 2; i++) {
+      const a = startAngle + (i * Math.PI) / n;
+      const r = i % 2 === 0 ? 1 : 0.42;
+      pts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+  }
+  ctx.beginPath();
+  pts.forEach(([px, py], i) => {
+    const x = cx + px * rx, y = cy + py * ry;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+}
+
+// (Re)draws one placed shape's own little canvas element at its current box
+// size. `flipX`/`flipY` record which corner the original drag started from,
+// so a line or arrow keeps pointing the same way no matter how the box gets
+// resized afterwards (rect/circle/polygon shapes are symmetric and ignore
+// them). Called on first render and again on every resize step.
+function pdfedRedrawShapeCanvas(canvasEl, item) {
+  const w = Math.max(1, Math.round(item.w));
+  const h = Math.max(1, Math.round(item.h));
+  if (canvasEl.width !== w) canvasEl.width = w;
+  if (canvasEl.height !== h) canvasEl.height = h;
+  const ctx = canvasEl.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  const isDirectional = (item.tool === 'line' || item.tool === 'arrow' || item.tool === 'dblarrow');
+  const x1 = isDirectional && item.flipX ? w : 0;
+  const y1 = isDirectional && item.flipY ? h : 0;
+  const x2 = isDirectional && item.flipX ? 0 : w;
+  const y2 = isDirectional && item.flipY ? 0 : h;
+  pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, x1, y1, x2, y2);
+}
+
+// Re-renders all placed shapes for the given page as DOM overlay elements,
+// mirroring pdfedRenderPlacedBorders (same badges, same resize handles, same
+// z-index/opacity handling) so every drawn shape is a first-class placed
+// object right alongside images/text/tables/borders.
+function pdfedRenderPlacedShapes(idx) {
+  const layer = document.getElementById('pdfedPlacedShapesLayer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  const pg = pdfed.pages[idx];
+  if (pg) pdfedGetZOrderedItems(pg); // seeds zIndex on any legacy/missing items
+  const list = (pg && pg.placedShapes) || [];
+  const pc = document.getElementById('pdfedPageCanvas');
+  if (!pc || !pc.width) return;
+
+  list.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'pdfed-placed-shape' + (item.locked ? ' locked' : '');
+    el.dataset.id = item.id;
+    el.style.cssText = `position:absolute;box-sizing:border-box;
+      border-radius:2px;user-select:none;
+      pointer-events:${item.locked ? 'none' : 'auto'};
+      cursor:${item.locked ? 'default' : 'move'};
+      z-index:${item.zIndex || 0};`;
+
+    // Rotation-carrying inner wrapper — this and its children (the shape
+    // canvas + resize/rotate handles) receive the rotate() transform. The
+    // visible border now lives here too (not on `el`), so it turns right
+    // along with the shape instead of staying axis-aligned/frozen. The
+    // badge row below stays a direct child of `el` (never inside
+    // rotInner), so it still stays upright and fixed in place no matter
+    // how far the shape is rotated — including the moment it's created
+    // fresh (e.g. right after a lock/unlock, which fully rebuilds this
+    // element). MUST be created and attached BEFORE pdfedPositionPlacedEl
+    // runs below: that function looks for `.pdfed-rot-inner` to decide
+    // where to put the rotate() transform, and if it isn't in the DOM yet
+    // it falls back to rotating `el` itself — spinning the badge row
+    // upside down along with the shape the instant an already-rotated
+    // shape is re-rendered, e.g. every time it's locked or unlocked.
+    const rotInner = document.createElement('div');
+    rotInner.className = 'pdfed-rot-inner';
+    rotInner.style.cssText = `position:absolute;inset:0;box-sizing:border-box;
+      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
+      border-radius:2px;transform-origin:50% 50%;`;
+    el.appendChild(rotInner);
+    pdfedPositionPlacedEl(el, item, pc);
+
+    const canvasEl = document.createElement('canvas');
+    canvasEl.style.cssText = `width:100%;height:100%;display:block;pointer-events:none;opacity:${pdfedGetOpacity(item)};`;
+    rotInner.appendChild(canvasEl);
+    pdfedRedrawShapeCanvas(canvasEl, item);
+
+    // Every action badge lives in one non-rotating row, dim until hovered
+    // (see .pdfed-badge-row CSS), so it never spins with the shape.
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'pdfed-badge-row';
+    el.appendChild(badgeRow);
+
+    // Lock/unlock toggle badge, always interactive, even when the shape itself is locked
+    const lockBtn = document.createElement('button');
+    lockBtn.title = item.locked ? 'Unlock to move/resize' : 'Lock in place';
+    lockBtn.className = 'pdfed-badge-btn' + (item.locked ? ' is-locked' : '');
+    lockBtn.innerHTML = item.locked
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.45-2"/></svg>';
+    lockBtn.onclick = (ev) => { ev.stopPropagation(); pdfedTogglePlacedShapeLock(idx, item.id); };
+
+    if (!item.locked) {
+      // Bring Forward, one-click step toward the front (unified z-order)
+      const fwdBtn = document.createElement('button');
+      fwdBtn.title = 'Bring forward';
+      fwdBtn.className = 'pdfed-badge-btn';
+      fwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>';
+      fwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('shape', idx, item.id, 1); };
+
+      // Send Backward, one-click step toward the back
+      const bwdBtn = document.createElement('button');
+      bwdBtn.title = 'Send backward';
+      bwdBtn.className = 'pdfed-badge-btn';
+      bwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      bwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('shape', idx, item.id, -1); };
+
+      // Arrange (layer order) badge, jump straight To Front / To Back
+      const arrBtn = document.createElement('button');
+      arrBtn.title = 'Arrange, bring to front/back';
+      arrBtn.className = 'pdfed-badge-btn';
+      arrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+      arrBtn.onclick = (ev) => pdfedOpenArrangeMenu(ev, 'shape', idx, item.id);
+
+      // Opacity badge, opens the shared opacity popover for this shape
+      const opBtn = document.createElement('button');
+      opBtn.title = 'Opacity';
+      opBtn.className = 'pdfed-badge-btn pdfed-opacity-btn';
+      opBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
+      opBtn.onclick = (ev) => pdfedOpenOpacityPopover(ev, 'shape', idx, item.id);
+
+      // Delete button, only available while unlocked
+      const delBtn = document.createElement('button');
+      delBtn.title = 'Remove shape';
+      delBtn.className = 'pdfed-badge-btn is-danger';
+      delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+      delBtn.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePlacedShape(idx, item.id); };
+
+      // Flex order = left-to-right visual order, matching the original
+      // absolute-offset layout: opacity, forward, backward, arrange, delete,
+      // then lock rightmost.
+      badgeRow.appendChild(opBtn); badgeRow.appendChild(fwdBtn); badgeRow.appendChild(bwdBtn);
+      badgeRow.appendChild(arrBtn); badgeRow.appendChild(delBtn); badgeRow.appendChild(lockBtn);
+
+      const handles = {};
+      ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].forEach(dir => {
+        const rh = pdfedMakeImgResizeHandle(dir);
+        rotInner.appendChild(rh);
+        handles[dir] = rh;
+      });
+      const rotWrap = pdfedMakeRotateHandle();
+      rotInner.appendChild(rotWrap);
+      handles.rotate = rotWrap.querySelector('.pdfed-rotate-handle');
+
+      pdfedAttachPlacedShapeDragHandlers(el, item, idx, handles, canvasEl);
+    } else {
+      badgeRow.appendChild(lockBtn);
+    }
+
+    layer.appendChild(el);
+  });
+}
+
+// Drag/resize handling for a placed shape, same smart-snap-to-page/other-
+// objects behavior as placed borders/images, plus a live canvas redraw on
+// every resize step so lines/arrows/polygons always look right at the new
+// size instead of a stretched bitmap.
+function pdfedAttachPlacedShapeDragHandlers(el, item, idx, handles, canvasEl) {
+  let dragging = false, resizing = false, resizeDir = null;
+  let ox = 0, oy = 0, startRect = null;
+  let startX = 0, startY = 0, snapTargets = null;
+  let edgeLockedX = false, edgeLockedY = false;
+  let rotating = false, centerX = 0, centerY = 0, prevAngle = 0;
+  const pc = document.getElementById('pdfedPageCanvas');
+  const SNAP = 10; // canvas-px snap threshold, same as placed images/text/borders
+
+  el.addEventListener('mousedown', (e) => {
+    if (item.locked) return;
+    const dir = e.target && e.target.dataset ? e.target.dataset.dir : null;
+    if (dir === 'rotate' && handles.rotate === e.target) {
+      rotating = true;
+      const rect = el.getBoundingClientRect();
+      centerX = rect.left + rect.width / 2;
+      centerY = rect.top + rect.height / 2;
+      prevAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+      document.body.style.cursor = PDFED_ROTATE_CURSOR;
+      document.body.style.userSelect = 'none';
+      el.style.willChange = 'transform';
+      handles.rotate.classList.add('is-rotating');
+      handles.rotate.style.transform = 'scale(1.15)';
+      pdfedShowRotateBadge(e.clientX, e.clientY, item.rotation || 0, false);
+    } else if (dir && handles[dir] === e.target) {
+      resizing = true; resizeDir = dir;
+      ox = e.clientX; oy = e.clientY;
+      startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
+      snapTargets = pdfedCollectSnapTargets(item.id);
+      edgeLockedX = false; edgeLockedY = false;
+    } else if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+      dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
+      snapTargets = pdfedCollectSnapTargets(item.id);
+    } else { return; }
+    document.querySelectorAll('.pdfed-placed-shape.selected').forEach(n => n.classList.remove('selected'));
+    el.classList.add('selected');
+    e.preventDefault(); e.stopPropagation();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging && !resizing && !rotating) return;
+    const pcRect = pc.getBoundingClientRect();
+    const scale = pc.width / pcRect.width;
+    const guideV = document.getElementById('pdfedSmartGuideV');
+    const guideH = document.getElementById('pdfedSmartGuideH');
+    if (rotating) {
+      // Track the ANGULAR DELTA since the last frame (not since drag-start),
+      // and normalize it into (-180, 180] before applying it. atan2 wraps
+      // from -180° to +180° at the point directly opposite where the drag
+      // began, so measuring from drag-start would make rotation suddenly
+      // jump by ~360° the instant the pointer crosses that point. Measuring
+      // frame-to-frame and normalizing each small step keeps the turn smooth
+      // through any number of full spins.
+      const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+      let delta = angle - prevAngle;
+      delta = ((delta + 180) % 360 + 360) % 360 - 180;
+      const newRot = (item.rotation || 0) + delta;
+      const normalizedRot = ((newRot % 360) + 360) % 360;
+      const snap = pdfedSnapRotationAngle(normalizedRot, e.shiftKey);
+      item.rotation = snap.angle;
+      prevAngle = angle;
+      pdfedPositionPlacedEl(el, item, pc);
+      pdfedShowRotateBadge(e.clientX, e.clientY, item.rotation, snap.snapped);
+      return;
+    }
+    if (dragging) {
+      let nx = startX + (e.clientX - ox) * scale;
+      let ny = startY + (e.clientY - oy) * scale;
+
+      const bestX = pdfedBestSnap([nx, nx + item.w / 2, nx + item.w], (snapTargets || { x: [] }).x, SNAP);
+      const bestY = pdfedBestSnap([ny, ny + item.h / 2, ny + item.h], (snapTargets || { y: [] }).y, SNAP);
+      if (bestX) nx += bestX.delta;
+      if (bestY) ny += bestY.delta;
+      if (pdfed.snapGrid) {
+        if (!bestX) nx = pdfedSnapToGrid(nx);
+        if (!bestY) ny = pdfedSnapToGrid(ny);
+      }
+      if (guideV) {
+        guideV.style.display = bestX ? 'block' : 'none';
+        if (bestX) guideV.style.left = (bestX.at * (pdfed.zoom || 1)) + 'px';
+      }
+      if (guideH) {
+        guideH.style.display = bestY ? 'block' : 'none';
+        if (bestY) guideH.style.top = (bestY.at * (pdfed.zoom || 1)) + 'px';
+      }
+
+      item.x = nx; item.y = ny;
+      // Hard clamp: a shape can never be dragged off the page.
+      item.x = Math.max(0, Math.min(item.x, pc.width - item.w));
+      item.y = Math.max(0, Math.min(item.y, pc.height - item.h));
+      pdfedPositionPlacedEl(el, item, pc);
+    } else if (resizing) {
+      let dx = (e.clientX - ox) * scale, dy = (e.clientY - oy) * scale;
+      // Re-express the screen-space delta in the shape's own local axes when
+      // rotated, so a corner drag resizes along that corner's visual edge
+      // instead of the (now-misaligned) screen axes — see pdfedUnrotateDelta.
+      ({ dx, dy } = pdfedUnrotateDelta(dx, dy, item.rotation));
+      const r = pdfedResizeRect(resizeDir, startRect, dx, dy, 12, e.shiftKey);
+
+      const north = resizeDir.indexOf('n') !== -1, south = resizeDir.indexOf('s') !== -1;
+      const west  = resizeDir.indexOf('w') !== -1, east  = resizeDir.indexOf('e') !== -1;
+      const targets = snapTargets || { x: [], y: [] };
+      let snapAtX = null, snapAtY = null;
+
+      if (west) {
+        const right = r.x + r.w;
+        const best = pdfedBestSnap([r.x], targets.x, SNAP);
+        if (best) { r.x += best.delta; r.w = Math.max(12, right - r.x); snapAtX = best.at; edgeLockedX = true; }
+      } else if (east) {
+        const right = r.x + r.w;
+        const best = pdfedBestSnap([right], targets.x, SNAP);
+        if (best) { r.w = Math.max(12, (right + best.delta) - r.x); snapAtX = best.at; edgeLockedX = true; }
+      }
+      if (north) {
+        const bottom = r.y + r.h;
+        const best = pdfedBestSnap([r.y], targets.y, SNAP);
+        if (best) { r.y += best.delta; r.h = Math.max(12, bottom - r.y); snapAtY = best.at; edgeLockedY = true; }
+      } else if (south) {
+        const bottom = r.y + r.h;
+        const best = pdfedBestSnap([bottom], targets.y, SNAP);
+        if (best) { r.h = Math.max(12, (bottom + best.delta) - r.y); snapAtY = best.at; edgeLockedY = true; }
+      }
+
+      if (guideV) {
+        guideV.style.display = snapAtX !== null ? 'block' : 'none';
+        if (snapAtX !== null) guideV.style.left = (snapAtX * (pdfed.zoom || 1)) + 'px';
+      }
+      if (guideH) {
+        guideH.style.display = snapAtY !== null ? 'block' : 'none';
+        if (snapAtY !== null) guideH.style.top = (snapAtY * (pdfed.zoom || 1)) + 'px';
+      }
+
+      if (west) {
+        const right = r.x + r.w;
+        r.x = Math.max(0, r.x);
+        r.w = right - r.x;
+        if (r.x === 0) edgeLockedX = true;
+      } else if (east) {
+        const right = Math.min(pc.width, r.x + r.w);
+        r.w = right - r.x;
+        if (right === pc.width) edgeLockedX = true;
+      }
+      if (north) {
+        const bottom = r.y + r.h;
+        r.y = Math.max(0, r.y);
+        r.h = bottom - r.y;
+        if (r.y === 0) edgeLockedY = true;
+      } else if (south) {
+        const bottom = Math.min(pc.height, r.y + r.h);
+        r.h = bottom - r.y;
+        if (bottom === pc.height) edgeLockedY = true;
+      }
+      r.w = Math.max(12, r.w);
+      r.h = Math.max(12, r.h);
+
+      item.x = r.x; item.y = r.y; item.w = r.w; item.h = r.h;
+      pdfedPositionPlacedEl(el, item, pc);
+      pdfedRedrawShapeCanvas(canvasEl, item);
+    }
+  });
+  document.addEventListener('mouseup', () => {
+    if (resizing && pdfed.snapGrid) {
+      if (!edgeLockedX) {
+        const newX = pdfedSnapToGrid(item.x);
+        item.w = Math.max(12, pdfedSnapToGrid(item.x + item.w) - newX);
+        item.x = newX;
+      }
+      if (!edgeLockedY) {
+        const newY = pdfedSnapToGrid(item.y);
+        item.h = Math.max(12, pdfedSnapToGrid(item.y + item.h) - newY);
+        item.y = newY;
+      }
+      pdfedPositionPlacedEl(el, item, pc);
+      pdfedRedrawShapeCanvas(canvasEl, item);
+    }
+    if (dragging || resizing || rotating) pdfedMarkModified(idx);
+    if (rotating) {
+      pdfedHideRotateBadge();
+      el.style.willChange = '';
+      document.body.style.userSelect = '';
+      if (handles.rotate) { handles.rotate.classList.remove('is-rotating'); handles.rotate.style.transform = ''; }
+    }
+    dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
+    edgeLockedX = false; edgeLockedY = false;
+    rotating = false; centerX = 0; centerY = 0; prevAngle = 0;
+    document.body.style.cursor = '';
+    const guideV = document.getElementById('pdfedSmartGuideV');
+    const guideH = document.getElementById('pdfedSmartGuideH');
+    if (guideV) guideV.style.display = 'none';
+    if (guideH) guideH.style.display = 'none';
+  });
+}
+
+function pdfedTogglePlacedShapeLock(idx, id) {
+  const list = (pdfed.pages[idx] && pdfed.pages[idx].placedShapes) || [];
+  const item = list.find(i => i.id === id);
+  if (!item) return;
+  item.locked = !item.locked;
+  pdfedRenderPlacedShapes(idx);
+  toast(item.locked ? 'Shape locked, unlock to move it' : 'Shape unlocked, drag to move', 'info');
+}
+
+function pdfedDeletePlacedShape(idx, id) {
+  const pg = pdfed.pages[idx];
+  if (!pg || !pg.placedShapes) return;
+  pg.placedShapes = pg.placedShapes.filter(i => i.id !== id);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedShapes(idx);
+  toast('Shape removed', 'success');
+}
+
+function pdfedDuplicatePlacedShape(idx, id) {
+  const pg = pdfed.pages[idx];
+  const list = (pg && pg.placedShapes) || [];
+  const item = list.find(i => i.id === id);
+  if (!item) return;
+  const clone = Object.assign({}, item, { id: 'pshp_' + (++pdfedPlacedShapeSeq), x: item.x + 18, y: item.y + 18, locked: false, zIndex: pdfedNextZ(pg) });
+  pg.placedShapes.push(clone);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedShapes(idx);
+  toast('Shape duplicated', 'success');
+}
+
+// Turns whatever the person just drew with the Shapes tool (rect, circle,
+// line, arrow, star, etc.) into a persistent placed object instead of baked
+// pixels, so it's draggable/resizable/lockable from the moment it's drawn.
+let pdfedPlacedShapeSeq = 0;
+function pdfedCommitPlacedShape(idx, tool) {
+  const pg = pdfed.pages[idx];
+  if (!pg) return;
+  const x1 = pdfedAnnotState.startX, y1 = pdfedAnnotState.startY;
+  const x2 = pdfedAnnotState.lastX,  y2 = pdfedAnnotState.lastY;
+  const MIN = 12; // a stray tap/click still creates a small, visible, grabbable object
+  let w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  if (w < MIN) w = MIN;
+  if (h < MIN) h = MIN;
+  if (!pg.placedShapes) pg.placedShapes = [];
+  pg.placedShapes.push({
+    id: 'pshp_' + (++pdfedPlacedShapeSeq),
+    tool: tool,
+    color: pdfedAnnotState.color,
+    size: pdfedAnnotState.size,
+    opacity: pdfedAnnotState.opacity,
+    flipX: x2 < x1,
+    flipY: y2 < y1,
+    x: Math.min(x1, x2), y: Math.min(y1, y2), w: w, h: h,
+    locked: false,
+    zIndex: pdfedNextZ(pg)
+  });
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedShapes(idx);
+  const label = (typeof pdfedShapeLabels !== 'undefined' && pdfedShapeLabels[tool]) ? pdfedShapeLabels[tool] : 'Shape';
+  toast(label + ' added — drag to move, resize from any edge/corner', 'success');
+  // Smooth, professional flow: once the shape is placed it's already saved
+  // (pushed into pg.placedShapes above), so drop straight back into the Hand
+  // tool instead of staying primed to draw another shape. That means the very
+  // next click on the canvas selects/drags the shape you just made, instead
+  // of accidentally starting a new one on top of it.
+  pdfedActivateHand();
+}
+
+window.pdfedRenderPlacedShapes = pdfedRenderPlacedShapes;
+window.pdfedTogglePlacedShapeLock = pdfedTogglePlacedShapeLock;
+window.pdfedDeletePlacedShape = pdfedDeletePlacedShape;
+window.pdfedDuplicatePlacedShape = pdfedDuplicatePlacedShape;
 
 // ─── LIVE BORDER COLOR ──────────────────────────────────────────────────────
 // Two color entry points, both fully "live" (repaint on every input event,
@@ -22105,6 +22742,15 @@ function pdfedAnnotInit() {
     pdfedAnnotState.lastY = pos.y;
     pdfedAnnotState.minX = pos.x; pdfedAnnotState.minY = pos.y;
     pdfedAnnotState.maxX = pos.x; pdfedAnnotState.maxY = pos.y;
+    // Smoothing state for the draw/eraser/highlight freehand tools: rawLast
+    // feeds the low-pass filter (absorbs hand-tremor jitter), smoothPtA/
+    // smoothMid are the running control-point/anchor pair for the
+    // incremental quadratic-curve-through-midpoints chain drawn in onMove
+    // (same technique as the signature pad's pdfedSigRedraw, just drawn
+    // incrementally instead of by redrawing the whole stroke every frame).
+    pdfedAnnotState.rawLast = { x: pos.x, y: pos.y };
+    pdfedAnnotState.smoothPtA = { x: pos.x, y: pos.y };
+    pdfedAnnotState.smoothMid = { x: pos.x, y: pos.y };
 
     if (pdfedAnnotState.tool === 'addtext') {
       // click to place a text box
@@ -22133,52 +22779,65 @@ function pdfedAnnotInit() {
     pdfedAnnotState.minY = Math.min(pdfedAnnotState.minY, pos.y);
     pdfedAnnotState.maxX = Math.max(pdfedAnnotState.maxX, pos.x);
     pdfedAnnotState.maxY = Math.max(pdfedAnnotState.maxY, pos.y);
+    // Shape tools don't hit the draw/eraser/highlight branches below, so
+    // still track the raw live pointer position here — pdfedCommitPlacedShape
+    // needs the exact release point at mouseup to build the shape's box.
+    pdfedAnnotState.lastX = pos.x;
+    pdfedAnnotState.lastY = pos.y;
     const ac = pdfedGetAnnotCanvas();
     const ctx = ac.getContext('2d');
     const tool = pdfedAnnotState.tool;
     const color = pdfedAnnotState.color;
     const size = pdfedAnnotState.size;
 
-    if (tool === 'draw') {
+    if (tool === 'draw' || tool === 'eraser' || tool === 'highlight') {
+      // Low-pass filter toward the new raw point (same 0.35/0.65 blend the
+      // signature pad uses) so small hand tremors get absorbed instead of
+      // drawn, then extend the running quadratic-curve-through-midpoints
+      // chain by one segment: from the last drawn midpoint, curving through
+      // the previous point, to the new midpoint between it and this point.
+      // This is what actually makes the stroke look like an ink line instead
+      // of a series of straight, faceted segments between mousemove samples.
+      const rawLast = pdfedAnnotState.rawLast;
+      const filtered = { x: rawLast.x * 0.35 + pos.x * 0.65, y: rawLast.y * 0.35 + pos.y * 0.65 };
+      pdfedAnnotState.rawLast = { x: pos.x, y: pos.y };
+      const ptA = pdfedAnnotState.smoothPtA;
+      const midPrev = pdfedAnnotState.smoothMid;
+      const midNew = { x: (ptA.x + filtered.x) / 2, y: (ptA.y + filtered.y) / 2 };
+
       ctx.beginPath();
-      ctx.moveTo(pdfedAnnotState.lastX, pdfedAnnotState.lastY);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = pdfedAnnotState.opacity;
-      ctx.lineWidth = size;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      pdfedAnnotState.lastX = pos.x;
-      pdfedAnnotState.lastY = pos.y;
-    } else if (tool === 'eraser') {
-      // Erase by drawing in destination-out composite
-      ctx.save();
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.beginPath();
-      ctx.moveTo(pdfedAnnotState.lastX, pdfedAnnotState.lastY);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.lineWidth = size * 5; // eraser is wider than pen
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(0,0,0,1)';
-      ctx.stroke();
-      ctx.restore();
-      pdfedAnnotState.lastX = pos.x;
-      pdfedAnnotState.lastY = pos.y;
-    } else if (tool === 'highlight') {
-      ctx.beginPath();
-      ctx.moveTo(pdfedAnnotState.lastX, pdfedAnnotState.lastY);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = Math.min(0.5, pdfedAnnotState.opacity * 0.5);
-      ctx.lineWidth = Math.max(size * 4, 20);
-      ctx.lineCap = 'square';
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      pdfedAnnotState.lastX = pos.x;
-      pdfedAnnotState.lastY = pos.y;
+      ctx.moveTo(midPrev.x, midPrev.y);
+      ctx.quadraticCurveTo(ptA.x, ptA.y, midNew.x, midNew.y);
+      if (tool === 'draw') {
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = pdfedAnnotState.opacity;
+        ctx.lineWidth = size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (tool === 'eraser') {
+        // Erase by drawing in destination-out composite
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = size * 5; // eraser is wider than pen
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // highlight
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = Math.min(0.5, pdfedAnnotState.opacity * 0.5);
+        ctx.lineWidth = Math.max(size * 4, 20);
+        ctx.lineCap = 'square';
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      pdfedAnnotState.smoothMid = midNew;
+      pdfedAnnotState.smoothPtA = filtered;
     } else {
       // Shape tools: restore snapshot then draw preview
       if (previewSnapshot) {
@@ -22200,6 +22859,66 @@ function pdfedAnnotInit() {
     if (!pdfedAnnotState.drawing) return;
     pdfedAnnotState.drawing = false;
     previewSnapshot = null;
+    const tool = pdfedAnnotState.tool;
+    const idx = pdfed.active;
+
+    if ((tool === 'draw' || tool === 'eraser' || tool === 'highlight') && pdfedAnnotState.smoothPtA) {
+      // The incremental quadratic chain in onMove always stops one midpoint
+      // short of the actual last point (by design, so the curve stays
+      // smooth) — finish it off with one straight segment out to the real
+      // final point, same as the signature pad's closing ctx.lineTo.
+      const ac = pdfedGetAnnotCanvas();
+      const ctx = ac.getContext('2d');
+      const mid = pdfedAnnotState.smoothMid, last = pdfedAnnotState.smoothPtA;
+      ctx.beginPath();
+      ctx.moveTo(mid.x, mid.y);
+      ctx.lineTo(last.x, last.y);
+      if (tool === 'draw') {
+        ctx.strokeStyle = pdfedAnnotState.color;
+        ctx.globalAlpha = pdfedAnnotState.opacity;
+        ctx.lineWidth = pdfedAnnotState.size;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (tool === 'eraser') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = pdfedAnnotState.size * 5;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.strokeStyle = pdfedAnnotState.color;
+        ctx.globalAlpha = Math.min(0.5, pdfedAnnotState.opacity * 0.5);
+        ctx.lineWidth = Math.max(pdfedAnnotState.size * 4, 20);
+        ctx.lineCap = 'square';
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    if (pdfedShapeTools.includes(tool) && idx >= 0) {
+      // Shapes (line, arrow, rect, circle, polygons, etc.) are placed objects
+      // now, not baked pixels — undo the placeholder pdfedAnnotPushUndo()
+      // pushed in onDown by restoring the annotation canvas to exactly how
+      // it looked before this drag's live preview was drawn onto it, then
+      // add the shape as its own draggable/resizable/lockable object.
+      const ac = pdfedGetAnnotCanvas();
+      const ctx = ac.getContext('2d');
+      const stack = pdfedStrokesFor(idx);
+      const pre = stack.length ? stack.pop() : null;
+      if (pre) {
+        const img = new Image();
+        img.onload = () => { ctx.clearRect(0, 0, ac.width, ac.height); ctx.drawImage(img, 0, 0); };
+        img.src = pre;
+      } else {
+        ctx.clearRect(0, 0, ac.width, ac.height);
+      }
+      pdfedCommitPlacedShape(idx, tool);
+      return;
+    }
+
     if (pdfed.active >= 0) pdfedMarkModified(pdfed.active);
 
     // Smart Redact: a hand-dragged box is rarely pixel-perfect over the
@@ -22219,7 +22938,6 @@ function pdfedAnnotInit() {
 
     // Save final state into undo stack
     const ac = pdfedGetAnnotCanvas();
-    const idx = pdfed.active;
     const stack = pdfedStrokesFor(idx);
     // pop the pre-start snapshot we pushed in onDown, replace with final
     if (stack.length > 0) stack.pop();
@@ -24206,56 +24924,69 @@ function pdfedRenderPlacedTexts(idx) {
     el.appendChild(content);
     pdfedPositionPlacedTextEl(el, item);
 
-    // Lock/unlock badge, always visible while locked (it's the only way back in),
-    // otherwise just another piece of chrome that appears on select.
+    // Lock/unlock badge, always visible while locked (it's the only way back in).
+    // While unlocked it moves into the fading badgeRow below with the rest
+    // of the action badges instead of being its own standalone piece of chrome.
     const lockBtn = document.createElement('button');
     lockBtn.title = item.locked ? 'Unlock to move/edit' : 'Lock in place';
-    lockBtn.className = 'pdfed-badge-btn' + (item.locked ? ' is-locked' : ' ptxt-chrome');
+    lockBtn.className = 'pdfed-badge-btn' + (item.locked ? ' is-locked' : '');
     lockBtn.style.cssText = `position:absolute;top:-8px;right:16px;z-index:2;${item.locked ? 'pointer-events:auto;' : ''}`;
     lockBtn.innerHTML = item.locked
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.45-2"/></svg>';
     lockBtn.onclick = (ev) => { ev.stopPropagation(); pdfedTogglePlacedTextLock(idx, item.id); };
-    el.appendChild(lockBtn);
 
-    if (!item.locked) {
+    if (item.locked) {
+      el.appendChild(lockBtn);
+    } else {
+      // Badge row: the same "dim until hovered" toolbar feel used by
+      // placed shapes/images (.pdfed-badge-row) instead of a flat
+      // show/hide — every action badge here recedes together while just
+      // selected, then brightens together as one strip the moment the
+      // pointer reaches any button in it (see .ptxt-badge-row CSS).
+      const badgeRow = document.createElement('div');
+      badgeRow.className = 'ptxt-chrome ptxt-badge-row';
+      badgeRow.style.cssText = `position:absolute;inset:0;z-index:2;`;
+      el.appendChild(badgeRow);
+      badgeRow.appendChild(lockBtn);
+
       // Bring Forward, one-click step toward the front (unified z-order, so
       // it can step past an image or table too, not just another text box).
       // Mirrors the badge already on placed images (pdfedRenderPlacedImages).
       const fwdBtn = document.createElement('button');
       fwdBtn.title = 'Bring forward';
-      fwdBtn.className = 'pdfed-badge-btn ptxt-chrome';
-      fwdBtn.style.cssText = `position:absolute;top:-8px;right:100px;z-index:2;`;
+      fwdBtn.className = 'pdfed-badge-btn';
+      fwdBtn.style.cssText = `position:absolute;top:-8px;right:100px;`;
       fwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>';
       fwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('text', idx, item.id, 1); };
-      el.appendChild(fwdBtn);
+      badgeRow.appendChild(fwdBtn);
 
       // Send Backward, one-click step toward the back
       const bwdBtn = document.createElement('button');
       bwdBtn.title = 'Send backward';
-      bwdBtn.className = 'pdfed-badge-btn ptxt-chrome';
-      bwdBtn.style.cssText = `position:absolute;top:-8px;right:72px;z-index:2;`;
+      bwdBtn.className = 'pdfed-badge-btn';
+      bwdBtn.style.cssText = `position:absolute;top:-8px;right:72px;`;
       bwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
       bwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('text', idx, item.id, -1); };
-      el.appendChild(bwdBtn);
+      badgeRow.appendChild(bwdBtn);
 
       // Arrange (layer order) badge, jump straight To Front / To Back
       const arrBtn = document.createElement('button');
       arrBtn.title = 'Arrange, bring to front/back';
-      arrBtn.className = 'pdfed-badge-btn ptxt-chrome';
-      arrBtn.style.cssText = `position:absolute;top:-8px;right:44px;z-index:2;`;
+      arrBtn.className = 'pdfed-badge-btn';
+      arrBtn.style.cssText = `position:absolute;top:-8px;right:44px;`;
       arrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
       arrBtn.onclick = (ev) => pdfedOpenArrangeMenu(ev, 'text', idx, item.id);
-      el.appendChild(arrBtn);
+      badgeRow.appendChild(arrBtn);
 
       // Delete button
       const delBtn = document.createElement('button');
       delBtn.title = 'Remove text';
-      delBtn.className = 'pdfed-badge-btn is-danger ptxt-chrome';
-      delBtn.style.cssText = `position:absolute;top:-8px;right:-12px;z-index:2;`;
+      delBtn.className = 'pdfed-badge-btn is-danger';
+      delBtn.style.cssText = `position:absolute;top:-8px;right:-12px;`;
       delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
       delBtn.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePlacedText(idx, item.id); };
-      el.appendChild(delBtn);
+      badgeRow.appendChild(delBtn);
 
       // Canva-style resize handles: the 4 corners uniformly scale the whole
       // text block (font size + box width move together); the 2 side handles
@@ -26605,11 +27336,31 @@ function pdfedRenderPlacedImages(idx) {
     el.className = 'pdfed-placed-img' + (item.locked ? ' locked' : '');
     el.dataset.id = item.id;
     el.style.cssText = `position:absolute;box-sizing:border-box;
-      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
       border-radius:4px;user-select:none;
       pointer-events:${item.locked ? 'none' : 'auto'};
       cursor:${item.locked ? 'default' : 'move'};
       z-index:${item.zIndex || 0};`;
+
+    // Rotation-carrying inner wrapper: this (and its children, the picture +
+    // resize/rotate handles) receives the rotate() transform. The visible
+    // border now lives here too (not on `el`), so it turns right along with
+    // the picture instead of staying frozen/axis-aligned. The badge row
+    // below stays a direct child of `el`, so it still stays upright and
+    // axis-aligned no matter how the image is spun — including the moment
+    // it's created fresh (e.g. right after a lock/unlock, which fully
+    // rebuilds this element). MUST be created and attached BEFORE
+    // pdfedPositionPlacedEl runs below: that function looks for
+    // `.pdfed-rot-inner` to decide where to put the rotate() transform, and
+    // if it isn't in the DOM yet it falls back to rotating `el` itself —
+    // spinning the badge row (lock/opacity/arrange/delete) upside down
+    // along with the picture the instant an already-rotated image is
+    // re-rendered, e.g. every time it's locked or unlocked.
+    const rotInner = document.createElement('div');
+    rotInner.className = 'pdfed-rot-inner';
+    rotInner.style.cssText = `position:absolute;inset:0;box-sizing:border-box;
+      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
+      border-radius:4px;transform-origin:50% 50%;`;
+    el.appendChild(rotInner);
     pdfedPositionPlacedEl(el, item, pc);
 
     const img = document.createElement('img');
@@ -26622,18 +27373,23 @@ function pdfedRenderPlacedImages(idx) {
     // what you actually see. Filling the box means the handles are always
     // flush against the visible picture, true edge-to-edge.
     img.style.cssText = `width:100%;height:100%;object-fit:fill;pointer-events:none;display:block;opacity:${pdfedGetOpacity(item)};`;
-    el.appendChild(img);
+    rotInner.appendChild(img);
+
+    // Every action badge lives in one non-rotating row, dim until hovered
+    // (see .pdfed-badge-row CSS) so it never fights the rotated picture for
+    // attention and never itself rotates along with it.
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'pdfed-badge-row';
+    el.appendChild(badgeRow);
 
     // Lock/unlock toggle badge, always interactive, even when image itself is locked
     const lockBtn = document.createElement('button');
     lockBtn.title = item.locked ? 'Unlock to move/resize' : 'Lock in place';
     lockBtn.className = 'pdfed-badge-btn' + (item.locked ? ' is-locked' : '');
-    lockBtn.style.cssText = `position:absolute;top:4px;right:4px;pointer-events:auto;z-index:2;`;
     lockBtn.innerHTML = item.locked
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 7.45-2"/></svg>';
     lockBtn.onclick = (ev) => { ev.stopPropagation(); pdfedTogglePlacedLockByRef(idx, item); };
-    el.appendChild(lockBtn);
 
     if (!item.locked) {
       // Bring Forward, one-click step toward the front (unified z-order,
@@ -26641,37 +27397,29 @@ function pdfedRenderPlacedImages(idx) {
       const fwdBtn = document.createElement('button');
       fwdBtn.title = 'Bring forward';
       fwdBtn.className = 'pdfed-badge-btn';
-      fwdBtn.style.cssText = `position:absolute;top:4px;right:116px;pointer-events:auto;z-index:2;`;
       fwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>';
       fwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('image', idx, item.id, 1); };
-      el.appendChild(fwdBtn);
 
       // Send Backward, one-click step toward the back
       const bwdBtn = document.createElement('button');
       bwdBtn.title = 'Send backward';
       bwdBtn.className = 'pdfed-badge-btn';
-      bwdBtn.style.cssText = `position:absolute;top:4px;right:88px;pointer-events:auto;z-index:2;`;
       bwdBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
       bwdBtn.onclick = (ev) => { ev.stopPropagation(); pdfedReorderPlacedStep('image', idx, item.id, -1); };
-      el.appendChild(bwdBtn);
 
       // Arrange (layer order) badge, jump straight To Front / To Back
       const arrBtn = document.createElement('button');
       arrBtn.title = 'Arrange, bring to front/back';
       arrBtn.className = 'pdfed-badge-btn';
-      arrBtn.style.cssText = `position:absolute;top:4px;right:60px;pointer-events:auto;z-index:2;`;
       arrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
       arrBtn.onclick = (ev) => pdfedOpenArrangeMenu(ev, 'image', idx, item.id);
-      el.appendChild(arrBtn);
 
       // Opacity badge, opens the shared opacity popover for this image
       const opBtn = document.createElement('button');
       opBtn.title = 'Opacity';
       opBtn.className = 'pdfed-badge-btn pdfed-opacity-btn';
-      opBtn.style.cssText = `position:absolute;top:4px;right:144px;pointer-events:auto;z-index:2;`;
       opBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
       opBtn.onclick = (ev) => pdfedOpenOpacityPopover(ev, 'image', idx, item.id);
-      el.appendChild(opBtn);
 
       // Reshape badge, opens the Image Reshaper (circle/hexagon/star crop +
       // optional gold/silver/graphite bevel) directly on this placed image,
@@ -26681,10 +27429,8 @@ function pdfedRenderPlacedImages(idx) {
       const rshBtn = document.createElement('button');
       rshBtn.title = 'Reshape image (Premium)';
       rshBtn.className = 'pdfed-badge-btn is-premium';
-      rshBtn.style.cssText = `position:absolute;top:4px;right:172px;pointer-events:auto;z-index:2;`;
       rshBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg>';
       rshBtn.onclick = (ev) => openReshapeForPlaced(idx, item, ev);
-      el.appendChild(rshBtn);
 
       // Fill Page badge, one click stretches/repositions this image to
       // (0,0)-(page width, page height) — true edge-to-edge, no white
@@ -26694,28 +27440,37 @@ function pdfedRenderPlacedImages(idx) {
       const fillBtn = document.createElement('button');
       fillBtn.title = 'Fill page, edge to edge';
       fillBtn.className = 'pdfed-badge-btn';
-      fillBtn.style.cssText = `position:absolute;top:4px;right:200px;pointer-events:auto;z-index:2;`;
       fillBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
       fillBtn.onclick = (ev) => { ev.stopPropagation(); pdfedFillPageByRef(idx, item, pc); };
-      el.appendChild(fillBtn);
 
       // Delete button, only available while unlocked
       const delBtn = document.createElement('button');
       delBtn.title = 'Remove image';
       delBtn.className = 'pdfed-badge-btn is-danger';
-      delBtn.style.cssText = `position:absolute;top:4px;right:32px;pointer-events:auto;z-index:2;`;
       delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
       delBtn.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePlacedImageByRef(idx, item); };
-      el.appendChild(delBtn);
+      // Flex order = left-to-right visual order (row is right-anchored via
+      // el's own top:4px;right:4px on .pdfed-badge-row), matching the
+      // original absolute-offset layout: fill, reshape, opacity, forward,
+      // backward, arrange, delete, then lock rightmost.
+      badgeRow.appendChild(fillBtn); badgeRow.appendChild(rshBtn); badgeRow.appendChild(opBtn);
+      badgeRow.appendChild(fwdBtn); badgeRow.appendChild(bwdBtn); badgeRow.appendChild(arrBtn);
+      badgeRow.appendChild(delBtn);
+      badgeRow.appendChild(lockBtn);
 
       const handles = {};
       ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].forEach(dir => {
         const rh = pdfedMakeImgResizeHandle(dir);
-        el.appendChild(rh);
+        rotInner.appendChild(rh);
         handles[dir] = rh;
       });
+      const rotWrap = pdfedMakeRotateHandle();
+      rotInner.appendChild(rotWrap);
+      handles.rotate = rotWrap.querySelector('.pdfed-rotate-handle');
 
       pdfedAttachPlacedDragHandlers(el, item, idx, handles);
+    } else {
+      badgeRow.appendChild(lockBtn);
     }
 
     layer.appendChild(el);
@@ -26737,7 +27492,27 @@ function pdfedPositionPlacedEl(el, item) {
   // rotation instead, applied here the same way a text box's rotation is
   // (see pdfedPositionPlacedTextEl), so it stays a real, draggable, lockable,
   // deletable image no matter how many times the page gets rotated.
-  el.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : '';
+  //
+  // The rotation transform is applied to an inner, unrotated-frame wrapper
+  // (.pdfed-rot-inner, holding only the picture/canvas + resize/rotate
+  // handles) rather than to `el` itself. `el`'s own box always stays exactly
+  // axis-aligned with the page, so the badge row (lock/arrange/opacity/
+  // delete/etc, a direct child of `el`) never spins or orbits as the object
+  // rotates — it stays fixed and upright, like a real design tool's toolbar.
+  const inner = el.querySelector(':scope > .pdfed-rot-inner');
+  if (inner) {
+    inner.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : '';
+    // Belt-and-suspenders: whenever the rot-inner wrapper exists, `el`
+    // itself must NEVER carry a rotation of its own — even a stale one
+    // left over from before the wrapper was attached — because `el` is
+    // also the direct parent of the non-rotating badge row (lock/arrange/
+    // opacity/delete). A rotated `el` spins that whole row upside down
+    // along with the picture instead of leaving it upright and fixed in
+    // place, which is the one thing the badge row exists to guarantee.
+    el.style.transform = '';
+  } else {
+    el.style.transform = item.rotation ? `rotate(${item.rotation}deg)` : ''; // legacy path: placed borders have no rotate handle/inner wrapper
+  }
 }
 
 // Generic anchored-resize math shared by every free-form image resize UI in
@@ -26780,6 +27555,13 @@ function pdfedResizeRect(dir, start, dx, dy, minSize, lockAspect) {
 // given direction — 'nw'/'ne'/'sw'/'se' (corners) or 'n'/'s'/'w'/'e' (edges).
 // Mirrors pdfedMakePtxtHandle's look/feel so text and image resizing behave
 // and feel identically across the whole editor.
+// Custom "rotate" cursor — two curved arrows, the same shape used by most
+// design tools (Canva/Figma/PowerPoint) for a free-rotate drag — shown
+// whenever the pointer is over a rotate handle, and kept on document.body
+// while actively dragging so it doesn't flicker back to the plain arrow if
+// the pointer moves off the handle mid-drag.
+const PDFED_ROTATE_CURSOR = "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyOCIgaGVpZ2h0PSIyOCIgdmlld0JveD0iMCAwIDI4IDI4Ij4KPGNpcmNsZSBjeD0iMTQiIGN5PSIxNCIgcj0iMTIiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuMDAxIi8+CjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDE0LDE0KSI+CiAgPHBhdGggZD0iTSAtOCAwIEEgOCA4IDAgMSAxIC0zLjIgNy4yIiBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMi42IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNIC04IDAgQSA4IDggMCAxIDEgLTMuMiA3LjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwb2x5Z29uIHBvaW50cz0iLTMuMiw3LjIgLTcuNiw3LjkgLTYuMiwzLjYiIGZpbGw9IiMwMDAiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIwLjYiLz4KICA8cGF0aCBkPSJNIDggMCBBIDggOCAwIDEgMSAzLjIgLTcuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjIuNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHBhdGggZD0iTSA4IDAgQSA4IDggMCAxIDEgMy4yIC03LjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjEiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwb2x5Z29uIHBvaW50cz0iMy4yLC03LjIgNy42LC03LjkgNi4yLC0zLjYiIGZpbGw9IiMwMDAiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIwLjYiLz4KPC9nPgo8L3N2Zz4=') 14 14, grab";
+
 function pdfedMakeImgResizeHandle(dir) {
   const cursors = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'n-resize', s: 's-resize', w: 'w-resize', e: 'e-resize' };
   const pos = {
@@ -26797,6 +27579,104 @@ function pdfedMakeImgResizeHandle(dir) {
     border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,0.35);opacity:0.95;
     pointer-events:auto;z-index:3;`;
   return h;
+}
+
+// Builds a Canva-style free-rotate handle: a small circular grip on a thin
+// stem above the box's top-center. Shared by placed images and placed
+// shapes (same look/feel as the resize handles). Returns the OUTER wrapper
+// (which holds the stem + the grip) — the caller appends the wrapper to the
+// item's element, but registers the inner grip (via .pdfed-rotate-handle)
+// as the actual drag target, since only the grip has pointer-events:auto.
+function pdfedMakeRotateHandle() {
+  const wrap = document.createElement('div');
+  wrap.className = 'pdfed-rotate-handle-wrap';
+  wrap.style.cssText = `position:absolute;top:-30px;left:50%;transform:translateX(-50%);
+    width:18px;height:30px;pointer-events:none;`;
+
+  const stem = document.createElement('div');
+  stem.style.cssText = `position:absolute;left:50%;top:14px;bottom:8px;width:1px;
+    margin-left:-0.5px;background:rgba(0,115,230,0.55);pointer-events:none;`;
+  wrap.appendChild(stem);
+
+  const h = document.createElement('div');
+  h.className = 'pdfed-rotate-handle';
+  h.dataset.dir = 'rotate';
+  h.title = 'Drag to rotate (hold Shift to snap to 15°)';
+  h.style.cssText = `position:absolute;top:0;left:50%;margin-left:-8px;width:16px;height:16px;
+    border-radius:50%;cursor:${PDFED_ROTATE_CURSOR};background:#fff;border:1.5px solid #0073E6;box-sizing:border-box;
+    box-shadow:0 1px 3px rgba(0,0,0,0.35);opacity:0.95;pointer-events:auto;z-index:3;
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .1s ease,box-shadow .1s ease,background .1s ease;`;
+  // pointer-events:none on the icon is what makes every pixel of the visible
+  // circle actually grab-able: without it, a click landing on the glyph
+  // itself (rather than the bare ring around it) reports the <svg>/<path> as
+  // e.target, which has no data-dir, so the mousedown handler's
+  // `handles.rotate === e.target` check fails and the app starts a plain
+  // drag instead of a rotate — the exact "it doesn't feel right" glitch this
+  // fixes for both placed images and placed shapes.
+  h.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#0073E6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>';
+  h.onmouseenter = () => { if (!h.classList.contains('is-rotating')) h.style.transform = 'scale(1.18)'; };
+  h.onmouseleave = () => { if (!h.classList.contains('is-rotating')) h.style.transform = ''; };
+  wrap.appendChild(h);
+
+  return wrap;
+}
+
+// Soft "gravity" snapping to the 8 major angles (0/45/90/135/180/225/270/315)
+// within a small tolerance, so free-rotating a placed image or shape through
+// a straight or diagonal angle "catches" there for a moment — the same
+// tactile, always-on precision Figma/Canva/PowerPoint give by default,
+// without requiring a modifier key. Holding Shift instead forces a hard,
+// always-on snap to every 15° increment for a deliberate precise turn.
+// `normalizedDeg` must already be wrapped into [0, 360).
+function pdfedSnapRotationAngle(normalizedDeg, shiftKey) {
+  if (shiftKey) return { angle: (Math.round(normalizedDeg / 15) * 15) % 360, snapped: true };
+  const majors = [0, 45, 90, 135, 180, 225, 270, 315, 360];
+  for (let i = 0; i < majors.length; i++) {
+    if (Math.abs(normalizedDeg - majors[i]) <= 2.5) return { angle: majors[i] % 360, snapped: true };
+  }
+  return { angle: normalizedDeg, snapped: false };
+}
+
+// Live degree readout that follows the pointer while a rotate handle is
+// being dragged (placed images and placed shapes both use this) — turns a
+// blind drag into something you can actually aim, and flips to the accent
+// color the instant a gravity-snap catches so the snap is never a surprise.
+function pdfedShowRotateBadge(clientX, clientY, angleDeg, snapped) {
+  let badge = document.getElementById('pdfedRotateAngleBadge');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'pdfedRotateAngleBadge';
+    badge.style.cssText = `position:fixed;z-index:100000;pointer-events:none;
+      padding:4px 9px;border-radius:6px;font:600 12px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.28);white-space:nowrap;letter-spacing:0.2px;
+      transition:background .1s ease;`;
+    document.body.appendChild(badge);
+  }
+  let displayDeg = Math.round(angleDeg);
+  if (displayDeg > 180) displayDeg -= 360; // show the shorter signed form, e.g. -30° not 330°
+  badge.textContent = displayDeg + '°';
+  badge.style.left = (clientX + 18) + 'px';
+  badge.style.top = (clientY - 12) + 'px';
+  badge.style.background = snapped ? '#0073E6' : 'rgba(24,26,32,0.92)';
+  badge.style.display = 'block';
+}
+function pdfedHideRotateBadge() {
+  const badge = document.getElementById('pdfedRotateAngleBadge');
+  if (badge) badge.style.display = 'none';
+}
+
+// Given a raw screen-space mouse delta (dx, dy) and an item's current
+// rotation in degrees, returns the delta re-expressed in the item's own
+// (unrotated) local axes. Resize math (pdfedResizeRect) always operates in
+// local box space — without this, dragging a resize handle on a rotated
+// image/shape would resize along screen axes instead of the box's own
+// visually-rotated edges, making the box skew in the wrong direction.
+function pdfedUnrotateDelta(dx, dy, rotationDeg) {
+  if (!rotationDeg) return { dx, dy };
+  const rad = -rotationDeg * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  return { dx: dx * cos - dy * sin, dy: dx * sin + dy * cos };
 }
 
 
@@ -26829,7 +27709,19 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
     const pc = document.getElementById('pdfedPageCanvas');
     const dir = e.target && e.target.dataset ? e.target.dataset.dir : null;
     const drag = pdfedPlacedImgDrag;
-    if (dir && handles[dir] === e.target) {
+    if (dir === 'rotate' && handles.rotate === e.target) {
+      const rect = el.getBoundingClientRect();
+      drag.mode = 'rotate';
+      drag.centerX = rect.left + rect.width / 2;
+      drag.centerY = rect.top + rect.height / 2;
+      drag.prevAngle = Math.atan2(e.clientY - drag.centerY, e.clientX - drag.centerX) * 180 / Math.PI;
+      document.body.style.cursor = PDFED_ROTATE_CURSOR;
+      document.body.style.userSelect = 'none';
+      el.style.willChange = 'transform';
+      handles.rotate.classList.add('is-rotating');
+      handles.rotate.style.transform = 'scale(1.15)';
+      pdfedShowRotateBadge(e.clientX, e.clientY, item.rotation || 0, false);
+    } else if (dir && handles[dir] === e.target) {
       drag.mode = 'resize'; drag.resizeDir = dir;
       drag.ox = e.clientX; drag.oy = e.clientY;
       drag.startRect = { x: item.x, y: item.y, w: item.w, h: item.h };
@@ -26840,7 +27732,7 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       drag.startX = item.x; drag.startY = item.y;
       drag.snapTargets = pdfedCollectSnapTargets(item.id);
     } else { return; }
-    drag.el = el; drag.item = item; drag.idx = idx; drag.pc = pc;
+    drag.el = el; drag.item = item; drag.idx = idx; drag.pc = pc; drag.handles = handles;
     document.querySelectorAll('.pdfed-placed-img.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
     e.preventDefault(); e.stopPropagation();
@@ -26853,9 +27745,10 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
 // being manipulated. Populated by the mousedown handler above, consumed by
 // the one-time document listeners set up below.
 const pdfedPlacedImgDrag = {
-  mode: null, el: null, item: null, idx: null, pc: null,
+  mode: null, el: null, item: null, idx: null, pc: null, handles: null,
   resizeDir: null, ox: 0, oy: 0, startRect: null, startX: 0, startY: 0,
-  snapTargets: null, edgeLockedX: false, edgeLockedY: false
+  snapTargets: null, edgeLockedX: false, edgeLockedY: false,
+  centerX: 0, centerY: 0, prevAngle: 0
 };
 let pdfedPlacedImgDragListenersBound = false;
 
@@ -26902,13 +27795,36 @@ function pdfedEnsurePlacedImgDragListeners() {
       item.x = Math.max(0, Math.min(item.x, pc.width - item.w));
       item.y = Math.max(0, Math.min(item.y, pc.height - item.h));
       pdfedPositionPlacedEl(el, item, pc);
+    } else if (drag.mode === 'rotate') {
+      // Track the angular delta since the LAST FRAME (not since drag-start)
+      // and normalize it into (-180, 180] before applying it — atan2 wraps
+      // from -180° to +180° at the point directly opposite where the drag
+      // began, so measuring from drag-start would make rotation suddenly
+      // jump by ~360° the instant the pointer crosses that point. Measuring
+      // frame-to-frame and normalizing each small step keeps the turn smooth
+      // through any number of full spins. Hold Shift to snap to 15° increments.
+      const angle = Math.atan2(e.clientY - drag.centerY, e.clientX - drag.centerX) * 180 / Math.PI;
+      let delta = angle - drag.prevAngle;
+      delta = ((delta + 180) % 360 + 360) % 360 - 180;
+      const newRot = (item.rotation || 0) + delta;
+      const normalizedRot = ((newRot % 360) + 360) % 360;
+      const snap = pdfedSnapRotationAngle(normalizedRot, e.shiftKey);
+      item.rotation = snap.angle;
+      drag.prevAngle = angle;
+      pdfedPositionPlacedEl(el, item, pc);
+      pdfedShowRotateBadge(e.clientX, e.clientY, item.rotation, snap.snapped);
     } else if (drag.mode === 'resize') {
       // Edge-to-edge free resize: whichever of the 8 handles is being dragged,
       // the opposite edge/corner stays anchored, drag the left edge and only
       // the left edge (and width) changes, the right edge never moves.
       // Hold Shift while dragging to keep the image's aspect ratio locked.
       const resizeDir = drag.resizeDir, startRect = drag.startRect;
-      const dx = (e.clientX - drag.ox) * scale, dy = (e.clientY - drag.oy) * scale;
+      let dx = (e.clientX - drag.ox) * scale, dy = (e.clientY - drag.oy) * scale;
+      // If the image is rotated, a screen-space mouse delta doesn't point
+      // along the box's own edges anymore — re-express it in the box's
+      // local (unrotated) axes so dragging a corner still resizes along
+      // that corner's visual edge instead of skewing the wrong way.
+      ({ dx, dy } = pdfedUnrotateDelta(dx, dy, item.rotation));
       const r = pdfedResizeRect(resizeDir, startRect, dx, dy, 20, e.shiftKey);
 
       // Snap whichever edge(s) this handle is moving to the page edges/center
@@ -26999,9 +27915,17 @@ function pdfedEnsurePlacedImgDragListeners() {
       pdfedPositionPlacedEl(el, item, pc);
     }
     if (drag.mode && idx != null) pdfedMarkModified(idx);
-    drag.mode = null; drag.el = null; drag.item = null; drag.idx = null; drag.pc = null;
+    if (drag.mode === 'rotate') {
+      pdfedHideRotateBadge();
+      if (el) el.style.willChange = '';
+      document.body.style.userSelect = '';
+      if (drag.handles && drag.handles.rotate) { drag.handles.rotate.classList.remove('is-rotating'); drag.handles.rotate.style.transform = ''; }
+    }
+    drag.mode = null; drag.el = null; drag.item = null; drag.idx = null; drag.pc = null; drag.handles = null;
     drag.resizeDir = null; drag.startRect = null; drag.snapTargets = null;
     drag.edgeLockedX = false; drag.edgeLockedY = false;
+    drag.centerX = 0; drag.centerY = 0; drag.prevAngle = 0;
+    document.body.style.cursor = '';
     const guideV = document.getElementById('pdfedSmartGuideV');
     const guideH = document.getElementById('pdfedSmartGuideH');
     if (guideV) guideV.style.display = 'none';
