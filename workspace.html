@@ -1257,6 +1257,161 @@ a.nav-item:hover { color: var(--text); }
   cursor: pointer;
 }
 
+/* ─── Canvas recolor / gradient tint panel (right panel "Canvas" tool) ───
+   Premium pass: segmented pill switch, circular swatches with live hex
+   readouts, custom-styled sliders, tiered primary/secondary actions. */
+.pdfed-ctint-modebar {
+  display: flex; gap: 2px; padding: 3px; margin-bottom: 14px;
+  background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border); border-radius: 10px;
+}
+.pdfed-ctint-mode-btn {
+  flex: 1; padding: 7px 8px; border: none; border-radius: 7px; background: transparent;
+  color: var(--text2); font-size: 11.5px; font-weight: 600; letter-spacing: .1px; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.pdfed-ctint-mode-btn.active {
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff;
+  box-shadow: 0 2px 10px rgba(0,194,255,0.25);
+}
+.pdfed-ctint-mode-btn:not(.active):hover { background: var(--pdfed-btn-hover); color: var(--text); }
+
+.pdfed-ctint-preview {
+  height: 44px; border-radius: 10px; margin-bottom: 16px;
+  border: 1px solid var(--pdfed-section-border);
+  background: linear-gradient(90deg, #0A0F1E, #0A0F1E);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.03);
+  opacity: 1;
+}
+
+.pdfed-ctint-label {
+  font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px;
+  font-weight: 700; display: block; margin-bottom: 8px;
+}
+.pdfed-ctint-section { margin-bottom: 14px; }
+.pdfed-ctint-divider {
+  height: 1px; border: none; margin: 14px 0;
+  background: linear-gradient(90deg, transparent, var(--pdfed-section-border) 50%, transparent);
+}
+
+/* Solid colour swatch row */
+.pdfed-ctint-swatch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pdfed-ctint-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.2);
+  transition: transform .12s, box-shadow .12s;
+}
+.pdfed-ctint-swatch:hover { transform: scale(1.14); }
+.pdfed-ctint-swatch.active {
+  border-color: var(--pdfed-accent);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 0 0 3px var(--pdfed-accent-bg);
+}
+
+/* Gradient stop picker — circular colour well + live hex readout, with a
+   directional connector implying the flow from Start to End. */
+.pdfed-ctint-stop-row { display: flex; align-items: center; gap: 10px; }
+.pdfed-ctint-stop {
+  display: flex; align-items: center; gap: 9px; flex: 1;
+  padding: 6px 10px; border-radius: 9px;
+  background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border);
+}
+.pdfed-ctint-color-well {
+  position: relative; width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.25);
+}
+.pdfed-ctint-color-well input[type="color"] {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: none; border-radius: 50%;
+  cursor: pointer; padding: 0; opacity: 0;
+}
+.pdfed-ctint-stop-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pdfed-ctint-stop-name { font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
+.pdfed-ctint-stop-hex { font-size: 11.5px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pdfed-ctint-stop-flow {
+  flex-shrink: 0; width: 14px; height: 14px; color: var(--text3);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Direction quick-picks */
+.pdfed-ctint-preset-row { display: flex; gap: 6px; margin-top: 10px; }
+.pdfed-ctint-preset-btn {
+  flex: 1; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.pdfed-ctint-preset-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); border-color: var(--pdfed-accent); }
+.pdfed-ctint-preset-btn.wide { font-size: 10.5px; letter-spacing: .2px; }
+
+/* Sliders — thin gradient track, accent thumb, matches the rest of the panel */
+.pdfed-ctint-slider-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.pdfed-ctint-slider-row label { font-size: 11px; color: var(--text2); font-weight: 600; }
+.pdfed-ctint-slider-row .val { font-size: 11px; color: var(--pdfed-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+input[type="range"].pdfed-ctint-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--pdfed-section-border), var(--pdfed-section-border));
+  outline: none; cursor: pointer;
+}
+input[type="range"].pdfed-ctint-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  border: 2px solid var(--bg2); box-shadow: 0 1px 4px rgba(0,0,0,0.4); cursor: pointer; margin-top: -5.5px;
+}
+input[type="range"].pdfed-ctint-slider::-moz-range-thumb {
+  width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--bg2);
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); box-shadow: 0 1px 4px rgba(0,0,0,0.4); cursor: pointer;
+}
+input[type="range"].pdfed-ctint-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; }
+input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-radius: 999px; background: var(--pdfed-section-border); }
+
+/* Actions — one clear primary action, two quiet secondary ones */
+.pdfed-ctint-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+.pdfed-ctint-apply-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 10px; border-radius: 9px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .1px;
+  box-shadow: 0 3px 14px rgba(0,194,255,0.28); transition: transform .12s, box-shadow .12s;
+}
+.pdfed-ctint-apply-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(0,194,255,0.4); }
+.pdfed-ctint-secondary-row { display: flex; gap: 6px; }
+.pdfed-ctint-secondary-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 6px; border-radius: 8px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--text2); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.pdfed-ctint-secondary-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+
+/* Saved gradients / colours — user's own presets, persisted in localStorage */
+.pdfed-ctint-save-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 7px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--pdfed-accent); font-size: 10.5px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+}
+.pdfed-ctint-save-btn:hover { background: var(--pdfed-accent-bg); border-color: var(--pdfed-accent); }
+.pdfed-ctint-preset-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.pdfed-ctint-preset-empty {
+  font-size: 10.5px; color: var(--text3); line-height: 1.5; padding: 10px 0 2px;
+}
+.pdfed-ctint-preset-card {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; width: 44px; cursor: pointer;
+}
+.pdfed-ctint-preset-item {
+  position: relative; width: 32px; height: 32px; border-radius: 9px;
+  border: 1px solid var(--pdfed-section-border); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform .12s;
+}
+.pdfed-ctint-preset-card:hover .pdfed-ctint-preset-item { transform: scale(1.08); }
+.pdfed-ctint-preset-label {
+  font-size: 8.5px; font-weight: 700; color: var(--text3); text-align: center; line-height: 1.3;
+  max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pdfed-ctint-preset-del {
+  position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  background: var(--bg2); border: 1px solid var(--pdfed-section-border); color: var(--text3);
+  cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s;
+}
+.pdfed-ctint-preset-card:hover .pdfed-ctint-preset-del { opacity: 1; }
+.pdfed-ctint-preset-del:hover { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+
 .ai-assistant {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 16px;
@@ -3731,6 +3886,44 @@ a.nav-item:hover { color: var(--text); }
 .pdfed-ptxt-tb-color::-webkit-color-swatch-wrapper { padding: 2px; }
 .pdfed-ptxt-tb-color::-webkit-color-swatch { border: none; border-radius: 3px; }
 
+/* Text gradient trigger button + its popover — lets a placed text box's fill
+   switch from a flat color to a two-stop gradient, mirroring the existing
+   Canvas recolor/gradient panel's Solid/Gradient pattern but scoped to a
+   single text box instead of the whole page. */
+.pdfed-ptxt-tb-btn.pdfed-ptxt-grad-btn.active {
+  background: linear-gradient(90deg, #00C2FF, #7C3AED); color: #fff; border-color: transparent;
+}
+.pdfed-ptxt-grad-popover {
+  position: fixed; z-index: 9999; display: none; flex-direction: column; gap: 10px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  pointer-events: auto; backdrop-filter: blur(6px); font-family: 'Inter', sans-serif;
+  width: 190px;
+}
+.pdfed-ptxt-grad-popover.show { display: flex; }
+.pdfed-ptxt-grad-preview {
+  height: 26px; border-radius: 6px; border: 1px solid var(--border);
+}
+.pdfed-ptxt-grad-row { display: flex; align-items: center; gap: 8px; }
+.pdfed-ptxt-grad-row label { font-size: 10.5px; color: var(--text2); font-weight: 700; flex: 1; }
+.pdfed-ptxt-grad-row input[type=color] {
+  width: 30px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 5px;
+  cursor: pointer; background: transparent;
+}
+.pdfed-ptxt-grad-angles { display: flex; gap: 6px; }
+.pdfed-ptxt-grad-angles button {
+  flex: 1; padding: 5px 0; font-size: 12px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); cursor: pointer;
+}
+.pdfed-ptxt-grad-angles button:hover, .pdfed-ptxt-grad-angles button.active {
+  background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent);
+}
+.pdfed-ptxt-grad-remove {
+  font-size: 11px; font-weight: 700; color: var(--text2); background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 0; cursor: pointer;
+}
+.pdfed-ptxt-grad-remove:hover { color: #E5484D; border-color: rgba(229,72,77,0.35); background: rgba(229,72,77,0.10); }
+
 /* Bulleted list inside a placed text box: tight, evenly-spaced markers that
    sit close to the text (not the browser's default oversized indent), and a
    marker color that always matches the run it belongs to. */
@@ -4265,6 +4458,17 @@ a.nav-item:hover { color: var(--text); }
   z-index: 9999;
 }
 .pdfed-color-panel.open { display: block; }
+
+/* Canvas Color flyout — docks beside the right panel rather than expanding
+   inline in the accordion stack. Reuses .pdfed-color-panel's fixed/positioned
+   popover base, just wider and scrollable since it holds a full control set. */
+.pdfed-canvas-flyout {
+  width: 264px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,194,255,0.10);
+}
 
 /* Annotation cursor modes */
 .annot-mode-draw #pdfedAnnotCanvas,
@@ -6907,6 +7111,15 @@ button.dg-show-chip.active { background:var(--blue); }
 
               <div class="pdfed-rbn-group">
                 <div class="pdfed-rbn-group-btns">
+                  <button type="button" class="pdfed-rbn-btn" id="mfcFontBtn" title="Font family" onclick="event.stopPropagation(); sarvarcOpenFontPicker(this, (mfcSelBox()||{}).fontFamily || 'Inter', mfcSetFont)" style="font-size:11px;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Inter</button>
+                </div>
+                <div class="pdfed-rbn-group-label">Font</div>
+              </div>
+
+              <div class="pdfed-rbn-sep"></div>
+
+              <div class="pdfed-rbn-group">
+                <div class="pdfed-rbn-group-btns">
                   <button class="pdfed-rbn-btn" onclick="mfcAlign('left')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="17" y2="18"/></svg></button>
                   <button class="pdfed-rbn-btn" onclick="mfcAlign('center')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="6" y1="18" x2="18" y2="18"/></svg></button>
                   <button class="pdfed-rbn-btn" onclick="mfcAlign('right')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="7" y1="18" x2="20" y2="18"/></svg></button>
@@ -7567,28 +7780,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 <div id="pdfedSmartGuideV" style="position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--blue);display:none;pointer-events:none;z-index:5;"></div>
                 <div id="pdfedSmartGuideH" style="position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--blue);display:none;pointer-events:none;z-index:5;"></div>
                 <div id="pdfedPtxtToolbar" class="pdfed-ptxt-toolbar" style="display:none">
-                  <select id="pdfedPtxtFontSelect" class="pdfed-ptxt-tb-select" title="Font family" onmousedown="event.stopPropagation()" onchange="pdfedPtxtSetFont(this.value)">
-                    <option value="Inter">Inter</option>
-                    <option value="Arial, Helvetica, sans-serif">Arial</option>
-                    <option value="'Helvetica Neue', Helvetica, Arial, sans-serif">Helvetica</option>
-                    <option value="'Times New Roman', Times, serif">Times New Roman</option>
-                    <option value="Georgia, serif">Georgia</option>
-                    <option value="'Courier New', Courier, monospace">Courier New</option>
-                    <option value="Verdana, Geneva, sans-serif">Verdana</option>
-                    <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
-                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
-                    <option value="'Segoe UI', sans-serif">Segoe UI</option>
-                    <option value="Roboto">Roboto</option>
-                    <option value="'Open Sans'">Open Sans</option>
-                    <option value="Lato">Lato</option>
-                    <option value="Montserrat">Montserrat</option>
-                    <option value="Poppins">Poppins</option>
-                    <option value="Oswald">Oswald</option>
-                    <option value="'Playfair Display', serif">Playfair Display</option>
-                    <option value="Merriweather, serif">Merriweather</option>
-                    <option value="'Courier Prime', monospace">Courier Prime</option>
-                    <option value="'Source Code Pro', monospace">Source Code Pro</option>
-                  </select>
+                  <button type="button" id="pdfedPtxtFontBtn" class="pdfed-ptxt-tb-select" title="Font family" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); sarvarcOpenFontPicker(this, pdfedPtxtTb.item ? pdfedPtxtTb.item.fontFamily : 'Inter', pdfedPtxtSetFont)" style="cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Inter</button>
                   <input id="pdfedPtxtSizeInput" class="pdfed-ptxt-tb-size" type="number" min="6" max="300" step="1" title="Font size (px)" onmousedown="event.stopPropagation()" onchange="pdfedPtxtSetSize(this.value)">
                   <div class="pdfed-ptxt-tb-sep"></div>
                   <button id="pdfedPtxtBoldBtn" class="pdfed-ptxt-tb-btn" title="Bold" onmousedown="event.preventDefault();event.stopPropagation()" onclick="pdfedPtxtToggleStyle('bold')"><b>B</b></button>
@@ -7614,6 +7806,9 @@ button.dg-show-chip.active { background:var(--blue); }
                   </button>
                   <div class="pdfed-ptxt-tb-sep"></div>
                   <input id="pdfedPtxtColorInput" class="pdfed-ptxt-tb-color" type="color" value="#ffffff" title="Text color, select some text first to color only that selection, or leave nothing selected to set the whole box's color" onmousedown="pdfedPtxtCaptureSelection(event)" oninput="pdfedPtxtApplyColor(this.value)" onchange="pdfedPtxtApplyColor(this.value)">
+                  <button id="pdfedPtxtGradientBtn" class="pdfed-ptxt-tb-btn pdfed-ptxt-grad-btn" title="Text gradient — fill this text box with a two-color gradient" onmousedown="event.preventDefault();event.stopPropagation()" onclick="pdfedOpenPtxtGradientPopover(event)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 3c-1.5 3-1.5 15 0 18"/><path d="M19 3c1.5 3 1.5 15 0 18"/></svg>
+                  </button>
                   <div class="pdfed-ptxt-tb-sep"></div>
                   <input id="pdfedPtxtOpacityInput" class="pdfed-opacity-slider" type="range" min="10" max="100" step="5" value="100" title="Opacity" onmousedown="event.stopPropagation()" oninput="pdfedPtxtSetOpacity(this.value)" onchange="pdfedPtxtSetOpacity(this.value)">
                   <span id="pdfedPtxtOpacityVal" class="pdfed-ptxt-tb-opacity-val">100%</span>
@@ -7702,12 +7897,7 @@ button.dg-show-chip.active { background:var(--blue); }
                     <div id="pdfedSigPane-type" style="display:none;">
                       <input id="pdfedSigTypeInput" type="text" placeholder="Type your name" maxlength="40" oninput="pdfedSigRenderTyped()"
                         style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:14px;outline:none;margin-bottom:10px;box-sizing:border-box;">
-                      <select id="pdfedSigFontSelect" onchange="pdfedSigRenderTyped()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 10px;font-size:12px;margin-bottom:10px;">
-                        <option value="'Playfair Display', serif">Playfair Display</option>
-                        <option value="'Merriweather', serif">Merriweather</option>
-                        <option value="'Courier Prime', monospace">Courier Prime</option>
-                        <option value="cursive" selected>Signature Script</option>
-                      </select>
+                      <button type="button" id="pdfedSigFontBtn" onclick="event.stopPropagation(); sarvarcOpenFontPicker(this, pdfedSigFontValue, pdfedSigSetFont)" style="width:100%;text-align:left;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 10px;font-size:12px;margin-bottom:10px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Signature Script</button>
                       <canvas id="pdfedSigTypeCanvas" width="440" height="140" style="width:100%;height:140px;background:#fff;border-radius:10px;border:1px solid var(--border);display:block;"></canvas>
                     </div>
 
@@ -7784,6 +7974,132 @@ button.dg-show-chip.active { background:var(--blue); }
                   </div>
                 </div>
               </div>
+
+              <!-- Canvas recolor / gradient tint — trigger row lives in the right panel,
+                   but the controls themselves open as a flyout docked beside the panel
+                   (see #pdfedCanvasPanelBody below, positioned by pdfedToggleCanvasPanel()) -->
+              <div class="pdfed-panel-section" id="pdfedCanvasPanel">
+                <h5 id="pdfedCanvasPanelTrigger" style="display:flex;align-items:center;justify-content:space-between;gap:5px;cursor:pointer;user-select:none" onclick="pdfedToggleCanvasPanel()">
+                  <span style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8h2.1a3.5 3.5 0 0 0 3.5-3.5C20.4 6.6 16.6 2 12 2z"/></svg> Canvas Color</span>
+                  <svg id="pdfedCanvasPanelChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;flex-shrink:0"><polyline points="9 6 15 12 9 18"/></svg>
+                </h5>
+              </div>
+
+              <!-- Flyout: docked beside the right panel instead of expanding inline -->
+              <div id="pdfedCanvasPanelBody" class="pdfed-color-panel pdfed-canvas-flyout">
+                <!-- Solid vs Gradient -->
+                <div class="pdfed-ctint-modebar">
+                  <button type="button" class="pdfed-ctint-mode-btn active" id="pdfedCtintModeSolidBtn" onclick="pdfedCanvasSetMode('solid')">Solid</button>
+                  <button type="button" class="pdfed-ctint-mode-btn" id="pdfedCtintModeGradBtn" onclick="pdfedCanvasSetMode('gradient')">Gradient</button>
+                </div>
+
+                <!-- live swatch preview of the resulting fill -->
+                <div class="pdfed-ctint-preview" id="pdfedCtintPreview"></div>
+
+                <!-- SOLID controls -->
+                <div id="pdfedCtintSolidControls" class="pdfed-ctint-section">
+                  <label class="pdfed-ctint-label">Color</label>
+                  <div class="pdfed-ctint-swatch-row">
+                    <div class="pdfed-ctint-swatch active" data-color="#0A0F1E" style="background:#0A0F1E" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-swatch" data-color="#00C2FF" style="background:#00C2FF" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-swatch" data-color="#0073E6" style="background:#0073E6" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-swatch" data-color="#10B981" style="background:#10B981" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-swatch" data-color="#F59E0B" style="background:#F59E0B" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-swatch" data-color="#EF4444" style="background:#EF4444" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-swatch" data-color="#7C3AED" style="background:#7C3AED" onclick="pdfedCanvasPickSwatch(this,'color1')"></div>
+                    <div class="pdfed-ctint-color-well" style="background:#0A0F1E" title="Custom color">
+                      <input type="color" id="pdfedCtintColor1Picker" value="#0A0F1E" oninput="pdfedCanvasSetColor('color1', this.value); this.parentElement.style.background=this.value">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- GRADIENT controls -->
+                <div id="pdfedCtintGradControls" class="pdfed-ctint-section" style="display:none">
+                  <label class="pdfed-ctint-label">Colors</label>
+                  <div class="pdfed-ctint-stop-row">
+                    <div class="pdfed-ctint-stop">
+                      <div class="pdfed-ctint-color-well" style="background:#00C2FF">
+                        <input type="color" id="pdfedCtintGradColor1Picker" value="#00C2FF" title="Start color" oninput="pdfedCanvasSetColor('color1', this.value); this.parentElement.style.background=this.value; document.getElementById('pdfedCtintGradColor1Hex').textContent=this.value.toUpperCase()">
+                      </div>
+                      <div class="pdfed-ctint-stop-text">
+                        <span class="pdfed-ctint-stop-name">Start</span>
+                        <span class="pdfed-ctint-stop-hex" id="pdfedCtintGradColor1Hex">#00C2FF</span>
+                      </div>
+                    </div>
+                    <span class="pdfed-ctint-stop-flow" title="Flows from Start to End">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+                    </span>
+                    <div class="pdfed-ctint-stop">
+                      <div class="pdfed-ctint-color-well" style="background:#0073E6">
+                        <input type="color" id="pdfedCtintGradColor2Picker" value="#0073E6" title="End color" oninput="pdfedCanvasSetColor('color2', this.value); this.parentElement.style.background=this.value; document.getElementById('pdfedCtintGradColor2Hex').textContent=this.value.toUpperCase()">
+                      </div>
+                      <div class="pdfed-ctint-stop-text">
+                        <span class="pdfed-ctint-stop-name">End</span>
+                        <span class="pdfed-ctint-stop-hex" id="pdfedCtintGradColor2Hex">#0073E6</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:14px">
+                    <div class="pdfed-ctint-slider-row">
+                      <label>Direction</label>
+                      <span class="val"><span id="pdfedCtintAngleVal">90</span>°</span>
+                    </div>
+                    <input type="range" class="pdfed-ctint-slider" min="0" max="360" value="90" id="pdfedCtintAngleSlider" oninput="pdfedCanvasSetAngle(this.value)">
+                  </div>
+                  <div class="pdfed-ctint-preset-row">
+                    <button type="button" class="pdfed-ctint-preset-btn" onclick="pdfedCanvasSetAngle(90)" title="Left to right">→</button>
+                    <button type="button" class="pdfed-ctint-preset-btn" onclick="pdfedCanvasSetAngle(180)" title="Top to bottom">↓</button>
+                    <button type="button" class="pdfed-ctint-preset-btn" onclick="pdfedCanvasSetAngle(135)" title="Diagonal">↘</button>
+                    <button type="button" class="pdfed-ctint-preset-btn" onclick="pdfedCanvasSetAngle(225)" title="Diagonal">↙</button>
+                  </div>
+                </div>
+
+                <hr class="pdfed-ctint-divider">
+
+                <!-- OPACITY -->
+                <div class="pdfed-ctint-section">
+                  <div class="pdfed-ctint-slider-row">
+                    <label>Opacity</label>
+                    <span class="val"><span id="pdfedCtintOpacityVal">60</span>%</span>
+                  </div>
+                  <input type="range" class="pdfed-ctint-slider" min="0" max="100" value="60" id="pdfedCtintOpacitySlider" oninput="pdfedCanvasSetOpacity(this.value)">
+                  <div class="pdfed-ctint-preset-row">
+                    <button type="button" class="pdfed-ctint-preset-btn wide" onclick="pdfedCanvasSetOpacity(25)">Low</button>
+                    <button type="button" class="pdfed-ctint-preset-btn wide" onclick="pdfedCanvasSetOpacity(60)">Normal</button>
+                  </div>
+                </div>
+
+                <div class="pdfed-ctint-actions">
+                  <button type="button" class="pdfed-ctint-apply-btn" onclick="pdfedApplyCanvasTint()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Apply to Canvas
+                  </button>
+                  <div class="pdfed-ctint-secondary-row">
+                    <button type="button" class="pdfed-ctint-secondary-btn" onclick="pdfedRemoveCanvasTint()" title="Undo the last applied tint">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                      Remove Tint
+                    </button>
+                    <button type="button" class="pdfed-ctint-secondary-btn" onclick="pdfedResetCanvasTintToWhite()" title="Clear any colour/gradient and bake the canvas back to plain white">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Saved gradients / colours, per-browser, reusable across every page and document -->
+                <hr class="pdfed-ctint-divider">
+                <div class="pdfed-ctint-saved">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <label class="pdfed-ctint-label" style="margin:0">Saved</label>
+                    <button type="button" class="pdfed-ctint-save-btn" onclick="pdfedCanvasSaveCurrentAsPreset()" title="Save the current colour/gradient so you can reuse it later">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Save
+                    </button>
+                  </div>
+                  <div id="pdfedCanvasPresetEmpty" class="pdfed-ctint-preset-empty">No saved styles yet.</div>
+                  <div class="pdfed-ctint-preset-grid" id="pdfedCanvasPresetGrid"></div>
+                </div>
+              </div><!-- /pdfedCanvasPanelBody flyout -->
 
               <div class="pdfed-panel-section">
                 <h5 style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insert Page</h5>
@@ -8602,6 +8918,8 @@ button.dg-show-chip.active { background:var(--blue); }
                   </div>
                   <div id="dgSnapGuides" class="dg-snap-guides"></div>
                   <div id="dgPtxtToolbar" class="pdfed-ptxt-toolbar" style="display:none; position:absolute; z-index:20;">
+                    <button type="button" id="dgPtxtFontBtn" class="pdfed-ptxt-tb-select" title="Font family" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); sarvarcOpenFontPicker(this, dgPtxtToolbarItem ? (dgPtxtToolbarItem.fontFamily || 'Inter') : 'Inter', dgPtxtSetFont)" style="cursor:pointer;text-align:left;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Inter</button>
+                    <div class="pdfed-ptxt-tb-sep"></div>
                     <button type="button" id="dgPtxtBoldBtn" class="pdfed-ptxt-tb-btn" title="Bold" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('bold')"><b>B</b></button>
                     <button type="button" id="dgPtxtItalicBtn" class="pdfed-ptxt-tb-btn" title="Italic" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('italic')"><i>I</i></button>
                     <button type="button" id="dgPtxtUnderlineBtn" class="pdfed-ptxt-tb-btn" title="Underline" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('underline')"><u>U</u></button>
@@ -13313,6 +13631,18 @@ async function pdfedGoto(idx) {
   // cancel text edit when navigating away
   if (teState.active) pdfedCancelTextEdit();
   if (typeof pdfedCloseOpacityPopover === 'function') pdfedCloseOpacityPopover();
+  // An un-applied canvas-tint preview is only a CSS overlay for the page you
+  // were just looking at — hide it when actually switching to a DIFFERENT
+  // page so it can't visually leak there. pdfedGoto is also called to
+  // re-render the SAME page for reasons that aren't real navigation (e.g.
+  // toggleTheme re-rendering for new CSS vars) — those must leave a pending,
+  // not-yet-"Applied" gradient/tint preview exactly as the person left it,
+  // instead of silently wiping it back to a blank/white canvas.
+  const pdfedGotoIsPageChange = pdfed.active !== idx;
+  if (pdfedGotoIsPageChange && typeof pdfedCanvasTintPreviewEl === 'function') {
+    const tintPreview = pdfedCanvasTintPreviewEl();
+    if (tintPreview) tintPreview.style.display = 'none';
+  }
   pdfed.active = idx;
   pdfedCropOff();
 
@@ -15396,6 +15726,41 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages) {
 // Because every layer is read straight off pg.placedImages/placedTexts/
 // annotStrokes (per-page data), the thumbnail can never show another page's
 // edits, and always reflects this page's latest state as soon as it changes.
+// Canvas fillText() never triggers @font-face loading on its own — it only
+// picks up a webfont if that exact family/weight/style was already rendered
+// as real DOM text somewhere first (the live editing box does this, which is
+// why baked/thumbnail/export renders used to drift from what the editor
+// showed: whichever bold/italic combo hadn't been used as real DOM text yet
+// silently fell back to a system font at bake time. That fallback font's
+// taller ascent/descent metrics overflow the fixed fontSize*1.25 line gap,
+// which is exactly what made multi-line paragraphs look squished/overlapping
+// only in the thumbnail and exported file, never in the live editor).
+// Force-loads every family/weight/style/size combo a page's text boxes
+// actually use, via the FontFace Loading API, before any baking touches
+// them — so fillText always has the real glyphs ready and line spacing
+// matches the editor exactly.
+async function pdfedEnsureFontsLoaded(pg) {
+  const list = (pg && pg.placedTexts) || [];
+  if (!list.length || !document.fonts || !document.fonts.load) return;
+  const seen = new Set();
+  const jobs = [];
+  list.forEach(item => {
+    const famRaw = item.fontFamily || 'Inter';
+    const fam = famRaw.includes(',') ? famRaw : `'${famRaw}'`;
+    const size = item.fontSize || 14;
+    [{ b: false, i: false }, { b: true, i: false }, { b: false, i: true }, { b: true, i: true }].forEach(({ b, i }) => {
+      const style = i ? 'italic' : 'normal';
+      const weight = b ? '700' : '400';
+      const key = `${style} ${weight} ${size}px ${fam}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      jobs.push(document.fonts.load(key).catch(() => {}));
+    });
+  });
+  if (!jobs.length) return;
+  try { await Promise.all(jobs); } catch (e) {}
+}
+
 async function pdfedComposeThumb(pg, idx) {
   const baseUrl = await pdfedFlattenPageDataUrl(pg);
   const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length);
@@ -15415,6 +15780,7 @@ async function pdfedComposeThumb(pg, idx) {
   ctx.drawImage(baseImg, 0, 0);
 
   if (hasPlaced) {
+    await pdfedEnsureFontsLoaded(pg);
     await pdfedDrawOrderedPlacedOnCtx(ctx, pg);
   }
 
@@ -15455,6 +15821,7 @@ async function pdfedComposeExportBase(pg, idx) {
   ctx.drawImage(baseImg, 0, 0);
 
   if (hasPlaced) {
+    await pdfedEnsureFontsLoaded(pg);
     await pdfedDrawOrderedPlacedOnCtx(ctx, pg, true); // true = skip text boxes
   }
 
@@ -15765,6 +16132,383 @@ function pdfedResetFilters() {
 function pdfedOpenAdjust() {
   const p = document.getElementById('pdfedAdjustPanel');
   if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
+}
+
+// ─── CANVAS RECOLOR / GRADIENT TINT ─────────────────────────────────────
+// Lets a person wash the whole current page in a solid color or a custom
+// 2-color gradient at an adjustable opacity — a color-grade for the canvas
+// itself, sitting behind any placed text/images/tables (same layering as
+// the existing brightness/contrast/saturation Adjust panel). Two views of
+// the same state are kept in sync:
+//   1) a live, non-destructive CSS preview overlay while dragging sliders,
+//      so nothing is decoded/redrawn on every tick;
+//   2) an actual pixel bake into pg.dataUrl on "Apply", the exact same
+//      pattern pdfedApplyFilter/SARVARC Eye/Rotate/Border already use — so
+//      once applied, the tint is just permanent page pixels and needs no
+//      special-casing anywhere else: it shows up identically in the live
+//      editor, the left-panel thumbnail, and every export format, because
+//      they all read the same pg.dataUrl through pdfedPageUrl().
+const pdfedCanvasTintState = { mode: 'solid', color1: '#0A0F1E', color2: '#0073E6', angle: 90, opacity: 60 };
+
+// Converts an angle (0deg = left→right, 90deg = top→bottom, clockwise) into
+// a gradient line long enough to fully cover a w×h canvas regardless of
+// direction, centered on the canvas so the gradient always looks balanced.
+function pdfedGradientLine(angleDeg, w, h) {
+  const rad = ((angleDeg % 360) + 360) % 360 * Math.PI / 180;
+  const cx = w / 2, cy = h / 2;
+  const len = Math.sqrt(w * w + h * h) / 2;
+  // Match CSS linear-gradient()'s angle convention (0deg = bottom→top,
+  // 90deg = left→right, clockwise) so the baked canvas gradient always
+  // points the same direction the live CSS preview showed while dragging
+  // the Direction slider — using plain sin/cos here (0deg = right,
+  // 90deg = down) was 90deg off from the preview, so "Apply to Canvas"
+  // silently rotated whatever direction the person had picked.
+  const dx = Math.sin(rad) * len, dy = -Math.cos(rad) * len;
+  return { x0: cx - dx, y0: cy - dy, x1: cx + dx, y1: cy + dy };
+}
+
+// Builds the CSS the live preview overlay and the little swatch both use,
+// so what you see while dragging sliders is pixel-for-pixel the same
+// gradient math (just expressed as a CSS angle) as what gets baked.
+function pdfedCanvasTintCss() {
+  const s = pdfedCanvasTintState;
+  if (s.mode === 'gradient') {
+    return `linear-gradient(${s.angle}deg, ${s.color1}, ${s.color2})`;
+  }
+  return s.color1;
+}
+
+function pdfedCanvasTintPreviewEl() {
+  let el = document.getElementById('pdfedCanvasTintPreview');
+  if (!el) {
+    const anchor = document.getElementById('pdfedAnnotCanvas');
+    if (!anchor || !anchor.parentNode) return null;
+    el = document.createElement('div');
+    el.id = 'pdfedCanvasTintPreview';
+    el.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;';
+    anchor.parentNode.insertBefore(el, anchor.nextSibling);
+  }
+  return el;
+}
+
+// Refreshes both the little swatch inside the panel and the live overlay
+// sitting on the canvas, called after any control changes.
+function pdfedCanvasTintRefreshPreview() {
+  const swatch = document.getElementById('pdfedCtintPreview');
+  if (swatch) { swatch.style.background = pdfedCanvasTintCss(); swatch.style.opacity = 1; }
+  const live = pdfedCanvasTintPreviewEl();
+  if (live) {
+    live.style.background = pdfedCanvasTintCss();
+    live.style.opacity = pdfedCanvasTintState.opacity / 100;
+    const canvasFlyout = document.getElementById('pdfedCanvasPanelBody');
+    live.style.display = canvasFlyout && canvasFlyout.classList.contains('open') ? 'block' : 'none';
+  }
+}
+
+function pdfedCanvasSetMode(mode) {
+  pdfedCanvasTintState.mode = mode;
+  document.getElementById('pdfedCtintModeSolidBtn').classList.toggle('active', mode === 'solid');
+  document.getElementById('pdfedCtintModeGradBtn').classList.toggle('active', mode === 'gradient');
+  document.getElementById('pdfedCtintSolidControls').style.display = mode === 'solid' ? '' : 'none';
+  document.getElementById('pdfedCtintGradControls').style.display = mode === 'gradient' ? '' : 'none';
+  pdfedCanvasTintRefreshPreview();
+}
+
+function pdfedCanvasPickSwatch(el, which) {
+  document.querySelectorAll('#pdfedCtintSolidControls .pdfed-ctint-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  pdfedCanvasSetColor(which, el.dataset.color);
+  const picker = document.getElementById('pdfedCtintColor1Picker');
+  if (picker) picker.value = el.dataset.color;
+}
+
+function pdfedCanvasSetColor(which, val) {
+  pdfedCanvasTintState[which] = val;
+  pdfedCanvasTintRefreshPreview();
+}
+
+function pdfedCanvasSetAngle(val) {
+  const v = Math.max(0, Math.min(360, parseInt(val, 10) || 0));
+  pdfedCanvasTintState.angle = v;
+  const slider = document.getElementById('pdfedCtintAngleSlider');
+  const label = document.getElementById('pdfedCtintAngleVal');
+  if (slider) slider.value = v;
+  if (label) label.textContent = v;
+  pdfedCanvasTintRefreshPreview();
+}
+
+function pdfedCanvasSetOpacity(val) {
+  const v = Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+  pdfedCanvasTintState.opacity = v;
+  const slider = document.getElementById('pdfedCtintOpacitySlider');
+  const label = document.getElementById('pdfedCtintOpacityVal');
+  if (slider) slider.value = v;
+  if (label) label.textContent = v;
+  pdfedCanvasTintRefreshPreview();
+}
+
+function pdfedToggleCanvasPanel() {
+  const body = document.getElementById('pdfedCanvasPanelBody');
+  const rightPanel = document.getElementById('pdfedRightPanel');
+  const chevron = document.getElementById('pdfedCanvasPanelChevron');
+  if (!body || !rightPanel) return;
+  const opening = !body.classList.contains('open');
+  body.classList.toggle('open', opening);
+  if (chevron) chevron.style.transform = opening ? 'rotate(180deg)' : 'rotate(0deg)';
+  if (opening) {
+    // Dock the flyout to the left of the right panel, top-aligned with it —
+    // "beside the panel" rather than expanding inline inside it.
+    const rect = rightPanel.getBoundingClientRect();
+    const panelW = body.offsetWidth || 250;
+    let left = rect.left - panelW - 10;
+    if (left < 8) left = 8; // fall back to the right edge if the window is too narrow
+    let top = rect.top;
+    const maxTop = window.innerHeight - 40;
+    if (top > maxTop) top = maxTop;
+    body.style.top = top + 'px';
+    body.style.left = left + 'px';
+    pdfedCanvasPresetsRender();
+  }
+  pdfedCanvasTintRefreshPreview();
+}
+// Backwards-compatible alias, in case anything else still calls the old name
+function pdfedOpenCanvasPanel() { pdfedToggleCanvasPanel(); }
+
+// Close the canvas flyout on outside click or right-panel collapse
+document.addEventListener('click', function(e) {
+  const body = document.getElementById('pdfedCanvasPanelBody');
+  const trigger = document.getElementById('pdfedCanvasPanelTrigger');
+  if (!body || !body.classList.contains('open')) return;
+  if (body.contains(e.target) || (trigger && trigger.contains(e.target))) return;
+  body.classList.remove('open');
+  const chevron = document.getElementById('pdfedCanvasPanelChevron');
+  if (chevron) chevron.style.transform = 'rotate(0deg)';
+  pdfedCanvasTintRefreshPreview();
+});
+
+// Bakes the current solid/gradient + opacity choice directly into the
+// active page's pixels, exactly like pdfedApplyFilter does for brightness/
+// contrast/saturation — after this, the tint is just part of the page and
+// automatically survives thumbnail regeneration, PNG/PDF/DOCX export, and
+// reload, with no separate handling needed anywhere else.
+async function pdfedApplyCanvasTint(silent) {
+  if (pdfed.active < 0) return;
+  const pg = pdfed.pages[pdfed.active];
+  const s = pdfedCanvasTintState;
+
+  const srcUrl = await pdfedPageUrl(pg);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = srcUrl; });
+
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  ctx.globalAlpha = s.opacity / 100;
+  if (s.mode === 'gradient') {
+    const { x0, y0, x1, y1 } = pdfedGradientLine(s.angle, c.width, c.height);
+    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, s.color1);
+    grad.addColorStop(1, s.color2);
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = s.color1;
+  }
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.globalAlpha = 1;
+
+  // one-level revert safety net — "Remove Tint" restores exactly this
+  pg.edits.preTintDataUrl = srcUrl;
+  pg.dataUrl = c.toDataURL('image/png');
+  pg.modified = true;
+  pg.edits.canvasTint = { mode: s.mode, color1: s.color1, color2: s.color2, angle: s.angle, opacity: s.opacity };
+
+  const live = pdfedCanvasTintPreviewEl();
+  if (live) live.style.display = 'none'; // pixels now carry the tint, hide the CSS preview
+
+  await pdfedGoto(pdfed.active);
+  await pdfedBuildStrip();
+  if (!silent) toast('Canvas color applied', 'success');
+}
+
+// Restores the page to its pre-tint pixels, if the most recent edit on this
+// page was an Apply from this panel. Like the Adjust panel, this is a
+// single-level safety net, not full undo history.
+async function pdfedRemoveCanvasTint() {
+  if (pdfed.active < 0) return;
+  const pg = pdfed.pages[pdfed.active];
+  if (!pg.edits.preTintDataUrl) { toast('No canvas tint to remove', 'info'); return; }
+  pg.dataUrl = pg.edits.preTintDataUrl;
+  delete pg.edits.preTintDataUrl;
+  delete pg.edits.canvasTint;
+  await pdfedGoto(pdfed.active);
+  await pdfedBuildStrip();
+  toast('Canvas tint removed', 'success');
+}
+
+// Syncs every visible control in the Canvas Color flyout (mode buttons,
+// solid/gradient visibility, colour pickers, angle + opacity sliders) to
+// whatever pdfedCanvasTintState currently holds. Shared by Reset-to-White
+// and by applying a saved preset, so both land in a fully consistent UI.
+function pdfedCanvasSyncControls() {
+  const s = pdfedCanvasTintState;
+
+  const solidBtn = document.getElementById('pdfedCtintModeSolidBtn');
+  const gradBtn = document.getElementById('pdfedCtintModeGradBtn');
+  if (solidBtn) solidBtn.classList.toggle('active', s.mode === 'solid');
+  if (gradBtn) gradBtn.classList.toggle('active', s.mode === 'gradient');
+  const solidControls = document.getElementById('pdfedCtintSolidControls');
+  const gradControls = document.getElementById('pdfedCtintGradControls');
+  if (solidControls) solidControls.style.display = s.mode === 'solid' ? '' : 'none';
+  if (gradControls) gradControls.style.display = s.mode === 'gradient' ? '' : 'none';
+
+  document.querySelectorAll('#pdfedCtintSolidControls .pdfed-ctint-swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.color && el.dataset.color.toLowerCase() === s.color1.toLowerCase());
+  });
+  const color1Picker = document.getElementById('pdfedCtintColor1Picker');
+  if (color1Picker) { color1Picker.value = s.color1; if (color1Picker.parentElement) color1Picker.parentElement.style.background = s.color1; }
+  const gradColor1Picker = document.getElementById('pdfedCtintGradColor1Picker');
+  if (gradColor1Picker) { gradColor1Picker.value = s.color1; if (gradColor1Picker.parentElement) gradColor1Picker.parentElement.style.background = s.color1; }
+  const gradColor2Picker = document.getElementById('pdfedCtintGradColor2Picker');
+  if (gradColor2Picker) { gradColor2Picker.value = s.color2; if (gradColor2Picker.parentElement) gradColor2Picker.parentElement.style.background = s.color2; }
+  const grad1Hex = document.getElementById('pdfedCtintGradColor1Hex');
+  if (grad1Hex) grad1Hex.textContent = s.color1.toUpperCase();
+  const grad2Hex = document.getElementById('pdfedCtintGradColor2Hex');
+  if (grad2Hex) grad2Hex.textContent = s.color2.toUpperCase();
+  const angleSlider = document.getElementById('pdfedCtintAngleSlider');
+  const angleVal = document.getElementById('pdfedCtintAngleVal');
+  if (angleSlider) angleSlider.value = s.angle;
+  if (angleVal) angleVal.textContent = s.angle;
+  const opacitySlider = document.getElementById('pdfedCtintOpacitySlider');
+  const opacityVal = document.getElementById('pdfedCtintOpacityVal');
+  if (opacitySlider) opacitySlider.value = s.opacity;
+  if (opacityVal) opacityVal.textContent = s.opacity;
+
+  pdfedCanvasTintRefreshPreview();
+}
+
+// Clears any colour/gradient choice back to plain solid white, resets every
+// control in the flyout to match, and bakes that white fill onto the active
+// page the same way Apply to Canvas does — unlike Remove Tint (which reverts
+// to whatever the page looked like before), this always lands on white.
+async function pdfedResetCanvasTintToWhite() {
+  pdfedCanvasTintState.mode = 'solid';
+  pdfedCanvasTintState.color1 = '#FFFFFF';
+  pdfedCanvasTintState.color2 = '#FFFFFF';
+  pdfedCanvasTintState.angle = 90;
+  pdfedCanvasTintState.opacity = 100;
+
+  pdfedCanvasSyncControls();
+
+  if (pdfed.active >= 0) {
+    await pdfedApplyCanvasTint(true);
+    toast('Canvas reset to white', 'success');
+  }
+}
+
+// ─── SAVED GRADIENTS / COLOURS ──────────────────────────────────────────
+// User's own colour + gradient choices, saved per-browser so they carry
+// over between pages, documents, and sessions — click a saved swatch to
+// load it straight back into the live canvas preview (not yet baked;
+// still needs Apply to Canvas, same as picking a fresh colour would).
+const PDFED_CANVAS_PRESETS_KEY = 'sarvarcPdfEditorCanvasPresets_v1';
+const PDFED_CANVAS_PRESETS_MAX = 12;
+let pdfedCanvasPresetsState = { list: [] };
+
+function pdfedCanvasPresetsLoad() {
+  try {
+    const raw = localStorage.getItem(PDFED_CANVAS_PRESETS_KEY);
+    pdfedCanvasPresetsState.list = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    pdfedCanvasPresetsState.list = [];
+  }
+}
+
+function pdfedCanvasPresetsSave() {
+  try {
+    localStorage.setItem(PDFED_CANVAS_PRESETS_KEY, JSON.stringify(pdfedCanvasPresetsState.list));
+  } catch (e) { /* storage unavailable, presets stay in-memory for this session */ }
+}
+
+function pdfedCanvasPresetCss(p) {
+  return p.mode === 'gradient'
+    ? `linear-gradient(${p.angle}deg, ${p.color1}, ${p.color2})`
+    : p.color1;
+}
+
+function pdfedCanvasSaveCurrentAsPreset() {
+  const s = pdfedCanvasTintState;
+  const preset = { id: 'ctp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), mode: s.mode, color1: s.color1, color2: s.color2, angle: s.angle, opacity: s.opacity };
+
+  // Skip an exact duplicate of the most recently saved swatch
+  const dupe = pdfedCanvasPresetsState.list.find(p => p.mode === preset.mode && p.color1 === preset.color1 && p.color2 === preset.color2 && p.angle === preset.angle && p.opacity === preset.opacity);
+  if (dupe) { toast('That colour is already saved', 'info'); return; }
+
+  pdfedCanvasPresetsState.list.unshift(preset);
+  if (pdfedCanvasPresetsState.list.length > PDFED_CANVAS_PRESETS_MAX) {
+    pdfedCanvasPresetsState.list.length = PDFED_CANVAS_PRESETS_MAX;
+  }
+  pdfedCanvasPresetsSave();
+  pdfedCanvasPresetsRender();
+  toast(preset.mode === 'gradient' ? 'Gradient saved' : 'Colour saved', 'success');
+}
+
+function pdfedCanvasApplyPreset(id) {
+  const p = pdfedCanvasPresetsState.list.find(x => x.id === id);
+  if (!p) return;
+  pdfedCanvasTintState.mode = p.mode;
+  pdfedCanvasTintState.color1 = p.color1;
+  pdfedCanvasTintState.color2 = p.color2;
+  pdfedCanvasTintState.angle = p.angle;
+  pdfedCanvasTintState.opacity = p.opacity;
+  pdfedCanvasSyncControls();
+}
+
+function pdfedCanvasDeletePreset(id, evt) {
+  if (evt) evt.stopPropagation();
+  pdfedCanvasPresetsState.list = pdfedCanvasPresetsState.list.filter(p => p.id !== id);
+  pdfedCanvasPresetsSave();
+  pdfedCanvasPresetsRender();
+}
+
+function pdfedCanvasPresetsRender() {
+  const grid = document.getElementById('pdfedCanvasPresetGrid');
+  const empty = document.getElementById('pdfedCanvasPresetEmpty');
+  if (!grid) return;
+  const list = pdfedCanvasPresetsState.list;
+  if (empty) empty.style.display = list.length ? 'none' : '';
+  grid.innerHTML = list.map(p => {
+    const label = p.mode === 'gradient' ? `Gradient ${p.angle}°` : p.color1.toUpperCase();
+    const title = p.mode === 'gradient' ? `${p.color1} → ${p.color2}, ${p.angle}°` : p.color1;
+    return `<div class="pdfed-ctint-preset-card" title="${title}" onclick="pdfedCanvasApplyPreset('${p.id}')">
+      <div class="pdfed-ctint-preset-item" style="background:${pdfedCanvasPresetCss(p)}">
+        <button type="button" class="pdfed-ctint-preset-del" onclick="pdfedCanvasDeletePreset('${p.id}', event)" title="Remove saved colour">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <span class="pdfed-ctint-preset-label">${label}</span>
+    </div>`;
+  }).join('');
+}
+
+// Every export path (PDF/PNG/etc.) reads a page's baked pg.dataUrl —
+// which only carries a canvas gradient/tint AFTER "Apply to Canvas" has
+// been clicked. Until then it's just a live CSS overlay sitting on top of
+// the canvas, invisible to anything that rasterizes pg.dataUrl, so a
+// person who dialed in a gradient but never hit Apply would export a
+// plain white/blank page even though the editor clearly shows the color.
+// Call this at the top of every export entry point: if the Canvas Color
+// panel is open with a pending preview still showing for the active page,
+// silently bake it in first (same code path as clicking Apply) so the
+// download always matches what's on screen, exactly as the panel's own
+// helper text promises.
+async function pdfedFinalizePendingCanvasTint() {
+  const panel = document.getElementById('pdfedCanvasPanelBody');
+  const preview = document.getElementById('pdfedCanvasTintPreview');
+  if (panel && panel.classList.contains('open') && preview && preview.style.display !== 'none' && pdfed.active >= 0) {
+    try { await pdfedApplyCanvasTint(); } catch (e) { /* non-fatal — fall back to unapplied state */ }
+  }
 }
 
 // ─── SARVARC EYE ───────────────────────────────────────────────────────
@@ -16200,6 +16944,8 @@ function pdfedNotesRender() {
 document.addEventListener('DOMContentLoaded', () => {
   pdfedNotesLoad();
   pdfedNotesRender();
+  pdfedCanvasPresetsLoad();
+  pdfedCanvasPresetsRender();
 });
 
 // ─── CANVAS RIGHT-CLICK CONTEXT MENU ────────────────────────────────────
@@ -17358,6 +18104,10 @@ async function pdfedExport(pageIndices) {
   // Finalize any image the user was still mid-drag/mid-resize on the currently
   // open page, so it lands in pg.placedImages before we read that array below.
   pdfedAutoStampPendingGhost();
+  // Bake in any pending, not-yet-Applied canvas gradient/tint on the active
+  // page first, so it doesn't silently drop out of the export (see
+  // pdfedFinalizePendingCanvasTint).
+  await pdfedFinalizePendingCanvasTint();
   // Make sure any Google Fonts used by placed-text boxes (Inter, Roboto,
   // Poppins, etc.) are actually loaded before we bake pixels below — on a
   // fresh page load, exporting immediately could otherwise rasterize with a
@@ -17454,9 +18204,10 @@ const PDFED_EXPORT_FORMAT_META = {
           icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' },
 };
 
-function pdfedOpenExportModal() {
+async function pdfedOpenExportModal() {
   if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
   pdfedAutoStampPendingGhost();
+  await pdfedFinalizePendingCanvasTint();
 
   // Restore remembered format if the person opted in previously.
   let startFmt = 'pdf';
@@ -17898,6 +18649,7 @@ function pdfedDownloadBlob(blob, fname) {
 async function pdfedExportImages(pageIndices) {
   if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
   pdfedAutoStampPendingGhost();
+  await pdfedFinalizePendingCanvasTint();
   try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e) {}
   const indices = (pageIndices && pageIndices.length) ? pageIndices : pdfed.pages.map((_, i) => i);
   const total = indices.length;
@@ -21324,6 +22076,208 @@ function pdfedFontCss(fam) {
   return fam.includes(',') ? fam : `'${fam}', 'Inter', sans-serif`;
 }
 
+/* ============================================================
+   SARVARC Fonts Engine — shared app-wide font picker.
+   - Curated "Popular" shortlist shown by default.
+   - Searchable library (200+ real Google Font family names).
+   - Selected fonts are loaded on demand via the Google Fonts
+     CSS2 endpoint (no API key required, matches the <link>
+     preconnect already set up in <head>).
+   Used by: PDF Editor placed text, Signature (type mode),
+   Make Forms text boxes, Diagrams & Graphs text labels.
+   ============================================================ */
+const SARVARC_POPULAR_FONTS = [
+  'Inter','Roboto','Open Sans','Lato','Montserrat','Poppins','Nunito','Raleway','Ubuntu',
+  'Work Sans','DM Sans','Manrope','Source Sans Pro','Rubik','Karla','Quicksand',
+  'Playfair Display','Merriweather','Lora','Oswald','Bebas Neue','Space Grotesk',
+  'Courier Prime','Source Code Pro','JetBrains Mono','Arial','Helvetica Neue',
+  'Times New Roman','Georgia','Verdana'
+];
+
+const SARVARC_FONT_LIBRARY = Array.from(new Set([
+  ...SARVARC_POPULAR_FONTS,
+  // Sans-serif
+  'Nunito Sans','Heebo','Hind','Titillium Web','Assistant','Overpass','Archivo',
+  'IBM Plex Sans','Red Hat Display','Sora','Outfit','Lexend','Epilogue','Jost',
+  'Public Sans','Figtree','Plus Jakarta Sans','Urbanist','Be Vietnam Pro','Exo 2',
+  'Saira','Chivo','Catamaran','Varela Round','Comfortaa','Zilla Slab','Prompt',
+  'Kanit','Maven Pro','Signika','Asap','Oxygen','Dosis','Questrial','Krub',
+  'Baloo 2','Anton','Fjalla One','Staatliches','Archivo Black','Mulish',
+  'Roboto Condensed','Roboto Flex','Open Sans Condensed','PT Sans Caption',
+  'Rajdhani','Teko','Khand','Cabin Condensed','Yanone Kaffeesatz','Francois One',
+  'Mukta','Mukta Vaani','Baloo Bhai 2','Baloo Tamma 2','Hind Siliguri','Hind Madurai',
+  'Albert Sans','Onest','Instrument Sans','Geologica','Schibsted Grotesk',
+  'Bricolage Grotesque','Hanken Grotesk','Familjen Grotesk','Unbounded','Syne',
+  'Darker Grotesque','Wix Madefor Text','Wix Madefor Display','Josefin Slab',
+  'Alata','Actor','Adamina','Advent Pro','Aleo','Alegreya Sans','Alegreya Sans SC',
+  'Antic','Antic Slab','Arimo','Armata','Arsenal','Aubrey','Baumans','Bayon',
+  'Belleza','Bitter','Cairo','Catamaran','Chakra Petra','Comme','Days One',
+  'Domine','Eczar','Electrolize','Encode Sans','Faustina','Frank Ruhl Libre',
+  'Gothic A1','Gudea','Harmattan','Hepta Slab','Josefin Sans','Judson','Kalam',
+  'Kdam Thmor Pro','Khula','Kumbh Sans','Lexend Deca','Libre Franklin',
+  'M PLUS 1p','M PLUS Rounded 1c','Mada','Manuale','Martel','Michroma',
+  'Molengo','Montserrat Alternates','Muli','Neuton','Numans','Nunito',
+  'Orbitron','Padauk','Paytone One','Petrona','Piazzolla','Pridi','Puritan',
+  'Quattrocento','Quattrocento Sans','Rambla','Ranga','Ropa Sans','Rosario',
+  'Rubik Mono One','Ruda','Saira Condensed','Saira Extra Condensed',
+  'Sarabun','Sarala','Sawarabi Gothic','Shanti','Simonetta','Six Caps',
+  'Spartan','Spline Sans','Suez One','Sumana','Suranna','Syne Tactile',
+  'Tenor Sans','Tomorrow','Trirong','Vollkorn SC','Voltaire','Yaldevi',
+  'Yellowtail','Zen Kaku Gothic New','Zilla Slab Highlight',
+  // Serif
+  'PT Serif','Crimson Text','Libre Baskerville','EB Garamond','Cormorant Garamond',
+  'Bitter','Source Serif Pro','Noto Serif','Domine','Vollkorn','Rokkitt','Alegreya',
+  'Spectral','Cardo','Arvo','Bree Serif','Cormorant','Frank Ruhl Libre',
+  'IBM Plex Serif','Newsreader','Literata','Fraunces','Gelasio','Glegoo',
+  'Gilda Display','Kreon','Lusitana','Lustria','Marcellus','Marcellus SC',
+  'Mate','Mate SC','Noticia Text','Rasa','Rosarivo','Solway','Tinos',
+  'Volkhov','Vesper Libre','Coustard','Bentham','Caudex','Fanwood Text',
+  'Halant','Kadwa','Kameron','Milonga','Radley','Sumana','Trocchi','Trykker',
+  'Cinzel','Cinzel Decorative','Julius Sans One','Cormorant Infant',
+  'Cormorant SC','Cormorant Upright','Cormorant Unicase','Crete Round',
+  'DM Serif Display','DM Serif Text','Bevan','Sanchez','Judson','Faustina',
+  'STIX Two Text',
+  // Display / decorative
+  'Abril Fatface','Lobster','Pacifico','Righteous','Fredoka','Passion One','Bangers',
+  'Alfa Slab One','Bungee','Bungee Inline','Bungee Shade','Monoton',
+  'Permanent Marker','Amatic SC','Caveat','Shadows Into Light',
+  'Shadows Into Light Two','Great Vibes','Satisfy','Dancing Script',
+  'Kaushan Script','Sacramento','Yellowtail','Courgette','Parisienne',
+  'Handlee','Indie Flower','Patrick Hand','Gochi Hand','Homemade Apple',
+  'Marck Script','Allura','Chewy','Creepster','Fascinate',
+  'Fredericka the Great','Kranky','Lacquer','Luckiest Guy','Nosifer',
+  'Rock Salt','Rye','Sancreek','Special Elite','Vast Shadow','Wallpoet',
+  'Neucha','Gaegu','Gamja Flower','Gloria Hallelujah','Just Another Hand',
+  'Reenie Beanie','Architects Daughter','Coming Soon','Covered By Your Grace',
+  'Crafty Girls','Delius','Give You Glory','Loved by the King','Mali',
+  'Nanum Pen Script','Neonderthaw','Pangolin','Rancho','Redressed',
+  'Schoolbell','Walter Turncoat','Zeyada','Marcellus',
+  // Monospace
+  'Roboto Mono','Fira Code','Fira Mono','Space Mono','IBM Plex Mono',
+  'Inconsolata','Ubuntu Mono','PT Mono','DM Mono','Overpass Mono',
+  'Cutive Mono','Anonymous Pro','Nova Mono','VT323','Azeret Mono',
+  'Major Mono Display','Martian Mono','Red Hat Mono','Spline Sans Mono',
+  'Syne Mono',
+  // Noto family (broad script coverage, popular for multi-language docs)
+  'Noto Sans','Noto Sans JP','Noto Sans KR','Noto Sans SC','Noto Sans TC',
+  'Noto Sans Arabic','Noto Sans Devanagari','Noto Serif JP','Noto Serif KR',
+  'Noto Color Emoji'
+]));
+
+const SARVARC_SYSTEM_FONTS = new Set([
+  'Arial','Helvetica Neue','Helvetica','Times New Roman','Georgia','Verdana','Tahoma',
+  'Trebuchet MS','Segoe UI','Courier New','cursive','serif','sans-serif','monospace'
+]);
+
+// Full live catalog (~1,900 families), fetched once from a static, key-free,
+// rate-limit-free CDN mirror of the current Google Fonts list. Falls back to
+// the bundled SARVARC_FONT_LIBRARY above if the network request fails (e.g.
+// offline use, or a locked-down network that blocks the CDN).
+let sarvarcFullFontList = null;
+let sarvarcFullFontListPromise = null;
+function sarvarcFetchFullFontList() {
+  if (sarvarcFullFontList || sarvarcFullFontListPromise) return sarvarcFullFontListPromise;
+  sarvarcFullFontListPromise = fetch('https://cdn.jsdelivr.net/gh/hasinhayder/google-fonts/fonts.json')
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('bad response')))
+    .then(data => {
+      if (Array.isArray(data.fonts) && data.fonts.length) {
+        sarvarcFullFontList = data.fonts;
+        if (sarvarcFontPickerEl) {
+          const search = sarvarcFontPickerEl.querySelector('.sarvarc-font-search');
+          if (search && sarvarcFontPickerRenderList) sarvarcFontPickerRenderList(search.value);
+        }
+      }
+    })
+    .catch(() => { /* silent — bundled SARVARC_FONT_LIBRARY remains the fallback */ });
+  return sarvarcFullFontListPromise;
+}
+let sarvarcFontPickerRenderList = null;
+
+const sarvarcLoadedFonts = new Set();
+function sarvarcLoadFont(family) {
+  if (!family || SARVARC_SYSTEM_FONTS.has(family) || sarvarcLoadedFonts.has(family)) return;
+  sarvarcLoadedFonts.add(family);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(family).replace(/%20/g, '+') +
+    ':ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap';
+  document.head.appendChild(link);
+}
+
+let sarvarcFontPickerEl = null;
+function sarvarcFontPickerOutsideClick(e) {
+  if (sarvarcFontPickerEl && !sarvarcFontPickerEl.contains(e.target)) sarvarcCloseFontPicker();
+}
+function sarvarcCloseFontPicker() {
+  if (!sarvarcFontPickerEl) return;
+  sarvarcFontPickerEl.remove();
+  sarvarcFontPickerEl = null;
+  sarvarcFontPickerRenderList = null;
+  document.removeEventListener('mousedown', sarvarcFontPickerOutsideClick, true);
+}
+function sarvarcOpenFontPicker(triggerEl, currentValue, onSelect) {
+  sarvarcCloseFontPicker();
+  const rect = triggerEl.getBoundingClientRect();
+  const panelW = 230, panelH = 320;
+  const top = Math.min(rect.bottom + 6, window.innerHeight - panelH - 8);
+  const left = Math.min(rect.left, window.innerWidth - panelW - 8);
+  const panel = document.createElement('div');
+  panel.className = 'sarvarc-font-picker';
+  panel.style.cssText = `position:fixed;top:${Math.max(4, top)}px;left:${Math.max(4, left)}px;width:${panelW}px;max-height:${panelH}px;background:var(--bg2,#131a2a);border:1px solid var(--border,#26324a);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:9999;display:flex;flex-direction:column;overflow:hidden;font-family:'Inter',sans-serif;`;
+  panel.innerHTML = `
+    <div style="padding:8px;border-bottom:1px solid var(--border,#26324a);flex-shrink:0;">
+      <input type="text" placeholder="Search fonts…" class="sarvarc-font-search" style="width:100%;box-sizing:border-box;background:var(--bg3,#1a2338);border:1px solid var(--border,#26324a);color:var(--text,#e8edf5);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;">
+    </div>
+    <div class="sarvarc-font-list" style="overflow-y:auto;flex:1;padding:4px;"></div>
+  `;
+  document.body.appendChild(panel);
+  sarvarcFontPickerEl = panel;
+  const searchInput = panel.querySelector('.sarvarc-font-search');
+  const listEl = panel.querySelector('.sarvarc-font-list');
+
+  function renderList(query) {
+    const q = (query || '').trim().toLowerCase();
+    listEl.innerHTML = '';
+    let names;
+    if (!q) {
+      const label = document.createElement('div');
+      label.textContent = 'Popular';
+      label.style.cssText = 'font-size:10px;color:var(--text3,#8291ab);text-transform:uppercase;letter-spacing:.5px;padding:6px 8px 4px;';
+      listEl.appendChild(label);
+      names = SARVARC_POPULAR_FONTS;
+    } else {
+      const source = sarvarcFullFontList || SARVARC_FONT_LIBRARY;
+      names = source.filter(f => f.toLowerCase().includes(q)).slice(0, 100);
+      if (!names.length) {
+        listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text3,#8291ab)">No fonts found</div>';
+      }
+    }
+    names.forEach(name => {
+      const row = document.createElement('div');
+      row.textContent = name;
+      const isActive = currentValue && (currentValue === name || currentValue.startsWith("'" + name + "'") || currentValue.startsWith(name + ','));
+      row.style.cssText = `padding:7px 10px;font-size:13px;color:${isActive ? 'var(--blue,#0B63F6)' : 'var(--text,#e8edf5)'};font-weight:${isActive ? '700' : '400'};cursor:pointer;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+      row.onmouseenter = () => { row.style.background = 'var(--bg3,#1a2338)'; sarvarcLoadFont(name); row.style.fontFamily = `'${name}', sans-serif`; };
+      row.onmouseleave = () => { row.style.background = 'transparent'; };
+      row.onmousedown = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        sarvarcLoadFont(name);
+        onSelect(name);
+        sarvarcCloseFontPicker();
+      };
+      listEl.appendChild(row);
+    });
+  }
+  renderList('');
+  sarvarcFontPickerRenderList = renderList;
+  sarvarcFetchFullFontList();
+  searchInput.addEventListener('input', () => renderList(searchInput.value));
+  searchInput.addEventListener('mousedown', (e) => e.stopPropagation());
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') sarvarcCloseFontPicker(); e.stopPropagation(); });
+  searchInput.focus();
+  setTimeout(() => document.addEventListener('mousedown', sarvarcFontPickerOutsideClick, true), 0);
+}
+
 function pdfedShowPtxtToolbar(item, idx, content, el) {
   if (pdfedPtxtTb.el && pdfedPtxtTb.el !== el) {
     pdfedPtxtTb.el.classList.remove('selected', 'editing');
@@ -21332,7 +22286,7 @@ function pdfedShowPtxtToolbar(item, idx, content, el) {
   el.classList.add('selected');
   const tb = document.getElementById('pdfedPtxtToolbar');
   if (!tb) return;
-  document.getElementById('pdfedPtxtFontSelect').value = item.fontFamily || 'Inter';
+  { const fb = document.getElementById('pdfedPtxtFontBtn'); if (fb) fb.textContent = (item.fontFamily || 'Inter').split(',')[0].replace(/['"]/g, ''); }
   document.getElementById('pdfedPtxtSizeInput').value = Math.round(item.fontSize || 18);
   document.getElementById('pdfedPtxtBoldBtn').classList.toggle('active', !!item.bold);
   document.getElementById('pdfedPtxtItalicBtn').classList.toggle('active', !!item.italic);
@@ -21344,6 +22298,8 @@ function pdfedShowPtxtToolbar(item, idx, content, el) {
   pdfedUpdatePtxtAlignButtons(item);
   const colorInput = document.getElementById('pdfedPtxtColorInput');
   if (colorInput) colorInput.value = pdfedToHexColor(item.color || '#ffffff');
+  const gradBtn = document.getElementById('pdfedPtxtGradientBtn');
+  if (gradBtn) gradBtn.classList.toggle('active', !!item.gradient);
   const opacityInput = document.getElementById('pdfedPtxtOpacityInput');
   const opacityVal = document.getElementById('pdfedPtxtOpacityVal');
   const pct = Math.round(pdfedGetOpacity(item) * 100);
@@ -21528,9 +22484,19 @@ function pdfedPositionPtxtToolbar() {
 function pdfedMaybeHidePtxtToolbar() {
   const tb = document.getElementById('pdfedPtxtToolbar');
   if (!tb) return;
-  if (document.activeElement === document.getElementById('pdfedPtxtFontSelect') ||
+  if (document.activeElement === document.getElementById('pdfedPtxtFontBtn') ||
       document.activeElement === document.getElementById('pdfedPtxtSizeInput') ||
-      document.activeElement === document.getElementById('pdfedPtxtColorInput')) return;
+      document.activeElement === document.getElementById('pdfedPtxtColorInput') ||
+      (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('sarvarc-font-search')) ||
+      sarvarcFontPickerEl) return;
+  // The gradient popover's own controls (From/To color pickers, angle slider,
+  // preset/remove buttons) all live outside the placed-text box itself, so
+  // interacting with any of them blurs `content` just like the checks above —
+  // without this guard, a 120ms-later cleanup here would wipe pdfedPtxtTb
+  // (and hide the toolbar) out from under the user mid-pick, silently
+  // breaking every gradient control including "Remove gradient".
+  const gradPop = document.getElementById('pdfedPtxtGradPopover');
+  if (gradPop && (gradPop.classList.contains('show') || (document.activeElement && gradPop.contains(document.activeElement)))) return;
   // The Insert/Manage Link modal steals focus into its URL field the instant
   // it opens (so the user can start typing right away), which blurs the text
   // box and would otherwise let this 120ms cleanup timer wipe pdfedPtxtTb
@@ -22002,8 +22968,11 @@ function pdfedApplyMarqueeSelection(marqueeRect) {
 function pdfedPtxtSetFont(value) {
   const { item, idx, content } = pdfedPtxtTb;
   if (!item) return;
+  sarvarcLoadFont(value);
   item.fontFamily = value;
   if (content) content.style.fontFamily = pdfedFontCss(value);
+  const fb = document.getElementById('pdfedPtxtFontBtn');
+  if (fb) fb.textContent = value.split(',')[0].replace(/['"]/g, '');
   pdfedMarkModified(idx);
 }
 
@@ -22230,6 +23199,10 @@ function pdfedPtxtApplyColor(hex) {
     if (sel.rangeCount > 0) pdfedPtxtTb._savedRange = sel.getRangeAt(0).cloneRange();
   } else {
     item.color = hex;
+    // Picking a plain solid color is a deliberate override of any gradient
+    // fill this box may have had — clear it so the two controls don't fight
+    // (the gradient popover's own "Remove gradient" button does the same).
+    if (item.gradient) { item.gradient = null; pdfedApplyPtxtGradientDom(content, null); }
     content.style.color = hex;
     if (item.html) {
       // Re-sync html/text in case the box already had rich spans, so the
@@ -22239,6 +23212,143 @@ function pdfedPtxtApplyColor(hex) {
   }
   pdfedMarkModified(idx);
 }
+
+// ── Text gradient fill ──────────────────────────────────────────────────
+// A placed-text box's fill can be a flat color (item.color, handled above)
+// OR a two-stop gradient (item.gradient = {color1,color2,angle}), applied to
+// the WHOLE box rather than a partial selection — same "whole object" scope
+// as the existing Canvas recolor/gradient panel, just applied to a text
+// box's glyphs instead of the page's pixels. On screen this is a plain CSS
+// background-clip:text trick; at export time pdfedDrawPlacedTextsOnCtx below
+// builds the equivalent canvas gradient with the shared pdfedGradientLine()
+// helper so the baked PNG/PDF/DOCX matches exactly what was on screen.
+const pdfedPtxtGradState = { angle: 90, item: null, idx: -1, content: null };
+
+function pdfedPtxtGradCss(color1, color2, angle) {
+  return `linear-gradient(${angle}deg, ${color1}, ${color2})`;
+}
+
+// Applies (or clears, when gradient is null) the live on-screen gradient
+// style directly to a placed-text box's editable content element.
+function pdfedApplyPtxtGradientDom(content, gradient) {
+  if (!content) return;
+  if (gradient) {
+    content.style.backgroundImage = pdfedPtxtGradCss(gradient.color1, gradient.color2, gradient.angle);
+    content.style.webkitBackgroundClip = 'text';
+    content.style.backgroundClip = 'text';
+    content.style.color = 'transparent';
+    content.style.webkitTextFillColor = 'transparent';
+  } else {
+    content.style.backgroundImage = '';
+    content.style.webkitBackgroundClip = '';
+    content.style.backgroundClip = '';
+    content.style.webkitTextFillColor = '';
+    // color gets restored by the caller (it knows the box's item.color)
+  }
+}
+
+function pdfedOpenPtxtGradientPopover(ev) {
+  ev.stopPropagation();
+  const { item } = pdfedPtxtTb;
+  if (!item) return;
+  const pop = document.getElementById('pdfedPtxtGradPopover');
+  const btn = document.getElementById('pdfedPtxtGradientBtn');
+  if (!pop || !btn) return;
+  const g = item.gradient || { color1: '#00C2FF', color2: '#7C3AED', angle: pdfedPtxtGradState.angle };
+  pdfedPtxtGradState.angle = g.angle;
+  pdfedPtxtGradState.item = item;
+  pdfedPtxtGradState.idx = pdfedPtxtTb.idx;
+  pdfedPtxtGradState.content = pdfedPtxtTb.content;
+  document.getElementById('pdfedPtxtGradFromInput').value = pdfedToHexColor(g.color1);
+  document.getElementById('pdfedPtxtGradToInput').value = pdfedToHexColor(g.color2);
+  const slider = document.getElementById('pdfedPtxtGradAngleSlider');
+  if (slider) slider.value = g.angle;
+  pdfedPtxtGradRefreshPreview();
+  const rect = btn.getBoundingClientRect();
+  const popW = 190;
+  let left = rect.left + rect.width / 2 - popW / 2;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
+  let top = rect.bottom + 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.classList.add('show');
+}
+
+function pdfedCloseGradientPopover() {
+  const pop = document.getElementById('pdfedPtxtGradPopover');
+  if (pop) pop.classList.remove('show');
+  pdfedPtxtGradState.item = null; pdfedPtxtGradState.idx = -1; pdfedPtxtGradState.content = null;
+}
+
+function pdfedPtxtGradRefreshPreview() {
+  const preview = document.getElementById('pdfedPtxtGradPreview');
+  const c1 = document.getElementById('pdfedPtxtGradFromInput').value;
+  const c2 = document.getElementById('pdfedPtxtGradToInput').value;
+  const angle = pdfedPtxtGradState.angle;
+  if (preview) preview.style.background = pdfedPtxtGradCss(c1, c2, angle);
+  const label = document.getElementById('pdfedPtxtGradAngleVal');
+  if (label) label.textContent = Math.round(angle);
+  const slider = document.getElementById('pdfedPtxtGradAngleSlider');
+  if (slider && Number(slider.value) !== angle) slider.value = angle;
+  // Presets (→ ↓ ↘ ↙) light up only when the angle matches one exactly —
+  // dragging the slider to some in-between value simply leaves all four
+  // unlit, same "free choice vs. quick preset" pattern as the Canvas panel.
+  document.querySelectorAll('.pdfed-ptxt-grad-angles button').forEach(b => b.classList.remove('active'));
+  const presetMap = { 90: 0, 180: 1, 135: 2, 45: 3 };
+  const btns = document.querySelectorAll('.pdfed-ptxt-grad-angles button');
+  if (presetMap[angle] != null && btns[presetMap[angle]]) btns[presetMap[angle]].classList.add('active');
+}
+
+function pdfedSetPtxtGradientAngle(deg) {
+  pdfedPtxtGradState.angle = Math.max(0, Math.min(360, parseInt(deg, 10) || 0));
+  pdfedPtxtGradRefreshPreview();
+  pdfedApplyPtxtGradient();
+}
+
+// Reads the two color pickers + current angle, writes them onto the
+// currently-selected placed-text box, and updates both the on-screen box
+// and the toolbar's own gradient button (active state) immediately.
+function pdfedApplyPtxtGradient() {
+  const item = pdfedPtxtGradState.item || pdfedPtxtTb.item;
+  const idx = (pdfedPtxtGradState.item ? pdfedPtxtGradState.idx : pdfedPtxtTb.idx);
+  const content = pdfedPtxtGradState.content || pdfedPtxtTb.content;
+  if (!item || !content) return;
+  const color1 = document.getElementById('pdfedPtxtGradFromInput').value;
+  const color2 = document.getElementById('pdfedPtxtGradToInput').value;
+  const angle = pdfedPtxtGradState.angle;
+  item.gradient = { color1, color2, angle };
+  pdfedApplyPtxtGradientDom(content, item.gradient);
+  const gradBtn = document.getElementById('pdfedPtxtGradientBtn');
+  if (gradBtn) gradBtn.classList.add('active');
+  pdfedPtxtGradRefreshPreview();
+  pdfedMarkModified(idx);
+}
+
+function pdfedRemovePtxtGradient() {
+  const item = pdfedPtxtGradState.item || pdfedPtxtTb.item;
+  const idx = (pdfedPtxtGradState.item ? pdfedPtxtGradState.idx : pdfedPtxtTb.idx);
+  const content = pdfedPtxtGradState.content || pdfedPtxtTb.content;
+  if (item) {
+    item.gradient = null;
+    if (content) {
+      pdfedApplyPtxtGradientDom(content, null);
+      content.style.color = item.color || '#ffffff';
+    }
+    pdfedMarkModified(idx);
+  }
+  const gradBtn = document.getElementById('pdfedPtxtGradientBtn');
+  if (gradBtn) gradBtn.classList.remove('active');
+  pdfedCloseGradientPopover();
+}
+
+// Click anywhere outside the gradient popover (or its trigger button) closes it.
+document.addEventListener('mousedown', (e) => {
+  const pop = document.getElementById('pdfedPtxtGradPopover');
+  if (!pop || !pop.classList.contains('show')) return;
+  if (e.target.closest('#pdfedPtxtGradPopover') || e.target.closest('#pdfedPtxtGradientBtn')) return;
+  pdfedCloseGradientPopover();
+});
 
 // Splits saved rich HTML for a placed-text box into per-line runs of
 // { text, color }, used both for re-rendering and for export baking.
@@ -22362,6 +23472,7 @@ function pdfedRenderPlacedTexts(idx) {
       text-align:${item.align};pointer-events:${item.locked && !clickToOpen ? 'none' : 'auto'};`;
     content.textContent = item.text;
     if (item.html) content.innerHTML = item.html;
+    if (item.gradient) pdfedApplyPtxtGradientDom(content, item.gradient);
     if (hasAnyLink) {
       const target = item.link || 'the link';
       content.title = clickToOpen ? ('Click to open ' + target) : ('Ctrl/Cmd-click to open ' + target);
@@ -22952,15 +24063,31 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     // and only spun around its own center at the very last step, here, so
     // the baked thumbnail/export pixels land exactly where the live DOM box
     // (rotated the same way via CSS transform) visually sits on screen.
+    const boxW = (item.w || contentWidth) + padX * 2;
+    const boxH = lines.length * lineHeight + padY * 2;
+
     const boxRotation = item.rotation ? item.rotation * Math.PI / 180 : 0;
     if (boxRotation) {
-      const boxW = (item.w || contentWidth) + padX * 2;
-      const boxH = lines.length * lineHeight + padY * 2;
       const bcx = item.x + boxW / 2, bcy = item.y + boxH / 2;
       ctx.save();
       ctx.translate(bcx, bcy);
       ctx.rotate(boxRotation);
       ctx.translate(-bcx, -bcy);
+    }
+
+    // A gradient fill (item.gradient, set via the toolbar's gradient button)
+    // spans the WHOLE box rather than any one run, using the same angle-to-
+    // line-segment math (pdfedGradientLine) as the Canvas recolor/gradient
+    // panel, so it bakes into export exactly as it looks on screen — this
+    // deliberately overrides any per-run rich-text color, matching how a
+    // gradient fill is a whole-object property, not a per-character one.
+    let gradFillStyle = null;
+    if (item.gradient) {
+      const gl = pdfedGradientLine(item.gradient.angle, boxW, boxH);
+      const grad = ctx.createLinearGradient(item.x + gl.x0, item.y + gl.y0, item.x + gl.x1, item.y + gl.y1);
+      grad.addColorStop(0, item.gradient.color1);
+      grad.addColorStop(1, item.gradient.color2);
+      gradFillStyle = grad;
     }
 
     lines.forEach((runs, i) => {
@@ -22974,7 +24101,7 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
       ctx.textAlign = 'left';
       let cx = startX;
       runs.forEach((r, ri) => {
-        const color = r.color || item.color;
+        const color = gradFillStyle || r.color || item.color;
         if (r.text) {
           setRunFont(r);
           ctx.fillStyle = color;
@@ -23951,6 +25078,15 @@ function pdfedSigSetColor(c) {
   });
 }
 
+let pdfedSigFontValue = 'cursive';
+function pdfedSigSetFont(value) {
+  pdfedSigFontValue = value;
+  sarvarcLoadFont(value);
+  const btn = document.getElementById('pdfedSigFontBtn');
+  if (btn) btn.textContent = (value === 'cursive') ? 'Signature Script' : value.split(',')[0].replace(/['"]/g, '');
+  pdfedSigRenderTyped();
+}
+
 // Type pane, renders typed name in a script font to a canvas
 function pdfedSigRenderTyped() {
   const cv = document.getElementById('pdfedSigTypeCanvas');
@@ -23958,17 +25094,18 @@ function pdfedSigRenderTyped() {
   ctx.clearRect(0, 0, cv.width, cv.height);
   const text = document.getElementById('pdfedSigTypeInput').value.trim();
   if (!text) return;
-  const fontSel = document.getElementById('pdfedSigFontSelect').value;
-  const font = (fontSel === 'cursive') ? "italic 56px 'Brush Script MT', cursive" : `italic 48px ${fontSel}`;
+  const fontSel = pdfedSigFontValue;
+  const fontStack = (fontSel === 'cursive') ? "'Brush Script MT', cursive" : (fontSel.includes(',') ? fontSel : `'${fontSel}', cursive`);
+  const font = `italic 56px ${fontStack}`;
   ctx.font = font;
   ctx.fillStyle = '#0A0F1E';
   ctx.textBaseline = 'middle';
   let w = ctx.measureText(text).width;
   // shrink to fit if needed
-  let size = fontSel === 'cursive' ? 56 : 48;
+  let size = 56;
   while (w > cv.width - 40 && size > 18) {
     size -= 2;
-    ctx.font = (fontSel === 'cursive') ? `italic ${size}px 'Brush Script MT', cursive` : `italic ${size}px ${fontSel}`;
+    ctx.font = `italic ${size}px ${fontStack}`;
     w = ctx.measureText(text).width;
   }
   ctx.fillText(text, (cv.width - w) / 2, cv.height / 2);
@@ -32639,6 +33776,33 @@ async function rdxInsertIntoWorkspace(mode) {
   <span id="pdfedOpacityPopoverVal" class="pdfed-opacity-popover-val">100%</span>
 </div>
 
+<!-- Text-gradient popover, opened from the "gradient" button in the placed-text
+     formatting toolbar. Lives at the top level (position:fixed) same as the
+     opacity popover above, so it can dock next to the toolbar regardless of
+     zoom/scroll. Applies a two-stop CSS gradient fill to the currently
+     selected placed-text box; "Remove gradient" reverts to the box's plain
+     solid color. -->
+<div id="pdfedPtxtGradPopover" class="pdfed-ptxt-grad-popover">
+  <div id="pdfedPtxtGradPreview" class="pdfed-ptxt-grad-preview"></div>
+  <div class="pdfed-ptxt-grad-row">
+    <label>From</label>
+    <input id="pdfedPtxtGradFromInput" type="color" value="#00C2FF" onmousedown="event.stopPropagation()" oninput="pdfedApplyPtxtGradient()" onchange="pdfedApplyPtxtGradient()">
+    <label>To</label>
+    <input id="pdfedPtxtGradToInput" type="color" value="#7C3AED" onmousedown="event.stopPropagation()" oninput="pdfedApplyPtxtGradient()" onchange="pdfedApplyPtxtGradient()">
+  </div>
+  <div class="pdfed-ptxt-grad-angles">
+    <button type="button" title="Left to right" onclick="pdfedSetPtxtGradientAngle(90)">→</button>
+    <button type="button" title="Top to bottom" onclick="pdfedSetPtxtGradientAngle(180)">↓</button>
+    <button type="button" title="Diagonal" onclick="pdfedSetPtxtGradientAngle(135)">↘</button>
+    <button type="button" title="Diagonal" onclick="pdfedSetPtxtGradientAngle(45)">↙</button>
+  </div>
+  <div class="pdfed-ptxt-grad-row">
+    <label>Angle <span id="pdfedPtxtGradAngleVal">90</span>°</label>
+  </div>
+  <input id="pdfedPtxtGradAngleSlider" type="range" min="0" max="360" value="90" class="pdfed-opacity-slider" style="width:100%" onmousedown="event.stopPropagation()" oninput="pdfedSetPtxtGradientAngle(this.value)">
+  <button type="button" class="pdfed-ptxt-grad-remove" onclick="pdfedRemovePtxtGradient()">Remove gradient</button>
+</div>
+
 <!-- Live color popover for placed borders — one native color input + hex
      field, opened from a border object's own "Color" badge. Lives at the top
      level like the opacity popover so it's reachable anywhere, and repaints
@@ -33824,7 +34988,17 @@ function mfcRestyleBox(box) {
     inner.style.textDecoration = box.underline ? 'underline' : 'none';
     inner.style.textAlign = box.align || 'left';
     inner.style.color = box.color || '#1a1a1a';
+    inner.style.fontFamily = `'${box.fontFamily || 'Inter'}', sans-serif`;
   }
+}
+
+function mfcSetFont(value) {
+  const box = mfcSelBox(); if (!box) return;
+  sarvarcLoadFont(value);
+  box.fontFamily = value;
+  mfTouch(mfcGetForm());
+  mfcRestyleBox(box);
+  mfcSyncToolbar();
 }
 
 // ─── selection / editing ───
@@ -34005,9 +35179,13 @@ function mfcSyncToolbar() {
     if (bd) bd.classList.toggle('active', !!box.border);
     if (fs) fs.textContent = box.fontSize;
     if (col) col.value = box.color || '#1a1a1a';
+    const fb = document.getElementById('mfcFontBtn');
+    if (fb) fb.textContent = (box.fontFamily || 'Inter').split(',')[0].replace(/['"]/g, '');
   } else {
     [b, i, u, bd].forEach(x => x && x.classList.remove('active'));
     if (fs) fs.textContent = '12';
+    const fb = document.getElementById('mfcFontBtn');
+    if (fb) fb.textContent = 'Inter';
   }
 }
 
@@ -38976,7 +40154,8 @@ function dgAddText() {
     fontSize,
     color: '#101820',
     bold: true,
-    align: 'left'
+    align: 'left',
+    fontFamily: 'Inter'
   };
   dgState.texts.push(item);
   dgRenderTextOverlay();
@@ -39053,7 +40232,7 @@ function dgRenderTextOverlay() {
     el.style.fontStyle = item.italic ? 'italic' : 'normal';
     el.style.textDecoration = item.underline ? 'underline' : 'none';
     el.style.textAlign = item.align || 'left';
-    el.style.fontFamily = 'Inter, sans-serif';
+    el.style.fontFamily = `'${item.fontFamily || 'Inter'}', sans-serif`;
     el.textContent = item.text;
 
     const del = document.createElement('div');
@@ -39276,6 +40455,7 @@ function dgUpdatePtxtToolbarButtons(item) {
   if (b) b.classList.toggle('active', !!item.bold);
   if (i) i.classList.toggle('active', !!item.italic);
   if (u) u.classList.toggle('active', !!item.underline);
+  { const fb = document.getElementById('dgPtxtFontBtn'); if (fb) fb.textContent = (item.fontFamily || 'Inter').split(',')[0].replace(/['"]/g, ''); }
   const align = item.align || 'left';
   if (al) al.classList.toggle('active', align === 'left');
   if (ac) ac.classList.toggle('active', align === 'center');
@@ -39313,6 +40493,17 @@ function dgPtxtSetAlign(align) {
   dgPositionPtxtToolbar();
 
   dgUpdatePtxtToolbarButtons(item);
+}
+
+function dgPtxtSetFont(value) {
+  const item = dgPtxtToolbarItem;
+  if (!item) return;
+  sarvarcLoadFont(value);
+  item.fontFamily = value;
+  const el = document.querySelector('.dg-placed-text[data-id="' + item.id + '"]');
+  if (el) el.style.fontFamily = `'${value}', sans-serif`;
+  const fb = document.getElementById('dgPtxtFontBtn');
+  if (fb) fb.textContent = value.split(',')[0].replace(/['"]/g, '');
 }
 
 function dgPtxtToggleStyle(prop) {
