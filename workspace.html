@@ -2027,6 +2027,51 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   letter-spacing: 0.3px;
 }
 
+/* ─── RIBBON COLLAPSE — "premium minimal" mode for users who don't want ───
+   ─── every tool group on screen at once. Row2 (the ribbon) can be pinned  ───
+   ─── shut via the header toggle; a slim hover strip takes its place and   ───
+   ─── reveals the full ribbon as a floating overlay on hover, so the canvas ───
+   ─── never jumps just to peek at a tool. Preference persists per browser. ─── */
+.pdfed-appbar { position: relative; }
+.pdfed-appbar-row2 {
+  transition: height 0.28s cubic-bezier(.4,0,.2,1), opacity 0.18s ease, box-shadow 0.18s ease;
+}
+.pdfed-appbar.ribbon-collapsed .pdfed-appbar-row2 {
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-bottom: none;
+}
+.pdfed-appbar.ribbon-collapsed .pdfed-appbar-row2.ribbon-peek {
+  position: absolute;
+  left: 0; right: 0;
+  height: 52px;
+  opacity: 1;
+  pointer-events: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 40;
+  background: var(--pdfed-toolbar-bg);
+  border-bottom: 1px solid var(--pdfed-toolbar-border);
+  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.35);
+}
+.pdfed-ribbon-peek-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 9px;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--pdfed-toolbar-bg), transparent);
+  border-bottom: 1px solid var(--pdfed-toolbar-border);
+  color: var(--text3);
+}
+.pdfed-appbar.ribbon-collapsed .pdfed-ribbon-peek-handle { display: flex; }
+.pdfed-ribbon-peek-handle:hover { color: var(--pdfed-accent); }
+.pdfed-ribbon-toggle-btn svg { transition: transform 0.2s ease; }
+.pdfed-appbar.ribbon-collapsed .pdfed-ribbon-toggle-btn svg { transform: rotate(180deg); }
+.pdfed-appbar.ribbon-collapsed .pdfed-ribbon-toggle-btn { color: var(--pdfed-accent); }
+
 /* Toolbar ribbon, icon + label buttons in a row */
 .pdfed-ribbon {
   display: flex;
@@ -5616,7 +5661,7 @@ th:hover .da-th-del { opacity:1; }
 
 /* ─── DIAGRAMS & GRAPHS ─── */
 .dg-section { display:flex; flex-direction:column; gap:8px; padding:8px 24px 14px; position:relative; z-index:1; min-height:0; }
-.dg-body { display:flex; flex-direction:column; gap:8px; min-height:0; flex:1; }
+.dg-body { display:flex; flex-direction:column; gap:8px; min-height:0; flex:1; position:relative; }
 .dg-panel {
   background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
   padding:16px; display:flex; flex-direction:column; gap:14px;
@@ -5725,7 +5770,39 @@ th:hover .da-th-del { opacity:1; }
   display:flex; align-items:center; gap:2px; height:52px; flex-shrink:0;
   border:1px solid var(--border); border-radius:12px;
   background:var(--bg2); padding:0 8px; overflow-x:auto; overflow-y:hidden;
+  transition: height 0.24s cubic-bezier(.4,0,.2,1), opacity 0.16s ease, padding 0.2s ease, border-color 0.2s ease;
 }
+/* Collapsed: shrink the whole bar to a slim clickable strip instead of hiding it,
+   so it still reads as "there are tools here" for people who like the toolbar minimal. */
+.dg-ribbon-bar.dg-ribbon-collapsed {
+  height: 10px;
+  padding: 0;
+  opacity: 0.55;
+  cursor: pointer;
+  overflow: hidden;
+  border-style: dashed;
+}
+.dg-ribbon-bar.dg-ribbon-collapsed:hover { opacity: 0.9; }
+.dg-ribbon-bar.dg-ribbon-collapsed > * { visibility: hidden; }
+/* Peeking: hovering the collapsed strip floats the full toolbar over the
+   canvas below it instead of pushing the canvas down, so nothing reflows
+   just to glance at a tool. Leaving the area collapses it back to the strip. */
+.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 52px;
+  padding: 0 8px;
+  opacity: 1;
+  border-style: solid;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 40;
+  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.35);
+}
+.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek > * { visibility: visible; }
+.dg-ribbon-toggle-btn svg { transition: transform 0.2s ease; }
+.dg-ribbon-toggle-btn.active svg { transform: rotate(180deg); }
+.dg-ribbon-toggle-btn.active { color: var(--pdfed-accent) !important; border-color: var(--border2) !important; }
 .dg-ribbon-bar::-webkit-scrollbar { height:3px; }
 .dg-ribbon-bar::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
 .dg-rbn-group { display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
@@ -7497,6 +7574,10 @@ button.dg-show-chip.active { background:var(--blue); }
             </div>
             <!-- Right action buttons -->
             <div class="pdfed-appbar-actions">
+              <button class="pdfed-appbar-btn pdfed-ribbon-toggle-btn" id="pdfedRibbonToggleBtn" onclick="pdfedToggleRibbon()" title="Collapse ribbon">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="pdfedRibbonToggleIcon"><polyline points="18 15 12 9 6 15"/></svg>
+                <span>Ribbon</span>
+              </button>
               <button class="pdfed-appbar-btn" id="pdfedUploadBtn" onclick="document.getElementById('pdfedFileInput').click()">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Open PDF
@@ -7521,7 +7602,7 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
 
           <!-- Row 2: Ribbon tool buttons -->
-          <div class="pdfed-appbar-row2">
+          <div class="pdfed-appbar-row2" id="pdfedAppbarRow2">
           <div class="pdfed-ribbon" id="pdfedToolbar" style="visibility:visible">
 
             <!-- NAVIGATE -->
@@ -7875,6 +7956,11 @@ button.dg-show-chip.active { background:var(--blue); }
             </div>
           </div><!-- /pdfed-ribbon -->
           </div><!-- /pdfed-appbar-row2 -->
+          <!-- Slim hover strip shown only when the ribbon is collapsed — hover to peek
+               at the ribbon without permanently reopening it, click to pin it open. -->
+          <div class="pdfed-ribbon-peek-handle" id="pdfedRibbonPeekHandle" onclick="pdfedToggleRibbon()" title="Show ribbon">
+            <svg width="14" height="6" viewBox="0 0 24 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 2 12 8 20 2"/></svg>
+          </div>
         </div><!-- /pdfed-appbar -->
 
         <div class="pdfeditor-layout" id="pdfedLayout">
@@ -8588,6 +8674,11 @@ button.dg-show-chip.active { background:var(--blue); }
           <button type="button" class="dg-mode-tab" id="dgModeFlowTab" onclick="dgSetDgMode('flow')"
             style="padding:5px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
             Flowchart / Diagram
+          </button>
+          <button type="button" class="dg-ribbon-toggle-btn" id="dgRibbonToggleBtn" onclick="dgToggleRibbon()" title="Collapse toolbar"
+            style="margin-left:auto;display:flex;align-items:center;gap:5px;padding:5px 10px;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="dgRibbonToggleIcon" style="transition:transform .2s ease"><polyline points="18 15 12 9 6 15"/></svg>
+            <span>Toolbar</span>
           </button>
         </div>
 
@@ -35587,20 +35678,44 @@ async function rdxInsertIntoWorkspace(mode) {
 (function () {
   const root = document.documentElement;
 
+  // Once either bar has auto-shrunk for the first time in this browser tab
+  // session, both bars lock into the shrunk state for the rest of the
+  // session — hovering no longer re-expands them. Closing the tab (or the
+  // whole browser) clears sessionStorage, so reopening starts fresh: bars
+  // load big again, wait out the idle delay, then shrink-and-lock again.
+  const LOCK_KEY = 'sarvarcBarsShrunkLock';
+  let sessionLocked = false;
+  try { sessionLocked = sessionStorage.getItem(LOCK_KEY) === '1'; } catch (e) {}
+
+  function lockShrink() {
+    if (sessionLocked) return;
+    sessionLocked = true;
+    try { sessionStorage.setItem(LOCK_KEY, '1'); } catch (e) {}
+  }
+
   // hoverEl: the element whose hover state controls shrink/expand
   // classEl: the element that receives the .compact class (may be a parent)
   function makeAutoShrink(hoverEl, classEl, { onShrink, onExpand } = {}) {
     if (!hoverEl || !classEl) return null;
-    let armed = false;
+    // If a prior shrink already locked this session, start pre-armed so we
+    // don't wait through another idle delay before re-applying the shrink.
+    let armed = sessionLocked;
     let hovering = false;
     function shrink() {
-      if (armed && !hovering) { classEl.classList.add('compact'); if (onShrink) onShrink(); }
+      if (armed && !hovering) {
+        classEl.classList.add('compact');
+        if (onShrink) onShrink();
+        lockShrink();
+      }
     }
     function expand() {
+      // Once locked shrunk for the session, hover can no longer re-expand.
+      if (sessionLocked) return;
       classEl.classList.remove('compact'); if (onExpand) onExpand();
     }
     hoverEl.addEventListener('mouseenter', () => { hovering = true; expand(); });
     hoverEl.addEventListener('mouseleave', () => { hovering = false; shrink(); });
+    if (sessionLocked) shrink(); // apply immediately, no idle wait needed
     return { arm() { armed = true; shrink(); } };
   }
 
@@ -35618,6 +35733,108 @@ async function rdxInsertIntoWorkspace(mode) {
     if (navShrink) navShrink.arm();
     if (appbarShrink) appbarShrink.arm();
   }, 5000);
+})();
+</script>
+
+<script>
+// ─── PDF EDITOR RIBBON COLLAPSE ("hide the tools until I need them") ───
+// Lets people pin the tool ribbon shut so the editor reads as a clean canvas
+// instead of a wall of buttons. While collapsed, hovering the thin strip left
+// behind peeks the full ribbon as a floating overlay (no layout jump); moving
+// away closes the peek again. The pinned/unpinned choice is remembered.
+(function () {
+  const appbar = document.getElementById('pdfedAppbar');
+  const row1 = appbar ? appbar.querySelector('.pdfed-appbar-row1') : null;
+  const row2 = document.getElementById('pdfedAppbarRow2');
+  const handle = document.getElementById('pdfedRibbonPeekHandle');
+  const toggleBtn = document.getElementById('pdfedRibbonToggleBtn');
+  if (!appbar || !row2) return;
+
+  const STORAGE_KEY = 'sarvarcPdfRibbonCollapsed';
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) {}
+
+  function applyPeekTop() {
+    if (row1) row2.style.top = row1.offsetHeight + 'px';
+  }
+
+  function setCollapsed(next) {
+    collapsed = next;
+    appbar.classList.toggle('ribbon-collapsed', collapsed);
+    row2.classList.remove('ribbon-peek');
+    if (toggleBtn) toggleBtn.title = collapsed ? 'Show ribbon' : 'Collapse ribbon';
+    if (handle) handle.title = collapsed ? 'Show ribbon' : '';
+    try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch (e) {}
+  }
+
+  setCollapsed(collapsed);
+
+  window.pdfedToggleRibbon = function () { setCollapsed(!collapsed); };
+
+  let hideTimer = null;
+  function peekShow() {
+    if (!collapsed) return;
+    clearTimeout(hideTimer);
+    applyPeekTop();
+    row2.classList.add('ribbon-peek');
+  }
+  function peekHide() {
+    hideTimer = setTimeout(() => { row2.classList.remove('ribbon-peek'); }, 220);
+  }
+  if (handle) {
+    handle.addEventListener('mouseenter', peekShow);
+    handle.addEventListener('mouseleave', peekHide);
+  }
+  row2.addEventListener('mouseenter', () => { if (collapsed) clearTimeout(hideTimer); });
+  row2.addEventListener('mouseleave', () => { if (collapsed) peekHide(); });
+  window.addEventListener('resize', () => { if (row2.classList.contains('ribbon-peek')) applyPeekTop(); });
+})();
+</script>
+
+<script>
+// ─── DIAGRAMS & GRAPHS TOOLBAR COLLAPSE ───
+// Same idea as the PDF editor ribbon: pin the toolbar shut to a thin strip,
+// hover the strip to peek the full toolbar as a floating overlay (canvas
+// underneath never shifts), move away and it tucks back in. Click the strip
+// (or the toggle button) to pin it open/shut for good. Choice persists.
+(function () {
+  const bar = document.getElementById('dgRibbonBar');
+  const btn = document.getElementById('dgRibbonToggleBtn');
+  if (!bar || !btn) return;
+
+  const STORAGE_KEY = 'sarvarcDgRibbonCollapsed';
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) {}
+
+  function setCollapsed(next) {
+    collapsed = next;
+    bar.classList.toggle('dg-ribbon-collapsed', collapsed);
+    bar.classList.remove('dg-ribbon-peek');
+    btn.classList.toggle('active', collapsed);
+    btn.title = collapsed ? 'Show toolbar' : 'Collapse toolbar';
+    try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch (e) {}
+  }
+
+  window.dgToggleRibbon = function () { setCollapsed(!collapsed); };
+
+  let hideTimer = null;
+  function peekShow() {
+    if (!collapsed) return;
+    clearTimeout(hideTimer);
+    bar.classList.add('dg-ribbon-peek');
+  }
+  function peekHide() {
+    hideTimer = setTimeout(() => { bar.classList.remove('dg-ribbon-peek'); }, 220);
+  }
+
+  bar.addEventListener('mouseenter', peekShow);
+  bar.addEventListener('mouseleave', () => { if (collapsed) peekHide(); });
+  bar.addEventListener('click', () => {
+    // Clicking while peeking (or on the collapsed strip itself) pins it open.
+    if (collapsed) setCollapsed(false);
+  });
+
+  setCollapsed(collapsed);
 })();
 </script>
 
