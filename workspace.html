@@ -1416,6 +1416,23 @@ a.nav-item:hover { color: var(--text); }
 .pdfed-ctint-preset-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); border-color: var(--pdfed-accent); }
 .pdfed-ctint-preset-btn.wide { font-size: 10.5px; letter-spacing: .2px; }
 
+/* Image background — upload zone + thumbnail preview */
+.pdfed-ctint-image-zone {
+  border: 1.5px dashed var(--pdfed-section-border); border-radius: 10px; cursor: pointer;
+  background: var(--pdfed-section-bg); transition: all .15s; overflow: hidden;
+}
+.pdfed-ctint-image-zone:hover { border-color: var(--pdfed-accent); }
+.pdfed-ctint-image-empty {
+  padding: 20px 10px; text-align: center; font-size: 11.5px; color: var(--text3); font-weight: 600;
+}
+.pdfed-ctint-image-thumb-wrap { position: relative; width: 100%; height: 78px; }
+.pdfed-ctint-image-thumb-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pdfed-ctint-image-select {
+  width: 100%; padding: 7px 9px; border-radius: 8px; margin-top: 10px;
+  background: var(--pdfed-btn-bg); border: 1px solid var(--pdfed-section-border); color: var(--text);
+  font-size: 11.5px; font-family: 'Inter', sans-serif; cursor: pointer; outline: none;
+}
+
 /* Sliders — thin gradient track, accent thumb, matches the rest of the panel */
 .pdfed-ctint-slider-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .pdfed-ctint-slider-row label { font-size: 11px; color: var(--text2); font-weight: 600; }
@@ -1454,6 +1471,43 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   background: var(--pdfed-btn-bg); color: var(--text2); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s;
 }
 .pdfed-ctint-secondary-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+.pdfed-ctint-secondary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pdfed-ctint-secondary-btn:disabled:hover { background: var(--pdfed-btn-bg); color: var(--text2); }
+
+/* Design panel — cinematic fade preset grid: small icon tiles (swatch
+   preview of the effect's shape + tiny label underneath), like a
+   professional photo-filter picker rather than plain text buttons. */
+.pdfed-design-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.pdfed-design-preset {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 5px 3px 6px; border-radius: 9px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--text2);
+  cursor: pointer; transition: all .15s; font-family: 'Inter', sans-serif;
+}
+.pdfed-design-preset:hover { background: var(--pdfed-btn-hover); border-color: var(--pdfed-btn-hover); }
+.pdfed-design-swatch {
+  width: 100%; aspect-ratio: 1 / 1; border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  background-size: cover;
+}
+.pdfed-design-label {
+  font-size: 9px; font-weight: 600; line-height: 1.2; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.pdfed-design-preset.active { border-color: var(--cyan); background: var(--pdfed-btn-hover); }
+.pdfed-design-preset.active .pdfed-design-label { color: var(--text); }
+.pdfed-design-preset.active .pdfed-design-swatch {
+  box-shadow: 0 0 0 2px var(--cyan), inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+/* Premium 3D Cinematic tier — gold accent instead of cyan, so these visually
+   read as the higher-end filters rather than being indistinguishable from
+   the basic fades. */
+.pdfed-design-preset.premium:hover { border-color: #ffc65c; }
+.pdfed-design-preset.premium.active { border-color: #ffc65c; }
+.pdfed-design-preset.premium.active .pdfed-design-swatch {
+  box-shadow: 0 0 0 2px #ffc65c, inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+.pdfed-design-preset.premium.active .pdfed-design-label { color: #ffc65c; }
 
 /* Saved gradients / colours — user's own presets, persisted in localStorage */
 .pdfed-ctint-save-btn {
@@ -8313,6 +8367,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 <div class="pdfed-ctint-modebar">
                   <button type="button" class="pdfed-ctint-mode-btn active" id="pdfedCtintModeSolidBtn" onclick="pdfedCanvasSetMode('solid')">Solid</button>
                   <button type="button" class="pdfed-ctint-mode-btn" id="pdfedCtintModeGradBtn" onclick="pdfedCanvasSetMode('gradient')">Gradient</button>
+                  <button type="button" class="pdfed-ctint-mode-btn" id="pdfedCtintModeImageBtn" onclick="pdfedCanvasSetMode('image')">Image</button>
                 </div>
 
                 <!-- live swatch preview of the resulting fill -->
@@ -8377,6 +8432,34 @@ button.dg-show-chip.active { background:var(--blue); }
                   </div>
                 </div>
 
+                <!-- IMAGE controls -->
+                <div id="pdfedCtintImageControls" class="pdfed-ctint-section" style="display:none">
+                  <label class="pdfed-ctint-label">Background Image</label>
+                  <input type="file" id="pdfedCtintImageInput" accept="image/*" style="display:none" onchange="pdfedCanvasImageFileSelected(this)">
+                  <div id="pdfedCtintImageZone" class="pdfed-ctint-image-zone" onclick="document.getElementById('pdfedCtintImageInput').click()">
+                    <div id="pdfedCtintImageThumbWrap" class="pdfed-ctint-image-thumb-wrap" style="display:none">
+                      <img id="pdfedCtintImageThumb" alt="">
+                    </div>
+                    <div id="pdfedCtintImageEmpty" class="pdfed-ctint-image-empty">Click to upload an image</div>
+                  </div>
+                  <div class="pdfed-ctint-secondary-row" style="margin-top:8px">
+                    <button type="button" class="pdfed-ctint-secondary-btn" onclick="event.stopPropagation(); document.getElementById('pdfedCtintImageInput').click()" title="Choose a different image">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                      Replace Image
+                    </button>
+                    <button type="button" class="pdfed-ctint-secondary-btn" onclick="pdfedCanvasClearImage()" title="Remove the uploaded image">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      Remove
+                    </button>
+                  </div>
+                  <select id="pdfedCtintImageFitSelect" class="pdfed-ctint-image-select" onchange="pdfedCanvasSetImageFit(this.value)">
+                    <option value="cover">Fit: Cover (fill &amp; crop)</option>
+                    <option value="contain">Fit: Contain (fit inside)</option>
+                    <option value="stretch">Fit: Stretch</option>
+                    <option value="tile">Fit: Tile</option>
+                  </select>
+                </div>
+
                 <hr class="pdfed-ctint-divider">
 
                 <!-- OPACITY -->
@@ -8423,9 +8506,43 @@ button.dg-show-chip.active { background:var(--blue); }
                 </div>
               </div><!-- /pdfedCanvasPanelBody flyout -->
 
-              <div class="pdfed-panel-section">
-                <h5 style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insert Page</h5>
-                <button class="btn-secondary" onclick="pdfedInsertAtEnd()" style="width:100%;font-size:11px;padding:7px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Page at End</span></button>
+              <div class="pdfed-panel-section" id="pdfedDesignPanel">
+                <h5 style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg> Design</h5>
+
+                <div id="pdfedDesignEmpty" style="font-size:11px;color:var(--text3);line-height:1.6;padding:2px 2px 4px">
+                  Select a placed image to apply cinematic fade effects.
+                </div>
+
+                <div id="pdfedDesignControls" style="display:none">
+                  <label class="pdfed-ctint-label">Cinematic Fade</label>
+                  <div class="pdfed-design-grid" id="pdfedDesignGrid"></div>
+
+                  <label class="pdfed-ctint-label" style="margin-top:12px;display:flex;align-items:center;gap:4px">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="color:#ffc65c"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6z"/></svg>
+                    Premium 3D Cinematic
+                  </label>
+                  <div class="pdfed-design-grid" id="pdfedDesignPremiumGrid"></div>
+
+                  <div class="pdfed-ctint-slider-row" style="margin-top:12px">
+                    <label>Strength</label>
+                    <span class="val"><span id="pdfedDesignStrengthVal">50</span>%</span>
+                  </div>
+                  <input type="range" class="pdfed-ctint-slider" min="0" max="100" value="50" id="pdfedDesignStrengthSlider" oninput="pdfedDesignSetStrength(this.value)">
+
+                  <button type="button" class="pdfed-ctint-apply-btn" style="margin-top:10px" onclick="pdfedDesignApplyFade()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Apply Fade
+                  </button>
+
+                  <hr class="pdfed-ctint-divider">
+
+                  <label class="pdfed-ctint-label">Cinematic Merge</label>
+                  <div id="pdfedDesignMergeHint" style="font-size:10.5px;color:var(--text3);line-height:1.5;margin-bottom:8px">Select exactly 2 overlapping images to merge</div>
+                  <button type="button" class="pdfed-ctint-secondary-btn" id="pdfedDesignMergeBtn" style="width:100%" onclick="pdfedCinematicMerge()" disabled>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="5"/><circle cx="16" cy="12" r="5"/></svg>
+                    Merge at Shared Edge
+                  </button>
+                </div>
               </div>
 
               <!-- TEXT HIGHLIGHT PANEL (hidden until Text HL mode is active) -->
@@ -11756,6 +11873,539 @@ function applyReshapeConfirm() {
     toast('Shape applied, ' + shape.name, 'success');
   };
   srcImg.src = reshape.srcDataUrl;
+}
+
+// ─── DESIGN — CINEMATIC FADE ───────────────────────────────────────────
+// Applies a premium fade/border look to a selected placed image, baked
+// directly into its pixels (same destructive-bake + pushAppHistory pattern
+// as Image Reshaper above) so it needs no special handling anywhere else —
+// export, thumbnails, and reload all just see a PNG with the right alpha.
+//
+// Each preset works by drawing a black→opaque gradient onto the image's own
+// canvas with globalCompositeOperation 'destination-in', which multiplies
+// the image's existing alpha by the gradient's alpha at every pixel. Where
+// the gradient is 0 (transparent black) the pixel disappears; where it's 1
+// the pixel is untouched. Chaining several of these (e.g. all 4 edges for
+// Feather) naturally intersects them, since alpha keeps getting multiplied
+// down — no separate mask canvas or per-pixel math needed.
+const PDFED_DESIGN_PRESETS = [
+  { id: 'feather',   name: 'Feather',
+    swatch: 'linear-gradient(#0b0d12,#0b0d12) padding-box, ' +
+            'radial-gradient(circle, transparent 38%, rgba(11,13,18,0.95) 92%), ' +
+            'linear-gradient(135deg,#ff9a56,#ff6a88)' },
+  { id: 'vignette',  name: 'Vignette',
+    swatch: 'radial-gradient(circle, transparent 32%, rgba(11,13,18,0.95) 100%), ' +
+            'linear-gradient(135deg,#43cbff,#9708cc)' },
+  { id: 'fadeIn',    name: 'Fade In',
+    swatch: 'linear-gradient(to bottom, rgba(11,13,18,0.95), transparent 55%), ' +
+            'linear-gradient(160deg,#f7797d,#fbd786,#c6ffdd)' },
+  { id: 'fadeOut',   name: 'Fade Out',
+    swatch: 'linear-gradient(to top, rgba(11,13,18,0.95), transparent 55%), ' +
+            'linear-gradient(160deg,#30cfd0,#330867)' },
+  { id: 'filmstrip', name: 'Film Strip',
+    swatch: 'linear-gradient(to bottom, rgba(11,13,18,0.95) 0%, transparent 25%, transparent 75%, rgba(11,13,18,0.95) 100%), ' +
+            'linear-gradient(135deg,#e0c3fc,#8ec5fc)' },
+  { id: 'diagonal',  name: 'Diagonal',
+    swatch: 'linear-gradient(135deg, transparent 52%, rgba(11,13,18,0.95) 100%), ' +
+            'linear-gradient(135deg,#f6d365,#fda085)' },
+  // ── Premium 3D Cinematic tier ──────────────────────────────────────────
+  // Heavier, layered effects (embossed 3D borders, true widescreen
+  // letterboxing, real per-channel chromatic aberration, film grain) built
+  // by combining several native canvas blend modes rather than a single
+  // alpha gradient — the same trick colour grading suites use, one click.
+  { id: 'cinemaBars', name: 'CinemaScope', premium: true,
+    swatch: 'linear-gradient(#05060a,#05060a) top / 100% 22% no-repeat, ' +
+            'linear-gradient(#05060a,#05060a) bottom / 100% 22% no-repeat, ' +
+            'linear-gradient(135deg,#2b5876,#4e4376)' },
+  { id: 'depth3d', name: '3D Depth Frame', premium: true,
+    swatch: 'linear-gradient(135deg,#3a3f52,#1b1e29)',
+    swatchExtra: 'box-shadow:inset 3px 3px 0 rgba(255,255,255,0.28), inset -3px -3px 0 rgba(0,0,0,0.55);' },
+  { id: 'goldenGrade', name: 'Golden Hour', premium: true,
+    swatch: 'radial-gradient(circle, rgba(255,255,255,0) 28%, rgba(255,178,102,0.9) 100%), ' +
+            'linear-gradient(135deg,#ffd89b,#19547b)' },
+  { id: 'chromaPulse', name: 'Chroma Edge', premium: true,
+    swatch: 'linear-gradient(135deg,#1b1e29,#2b5876)',
+    swatchExtra: 'box-shadow:inset 0 0 0 2px rgba(255,45,85,0.6), inset 0 0 0 4px rgba(0,180,255,0.5);' },
+  { id: 'noirGrain', name: 'Film Noir', premium: true,
+    swatch: 'radial-gradient(circle, rgba(130,130,130,0.25) 26%, rgba(8,8,8,0.96) 100%)' }
+];
+let pdfedDesignState = { preset: 'feather', strength: 50 };
+
+function pdfedDesignEdgeGradient(ctx, w, h, x0, y0, x1, y1) {
+  ctx.globalCompositeOperation = 'destination-in';
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,1)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// Shifts the red channel one way and the blue channel the other way (green
+// stays put), producing genuine per-channel chromatic aberration rather
+// than a fake color overlay — the same artifact real anamorphic lenses
+// produce toward the edges of frame.
+function pdfedDesignChromaShift(ctx, w, h, amount) {
+  const src = ctx.getImageData(0, 0, w, h);
+  const sd = src.data;
+  const dst = ctx.createImageData(w, h);
+  const dd = dst.data;
+  const shift = Math.max(1, Math.round(amount));
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      const di = (row + x) * 4;
+      const rx = Math.min(w - 1, x + shift);
+      const bx = Math.max(0, x - shift);
+      const ri = (row + rx) * 4, bi = (row + bx) * 4;
+      dd[di]     = sd[ri];     // red sampled from further right
+      dd[di + 1] = sd[di + 1]; // green stays aligned
+      dd[di + 2] = sd[bi + 2]; // blue sampled from further left
+      dd[di + 3] = sd[di + 3];
+    }
+  }
+  ctx.putImageData(dst, 0, 0);
+}
+
+// Adds fine per-pixel luminance noise (real film grain, not a texture
+// overlay), skipping fully-transparent pixels so it never grains in empty
+// space around a feathered/vignetted edge.
+function pdfedDesignFilmGrain(ctx, w, h, intensity) {
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const n = (Math.random() - 0.5) * 255 * intensity;
+    d[i]     = Math.min(255, Math.max(0, d[i] + n));
+    d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + n));
+    d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + n));
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+// strength (0-100) controls how far the fade reaches in from the edge,
+// as a fraction of the image's own dimensions.
+function pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength) {
+  const t = 0.08 + (strength / 100) * 0.5;
+  switch (preset) {
+    case 'feather':
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t);
+      break;
+    case 'vignette': {
+      ctx.globalCompositeOperation = 'destination-in';
+      const cx = w / 2, cy = h / 2;
+      const rOuter = Math.sqrt(cx * cx + cy * cy);
+      const g = ctx.createRadialGradient(cx, cy, rOuter * (1 - t) * 0.55, cx, cy, rOuter * (1 - t * 0.35));
+      g.addColorStop(0, 'rgba(0,0,0,1)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'fadeIn':
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 1.5);
+      break;
+    case 'fadeOut':
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 1.5);
+      break;
+    case 'filmstrip':
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t);
+      break;
+    case 'diagonal': {
+      ctx.globalCompositeOperation = 'destination-in';
+      const g2 = ctx.createLinearGradient(0, 0, w, h);
+      g2.addColorStop(0, 'rgba(0,0,0,0)');
+      g2.addColorStop(Math.min(0.92, t), 'rgba(0,0,0,0)');
+      g2.addColorStop(1, 'rgba(0,0,0,1)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+
+    // ── Premium 3D Cinematic tier ──────────────────────────────────────
+    case 'cinemaBars': {
+      // True widescreen letterbox bars (opaque, not a fade) sized off
+      // strength, softly feathered at their inner edge, plus a light
+      // vignette on the visible strip for depth — the classic 2.35:1
+      // "movie frame" look.
+      const barH = h * (0.05 + (strength / 100) * 0.14);
+      const feather = Math.max(3, barH * 0.35);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, barH - feather);
+      ctx.fillRect(0, h - barH + feather, w, barH - feather);
+      let bg = ctx.createLinearGradient(0, barH - feather, 0, barH);
+      bg.addColorStop(0, 'rgba(0,0,0,1)'); bg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = bg; ctx.fillRect(0, barH - feather, w, feather);
+      let bg2 = ctx.createLinearGradient(0, h - barH, 0, h - barH + feather);
+      bg2.addColorStop(0, 'rgba(0,0,0,0)'); bg2.addColorStop(1, 'rgba(0,0,0,1)');
+      ctx.fillStyle = bg2; ctx.fillRect(0, h - barH, w, feather);
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'multiply';
+      const gv = ctx.createRadialGradient(cx, cy, rOuter * 0.55, cx, cy, rOuter);
+      gv.addColorStop(0, 'rgba(255,255,255,1)'); gv.addColorStop(1, 'rgba(160,160,160,0.9)');
+      ctx.fillStyle = gv; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'depth3d': {
+      // Embossed/beveled border: a soft outer shadow ring plus a
+      // top-left highlight stroke (simulated light source), so the
+      // border reads as a raised 3D frame rather than a flat line —
+      // then a light outer feather so it still blends onto the page.
+      const bw = Math.max(6, Math.min(w, h) * (0.015 + (strength / 100) * 0.045));
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.lineWidth = bw;
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.strokeRect(bw / 2, bw / 2, w - bw, h - bw);
+      ctx.globalCompositeOperation = 'screen';
+      const hl = ctx.createLinearGradient(0, 0, w * 0.45, h * 0.45);
+      hl.addColorStop(0, 'rgba(255,255,255,0.55)');
+      hl.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.lineWidth = bw * 0.55;
+      ctx.strokeStyle = hl;
+      ctx.strokeRect(bw * 0.35, bw * 0.35, w - bw * 0.7, h - bw * 0.7);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 0.35, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 0.35, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 0.35);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 0.35);
+      break;
+    }
+    case 'goldenGrade': {
+      // Warm amber colour-grade that intensifies toward the edges
+      // (native 'multiply' blend, no manual pixel math needed) plus a
+      // gentle corner feather.
+      ctx.globalCompositeOperation = 'multiply';
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      const g = ctx.createRadialGradient(cx, cy, rOuter * (1 - t) * 0.5, cx, cy, rOuter * (1 - t * 0.15));
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(1, 'rgba(255,178,102,0.85)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 0.25, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 0.25, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 0.25);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 0.25);
+      break;
+    }
+    case 'chromaPulse': {
+      // Real per-channel RGB split (not a colour overlay), masked so it
+      // only shows near the border — the centre of the photo stays
+      // clean while the edges get genuine lens-fringe colour.
+      const amount = 1 + Math.round((strength / 100) * 4);
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const octx = off.getContext('2d');
+      octx.drawImage(ctx.canvas, 0, 0);
+      pdfedDesignChromaShift(octx, w, h, amount);
+      octx.globalCompositeOperation = 'destination-in';
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      const mask = octx.createRadialGradient(cx, cy, rOuter * 0.4, cx, cy, rOuter * 0.9);
+      mask.addColorStop(0, 'rgba(0,0,0,0)'); mask.addColorStop(1, 'rgba(0,0,0,1)');
+      octx.fillStyle = mask; octx.fillRect(0, 0, w, h);
+      octx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(off, 0, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 0.2, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 0.2, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 0.2);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 0.2);
+      break;
+    }
+    case 'noirGrain': {
+      // Desaturate toward the edges (native 'saturation' blend), darken
+      // with a heavy vignette, then lay real per-pixel film grain on
+      // top — moody high-contrast noir frame.
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'saturation';
+      const gs = ctx.createRadialGradient(cx, cy, rOuter * 0.25, cx, cy, rOuter * 0.95);
+      gs.addColorStop(0, 'rgba(128,128,128,0)');
+      gs.addColorStop(1, 'rgba(128,128,128,0.95)');
+      ctx.fillStyle = gs; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'multiply';
+      const gd = ctx.createRadialGradient(cx, cy, rOuter * 0.35, cx, cy, rOuter * (1 - t * 0.15));
+      gd.addColorStop(0, 'rgba(255,255,255,1)');
+      gd.addColorStop(1, 'rgba(15,15,15,0.85)');
+      ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignFilmGrain(ctx, w, h, 0.06 + (strength / 100) * 0.09);
+      break;
+    }
+  }
+}
+
+function pdfedDesignRenderGrid() {
+  const grid = document.getElementById('pdfedDesignGrid');
+  const premGrid = document.getElementById('pdfedDesignPremiumGrid');
+  const tile = (p) =>
+    `<button type="button" class="pdfed-design-preset${p.premium ? ' premium' : ''} ${p.id === pdfedDesignState.preset ? 'active' : ''}" data-preset="${p.id}" title="${p.name}" onclick="pdfedDesignPickPreset('${p.id}', this)">` +
+      `<span class="pdfed-design-swatch" style="background:${p.swatch}${p.swatchExtra ? ';' + p.swatchExtra : ''}"></span>` +
+      `<span class="pdfed-design-label">${p.name}</span>` +
+    `</button>`;
+  if (grid) grid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => !p.premium).map(tile).join('');
+  if (premGrid) premGrid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => p.premium).map(tile).join('');
+}
+
+function pdfedDesignPickPreset(id, el) {
+  pdfedDesignState.preset = id;
+  document.querySelectorAll('.pdfed-design-preset').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  pdfedDesignRefreshLivePreview();
+}
+
+function pdfedDesignSetStrength(val) {
+  pdfedDesignState.strength = Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+  const label = document.getElementById('pdfedDesignStrengthVal');
+  if (label) label.textContent = pdfedDesignState.strength;
+  pdfedDesignScheduleLivePreview();
+}
+
+// ─── DESIGN — LIVE PREVIEW ──────────────────────────────────────────────
+// Shows the currently-picked preset/strength directly on the selected
+// image(s) on the canvas the instant a filter tile is clicked or the
+// strength slider is dragged — without touching item.dataUrl. Nothing is
+// actually committed until "Apply Fade" is pressed (which recomputes from
+// the same untouched item.dataUrl and bakes the result for real). Every
+// preview always starts fresh from item.dataUrl, so switching presets or
+// dragging the slider back and forth never compounds/double-applies an
+// effect on top of a previous preview.
+let pdfedDesignPreviewIds = new Set(); // ids of placed images currently showing an uncommitted preview
+let pdfedDesignPreviewToken = 0;       // invalidates in-flight image loads from an older preview request
+let pdfedDesignPreviewKey = '';        // last (items+preset+strength) combo already rendered, to skip redundant recompute
+let pdfedDesignPreviewScheduled = false;
+
+function pdfedDesignFindImgEl(id) {
+  const wrap = document.querySelector('#pdfedPlacedImagesLayer .pdfed-placed-img[data-id="' + id + '"]');
+  return wrap ? wrap.querySelector('img') : null;
+}
+
+// Restores every previewed image back to its real, unmodified item.dataUrl —
+// called before rendering a new preview and whenever the selection/panel
+// goes empty, so an unsaved preview never lingers on screen.
+function pdfedDesignRevertLivePreview() {
+  if (pdfedDesignPreviewIds.size === 0) return;
+  const pg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
+  const list = (pg && pg.placedImages) || [];
+  pdfedDesignPreviewIds.forEach(id => {
+    const item = list.find(it => it.id === id);
+    const el = pdfedDesignFindImgEl(id);
+    if (item && el && el.src !== item.dataUrl) el.src = item.dataUrl;
+  });
+  pdfedDesignPreviewIds.clear();
+}
+
+function pdfedDesignScheduleLivePreview() {
+  if (pdfedDesignPreviewScheduled) return;
+  pdfedDesignPreviewScheduled = true;
+  requestAnimationFrame(() => { pdfedDesignPreviewScheduled = false; pdfedDesignRefreshLivePreview(); });
+}
+
+function pdfedDesignRefreshLivePreview() {
+  const items = pdfedDesignGetSelectedImageItems();
+  const key = items.map(it => it.id).join(',') + '|' + pdfedDesignState.preset + '|' + pdfedDesignState.strength;
+  if (items.length && key === pdfedDesignPreviewKey) return; // identical to what's already showing, nothing to do
+  pdfedDesignPreviewKey = key;
+  pdfedDesignRevertLivePreview();
+  if (items.length === 0) return;
+
+  const preset = pdfedDesignState.preset, strength = pdfedDesignState.strength;
+  const token = ++pdfedDesignPreviewToken;
+  items.forEach(item => {
+    const img = new Image();
+    img.onload = () => {
+      if (token !== pdfedDesignPreviewToken) return; // a newer preset/strength/selection change superseded this one
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength);
+      const el = pdfedDesignFindImgEl(item.id);
+      if (el) { el.src = c.toDataURL('image/png'); pdfedDesignPreviewIds.add(item.id); }
+    };
+    img.src = item.dataUrl; // always the untouched original — never a previous preview frame
+  });
+}
+
+// The Design panel only ever acts on placed IMAGES that are currently
+// selected on the active page — never the whole page, never unselected
+// images — matching pdfedSelectedImgs, the same selection set the
+// multi-select toolbar and the MutationObserver-driven selection panel use.
+function pdfedDesignGetSelectedImageItems() {
+  if (typeof pdfed === 'undefined' || pdfed.active < 0) return [];
+  const pg = pdfed.pages[pdfed.active];
+  if (!pg || !pg.placedImages) return [];
+  // A plain single click on an image applies the `.selected` DOM class
+  // directly without ever touching the pdfedSelectedImgs Set (that Set is
+  // only populated by a marquee drag or Ctrl+A). So checking the Set alone
+  // misses the common single-image-click case. Match pdfedGetActiveSelection's
+  // approach: union the Set with whatever currently carries `.selected` in
+  // the DOM, so a single click, a marquee drag, and Select All all work.
+  const ids = new Set(pdfedSelectedImgs);
+  document.querySelectorAll('#pdfedPlacedImagesLayer .pdfed-placed-img.selected').forEach(n => ids.add(n.dataset.id));
+  return pg.placedImages.filter(it => ids.has(it.id));
+}
+
+function pdfedDesignApplyFade() {
+  const items = pdfedDesignGetSelectedImageItems();
+  if (items.length === 0) { toast('Select an image first', 'info'); return; }
+  const pageIdx = pdfed.active;
+  const preset = pdfedDesignState.preset, strength = pdfedDesignState.strength;
+  const presetMeta = PDFED_DESIGN_PRESETS.find(p => p.id === preset) || PDFED_DESIGN_PRESETS[0];
+
+  Promise.all(items.map(item => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength);
+      resolve({ item, prevDataUrl: item.dataUrl, newDataUrl: c.toDataURL('image/png') });
+    };
+    img.onerror = reject;
+    img.src = item.dataUrl;
+  }))).then(results => {
+    results.forEach(r => { r.item.dataUrl = r.newDataUrl; });
+    pdfedMarkModified(pageIdx);
+    pdfedRenderPlacedImages(pageIdx);
+
+    pushAppHistory({
+      label: 'Cinematic fade',
+      undo: () => {
+        results.forEach(r => { r.item.dataUrl = r.prevDataUrl; });
+        pdfedMarkModified(pageIdx);
+        pdfedRenderPlacedImages(pageIdx);
+        toast('Fade undone', 'info');
+      },
+      redo: () => {
+        results.forEach(r => { r.item.dataUrl = r.newDataUrl; });
+        pdfedMarkModified(pageIdx);
+        pdfedRenderPlacedImages(pageIdx);
+        toast(presetMeta.name + ' applied', 'success');
+      }
+    });
+    toast(presetMeta.name + ' applied' + (results.length > 1 ? ' to ' + results.length + ' images' : ''), 'success');
+  }).catch(() => toast('Could not apply that fade', 'error'));
+}
+
+// ─── DESIGN — CINEMATIC MERGE ───────────────────────────────────────────
+// Auto-blends exactly two selected, overlapping placed images at their
+// shared edge: whichever pair of edges overlaps gets a cross-dissolve
+// baked into both images across the overlap band, so the seam between them
+// disappears (the first image fades out across the band as the second
+// fades in). Requires both images to be unrotated, since the overlap math
+// is done in simple axis-aligned page coordinates.
+function pdfedCinematicMerge() {
+  const items = pdfedDesignGetSelectedImageItems();
+  if (items.length !== 2) { toast('Select exactly 2 overlapping images to merge', 'info'); return; }
+  const [a, b] = items;
+  if ((a.rotation || 0) !== 0 || (b.rotation || 0) !== 0) {
+    toast('Cinematic Merge works best with unrotated images, reset rotation first', 'info');
+    return;
+  }
+
+  const ix0 = Math.max(a.x, b.x), iy0 = Math.max(a.y, b.y);
+  const ix1 = Math.min(a.x + a.w, b.x + b.w), iy1 = Math.min(a.y + a.h, b.y + b.h);
+  if (ix1 <= ix0 || iy1 <= iy0) { toast("These images don't overlap, drag them together first", 'info'); return; }
+
+  // A thin, tall overlap band means the images sit side by side (blend
+  // left↔right); a thin, wide band means they're stacked (blend top↔bottom).
+  const horizontal = (ix1 - ix0) <= (iy1 - iy0);
+  const pageIdx = pdfed.active;
+
+  let first, second; // first fades OUT across the shared band, second fades IN
+  if (horizontal) {
+    [first, second] = (a.x <= b.x) ? [a, b] : [b, a];
+  } else {
+    [first, second] = (a.y <= b.y) ? [a, b] : [b, a];
+  }
+
+  function buildMergedImage(item, isFirst) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        ctx.globalCompositeOperation = 'destination-in';
+        let grad;
+        if (horizontal) {
+          const scaleX = w / item.w;
+          const lx0 = (ix0 - item.x) * scaleX, lx1 = (ix1 - item.x) * scaleX;
+          grad = ctx.createLinearGradient(lx0, 0, lx1, 0);
+        } else {
+          const scaleY = h / item.h;
+          const ly0 = (iy0 - item.y) * scaleY, ly1 = (iy1 - item.y) * scaleY;
+          grad = ctx.createLinearGradient(0, ly0, 0, ly1);
+        }
+        if (isFirst) { grad.addColorStop(0, 'rgba(0,0,0,1)'); grad.addColorStop(1, 'rgba(0,0,0,0)'); }
+        else { grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,1)'); }
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+        resolve({ item, prevDataUrl: item.dataUrl, newDataUrl: c.toDataURL('image/png') });
+      };
+      img.onerror = reject;
+      img.src = item.dataUrl;
+    });
+  }
+
+  Promise.all([buildMergedImage(first, true), buildMergedImage(second, false)]).then(results => {
+    results.forEach(r => { r.item.dataUrl = r.newDataUrl; });
+    pdfedMarkModified(pageIdx);
+    pdfedRenderPlacedImages(pageIdx);
+
+    pushAppHistory({
+      label: 'Cinematic merge',
+      undo: () => {
+        results.forEach(r => { r.item.dataUrl = r.prevDataUrl; });
+        pdfedMarkModified(pageIdx);
+        pdfedRenderPlacedImages(pageIdx);
+        toast('Merge undone', 'info');
+      },
+      redo: () => {
+        results.forEach(r => { r.item.dataUrl = r.newDataUrl; });
+        pdfedMarkModified(pageIdx);
+        pdfedRenderPlacedImages(pageIdx);
+        toast('Images merged', 'success');
+      }
+    });
+    toast('Images merged', 'success');
+  }).catch(() => toast('Could not merge these images', 'error'));
+}
+
+// Shows/hides the Design panel's controls based on current image selection,
+// and enables Cinematic Merge only when exactly 2 images are selected.
+// Called from pdfedRefreshSelectionPanel() so it stays in sync automatically
+// with the same MutationObserver that already drives the selection panel.
+function pdfedRefreshDesignPanel() {
+  const empty = document.getElementById('pdfedDesignEmpty');
+  const controls = document.getElementById('pdfedDesignControls');
+  if (!empty || !controls) return;
+  pdfedDesignRenderGrid();
+  const items = pdfedDesignGetSelectedImageItems();
+  const show = items.length > 0;
+  empty.style.display = show ? 'none' : '';
+  controls.style.display = show ? '' : 'none';
+  pdfedDesignRefreshLivePreview();
+
+  const mergeBtn = document.getElementById('pdfedDesignMergeBtn');
+  const mergeHint = document.getElementById('pdfedDesignMergeHint');
+  const canMerge = items.length === 2;
+  if (mergeBtn) mergeBtn.disabled = !canMerge;
+  if (mergeHint) mergeHint.textContent = canMerge
+    ? 'Blend these 2 images at their overlapping edge'
+    : 'Select exactly 2 overlapping images to merge (' + items.length + ' selected)';
 }
 
 function applyCrop() {
@@ -16948,7 +17598,7 @@ function pdfedOpenAdjust() {
 //      special-casing anywhere else: it shows up identically in the live
 //      editor, the left-panel thumbnail, and every export format, because
 //      they all read the same pg.dataUrl through pdfedPageUrl().
-const pdfedCanvasTintState = { mode: 'solid', color1: '#0A0F1E', color2: '#0073E6', angle: 90, opacity: 60 };
+const pdfedCanvasTintState = { mode: 'solid', color1: '#0A0F1E', color2: '#0073E6', angle: 90, opacity: 60, imageDataUrl: null, imageFit: 'cover' };
 
 // Converts an angle (0deg = left→right, 90deg = top→bottom, clockwise) into
 // a gradient line long enough to fully cover a w×h canvas regardless of
@@ -16991,14 +17641,40 @@ function pdfedCanvasTintPreviewEl() {
   return el;
 }
 
+// Applies the current mode's look to a preview element (the small swatch or
+// the live CSS overlay on the canvas). Image mode needs separate background-*
+// properties rather than the single shorthand string solid/gradient use, so
+// this always clears the ones the current mode doesn't need before setting
+// the ones it does — otherwise a stale backgroundImage could bleed through
+// after switching back to Solid/Gradient.
+function pdfedCanvasApplyPreviewBg(el) {
+  const s = pdfedCanvasTintState;
+  if (s.mode === 'image' && s.imageDataUrl) {
+    el.style.background = 'none';
+    el.style.backgroundImage = `url("${s.imageDataUrl}")`;
+    el.style.backgroundPosition = 'center';
+    el.style.backgroundRepeat = s.imageFit === 'tile' ? 'repeat' : 'no-repeat';
+    el.style.backgroundSize = s.imageFit === 'tile' ? 'auto'
+      : s.imageFit === 'contain' ? 'contain'
+      : s.imageFit === 'stretch' ? '100% 100%'
+      : 'cover';
+  } else {
+    el.style.backgroundImage = 'none';
+    el.style.backgroundPosition = '';
+    el.style.backgroundRepeat = '';
+    el.style.backgroundSize = '';
+    el.style.background = pdfedCanvasTintCss();
+  }
+}
+
 // Refreshes both the little swatch inside the panel and the live overlay
 // sitting on the canvas, called after any control changes.
 function pdfedCanvasTintRefreshPreview() {
   const swatch = document.getElementById('pdfedCtintPreview');
-  if (swatch) { swatch.style.background = pdfedCanvasTintCss(); swatch.style.opacity = 1; }
+  if (swatch) { pdfedCanvasApplyPreviewBg(swatch); swatch.style.opacity = 1; }
   const live = pdfedCanvasTintPreviewEl();
   if (live) {
-    live.style.background = pdfedCanvasTintCss();
+    pdfedCanvasApplyPreviewBg(live);
     live.style.opacity = pdfedCanvasTintState.opacity / 100;
     const canvasFlyout = document.getElementById('pdfedCanvasPanelBody');
     live.style.display = canvasFlyout && canvasFlyout.classList.contains('open') ? 'block' : 'none';
@@ -17009,9 +17685,57 @@ function pdfedCanvasSetMode(mode) {
   pdfedCanvasTintState.mode = mode;
   document.getElementById('pdfedCtintModeSolidBtn').classList.toggle('active', mode === 'solid');
   document.getElementById('pdfedCtintModeGradBtn').classList.toggle('active', mode === 'gradient');
+  const imageBtn = document.getElementById('pdfedCtintModeImageBtn');
+  if (imageBtn) imageBtn.classList.toggle('active', mode === 'image');
   document.getElementById('pdfedCtintSolidControls').style.display = mode === 'solid' ? '' : 'none';
   document.getElementById('pdfedCtintGradControls').style.display = mode === 'gradient' ? '' : 'none';
+  const imageControls = document.getElementById('pdfedCtintImageControls');
+  if (imageControls) imageControls.style.display = mode === 'image' ? '' : 'none';
   pdfedCanvasTintRefreshPreview();
+}
+
+// Reads the picked file into a dataURL and stores it as the pending image
+// background — same "pending until Apply" pattern the solid/gradient
+// controls already use, so nothing is baked onto the page until the user
+// clicks Apply to Canvas.
+function pdfedCanvasImageFileSelected(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    pdfedCanvasTintState.imageDataUrl = reader.result;
+    pdfedCanvasImageSyncThumb();
+    pdfedCanvasTintRefreshPreview();
+  };
+  reader.onerror = () => toast('Could not read that image', 'error');
+  reader.readAsDataURL(file);
+  input.value = ''; // allow re-selecting the same file to re-trigger onchange
+}
+
+function pdfedCanvasClearImage(evt) {
+  if (evt) evt.stopPropagation();
+  pdfedCanvasTintState.imageDataUrl = null;
+  pdfedCanvasImageSyncThumb();
+  pdfedCanvasTintRefreshPreview();
+}
+
+function pdfedCanvasSetImageFit(val) {
+  pdfedCanvasTintState.imageFit = val;
+  pdfedCanvasTintRefreshPreview();
+}
+
+// Swaps the upload zone between its empty "click to upload" state and the
+// thumbnail preview of whatever image is currently staged.
+function pdfedCanvasImageSyncThumb() {
+  const wrap = document.getElementById('pdfedCtintImageThumbWrap');
+  const thumb = document.getElementById('pdfedCtintImageThumb');
+  const empty = document.getElementById('pdfedCtintImageEmpty');
+  const fitSelect = document.getElementById('pdfedCtintImageFitSelect');
+  const hasImage = !!pdfedCanvasTintState.imageDataUrl;
+  if (thumb) thumb.src = hasImage ? pdfedCanvasTintState.imageDataUrl : '';
+  if (wrap) wrap.style.display = hasImage ? '' : 'none';
+  if (empty) empty.style.display = hasImage ? 'none' : '';
+  if (fitSelect) fitSelect.value = pdfedCanvasTintState.imageFit;
 }
 
 function pdfedCanvasPickSwatch(el, which) {
@@ -17096,9 +17820,18 @@ async function pdfedApplyCanvasTint(silent) {
   const pg = pdfed.pages[pdfed.active];
   const s = pdfedCanvasTintState;
 
-  const srcUrl = await pdfedPageUrl(pg);
+  // Every Apply should REPLACE whatever canvas tint/image is currently
+  // showing, not paint over it — so we always bake starting from the true
+  // pre-tint pixels (captured once, the first time this panel touches the
+  // page), never from pg.dataUrl if that already carries a previous bake.
+  // Without this, replacing an image (or switching solid -> gradient ->
+  // image) would blend the new one on top of the old one instead of
+  // swapping it out cleanly.
+  const currentUrl = await pdfedPageUrl(pg);
+  const baseUrl = pg.edits.canvasTintBaseDataUrl || currentUrl;
+
   const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = srcUrl; });
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = baseUrl; });
 
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -17106,20 +17839,41 @@ async function pdfedApplyCanvasTint(silent) {
   ctx.drawImage(img, 0, 0);
 
   ctx.globalAlpha = s.opacity / 100;
-  if (s.mode === 'gradient') {
+  if (s.mode === 'image' && s.imageDataUrl) {
+    const bgImg = new Image();
+    await new Promise((res, rej) => { bgImg.onload = res; bgImg.onerror = rej; bgImg.src = s.imageDataUrl; });
+    if (s.imageFit === 'tile') {
+      const pat = ctx.createPattern(bgImg, 'repeat');
+      ctx.fillStyle = pat;
+      ctx.fillRect(0, 0, c.width, c.height);
+    } else if (s.imageFit === 'stretch') {
+      ctx.drawImage(bgImg, 0, 0, c.width, c.height);
+    } else {
+      // cover / contain — scale to fit, then center
+      const scale = s.imageFit === 'contain'
+        ? Math.min(c.width / bgImg.naturalWidth, c.height / bgImg.naturalHeight)
+        : Math.max(c.width / bgImg.naturalWidth, c.height / bgImg.naturalHeight);
+      const dw = bgImg.naturalWidth * scale, dh = bgImg.naturalHeight * scale;
+      const dx = (c.width - dw) / 2, dy = (c.height - dh) / 2;
+      if (s.imageFit === 'contain') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height); }
+      ctx.drawImage(bgImg, dx, dy, dw, dh);
+    }
+  } else if (s.mode === 'gradient') {
     const { x0, y0, x1, y1 } = pdfedGradientLine(s.angle, c.width, c.height);
     const grad = ctx.createLinearGradient(x0, y0, x1, y1);
     grad.addColorStop(0, s.color1);
     grad.addColorStop(1, s.color2);
     ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, c.width, c.height);
   } else {
     ctx.fillStyle = s.color1;
+    ctx.fillRect(0, 0, c.width, c.height);
   }
-  ctx.fillRect(0, 0, c.width, c.height);
   ctx.globalAlpha = 1;
 
   // one-level revert safety net — "Remove Tint" restores exactly this
-  pg.edits.preTintDataUrl = srcUrl;
+  pg.edits.preTintDataUrl = currentUrl;
+  pg.edits.canvasTintBaseDataUrl = baseUrl;
   pg.dataUrl = c.toDataURL('image/png');
   pg.modified = true;
   pg.edits.canvasTint = { mode: s.mode, color1: s.color1, color2: s.color2, angle: s.angle, opacity: s.opacity };
@@ -17141,6 +17895,7 @@ async function pdfedRemoveCanvasTint() {
   if (!pg.edits.preTintDataUrl) { toast('No canvas tint to remove', 'info'); return; }
   pg.dataUrl = pg.edits.preTintDataUrl;
   delete pg.edits.preTintDataUrl;
+  delete pg.edits.canvasTintBaseDataUrl;
   delete pg.edits.canvasTint;
   await pdfedGoto(pdfed.active);
   await pdfedBuildStrip();
@@ -17156,12 +17911,17 @@ function pdfedCanvasSyncControls() {
 
   const solidBtn = document.getElementById('pdfedCtintModeSolidBtn');
   const gradBtn = document.getElementById('pdfedCtintModeGradBtn');
+  const imageBtn = document.getElementById('pdfedCtintModeImageBtn');
   if (solidBtn) solidBtn.classList.toggle('active', s.mode === 'solid');
   if (gradBtn) gradBtn.classList.toggle('active', s.mode === 'gradient');
+  if (imageBtn) imageBtn.classList.toggle('active', s.mode === 'image');
   const solidControls = document.getElementById('pdfedCtintSolidControls');
   const gradControls = document.getElementById('pdfedCtintGradControls');
+  const imageControls = document.getElementById('pdfedCtintImageControls');
   if (solidControls) solidControls.style.display = s.mode === 'solid' ? '' : 'none';
   if (gradControls) gradControls.style.display = s.mode === 'gradient' ? '' : 'none';
+  if (imageControls) imageControls.style.display = s.mode === 'image' ? '' : 'none';
+  pdfedCanvasImageSyncThumb();
 
   document.querySelectorAll('#pdfedCtintSolidControls .pdfed-ctint-swatch').forEach(el => {
     el.classList.toggle('active', el.dataset.color && el.dataset.color.toLowerCase() === s.color1.toLowerCase());
@@ -17198,6 +17958,7 @@ async function pdfedResetCanvasTintToWhite() {
   pdfedCanvasTintState.color2 = '#FFFFFF';
   pdfedCanvasTintState.angle = 90;
   pdfedCanvasTintState.opacity = 100;
+  pdfedCanvasTintState.imageDataUrl = null;
 
   pdfedCanvasSyncControls();
 
@@ -17239,6 +18000,7 @@ function pdfedCanvasPresetCss(p) {
 
 function pdfedCanvasSaveCurrentAsPreset() {
   const s = pdfedCanvasTintState;
+  if (s.mode === 'image') { toast('Image backgrounds can\'t be saved as presets', 'info'); return; }
   const preset = { id: 'ctp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), mode: s.mode, color1: s.color1, color2: s.color2, angle: s.angle, opacity: s.opacity };
 
   // Skip an exact duplicate of the most recently saved swatch
@@ -23991,6 +24753,7 @@ function pdfedGetSelectedInfo() {
 
 function pdfedRefreshSelectionPanel() {
   const body = document.getElementById('pdfedSelectionBody');
+  if (typeof pdfedRefreshDesignPanel === 'function') pdfedRefreshDesignPanel();
   if (!body) return;
   const info = pdfedGetSelectedInfo();
   if (!info) {
@@ -24040,6 +24803,7 @@ function pdfedRefreshSelectionPanel() {
   // clear their selected state whenever the click lands outside any placed
   // object / OCR block, so the panel correctly falls back to "Nothing selected".
   document.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#pdfedRightPanel')) return; // interacting with a sidebar panel (Design presets, Apply Fade, sliders, etc.) must never clear the current selection
     if (!e.target.closest('.pdfed-placed-text, .pdfed-placed-table, .pdfed-placed-img, .pdfed-text-block')) {
       document.querySelectorAll('.pdfed-placed-table.selected, .pdfed-placed-img.selected').forEach(n => n.classList.remove('selected'));
     }
@@ -24629,6 +25393,12 @@ document.addEventListener('mousedown', function(e) {
   // Ribbon alignment buttons act ON the current selection, so clicking them
   // must not clear it first (mousedown fires before the button's own click).
   if (e.target.closest('#pdfedRbnAlignLeftBtn, #pdfedRbnAlignCenterBtn, #pdfedRbnAlignRightBtn, #pdfedRbnSelectAllBtn')) return;
+  // Same reasoning for the Design panel: Apply Fade / preset buttons / the
+  // strength slider / Merge at Shared Edge all act ON the current image
+  // selection (Cinematic Merge specifically needs its 2 selected images to
+  // still be selected when its own button is clicked), so this must not
+  // clear the selection first.
+  if (e.target.closest('#pdfedRightPanel')) return;
   pdfedDeselectAllPlacedTexts();
 });
 
