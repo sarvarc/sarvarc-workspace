@@ -4232,34 +4232,40 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   font-size: 9.5px; color: var(--text2); text-align: center; line-height: 1.4;
 }
 
-/* Floating font-formatting toolbar for placed text boxes */
+/* Floating font-formatting toolbar for placed text boxes.
+   Sized/spaced deliberately generous (not the raw minimum) because this
+   toolbar is a fixed, real-pixel-size UI element that never scales with the
+   page's zoom level — on a small or square-format page (low zoom-to-fit) it
+   sits right next to a much bigger, zoomed page, so it needs enough visual
+   weight and click-target size to still read as a clear, professional
+   control rather than a cramped afterthought. */
 .pdfed-ptxt-toolbar {
-  position: absolute; z-index: 20; display: flex; align-items: center; gap: 4px;
+  position: absolute; z-index: 20; display: flex; align-items: center; gap: 5px;
   background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 5px 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  border-radius: 10px; padding: 6px 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.32);
   pointer-events: auto; backdrop-filter: blur(6px);
   transition: top .12s ease, left .12s ease;
 }
 .pdfed-ptxt-tb-select {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  font-size: 11px; border-radius: 5px; padding: 4px 6px; cursor: pointer;
-  max-width: 130px; font-family: 'Inter', sans-serif;
+  font-size: 12.5px; border-radius: 6px; padding: 6px 8px; cursor: pointer;
+  max-width: 130px; height: 30px; box-sizing: border-box; font-family: 'Inter', sans-serif;
 }
 .pdfed-ptxt-tb-size {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  font-size: 11px; border-radius: 5px; padding: 4px 4px; width: 46px; text-align: center;
-  font-family: 'Inter', sans-serif;
+  font-size: 12.5px; border-radius: 6px; padding: 6px 4px; width: 50px; height: 30px;
+  box-sizing: border-box; text-align: center; font-family: 'Inter', sans-serif;
 }
-.pdfed-ptxt-tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+.pdfed-ptxt-tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 3px; }
 .pdfed-ptxt-tb-btn {
-  width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--border);
-  background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 12px;
+  width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 13px;
   display: flex; align-items: center; justify-content: center; transition: all 0.1s;
 }
 .pdfed-ptxt-tb-btn:hover { background: var(--surface2); color: var(--text); }
 .pdfed-ptxt-tb-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
 .pdfed-ptxt-tb-color {
-  width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 5px;
+  width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
   cursor: pointer; background: transparent;
 }
 .pdfed-ptxt-tb-color::-webkit-color-swatch-wrapper { padding: 2px; }
@@ -4321,7 +4327,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 /* ── Opacity slider, shared visual language across the text formatting
    toolbar and the standalone popover used for images/tables ── */
 .pdfed-opacity-slider {
-  -webkit-appearance: none; appearance: none; width: 64px; height: 4px; border-radius: 2px;
+  -webkit-appearance: none; appearance: none; width: 70px; height: 4px; border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--blue));
   background-color: var(--bg3); cursor: pointer; margin: 0 2px;
 }
@@ -4334,7 +4340,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
 }
 .pdfed-ptxt-tb-opacity-val {
-  font-size: 10px; color: var(--text2); min-width: 30px; text-align: center; font-family: 'Inter', sans-serif;
+  font-size: 11.5px; font-weight: 600; color: var(--text2); min-width: 34px; text-align: center; font-family: 'Inter', sans-serif;
 }
 .pdfed-opacity-popover {
   position: fixed; z-index: 9999; display: none; align-items: center; gap: 8px;
@@ -25151,8 +25157,26 @@ function pdfedPositionPtxtToolbar() {
   const elRect = el.getBoundingClientRect();
   let top = (elRect.top - layerRect.top) - tb.offsetHeight - 8;
   if (top < 0) top = (elRect.bottom - layerRect.top) + 8; // flip below if no room above
+  // Clamp against the bottom edge too — on a small/square page (or any time
+  // the box sits near the bottom), flipping below can still push the
+  // toolbar past the visible page. Without this it rendered mostly
+  // off-canvas, which looked like a broken/shrunken toolbar even though it
+  // was actually full size.
+  const maxTop = layerRect.height - tb.offsetHeight - 4;
+  if (top > maxTop) top = Math.max(4, maxTop);
+  if (top < 4) top = 4;
   let left = (elRect.left - layerRect.left);
-  const maxLeft = layer.clientWidth - tb.offsetWidth - 4;
+  // IMPORTANT: layerRect is the layer's real ON-SCREEN size (post zoom
+  // scale), while layer.clientWidth is its RAW, unscaled canvas-px size (the
+  // layer is scaled as a whole via CSS transform to match zoom — see
+  // pdfedSyncPlacedTextsZoom). `left` above is in on-screen pixels, so it
+  // must be clamped against the on-screen width (layerRect.width), not the
+  // raw clientWidth. Mixing the two — as before — meant that on any page
+  // whose zoom-to-fit lands away from 100% (small/square canvases in
+  // particular), the comparison mixed units, letting the toolbar land mostly
+  // or entirely outside the visible page instead of snapping back in
+  // bounds. That's what showed up as a "shrunken"/barely-visible toolbar.
+  const maxLeft = layerRect.width - tb.offsetWidth - 4;
   if (left > maxLeft) left = Math.max(4, maxLeft);
   if (left < 4) left = 4;
   tb.style.top = top + 'px';
