@@ -1474,38 +1474,50 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .pdfed-ctint-secondary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .pdfed-ctint-secondary-btn:disabled:hover { background: var(--pdfed-btn-bg); color: var(--text2); }
 
-/* Design panel — cinematic fade preset grid: small icon tiles (swatch
-   preview of the effect's shape + tiny label underneath), like a
-   professional photo-filter picker rather than plain text buttons. */
-.pdfed-design-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+/* Design panel — cinematic fade preset picker: compact, sober icon badges
+   (a stroked glyph on a graphite panel) matching a professional colour-
+   grading console, rather than colourful glossy orbs. */
+.pdfed-design-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 4px; }
 .pdfed-design-preset {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 5px 3px 6px; border-radius: 9px; border: 1px solid var(--pdfed-section-border);
-  background: var(--pdfed-btn-bg); color: var(--text2);
-  cursor: pointer; transition: all .15s; font-family: 'Inter', sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 2px 0 0; border: none; background: transparent; color: var(--text3);
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  min-width: 0; max-width: 100%;
 }
-.pdfed-design-preset:hover { background: var(--pdfed-btn-hover); border-color: var(--pdfed-btn-hover); }
 .pdfed-design-swatch {
-  width: 100%; aspect-ratio: 1 / 1; border-radius: 6px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-  background-size: cover;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 55%), var(--pdfed-btn-bg);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.3);
+  color: var(--text3);
+  transition: transform .15s cubic-bezier(.22,.9,.32,1.1), box-shadow .15s, color .15s, background .15s;
+}
+.pdfed-design-swatch svg { width: 15px; height: 15px; }
+.pdfed-design-preset:hover .pdfed-design-swatch {
+  transform: translateY(-1px);
+  color: var(--text2);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.07), 0 3px 7px rgba(0,0,0,0.35);
 }
 .pdfed-design-label {
-  font-size: 9px; font-weight: 600; line-height: 1.2; text-align: center;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  font-size: 7.5px; font-weight: 600; letter-spacing: 0.15px; line-height: 1.15;
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; transition: color .15s;
 }
-.pdfed-design-preset.active { border-color: var(--cyan); background: var(--pdfed-btn-hover); }
-.pdfed-design-preset.active .pdfed-design-label { color: var(--text); }
+.pdfed-design-preset.active { color: var(--text2); }
+.pdfed-design-preset.active .pdfed-design-label { color: var(--text); font-weight: 700; }
 .pdfed-design-preset.active .pdfed-design-swatch {
-  box-shadow: 0 0 0 2px var(--cyan), inset 0 0 0 1px rgba(255,255,255,0.12);
+  color: var(--cyan);
+  outline: 1.5px solid var(--cyan); outline-offset: 2px;
 }
-/* Premium 3D Cinematic tier — gold accent instead of cyan, so these visually
-   read as the higher-end filters rather than being indistinguishable from
-   the basic fades. */
-.pdfed-design-preset.premium:hover { border-color: #ffc65c; }
-.pdfed-design-preset.premium.active { border-color: #ffc65c; }
+/* Premium 3D Cinematic tier — slim gold ring instead of cyan, so these read
+   as the higher-end filters rather than being indistinguishable from the
+   basic fades. Rest state stays the same neutral graphite as the standard
+   tier — the gold only shows up on hover/selection, kept deliberately
+   restrained rather than a gold-tinted panel at all times. */
+.pdfed-design-preset.premium:hover .pdfed-design-swatch { color: #ffc65c; }
 .pdfed-design-preset.premium.active .pdfed-design-swatch {
-  box-shadow: 0 0 0 2px #ffc65c, inset 0 0 0 1px rgba(255,255,255,0.12);
+  color: #ffc65c;
+  outline: 1.5px solid #ffc65c; outline-offset: 2px;
 }
 .pdfed-design-preset.premium.active .pdfed-design-label { color: #ffc65c; }
 
@@ -4118,6 +4130,59 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .pdfed-custom-field label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; }
 .pdfed-custom-x { color: var(--text3); font-size: 12px; padding-bottom: 6px; }
 .pdfed-custom-unit { font-size: 10px; color: var(--text3); padding-bottom: 6px; }
+
+/* ── Export Center: custom resolution panel ── */
+.exp-custom-panel {
+  grid-column: 1 / -1; margin-top: 4px; padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+.exp-preset-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 6px; margin-bottom: 14px;
+}
+.exp-preset-chip {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 9px; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; color: var(--text2);
+  transition: all 0.15s; text-align: left;
+}
+.exp-preset-chip:hover { background: var(--surface2); border-color: var(--border2); color: var(--text); transform: translateY(-1px); }
+.exp-preset-chip.sel {
+  border-color: var(--blue); color: var(--text);
+  background: linear-gradient(135deg, rgba(0,194,255,0.16), rgba(0,115,230,0.10));
+  box-shadow: 0 0 0 1px rgba(0,194,255,0.25), 0 3px 10px rgba(0,194,255,0.15);
+}
+.exp-preset-shape {
+  flex-shrink: 0; display: block; background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(0,0,0,0.15); border-radius: 1.5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.exp-preset-chip .exp-preset-sub { display: block; font-weight: 500; color: var(--text3); font-size: 9.5px; margin-top: 1px; }
+.exp-custom-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.exp-custom-field { display: flex; flex-direction: column; gap: 3px; }
+.exp-custom-field label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; }
+.exp-custom-field input[type=number] {
+  width: 84px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 12px; padding: 7px 8px;
+  font-family: 'Inter', sans-serif;
+}
+.exp-custom-x { color: var(--text3); font-size: 12px; padding-bottom: 8px; }
+.exp-lock-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer; color: var(--text2); transition: all 0.15s; margin-bottom: 0;
+}
+.exp-lock-btn:hover { background: var(--surface2); color: var(--text); }
+.exp-lock-btn.on { border-color: var(--blue); color: var(--blue); background: rgba(0,194,255,0.10); }
+.exp-fit-field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 150px; }
+.exp-fit-field label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; }
+.exp-fit-field select {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 12px; padding: 7px 8px;
+  font-family: 'Inter', sans-serif; outline: none;
+}
+.exp-custom-hint { font-size: 10.5px; color: var(--text3); margin-top: 10px; line-height: 1.5; }
 .pdfed-square-btn {
   display: inline-flex; align-items: center; gap: 4px;
   background: var(--surface); border: 1px solid var(--border);
@@ -7235,12 +7300,52 @@ button.dg-show-chip.active { background:var(--blue); }
             </div>
             <div>
               <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">Resolution</label>
-              <select id="exportScaleSelect" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:'DM Sans',sans-serif;outline:none">
+              <select id="exportScaleSelect" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:'DM Sans',sans-serif;outline:none" onchange="exportScaleChanged()">
                 <option value="native">1x (Original)</option>
                 <option value="retina">2x (Retina)</option>
                 <option value="4k">4K (Ultra HD)</option>
                 <option value="half">0.5x (Compressed)</option>
+                <option value="custom">Custom size (px)…</option>
               </select>
+            </div>
+
+            <div class="exp-custom-panel" id="exportCustomPanel" style="display:none">
+              <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:8px">Quick presets</label>
+              <div class="exp-preset-grid" id="exportPresetGrid">
+                <button type="button" class="exp-preset-chip sel" data-w="1080" data-h="1080" onclick="applyExportPreset(1080,1080,this)"><span class="exp-preset-shape" style="width:13px;height:13px"></span><span>Square<span class="exp-preset-sub">1080×1080</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1080" data-h="1350" onclick="applyExportPreset(1080,1350,this)"><span class="exp-preset-shape" style="width:11px;height:14px"></span><span>Portrait<span class="exp-preset-sub">1080×1350</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1080" data-h="1920" onclick="applyExportPreset(1080,1920,this)"><span class="exp-preset-shape" style="width:9px;height:16px"></span><span>Story (9:16)<span class="exp-preset-sub">1080×1920</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1080" data-h="608" onclick="applyExportPreset(1080,608,this)"><span class="exp-preset-shape" style="width:16px;height:9px"></span><span>Landscape<span class="exp-preset-sub">1080×608</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1200" data-h="630" onclick="applyExportPreset(1200,630,this)"><span class="exp-preset-shape" style="width:15px;height:8px"></span><span>Link Preview<span class="exp-preset-sub">1200×630</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1600" data-h="900" onclick="applyExportPreset(1600,900,this)"><span class="exp-preset-shape" style="width:16px;height:9px"></span><span>Widescreen<span class="exp-preset-sub">1600×900</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1200" data-h="627" onclick="applyExportPreset(1200,627,this)"><span class="exp-preset-shape" style="width:15px;height:8px"></span><span>Banner<span class="exp-preset-sub">1200×627</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1000" data-h="1500" onclick="applyExportPreset(1000,1500,this)"><span class="exp-preset-shape" style="width:10px;height:15px"></span><span>Tall Pin<span class="exp-preset-sub">1000×1500</span></span></button>
+                <button type="button" class="exp-preset-chip" data-w="1280" data-h="720" onclick="applyExportPreset(1280,720,this)"><span class="exp-preset-shape" style="width:16px;height:9px"></span><span>Video Thumbnail<span class="exp-preset-sub">1280×720</span></span></button>
+              </div>
+
+              <div class="exp-custom-row">
+                <div class="exp-custom-field">
+                  <label>Width</label>
+                  <input type="number" id="exportCustomW" min="1" max="8000" step="1" value="1080" oninput="exportCustomSizeChanged('w')">
+                </div>
+                <div class="exp-custom-x">×</div>
+                <div class="exp-custom-field">
+                  <label>Height</label>
+                  <input type="number" id="exportCustomH" min="1" max="8000" step="1" value="1080" oninput="exportCustomSizeChanged('h')">
+                </div>
+                <button type="button" class="exp-lock-btn on" id="exportLockBtn" onclick="toggleExportAspectLock()" title="Lock aspect ratio">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </button>
+                <div class="exp-fit-field">
+                  <label>Fit mode</label>
+                  <select id="exportCustomFit">
+                    <option value="cover">Fill &amp; crop (no bars)</option>
+                    <option value="contain">Fit inside (add padding)</option>
+                    <option value="stretch">Stretch (ignore ratio)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="exp-custom-hint">Every image is fit to exactly <span id="exportCustomHintSize">1080×1080</span>px. "Fill &amp; crop" covers the frame and trims overflow — best for square or fixed-ratio grids. "Fit inside" keeps the whole image and pads empty space. "Stretch" forces the exact size without preserving proportions.</div>
             </div>
           </div>
         </div>
@@ -9824,18 +9929,32 @@ button.dg-show-chip.active { background:var(--blue); }
                 <button type="button" class="pdfed-orient-btn" data-orient="landscape" onclick="selectPageOrientation('landscape')"><svg width="13" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/></svg> Landscape</button>
               </div>
 
-              <div class="pdfed-custom-row" id="pdfedCustomSizeRow" style="display:none">
-                <div class="pdfed-custom-field">
-                  <label>Width</label>
-                  <input type="number" id="pdfedCustomW" class="pdfed-custom-size-input" value="210" min="20" max="2000" step="1" oninput="syncCustomSize()">
+              <div class="pdfed-custom-row" id="pdfedCustomSizeRow" style="display:none;flex-direction:column;align-items:stretch;gap:10px">
+                <div class="exp-preset-grid" id="pdfedCustomPresetGrid" style="margin-bottom:0">
+                  <button type="button" class="exp-preset-chip" data-w="215.9" data-h="279.4" data-u="mm" onclick="applyPdfedCustomPreset(215.9,279.4,'mm',this)"><span class="exp-preset-shape" style="width:11px;height:14px"></span><span>US Letter<span class="exp-preset-sub">8.5×11 in</span></span></button>
+                  <button type="button" class="exp-preset-chip" data-w="279.4" data-h="431.8" data-u="mm" onclick="applyPdfedCustomPreset(279.4,431.8,'mm',this)"><span class="exp-preset-shape" style="width:11px;height:17px"></span><span>Tabloid<span class="exp-preset-sub">11×17 in</span></span></button>
+                  <button type="button" class="exp-preset-chip" data-w="1080" data-h="1080" data-u="px" onclick="applyPdfedCustomPreset(1080,1080,'px',this)"><span class="exp-preset-shape" style="width:13px;height:13px"></span><span>Square<span class="exp-preset-sub">1080×1080 px</span></span></button>
+                  <button type="button" class="exp-preset-chip" data-w="1080" data-h="1920" data-u="px" onclick="applyPdfedCustomPreset(1080,1920,'px',this)"><span class="exp-preset-shape" style="width:9px;height:16px"></span><span>Story (9:16)<span class="exp-preset-sub">1080×1920 px</span></span></button>
                 </div>
-                <div class="pdfed-custom-x">×</div>
-                <div class="pdfed-custom-field">
-                  <label>Height</label>
-                  <input type="number" id="pdfedCustomH" class="pdfed-custom-size-input" value="297" min="20" max="2000" step="1" oninput="syncCustomSize()">
+                <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
+                  <div class="pdfed-custom-field">
+                    <label>Width</label>
+                    <input type="number" id="pdfedCustomW" class="pdfed-custom-size-input" value="210" min="1" max="20000" step="1" oninput="syncCustomSize()">
+                  </div>
+                  <button type="button" class="exp-lock-btn" id="pdfedSwapBtn" onclick="swapCustomSize()" title="Swap width and height" style="margin-bottom:0">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                  </button>
+                  <div class="pdfed-custom-field">
+                    <label>Height</label>
+                    <input type="number" id="pdfedCustomH" class="pdfed-custom-size-input" value="297" min="1" max="20000" step="1" oninput="syncCustomSize()">
+                  </div>
+                  <div class="pdfed-orient-toggle" id="pdfedUnitToggle" style="margin-bottom:0">
+                    <button type="button" class="pdfed-orient-btn sel" data-unit="mm" onclick="setPdfedCustomUnit('mm')">mm</button>
+                    <button type="button" class="pdfed-orient-btn" data-unit="in" onclick="setPdfedCustomUnit('in')">in</button>
+                    <button type="button" class="pdfed-orient-btn" data-unit="px" onclick="setPdfedCustomUnit('px')">px</button>
+                  </div>
+                  <button type="button" class="pdfed-square-btn" onclick="setSquareCustom()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="4" width="16" height="16" rx="1.5"/></svg> Square</button>
                 </div>
-                <span class="pdfed-custom-unit">mm</span>
-                <button type="button" class="pdfed-square-btn" onclick="setSquareCustom()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="4" width="16" height="16" rx="1.5"/></svg> Square</button>
               </div>
             </div>
 
@@ -11890,44 +12009,32 @@ function applyReshapeConfirm() {
 // down — no separate mask canvas or per-pixel math needed.
 const PDFED_DESIGN_PRESETS = [
   { id: 'feather',   name: 'Feather',
-    swatch: 'linear-gradient(#0b0d12,#0b0d12) padding-box, ' +
-            'radial-gradient(circle, transparent 38%, rgba(11,13,18,0.95) 92%), ' +
-            'linear-gradient(135deg,#ff9a56,#ff6a88)' },
+    icon: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/>' },
   { id: 'vignette',  name: 'Vignette',
-    swatch: 'radial-gradient(circle, transparent 32%, rgba(11,13,18,0.95) 100%), ' +
-            'linear-gradient(135deg,#43cbff,#9708cc)' },
+    icon: '<circle cx="12" cy="12" r="8.5" opacity="0.45"/><circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/>' },
   { id: 'fadeIn',    name: 'Fade In',
-    swatch: 'linear-gradient(to bottom, rgba(11,13,18,0.95), transparent 55%), ' +
-            'linear-gradient(160deg,#f7797d,#fbd786,#c6ffdd)' },
+    icon: '<path d="M12 4v12"/><path d="M6 12l6 6 6-6"/>' },
   { id: 'fadeOut',   name: 'Fade Out',
-    swatch: 'linear-gradient(to top, rgba(11,13,18,0.95), transparent 55%), ' +
-            'linear-gradient(160deg,#30cfd0,#330867)' },
+    icon: '<path d="M12 20V8"/><path d="M6 12l6-6 6 6"/>' },
   { id: 'filmstrip', name: 'Film Strip',
-    swatch: 'linear-gradient(to bottom, rgba(11,13,18,0.95) 0%, transparent 25%, transparent 75%, rgba(11,13,18,0.95) 100%), ' +
-            'linear-gradient(135deg,#e0c3fc,#8ec5fc)' },
+    icon: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M3.5 8.5h17M3.5 15.5h17"/>' },
   { id: 'diagonal',  name: 'Diagonal',
-    swatch: 'linear-gradient(135deg, transparent 52%, rgba(11,13,18,0.95) 100%), ' +
-            'linear-gradient(135deg,#f6d365,#fda085)' },
+    icon: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M5 19L19 5"/>' },
   // ── Premium 3D Cinematic tier ──────────────────────────────────────────
   // Heavier, layered effects (embossed 3D borders, true widescreen
   // letterboxing, real per-channel chromatic aberration, film grain) built
   // by combining several native canvas blend modes rather than a single
   // alpha gradient — the same trick colour grading suites use, one click.
   { id: 'cinemaBars', name: 'CinemaScope', premium: true,
-    swatch: 'linear-gradient(#05060a,#05060a) top / 100% 22% no-repeat, ' +
-            'linear-gradient(#05060a,#05060a) bottom / 100% 22% no-repeat, ' +
-            'linear-gradient(135deg,#2b5876,#4e4376)' },
+    icon: '<rect x="2.5" y="5" width="19" height="3" fill="currentColor" stroke="none"/><rect x="2.5" y="16" width="19" height="3" fill="currentColor" stroke="none"/>' },
   { id: 'depth3d', name: '3D Depth Frame', premium: true,
-    swatch: 'linear-gradient(135deg,#3a3f52,#1b1e29)',
-    swatchExtra: 'box-shadow:inset 3px 3px 0 rgba(255,255,255,0.28), inset -3px -3px 0 rgba(0,0,0,0.55);' },
+    icon: '<rect x="7" y="7" width="13.5" height="13.5" rx="1.5"/><rect x="3.5" y="3.5" width="13.5" height="13.5" rx="1.5" opacity="0.5"/>' },
   { id: 'goldenGrade', name: 'Golden Hour', premium: true,
-    swatch: 'radial-gradient(circle, rgba(255,255,255,0) 28%, rgba(255,178,102,0.9) 100%), ' +
-            'linear-gradient(135deg,#ffd89b,#19547b)' },
+    icon: '<circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6"/>' },
   { id: 'chromaPulse', name: 'Chroma Edge', premium: true,
-    swatch: 'linear-gradient(135deg,#1b1e29,#2b5876)',
-    swatchExtra: 'box-shadow:inset 0 0 0 2px rgba(255,45,85,0.6), inset 0 0 0 4px rgba(0,180,255,0.5);' },
+    icon: '<circle cx="9.2" cy="12" r="5.3"/><circle cx="14.8" cy="12" r="5.3"/>' },
   { id: 'noirGrain', name: 'Film Noir', premium: true,
-    swatch: 'radial-gradient(circle, rgba(130,130,130,0.25) 26%, rgba(8,8,8,0.96) 100%)' }
+    icon: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>' }
 ];
 let pdfedDesignState = { preset: 'feather', strength: 50 };
 
@@ -12145,7 +12252,7 @@ function pdfedDesignRenderGrid() {
   const premGrid = document.getElementById('pdfedDesignPremiumGrid');
   const tile = (p) =>
     `<button type="button" class="pdfed-design-preset${p.premium ? ' premium' : ''} ${p.id === pdfedDesignState.preset ? 'active' : ''}" data-preset="${p.id}" title="${p.name}" onclick="pdfedDesignPickPreset('${p.id}', this)">` +
-      `<span class="pdfed-design-swatch" style="background:${p.swatch}${p.swatchExtra ? ';' + p.swatchExtra : ''}"></span>` +
+      `<span class="pdfed-design-swatch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p.icon}</svg></span>` +
       `<span class="pdfed-design-label">${p.name}</span>` +
     `</button>`;
   if (grid) grid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => !p.premium).map(tile).join('');
@@ -13144,6 +13251,83 @@ function getExportScalePreset() {
   return el ? el.value : 'native';
 }
 
+// ─── Custom resolution (px) export panel ───
+// Lets a person type an exact target width/height (or pick a social-media
+// preset like a common square/story pixel size) instead of only the fixed
+// native/retina/4k/half scale presets. state.exportAspectLocked keeps the
+// width/height fields moving together when the user drags one of them.
+state.exportAspectLocked = true;
+state.exportAspectRatio = 1; // width / height, refreshed whenever the lock is (re)engaged
+
+function exportScaleChanged() {
+  const preset = getExportScalePreset();
+  const panel = document.getElementById('exportCustomPanel');
+  if (panel) panel.style.display = (preset === 'custom') ? 'block' : 'none';
+}
+
+function getCustomExportWidth() {
+  const el = document.getElementById('exportCustomW');
+  const v = el ? parseInt(el.value, 10) : NaN;
+  return (v > 0) ? Math.min(8000, v) : 1080;
+}
+function getCustomExportHeight() {
+  const el = document.getElementById('exportCustomH');
+  const v = el ? parseInt(el.value, 10) : NaN;
+  return (v > 0) ? Math.min(8000, v) : 1080;
+}
+function getCustomExportFit() {
+  const el = document.getElementById('exportCustomFit');
+  return el ? el.value : 'cover';
+}
+
+function updateExportCustomHint() {
+  const hint = document.getElementById('exportCustomHintSize');
+  if (hint) hint.textContent = getCustomExportWidth() + '×' + getCustomExportHeight();
+}
+
+// Applying a preset chip sets exact values, re-locks the ratio to that
+// preset's shape, and visually marks the chip selected.
+function applyExportPreset(w, h, btnEl) {
+  const wEl = document.getElementById('exportCustomW');
+  const hEl = document.getElementById('exportCustomH');
+  if (wEl) wEl.value = w;
+  if (hEl) hEl.value = h;
+  state.exportAspectRatio = w / h;
+  document.querySelectorAll('#exportPresetGrid .exp-preset-chip').forEach(b => b.classList.toggle('sel', b === btnEl));
+  updateExportCustomHint();
+}
+
+// Typing a value directly (rather than picking a preset) deselects any
+// preset chip and, if the lock is engaged, scales the other field to match.
+function exportCustomSizeChanged(which) {
+  document.querySelectorAll('#exportPresetGrid .exp-preset-chip').forEach(b => b.classList.remove('sel'));
+  const wEl = document.getElementById('exportCustomW');
+  const hEl = document.getElementById('exportCustomH');
+  if (state.exportAspectLocked) {
+    if (which === 'w') {
+      const w = parseInt(wEl.value, 10);
+      if (w > 0 && hEl) hEl.value = Math.max(1, Math.round(w / state.exportAspectRatio));
+    } else {
+      const h = parseInt(hEl.value, 10);
+      if (h > 0 && wEl) wEl.value = Math.max(1, Math.round(h * state.exportAspectRatio));
+    }
+  } else {
+    const w = parseInt(wEl.value, 10), h = parseInt(hEl.value, 10);
+    if (w > 0 && h > 0) state.exportAspectRatio = w / h;
+  }
+  updateExportCustomHint();
+}
+
+function toggleExportAspectLock() {
+  state.exportAspectLocked = !state.exportAspectLocked;
+  const btn = document.getElementById('exportLockBtn');
+  if (btn) btn.classList.toggle('on', state.exportAspectLocked);
+  if (state.exportAspectLocked) {
+    const w = getCustomExportWidth(), h = getCustomExportHeight();
+    state.exportAspectRatio = w / h;
+  }
+}
+
 // The base scale extractPageImages() renders at, every preset below is
 // expressed relative to this so re-renders line up with what "1x" means.
 const PDFED_EXTRACT_BASE_SCALE = 2.0;
@@ -13161,9 +13345,60 @@ function resolveExportScale(preset, currentW, currentH) {
       const factor = Math.max(1, 3840 / longSide);
       return { pdfScale: PDFED_EXTRACT_BASE_SCALE * factor, resizeFactor: factor };
     }
+    case 'custom': {
+      // Render/resize the source as close to the requested target as
+      // possible first (so a PDF page is re-rasterized at real detail
+      // rather than upscaled after the fact), then buildExportRasterRaw
+      // does the exact crop/pad/stretch to hit the precise px size.
+      const targetW = getCustomExportWidth(), targetH = getCustomExportHeight();
+      const longSide = Math.max(targetW, targetH) || 1;
+      const currentLong = Math.max(currentW, currentH) || 1;
+      const factor = Math.max(0.05, longSide / currentLong);
+      return {
+        pdfScale: PDFED_EXTRACT_BASE_SCALE * factor,
+        resizeFactor: factor,
+        custom: { targetW, targetH, fit: getCustomExportFit() }
+      };
+    }
     case 'native':
     default: return { pdfScale: PDFED_EXTRACT_BASE_SCALE, resizeFactor: 1 };
   }
+}
+
+// Composes a rendered raster onto a canvas of exactly targetW×targetH.
+//   cover   — scale to fill the frame, crop whatever overflows (no bars)
+//   contain — scale to fit entirely inside the frame, pad the empty space
+//   stretch — scale width/height independently to the exact size
+// Transparent padding is used for contain (PNG/WebP keep it see-through;
+// JPG flattens it to white later during format encoding).
+function fitRasterToCustomSize(dataUrl, srcW, srcH, targetW, targetH, fit) {
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW; canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      if (fit === 'stretch') {
+        ctx.drawImage(im, 0, 0, targetW, targetH);
+      } else {
+        const srcRatio = srcW / srcH, targetRatio = targetW / targetH;
+        let drawW, drawH;
+        const useContain = (fit === 'contain');
+        if ((srcRatio > targetRatio) === !useContain) {
+          // match height, crop/pad width
+          drawH = targetH; drawW = targetH * srcRatio;
+        } else {
+          // match width, crop/pad height
+          drawW = targetW; drawH = targetW / srcRatio;
+        }
+        const dx = (targetW - drawW) / 2, dy = (targetH - drawH) / 2;
+        ctx.drawImage(im, dx, dy, drawW, drawH);
+      }
+      resolve({ dataUrl: canvas.toDataURL('image/png'), width: targetW, height: targetH });
+    };
+    im.onerror = () => resolve({ dataUrl, width: srcW, height: srcH });
+    im.src = dataUrl;
+  });
 }
 
 // Re-rasterizes a single extracted image at the requested resolution preset.
@@ -13172,7 +13407,8 @@ function resolveExportScale(preset, currentW, currentH) {
 // upscaled/blurred copy of the already-extracted bitmap. Only raw uploaded
 // images (no backing PDF page) fall back to a plain canvas resize.
 async function buildExportRasterRaw(img, preset) {
-  const { pdfScale, resizeFactor } = resolveExportScale(preset, img.width, img.height);
+  const { pdfScale, resizeFactor, custom } = resolveExportScale(preset, img.width, img.height);
+  let raster = null;
   if (img.page && state.pdfDoc) {
     try {
       const page = await state.pdfDoc.getPage(img.page);
@@ -13180,23 +13416,35 @@ async function buildExportRasterRaw(img, preset) {
       const canvas = document.createElement('canvas');
       canvas.width = vp.width; canvas.height = vp.height;
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-      return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+      raster = { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
     } catch (e) { /* fall through to resize below */ }
   }
-  if (resizeFactor === 1) return { dataUrl: img.dataUrl, width: img.width, height: img.height };
-  return new Promise((resolve) => {
-    const im = new Image();
-    im.onload = () => {
-      const w = Math.max(1, Math.round(im.naturalWidth * resizeFactor));
-      const h = Math.max(1, Math.round(im.naturalHeight * resizeFactor));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(im, 0, 0, w, h);
-      resolve({ dataUrl: canvas.toDataURL('image/png'), width: w, height: h });
-    };
-    im.onerror = () => resolve({ dataUrl: img.dataUrl, width: img.width, height: img.height });
-    im.src = img.dataUrl;
-  });
+  if (!raster) {
+    if (resizeFactor === 1) {
+      raster = { dataUrl: img.dataUrl, width: img.width, height: img.height };
+    } else {
+      raster = await new Promise((resolve) => {
+        const im = new Image();
+        im.onload = () => {
+          const w = Math.max(1, Math.round(im.naturalWidth * resizeFactor));
+          const h = Math.max(1, Math.round(im.naturalHeight * resizeFactor));
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(im, 0, 0, w, h);
+          resolve({ dataUrl: canvas.toDataURL('image/png'), width: w, height: h });
+        };
+        im.onerror = () => resolve({ dataUrl: img.dataUrl, width: img.width, height: img.height });
+        im.src = img.dataUrl;
+      });
+    }
+  }
+  // Custom resolution: whatever we rendered above is just "close enough"
+  // source material — this step composes it onto a canvas that is exactly
+  // the requested width/height, per the chosen fit mode.
+  if (custom) {
+    return fitRasterToCustomSize(raster.dataUrl, raster.width, raster.height, custom.targetW, custom.targetH, custom.fit);
+  }
+  return raster;
 }
 
 // Every Export Center path (PDF export, zip, individual downloads) funnels
@@ -13482,6 +13730,7 @@ const pdfed = {
   insertOrientation: 'portrait',
   insertCustomW: 210,
   insertCustomH: 297,
+  insertUnit: 'mm',
   snapGrid: true, // Canva-style grid-to-grid snapping for placed text/images
   autoCollapseTimer: null,
   leftManuallyToggled: false,
@@ -19191,12 +19440,15 @@ function pdfedOpenInsert(afterIdx) {
   pdfed.insertOrientation = 'portrait';
   pdfed.insertCustomW = 210;
   pdfed.insertCustomH = 297;
+  pdfed.insertUnit = 'mm';
   document.querySelectorAll('.pdfed-fmt-chip[data-fmt]').forEach(b => b.classList.toggle('sel', b.dataset.fmt === 'a4'));
   document.querySelectorAll('.pdfed-orient-btn[data-orient]').forEach(b => b.classList.toggle('sel', b.dataset.orient === 'portrait'));
+  document.querySelectorAll('#pdfedUnitToggle .pdfed-orient-btn[data-unit]').forEach(b => b.classList.toggle('sel', b.dataset.unit === 'mm'));
+  document.querySelectorAll('#pdfedCustomPresetGrid .exp-preset-chip').forEach(b => b.classList.remove('sel'));
   const customRow = document.getElementById('pdfedCustomSizeRow'); if (customRow) customRow.style.display = 'none';
   const orientRow = document.getElementById('pdfedOrientRow'); if (orientRow) orientRow.style.display = 'inline-flex';
-  const cw = document.getElementById('pdfedCustomW'); if (cw) cw.value = 210;
-  const ch = document.getElementById('pdfedCustomH'); if (ch) ch.value = 297;
+  const cw = document.getElementById('pdfedCustomW'); if (cw) { cw.value = 210; cw.min = 1; cw.max = 20000; cw.step = 1; }
+  const ch = document.getElementById('pdfedCustomH'); if (ch) { ch.value = 297; ch.min = 1; ch.max = 20000; ch.step = 1; }
   pdfedUpdateSizePreview();
   // if starting a document from scratch (no pages yet), make that clear
   if (afterIdx < 0 && pdfed.pages.length === 0) {
@@ -19223,21 +19475,100 @@ function selectPageOrientation(o) {
   pdfedUpdateSizePreview();
 }
 
+// ─── Insert Page: custom size unit handling ───
+// pdfed.insertCustomW/H always stay in millimetres internally (everything
+// downstream — pdfedGetInsertMM, page rendering, the size preview — expects
+// real-world mm). The on-screen fields can instead be read/typed in inches
+// or pixels (at the same 96dpi/3.7795 px-per-mm assumption used elsewhere
+// in the PDF editor); this layer just converts at the boundary.
+const PDFED_MM_PER_INCH = 25.4;
+const PDFED_PX_PER_MM = 3.7795;
+function pdfedUnitToMM(value, unit) {
+  if (unit === 'in') return value * PDFED_MM_PER_INCH;
+  if (unit === 'px') return value / PDFED_PX_PER_MM;
+  return value;
+}
+function pdfedMMToUnit(mm, unit) {
+  if (unit === 'in') return mm / PDFED_MM_PER_INCH;
+  if (unit === 'px') return mm * PDFED_PX_PER_MM;
+  return mm;
+}
+function pdfedRoundForUnit(value, unit) {
+  if (unit === 'in') return Math.round(value * 100) / 100;
+  return Math.round(value);
+}
+const PDFED_UNIT_BOUNDS = {
+  mm: { min: 5, max: 5000, step: 1 },
+  in: { min: 0.2, max: 200, step: 0.01 },
+  px: { min: 20, max: 20000, step: 1 }
+};
+
+// Switches the displayed unit, converting whatever is currently in the
+// fields so the physical size stays the same (only its written-out number
+// changes), then updates each input's min/max/step to suit that unit.
+function setPdfedCustomUnit(unit) {
+  const wEl = document.getElementById('pdfedCustomW');
+  const hEl = document.getElementById('pdfedCustomH');
+  if (wEl && hEl) {
+    const oldUnit = pdfed.insertUnit || 'mm';
+    const wMM = pdfedUnitToMM(parseFloat(wEl.value) || 0, oldUnit);
+    const hMM = pdfedUnitToMM(parseFloat(hEl.value) || 0, oldUnit);
+    wEl.value = pdfedRoundForUnit(pdfedMMToUnit(wMM, unit), unit);
+    hEl.value = pdfedRoundForUnit(pdfedMMToUnit(hMM, unit), unit);
+    const b = PDFED_UNIT_BOUNDS[unit];
+    [wEl, hEl].forEach(el => { el.min = b.min; el.max = b.max; el.step = b.step; });
+  }
+  pdfed.insertUnit = unit;
+  document.querySelectorAll('#pdfedUnitToggle .pdfed-orient-btn[data-unit]').forEach(b => b.classList.toggle('sel', b.dataset.unit === unit));
+  syncCustomSize();
+}
+
+// A preset (paper size or social pixel size) may be expressed in a
+// different unit than what's currently showing — switch the unit first,
+// write the exact values, then resolve to mm as usual.
+function applyPdfedCustomPreset(w, h, unit, btnEl) {
+  if (pdfed.insertUnit !== unit) {
+    pdfed.insertUnit = unit;
+    document.querySelectorAll('#pdfedUnitToggle .pdfed-orient-btn[data-unit]').forEach(b => b.classList.toggle('sel', b.dataset.unit === unit));
+    const b = PDFED_UNIT_BOUNDS[unit];
+    const wEl = document.getElementById('pdfedCustomW'), hEl = document.getElementById('pdfedCustomH');
+    if (wEl && hEl) [wEl, hEl].forEach(el => { el.min = b.min; el.max = b.max; el.step = b.step; });
+  }
+  const wEl = document.getElementById('pdfedCustomW'); if (wEl) wEl.value = w;
+  const hEl = document.getElementById('pdfedCustomH'); if (hEl) hEl.value = h;
+  document.querySelectorAll('#pdfedCustomPresetGrid .exp-preset-chip').forEach(b => b.classList.toggle('sel', b === btnEl));
+  syncCustomSize();
+}
+
+function swapCustomSize() {
+  const wEl = document.getElementById('pdfedCustomW');
+  const hEl = document.getElementById('pdfedCustomH');
+  if (!wEl || !hEl) return;
+  const w = wEl.value; wEl.value = hEl.value; hEl.value = w;
+  document.querySelectorAll('#pdfedCustomPresetGrid .exp-preset-chip').forEach(b => b.classList.remove('sel'));
+  syncCustomSize();
+}
+
 function syncCustomSize() {
+  const unit = pdfed.insertUnit || 'mm';
   const w = parseFloat(document.getElementById('pdfedCustomW').value);
   const h = parseFloat(document.getElementById('pdfedCustomH').value);
-  pdfed.insertCustomW = (w > 0) ? w : 210;
-  pdfed.insertCustomH = (h > 0) ? h : 297;
+  pdfed.insertCustomW = (w > 0) ? pdfedUnitToMM(w, unit) : 210;
+  pdfed.insertCustomH = (h > 0) ? pdfedUnitToMM(h, unit) : 297;
   pdfedUpdateSizePreview();
 }
 
+// Squares off using whatever's currently typed in the Width field, in
+// whichever unit is currently active — not the internal mm value, which
+// would show the wrong number if the fields are set to inches or pixels.
 function setSquareCustom() {
-  const side = pdfed.insertCustomW || 210;
-  document.getElementById('pdfedCustomW').value = side;
-  document.getElementById('pdfedCustomH').value = side;
-  pdfed.insertCustomW = side;
-  pdfed.insertCustomH = side;
-  pdfedUpdateSizePreview();
+  const wEl = document.getElementById('pdfedCustomW');
+  const hEl = document.getElementById('pdfedCustomH');
+  if (!wEl || !hEl) return;
+  const side = parseFloat(wEl.value) || wEl.value;
+  hEl.value = side;
+  document.querySelectorAll('#pdfedCustomPresetGrid .exp-preset-chip').forEach(b => b.classList.remove('sel'));
+  syncCustomSize();
 }
 
 // Resolves the currently-selected page format/orientation/custom size to mm dimensions.
