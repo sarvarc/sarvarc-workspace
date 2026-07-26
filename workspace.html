@@ -524,6 +524,7 @@ a.nav-item:hover { color: var(--text); }
 
 .hero-actions { display: flex; gap: 12px; margin-top: 22px; }
 .btn-primary {
+  display: inline-flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, var(--cyan), var(--purple));
   color: white; border: none;
   padding: 10px 22px; border-radius: 9px;
@@ -532,7 +533,9 @@ a.nav-item:hover { color: var(--text); }
   box-shadow: 0 4px 20px rgba(0,194,255,0.30);
 }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(0,194,255,0.45); }
+.btn-primary svg { flex-shrink: 0; }
 .btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center;
   background: var(--surface2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -541,6 +544,7 @@ a.nav-item:hover { color: var(--text); }
   cursor: pointer; transition: all 0.2s;
   white-space: nowrap;
 }
+.btn-secondary svg { flex-shrink: 0; }
 .btn-primary { white-space: nowrap; }
 .btn-secondary:hover { border-color: var(--border2); background: rgba(0,194,255,0.08); }
 
@@ -554,6 +558,16 @@ a.nav-item:hover { color: var(--text); }
 }
 .btn-pill:hover { border-color: var(--border2); background: var(--surface2); color: var(--text); }
 .btn-pill svg { flex-shrink:0; }
+
+/* ─── SHARED ICON + LABEL ALIGNMENT ───
+   Buttons across the tool (Extract, Merge Forms, Data Arrangement, image tools, PDF
+   editor, etc.) each wrapped their own icon+text in an inline style="display:inline-flex;
+   align-items:center;gap:Npx" span, with the gap drifting between 4px/5px/6px/8px
+   depending on who wrote that button. .btn-icon-label is the one shared class for that
+   exact pattern — same flex alignment, same gap, everywhere it's used, so an icon next
+   to its label lines up identically no matter which tool it's in. */
+.btn-icon-label { display:inline-flex; align-items:center; gap:6px; }
+.btn-icon-label svg { flex-shrink:0; }
 
 .stats-row {
   display: grid;
@@ -7031,7 +7045,7 @@ button.dg-show-chip.active { background:var(--blue); }
           <h1>Turn PDFs into<br><span>Visual Assets</span></h1>
           <p>Extract, refine, and export images from any PDF with studio-grade precision, entirely within your browser. No uploads, no servers, no compromises.</p>
           <div class="hero-actions">
-            <button class="btn-primary" onclick="navigate('extract')"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload PDF</span></button>
+            <button class="btn-primary" onclick="navigate('extract')"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload PDF</span></button>
             <button class="btn-secondary" onclick="navigate('pdfeditor')">Workspace →</button>
           </div>
         </div>
@@ -7116,16 +7130,16 @@ button.dg-show-chip.active { background:var(--blue); }
             <h2>Extract Images</h2>
             <p>Upload a PDF to instantly detect and extract every visual asset within it</p>
           </div>
-          <button class="btn-primary" id="processBtn" onclick="startProcessing()" style="display:none"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg> Extract All</span></button>
+          <button class="btn-primary" id="processBtn" onclick="startProcessing()" style="display:none"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg> Extract All</span></button>
         </div>
 
         <!-- Loaded file banner -->
         <div id="extractLoadedBanner" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:10px">
           <span style="display:inline-flex;align-items:center;color:var(--blue)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
           <span id="extractLoadedName" style="font-size:13px;font-weight:600;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-          <button class="btn-secondary" id="toggleUploadAreaBtn" onclick="toggleUploadArea()" style="padding:5px 14px;font-size:11px;flex-shrink:0"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Upload Another</span></button>
-          <button class="btn-secondary" onclick="removePdfFromExtract()" style="padding:5px 14px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.35);flex-shrink:0"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Remove PDF</span></button>
-          <button class="btn-secondary" onclick="clearAllImages()" style="padding:5px 14px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.35);flex-shrink:0"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear Images</span></button>
+          <button class="btn-secondary" id="toggleUploadAreaBtn" onclick="toggleUploadArea()" style="padding:5px 14px;font-size:11px;flex-shrink:0"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Upload Another</span></button>
+          <button class="btn-secondary" onclick="removePdfFromExtract()" style="padding:5px 14px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.35);flex-shrink:0"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Remove PDF</span></button>
+          <button class="btn-secondary" onclick="clearAllImages()" style="padding:5px 14px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.35);flex-shrink:0"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear Images</span></button>
         </div>
 
         <!-- Pipeline -->
@@ -7228,17 +7242,17 @@ button.dg-show-chip.active { background:var(--blue); }
             <span>Selected: <span class="sel-count" id="selCount">0</span> images</span>
             <div class="sel-spacer"></div>
             <button class="btn-secondary" onclick="clearSelection()" style="padding:6px 14px;font-size:12px">Clear</button>
-            <button class="btn-secondary" onclick="deleteSelected()" style="padding:6px 14px;font-size:12px;border-color:rgba(239,68,68,0.4);color:#ef4444"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete</span></button>
-            <button class="btn-secondary" onclick="exportSelectedAsPdf()" style="padding:6px 14px;font-size:12px;border-color:rgba(0,194,255,0.4);color:var(--blue)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Export PDF</span></button>
-            <button class="btn-primary" onclick="downloadSelected()" style="padding:6px 14px;font-size:12px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Selected</span></button>
+            <button class="btn-secondary" onclick="deleteSelected()" style="padding:6px 14px;font-size:12px;border-color:rgba(239,68,68,0.4);color:#ef4444"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete</span></button>
+            <button class="btn-secondary" onclick="exportSelectedAsPdf()" style="padding:6px 14px;font-size:12px;border-color:rgba(0,194,255,0.4);color:var(--blue)"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Export PDF</span></button>
+            <button class="btn-primary" onclick="downloadSelected()" style="padding:6px 14px;font-size:12px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Selected</span></button>
           </div>
           <div class="gallery-header">
             <h3 id="galleryTitle">Extracted Images</h3>
             <div class="gallery-actions">
               
               <button class="btn-secondary" onclick="selectAll()" style="padding:7px 14px;font-size:12px">Select All</button>
-              <button class="btn-secondary" onclick="clearAllImages()" style="padding:7px 14px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.35)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove All</span></button>
-              <button class="btn-primary" onclick="downloadAll()" style="padding:7px 14px;font-size:12px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All</span></button>
+              <button class="btn-secondary" onclick="clearAllImages()" style="padding:7px 14px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.35)"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove All</span></button>
+              <button class="btn-primary" onclick="downloadAll()" style="padding:7px 14px;font-size:12px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All</span></button>
             </div>
           </div>
           <div class="image-grid" id="imageGrid"></div>
@@ -7260,7 +7274,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <h2>Export Center</h2>
             <p>Download your extracted and refined assets in the format you need</p>
           </div>
-          <button class="btn-secondary" onclick="clearAllImages()" style="padding:8px 16px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.35)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear All Images</span></button>
+          <button class="btn-secondary" onclick="clearAllImages()" style="padding:8px 16px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.35)"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear All Images</span></button>
         </div>
         <div class="export-grid">
           <div class="export-card selected" onclick="selectExport(this,'zip')">
@@ -7362,7 +7376,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div style="font-size:12px;color:var(--text2)">Ready to export</div>
               <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-top:2px" id="exportCount">0 images</div>
             </div>
-            <button class="btn-primary" onclick="runExport()" style="padding:12px 28px;font-size:14px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Now</span></button>
+            <button class="btn-primary" onclick="runExport()" style="padding:12px 28px;font-size:14px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Now</span></button>
           </div>
         </div>
       </div>
@@ -7381,9 +7395,9 @@ button.dg-show-chip.active { background:var(--blue); }
             </div>
             <div style="display:flex;gap:10px">
               
-              <button class="btn-secondary" onclick="mfToggleTemplatePicker()"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Browse Templates</span></button>
-              <button class="btn-secondary" onclick="mfStartBlank()"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Form</span></button>
-              <button class="btn-primary" onclick="mfStartCanvas()"><span style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="18" height="20" rx="1.5"/><line x1="7" y1="8" x2="13" y2="8"/><line x1="7" y1="13" x2="17" y2="13"/></svg> Canvas Form</span></button>
+              <button class="btn-secondary" onclick="mfToggleTemplatePicker()"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Browse Templates</span></button>
+              <button class="btn-secondary" onclick="mfStartBlank()"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Form</span></button>
+              <button class="btn-primary" onclick="mfStartCanvas()"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="18" height="20" rx="1.5"/><line x1="7" y1="8" x2="13" y2="8"/><line x1="7" y1="13" x2="17" y2="13"/></svg> Canvas Form</span></button>
             </div>
           </div>
 
@@ -7419,7 +7433,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
               <button class="btn-pill" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
-              <button class="btn-primary" onclick="mfExportPDF()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
+              <button class="btn-primary" onclick="mfExportPDF()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
             </div>
           </div>
 
@@ -7559,7 +7573,7 @@ button.dg-show-chip.active { background:var(--blue); }
               
               <button class="btn-secondary" onclick="mfcPrint()">Print</button>
               <button class="btn-pill" id="mfcPushBtn" onclick="mfcOpenPushChoiceModal()" title="Send this canvas form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
-              <button class="btn-primary" onclick="mfcExportPDF()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
+              <button class="btn-primary" onclick="mfcExportPDF()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
             </div>
           </div>
 
@@ -8456,7 +8470,7 @@ button.dg-show-chip.active { background:var(--blue); }
                     <input type="range" min="0" max="200" value="100" oninput="pdfedSetFilter(this,'sat')">
                   </div>
                   <div style="display:flex;gap:6px;flex-wrap:wrap">
-                    <button class="pdfed-tool-btn" onclick="pdfedApplyFilter()"><span style="display:inline-flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Apply</span></button>
+                    <button class="pdfed-tool-btn" onclick="pdfedApplyFilter()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Apply</span></button>
                     <button class="pdfed-tool-btn" onclick="pdfedResetFilters()">↩ Reset</button>
                   </div>
                 </div>
@@ -8857,12 +8871,12 @@ button.dg-show-chip.active { background:var(--blue); }
             <button class="da-tool-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>
             <button class="da-tool-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo</button>
             <div class="da-tool-divider"></div>
-            <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
-            <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
+            <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
+            <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
             <div class="da-tool-divider"></div>
             <button class="da-tool-btn" id="daClearAllBtn" onclick="daClearAll()" title="Clear all loaded data" style="color:#ef4444;border-color:rgba(239,68,68,0.35)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Clear All</button>
             
-            <button class="btn-primary" style="padding:6px 12px;font-size:11.5px" onclick="daOpenExportModal()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</span></button>
+            <button class="btn-primary" style="padding:6px 12px;font-size:11.5px" onclick="daOpenExportModal()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</span></button>
           </div>
 
           <!-- Grid -->
@@ -9118,7 +9132,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 <div class="dg-panel-title" style="margin-bottom:8px">Number Format</div>
                 <select id="dgFormatSelect" class="dg-format-panel-select" onchange="dgOnFormatChange()">
                   <option value="plain">Plain (1,234)</option>
-                  <option value="currency">Currency ($1,234)</option>
+                  <option value="currency">Currency (auto \u20b9/$/\u20ac/\u00a3)</option>
                   <option value="percent">Percentage (12%)</option>
                   <option value="abbrev">Abbreviated (1.2K)</option>
                 </select>
@@ -9543,7 +9557,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 </div>
                 <div class="dg-insights-head-title">
                   <div class="dg-panel-title">Insights</div>
-                  <div class="dg-insights-head-sub">Auto-generated from your data</div>
+                  <div class="dg-insights-head-sub" id="dgInsightsHeadSub">Auto-generated from your data</div>
                 </div>
               </div>
               <div class="dg-insights-scroll">
@@ -9579,6 +9593,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('sequence')" title="Insert a starter sequence diagram">Sequence</button>
               <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('org')" title="Insert a starter org chart">Org Chart</button>
               <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('mindmap')" title="Insert a starter mind map">Mind Map</button>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px;border-color:var(--dg-ink);color:var(--dg-ink)" onclick="dgFlowInsertTemplate('businessmind')" title="Auto-build a mind map from the key insights in whatever data you've uploaded — total, average, top/bottom performer, trend, and a business read">Business Mind</button>
               <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgFlowInsertTemplate('gantt')" title="Insert a starter Gantt chart">Gantt</button>
             </div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;">
@@ -9588,7 +9603,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   style="width:100%;min-height:300px;padding:12px;border-radius:10px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:'Source Code Pro',monospace;font-size:12.5px;line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>
                 <div id="dgFlowError" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(255,80,80,0.1);color:#ff6b6b;font-size:11.5px;"></div>
                 <p style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.5;">
-                  Powered by <strong style="color:var(--pdfed-accent);font-weight:700;">SARVARC FlowIQ</strong> — flowcharts, sequence diagrams, org charts, mind maps, and Gantt charts, generated live from plain text. Pick a template above or write your own, and it renders instantly on the right.
+                  Powered by <strong style="color:var(--pdfed-accent);font-weight:700;">SARVARC FlowIQ</strong> — flowcharts, sequence diagrams, org charts, mind maps, and Gantt charts, generated live from plain text. Pick a template above or write your own, and it renders instantly on the right. <strong style="color:var(--dg-ink);font-weight:700;">Business Mind</strong> is the one exception — instead of a blank starter, it reads whatever data you've loaded in Data Charts and lays out the totals, top/bottom performer, trend, and a plain-English business read as a ready-made mind map.
                 </p>
               </div>
               <div style="flex:1 1 320px;min-width:280px;display:flex;flex-direction:column;">
@@ -9992,7 +10007,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="pdfed-text-tool-btn" onclick="document.execCommand('italic')"><i>I</i></button>
               <button class="pdfed-text-tool-btn" onclick="document.execCommand('underline')"><u>U</u></button>
               <button class="pdfed-text-tool-btn" onclick="document.execCommand('justifyCenter')">≡ Center</button>
-              <button class="pdfed-text-tool-btn" onclick="clearBlankEditor()"><span style="display:inline-flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear</span></button>
+              <button class="pdfed-text-tool-btn" onclick="clearBlankEditor()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear</span></button>
             </div>
             <div class="pdfed-blank-editor" id="pdfedBlankEditor" contenteditable="true" spellcheck="false" placeholder="Type your page content here...">
             </div>
@@ -10019,7 +10034,7 @@ button.dg-show-chip.active { background:var(--blue); }
 
     <div class="pdfed-insert-footer">
       <button class="btn-secondary" onclick="closeInsertModal()" style="padding:8px 18px;font-size:12px">Cancel</button>
-      <button class="btn-primary" onclick="confirmInsertPage()" style="padding:8px 18px;font-size:12px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insert Page</span></button>
+      <button class="btn-primary" onclick="confirmInsertPage()" style="padding:8px 18px;font-size:12px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insert Page</span></button>
     </div>
   </div>
 </div>
@@ -10322,7 +10337,7 @@ button.dg-show-chip.active { background:var(--blue); }
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn-secondary" onclick="pdfedCloseMerge()" style="padding:8px 18px;font-size:12px">Cancel</button>
-      <button class="btn-primary" id="pdfedMergeConfirmBtn" onclick="pdfedConfirmMerge()" style="padding:8px 18px;font-size:12px;display:none"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Insert Selected Pages</span></button>
+      <button class="btn-primary" id="pdfedMergeConfirmBtn" onclick="pdfedConfirmMerge()" style="padding:8px 18px;font-size:12px;display:none"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Insert Selected Pages</span></button>
     </div>
   </div>
 </div>
@@ -10701,7 +10716,7 @@ button.dg-show-chip.active { background:var(--blue); }
     <div class="crop-actions">
       <button class="btn-secondary" onclick="closeCrop()">Cancel</button>
       <button class="btn-secondary" onclick="resetCropBox()">↩ Reset</button>
-      <button class="btn-primary" onclick="applyCrop()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg> Apply Crop</span></button>
+      <button class="btn-primary" onclick="applyCrop()"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg> Apply Crop</span></button>
     </div>
   </div>
 </div>
@@ -10744,10 +10759,10 @@ button.dg-show-chip.active { background:var(--blue); }
     <h2 id="modalTitle">Image Preview</h2>
     <p id="modalDesc">—</p>
     <div class="modal-actions">
-      <button class="btn-primary" onclick="downloadModalImg()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download</span></button>
-      <button class="btn-secondary" onclick="cropModalImg()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg> Crop</span></button>
-      <button class="btn-secondary" onclick="reshapeModalImg()" style="background:linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);border-color:#c9962f;color:#1a1206;font-weight:700;box-shadow:0 2px 10px rgba(201,150,47,0.4)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg> Reshape</span></button>
-      <button class="btn-secondary" onclick="deleteModalImg()" style="border-color:rgba(239,68,68,0.4);color:#ef4444"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove Image</span></button>
+      <button class="btn-primary" onclick="downloadModalImg()"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download</span></button>
+      <button class="btn-secondary" onclick="cropModalImg()"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg> Crop</span></button>
+      <button class="btn-secondary" onclick="reshapeModalImg()" style="background:linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);border-color:#c9962f;color:#1a1206;font-weight:700;box-shadow:0 2px 10px rgba(201,150,47,0.4)"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg> Reshape</span></button>
+      <button class="btn-secondary" onclick="deleteModalImg()" style="border-color:rgba(239,68,68,0.4);color:#ef4444"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove Image</span></button>
       <button class="btn-secondary" onclick="closeModal()">Close</button>
     </div>
   </div>
@@ -12898,7 +12913,7 @@ function collapseUploadArea() {
   document.getElementById('extractOpts').classList.add('is-collapsed');
   document.getElementById('pageThumbs').classList.add('is-collapsed');
   const btn = document.getElementById('toggleUploadAreaBtn');
-  if(btn) btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Upload Another</span>';
+  if(btn) btn.innerHTML = '<span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Upload Another</span>';
 }
 
 function expandUploadArea() {
@@ -12907,7 +12922,7 @@ function expandUploadArea() {
   if(state.pdfFile) document.getElementById('extractOpts').classList.remove('is-collapsed');
   if(state.pdfDoc) document.getElementById('pageThumbs').classList.remove('is-collapsed');
   const btn = document.getElementById('toggleUploadAreaBtn');
-  if(btn) btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Close</span>';
+  if(btn) btn.innerHTML = '<span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Close</span>';
   document.querySelector('.extract-split').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -39111,7 +39126,15 @@ const dgState = {
   wheelHue: 196, wheelSat: 100, wheelLight: 50, wheelHex: '#00C2FF',
   wheelBase: null, // cached offscreen canvas for the hue/sat wheel pixels
   texts: [], // manual text labels placed on the chart canvas (dg-text-overlay)
-  barRadius: 8 // corner radius (px) applied to bar/column charts; 0 = sharp corners
+  barRadius: 8, // corner radius (px) applied to bar/column charts; 0 = sharp corners
+  // Which currency symbol "Currency" format should render with — auto-detected from the
+  // sign actually present in uploaded/pasted data (₹, $, €, £, ...) rather than hardcoded.
+  // Falls back to '$' when nothing was detected or the chart wasn't built from imported data.
+  currencySymbol: '$',
+  // True once the person has manually touched the Number Format dropdown for the CURRENT
+  // chart — once set, auto-detection backs off and leaves their choice alone rather than
+  // silently overriding it the next time a column gets re-ticked.
+  formatUserSet: false
 };
 
 function dgCurrentScheme() { return DG_PALETTES[dgState.paletteScheme] || DG_PALETTES.vibrant; }
@@ -39148,9 +39171,85 @@ const DG_FLOW_TEMPLATES = {
   gantt: 'gantt\n    title Project Timeline\n    dateFormat YYYY-MM-DD\n    section Phase 1\n    Task A :a1, 2026-01-01, 10d\n    Task B :after a1, 8d'
 };
 
+// ── Strips characters Mermaid's mindmap parser reads as node-shape syntax —
+// ( ) [ ] { } — and collapses whitespace, so a real label like "Revenue (APAC)"
+// renders as plain node text instead of breaking the diagram or being silently
+// reinterpreted as a shape. Also caps length so long labels don't blow out the layout.
+function dgMindSanitize(s, maxLen) {
+  const clean = String(s == null ? '' : s).replace(/[()\[\]{}]/g, '').replace(/\s+/g, ' ').trim();
+  const limit = maxLen || 40;
+  return clean.length > limit ? clean.slice(0, Math.max(1, limit - 1)) + '\u2026' : clean;
+}
+
+// ── "Business Mind" template: unlike the other Flowchart/Diagram starters, this one
+// isn't a static string — it reuses the same domain-detection + stat + business-read
+// helpers that already power the Data Charts Insights panel (dgComputeStats,
+// dgDetectDomain, dgBuildBusinessReadSentence) and lays their output out as a Mermaid
+// mindmap instead of a strip of stat cards. So whatever data is currently loaded in
+// Data Charts is what gets mapped here — nothing is invented. Falls back to a short
+// "nothing loaded yet" placeholder mindmap when Data Charts is empty.
+function dgBuildBusinessMindMapCode() {
+  try {
+    if (typeof dgState === 'undefined' || !dgState.rows || !dgState.rows.length) {
+      return 'mindmap\n  root((Business Mind))\n    No data loaded yet\n      Upload a spreadsheet or table in Data Arrangement\n      Or build a chart here in Data Charts\n    Then reopen Business Mind\n      to auto-map its key insights';
+    }
+    const opts = (typeof dgGetOpts === 'function') ? dgGetOpts() : {};
+    const stats = dgComputeStats(dgState.rows);
+    const chartTitle = dgState.title || (document.getElementById('dgTitleInput') || {}).value || '';
+    const domain = dgDetectDomain(dgState.rows, chartTitle, dgState.type);
+    const fmt = v => (typeof dgFormatNumber === 'function') ? dgFormatNumber(v, opts.numberFormat) : String(Math.round(v));
+    const rootLabel = dgMindSanitize(domain.confident ? domain.label : (chartTitle || 'Business Mind'), 40) || 'Business Mind';
+
+    const lines = ['mindmap', `  root((${rootLabel}))`];
+
+    lines.push('    Totals');
+    lines.push(`      Total ${dgMindSanitize(fmt(stats.total), 24)}`);
+    lines.push(`      Average ${dgMindSanitize(fmt(stats.avg), 24)}`);
+
+    lines.push('    Performance');
+    lines.push(`      Top - ${dgMindSanitize(stats.maxLabel, 26)} ${dgMindSanitize(fmt(stats.max), 16)}`);
+    lines.push(`      Bottom - ${dgMindSanitize(stats.minLabel, 26)} ${dgMindSanitize(fmt(stats.min), 16)}`);
+    if (stats.vitalFewCount !== null && stats.n > 2) {
+      lines.push(`      Top ${stats.vitalFewCount} of ${stats.n} drive 80% of the total`);
+    }
+
+    lines.push('    Trend');
+    const trendWord = stats.trend === 'up' ? 'Trending up' : stats.trend === 'down' ? 'Trending down' : 'Holding steady';
+    const growthLine = stats.growthPct !== null
+      ? `${trendWord}, ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% first to last`
+      : trendWord;
+    lines.push(`      ${dgMindSanitize(growthLine, 44)}`);
+
+    if (stats.outliers && stats.outliers.length) {
+      lines.push('    Watch');
+      lines.push(`      ${dgMindSanitize(stats.outliers.length > 1 ? stats.outliers.length + ' values outside the normal range' : stats.outliers[0].label + ' sits well outside the normal range', 44)}`);
+    }
+
+    let businessRead = '';
+    try { businessRead = dgBuildBusinessReadSentence(domain, stats, dgState.rows, opts) || ''; } catch (e) { businessRead = ''; }
+    businessRead = businessRead.replace(/<[^>]+>/g, ''); // strip the <b> tags meant for the HTML insight sentence, not a mindmap leaf
+    if (businessRead) {
+      lines.push('    Recommendation');
+      const chunks = businessRead.match(/.{1,44}(\s|$)/g) || [businessRead];
+      chunks.slice(0, 3).forEach(c => lines.push(`      ${dgMindSanitize(c, 44)}`));
+    }
+
+    return lines.join('\n');
+  } catch (e) {
+    console.warn('[Diagrams] could not build Business Mind map', e);
+    return 'mindmap\n  root((Business Mind))\n    Could not read the current data\n      Try reloading it in Data Charts first';
+  }
+}
+
 function dgFlowInsertTemplate(name) {
   const ta = document.getElementById('dgFlowInput');
-  if (!ta || !DG_FLOW_TEMPLATES[name]) return;
+  if (!ta) return;
+  if (name === 'businessmind') {
+    ta.value = dgBuildBusinessMindMapCode();
+    dgFlowRender();
+    return;
+  }
+  if (!DG_FLOW_TEMPLATES[name]) return;
   ta.value = DG_FLOW_TEMPLATES[name];
   dgFlowRender();
 }
@@ -40262,16 +40361,25 @@ function dgToggleRadiusDropdown(e) {
 // Keeps the collapsed Number Format button's label in sync with the selected option
 // (short word only, so the button stays a fixed compact width like its siblings).
 const DG_FORMAT_SHORT_LABELS = { plain: 'Plain', currency: 'Currency', percent: 'Percent', abbrev: 'Abbrev.' };
+// Currency's short label includes whichever symbol is actually active (₹ / $ / € / ...)
+// rather than a fixed word, so the ribbon button reflects what was auto-detected.
+function dgFormatShortLabel(fmtValue) {
+  if (fmtValue === 'currency' && typeof dgState !== 'undefined' && dgState.currencySymbol) {
+    return `Currency (${dgState.currencySymbol})`;
+  }
+  return DG_FORMAT_SHORT_LABELS[fmtValue] || 'Plain';
+}
 function dgOnFormatChange() {
   const select = document.getElementById('dgFormatSelect');
   const label = document.getElementById('dgFormatMainLabel');
-  if (select && label) label.textContent = DG_FORMAT_SHORT_LABELS[select.value] || 'Plain';
+  if (select && label) label.textContent = dgFormatShortLabel(select.value);
+  if (typeof dgState !== 'undefined') dgState.formatUserSet = true; // person chose this — auto-detection stops overriding it for this chart
   dgRender();
 }
 function dgSyncFormatUI() {
   const select = document.getElementById('dgFormatSelect');
   const label = document.getElementById('dgFormatMainLabel');
-  if (select && label) label.textContent = DG_FORMAT_SHORT_LABELS[select.value] || 'Plain';
+  if (select && label) label.textContent = dgFormatShortLabel(select.value);
 }
 function dgToggleDataDropdown(e) {
   if (e) e.stopPropagation();
@@ -40403,6 +40511,8 @@ function dgClearAll() {
   dgState.sameColorMode = false;
   dgState.sameColor = '#00C2FF';
   dgState.barRadius = 8;
+  dgState.currencySymbol = '$';
+  dgState.formatUserSet = false;
   dgUploadParsed = null;
 
   // The "Upload Data" flow keeps its own file-name label, column selectors,
@@ -40659,6 +40769,7 @@ function dgOnUploadParsed(aoa, fileName) {
   const { headers, rows, titleRow } = daNormalize(aoa);
   if (!rows.length || headers.length < 1) { toast('No tabular data found in that file', 'info'); return; }
   dgUploadParsed = { headers, rows, fileName };
+  if (typeof dgState !== 'undefined') dgState.formatUserSet = false; // fresh dataset — let sign auto-detection have a say again
   const nameEl = document.getElementById('dgUploadFileName');
   if (nameEl) nameEl.textContent = fileName;
   dgPopulateUploadSelectors();
@@ -40767,13 +40878,24 @@ function dgGroupNumericColumns(headers, numericIdxs, rows) {
     let target = null;
     for (const g of groups) {
       const head = g[0];
-      const sameUnitAndStem = head.unit && col.unit && head.unit === col.unit && head.stem && col.stem && head.stem === col.stem;
-      const closeMagnitude = head.mag != null && col.mag != null && Math.abs(head.mag - col.mag) <= 1 &&
-        // Only fall back to magnitude-only matching when neither column carries a unit that
-        // would otherwise disqualify the pairing (e.g. never group a "%" column with a "$" one
-        // just because the numbers happen to be similarly sized).
-        (!head.unit && !col.unit || head.unit === col.unit);
-      if (sameUnitAndStem || (!sameUnitAndStem && closeMagnitude && (head.unit === col.unit))) { target = g; break; }
+      const unitsCompatible = head.unit === col.unit; // both null counts as "no conflict"
+      // Same underlying metric is the strongest signal there is — e.g. "Profit
+      // 2025" and "Profit 2026" both reduce to stem "profit" and should group
+      // even when NEITHER header carries an explicit unit suffix like "($)".
+      // The old check required both headers to already have a unit before it
+      // would even look at the stem, so plain unitless same-metric columns
+      // only grouped by magnitude coincidence (and failed to group at all if
+      // the values happened to differ by more than 10x, e.g. profit growing
+      // sharply year over year).
+      const sameStem = head.stem && col.stem && head.stem === col.stem && unitsCompatible;
+      // Magnitude-only fallback (no shared stem) is the riskier path, so it's
+      // tightened: requires an ACTUAL shared unit symbol (not just "both have
+      // no unit") and a closer magnitude match, so two unrelated unitless
+      // metrics that happen to be similarly sized (e.g. "Age" and "Score")
+      // don't get clustered into the same chart just by coincidence.
+      const closeMagnitude = !sameStem && head.unit && unitsCompatible &&
+        head.mag != null && col.mag != null && Math.abs(head.mag - col.mag) <= 0.5;
+      if (sameStem || closeMagnitude) { target = g; break; }
     }
     if (target) target.push(col);
     else groups.push([col]);
@@ -41310,15 +41432,122 @@ function dgDrawChartSpec(canvas, spec) {
   else if (spec.type === 'tornado') dgDrawTornadoBars(ctx, spec.categories, spec.series, area, opts);
 }
 
+// Parses a raw spreadsheet/PDF-table cell into a number, handling the real-world
+// formats that a plain "strip everything but digits" pass gets wrong:
+//   • Accounting-style negatives — "(45,000)" or a trailing "45,000-" both mean
+//     a loss/expense in exported reports, even with no leading "-". Missing this
+//     silently flips a negative into a positive.
+//   • US vs European decimal separators — "1,234.56" and "1.234,56" are the same
+//     number in two conventions; treating both the same way (old code just
+//     stripped commas and kept every dot) reads the European form as 1.234,
+//     off by ~1000x. Whichever of "." or "," appears LAST is the true decimal
+//     point; the other is thousands grouping to discard.
+//   • Scientific notation — "1.2e6" previously lost its "e" in the character
+//     strip and became 1.26. Detected and parsed directly instead.
 function dgParseNumericCell(v) {
   if (typeof v === 'number') return v;
-  const cleaned = String(v ?? '').trim().replace(/[, ]/g, '').replace(/[^0-9.\-]/g, '');
-  return cleaned === '' || cleaned === '-' ? NaN : parseFloat(cleaned);
+  let s = String(v ?? '').trim();
+  if (s === '') return NaN;
+
+  let negative = false;
+  if (/^\(.*\)$/.test(s)) { negative = true; s = s.slice(1, -1).trim(); }
+  if (/^-/.test(s)) { negative = true; }
+  else if (/-\s*$/.test(s)) { negative = true; s = s.replace(/-\s*$/, ''); }
+
+  const sci = s.match(/^-?(\d+(?:\.\d+)?)[eE]([+-]?\d+)$/);
+  if (sci) {
+    const n = parseFloat(s);
+    return isNaN(n) ? NaN : (negative && n > 0 ? -n : n);
+  }
+
+  s = s.replace(/[^0-9.,]/g, '');
+  const lastDot = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+  if (lastDot !== -1 && lastComma !== -1) {
+    // Both separators present: the later one in the string is the decimal point.
+    s = lastComma > lastDot ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  } else if (lastComma !== -1) {
+    // Comma-only: a single comma followed by 1-2 digits reads as a decimal
+    // comma ("12,5" -> 12.5); anything else ("12,345", or 2+ commas) is
+    // thousands grouping.
+    const afterLastComma = s.length - lastComma - 1;
+    const commaCount = (s.match(/,/g) || []).length;
+    s = (commaCount === 1 && afterLastComma > 0 && afterLastComma <= 2)
+      ? s.replace(',', '.')
+      : s.replace(/,/g, '');
+  }
+  // Dot-only is left as-is: a single dot reads as a decimal point (the common
+  // case here), matching prior behaviour for the everyday "1234.56" case.
+
+  if (s === '' || s === '.') return NaN;
+  const n = parseFloat(s);
+  if (isNaN(n)) return NaN;
+  return negative ? -Math.abs(n) : n;
+}
+
+// ── Sign / currency auto-detection: dgParseNumericCell (above) strips out every
+// non-digit character to get a clean number, which is right for math but throws away
+// a real signal — if the cells actually uploaded were "₹45,000" or "12.5%", that ₹ or %
+// says something about how the chart should be LABELLED, not just what the value is.
+// This scans the raw (pre-strip) cell text for a percent sign or one of the common
+// currency symbols and reports back whichever one a clear majority of sampled cells
+// agree on, so Number Format can default to it automatically instead of always
+// falling back to plain numbers or a hardcoded $.
+const DG_CURRENCY_SIGNS = ['₹', '$', '€', '£', '¥', '₩', '₽', '₺', '₦', '₫', 'R$', 'CHF'];
+
+function dgDetectValueSign(rawCells) {
+  const samples = (rawCells || []).map(v => String(v ?? '').trim()).filter(Boolean).slice(0, 60);
+  if (samples.length < 3) return null; // too few samples to trust a majority read
+  let percentCount = 0;
+  const currencyCounts = {};
+  samples.forEach(s => {
+    if (/%\s*$/.test(s)) percentCount++;
+    for (const sym of DG_CURRENCY_SIGNS) {
+      if (s.includes(sym)) { currencyCounts[sym] = (currencyCounts[sym] || 0) + 1; break; }
+    }
+  });
+  const n = samples.length;
+  const CONFIDENCE = 0.6; // require a clear majority, not just a stray cell or two
+  if (percentCount / n >= CONFIDENCE) return { format: 'percent', symbol: null };
+  let bestSym = null, bestCount = 0;
+  Object.entries(currencyCounts).forEach(([sym, c]) => { if (c > bestCount) { bestCount = c; bestSym = sym; } });
+  if (bestSym && bestCount / n >= CONFIDENCE) return { format: 'currency', symbol: bestSym };
+  return null;
+}
+
+// Applies a detected sign to the Number Format dropdown + dgState, unless the person has
+// already manually chosen a format for this chart (dgState.formatUserSet) — auto-detection
+// helps on first load, but never fights someone's deliberate choice afterwards.
+function dgApplyDetectedSign(detected) {
+  if (!detected || (typeof dgState !== 'undefined' && dgState.formatUserSet)) return false;
+  if (detected.format === 'currency' && detected.symbol) dgState.currencySymbol = detected.symbol;
+  const select = document.getElementById('dgFormatSelect');
+  if (select) select.value = detected.format;
+  if (typeof dgSyncFormatUI === 'function') dgSyncFormatUI();
+  if (typeof toast === 'function') {
+    const what = detected.format === 'percent' ? 'a % sign' : `the ${detected.symbol} sign`;
+    toast(`Detected ${what} in your data \u2014 Number Format set to ${detected.format === 'percent' ? 'Percentage' : 'Currency (' + detected.symbol + ')'}`, 'info');
+  }
+  return true;
 }
 
 function dgColumnIsNumeric(colIdx) {
   if (!dgUploadParsed) return false;
-  const sample = dgUploadParsed.rows.slice(0, 25);
+  const allRows = dgUploadParsed.rows;
+  const SAMPLE_SIZE = 40;
+  // Spread the sample across the WHOLE column, not just the first 25 rows —
+  // a stray subtotal row, units row, or blank cluster near the top of a long
+  // file previously could skew a genuinely-numeric column into reading as
+  // text (or vice versa). Striding across the full row range gives a
+  // representative read regardless of where in the file anomalies sit.
+  let sample;
+  if (allRows.length <= SAMPLE_SIZE) {
+    sample = allRows;
+  } else {
+    const stride = allRows.length / SAMPLE_SIZE;
+    sample = [];
+    for (let i = 0; i < SAMPLE_SIZE; i++) sample.push(allRows[Math.floor(i * stride)]);
+  }
   let numeric = 0, total = 0;
   sample.forEach(r => {
     const v = r[colIdx];
@@ -41451,6 +41680,9 @@ function dgGenerateChartFromUpload(topGrouped) {
       rowsUsed.push(r);
     }
     if (!categories.length) { toast('Could not find any rows to chart', 'error'); return; }
+    // Sniff the first ticked column's raw cells for a currency/percent sign — grouped
+    // series are plotted on one shared axis, so one shared format is what matters here.
+    dgApplyDetectedSign(dgDetectValueSign(rowsUsed.map(r => r[valueIdxs[0]])));
     const series = valueIdxs.map((colIdx, si) => ({
       name: String(dgUploadParsed.headers[colIdx] || ('Column ' + (colIdx + 1))),
       color: scheme[si % scheme.length],
@@ -41478,6 +41710,7 @@ function dgGenerateChartFromUpload(topGrouped) {
 
   // Exactly one value column ticked \u2014 original single-series behaviour.
   const valueIdx = valueIdxs[0];
+  dgApplyDetectedSign(dgDetectValueSign(rawRows.map(r => r[valueIdx])));
   const parsed = [];
   for (let i = 0; i < rawRows.length; i++) {
     const r = rawRows[i];
@@ -41708,7 +41941,13 @@ function dgAbbrevNumber(v) {
 function dgFormatNumber(val, fmt) {
   const num = Number(val) || 0;
   switch (fmt) {
-    case 'currency': return '$' + Math.round(num).toLocaleString();
+    case 'currency': {
+      const sym = (typeof dgState !== 'undefined' && dgState.currencySymbol) ? dgState.currencySymbol : '$';
+      // Multi-character symbols (R$, CHF) read better with a trailing space; single-glyph
+      // symbols (₹ $ € £ ¥) sit flush against the number as is conventional.
+      const glue = sym.length > 1 ? sym + ' ' : sym;
+      return glue + Math.round(num).toLocaleString();
+    }
     case 'percent': return (Math.round(num * 10) / 10) + '%';
     case 'abbrev': return dgAbbrevNumber(num);
     default: return Math.round(num).toLocaleString();
@@ -41759,11 +41998,166 @@ function dgComputeStats(rows) {
   const sorted = [...rows].sort((a, b) => b.value - a.value);
   const outliers = rows.filter(r => Math.abs(r.value - avg) > stdDev * 1.8 && stdDev > 0);
   const aboveAvgCount = vals.filter(v => v > avg).length;
+  // Vital-few (80/20) read: with all-positive data, how many of the top items
+  // (sorted descending) does it take to reach 80% of the total? A small number
+  // relative to n is the classic Pareto signal — a handful of drivers carry
+  // most of the outcome, which is a business-relevant fact on its own, not
+  // just a spread/volatility statistic.
+  let vitalFewCount = null;
+  if (total > 0 && vals.every(v => v >= 0)) {
+    let running = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      running += sorted[i].value;
+      if (running / total >= 0.8) { vitalFewCount = i + 1; break; }
+    }
+    if (vitalFewCount === null) vitalFewCount = sorted.length;
+  }
   return {
     total, avg, max: maxRow.value, min: minRow.value,
     maxLabel: maxRow.label, minLabel: minRow.label,
-    growthPct, trend, stdDev, coefVar, topShare, sorted, outliers, aboveAvgCount, n
+    growthPct, trend, stdDev, coefVar, topShare, sorted, outliers, aboveAvgCount, vitalFewCount, n
   };
+}
+
+// ── Business-domain detection: sniffs the chart's title + row labels for
+// keyword signals so Insights and the Written Analysis can talk in the
+// vocabulary of what was actually uploaded (a sales sheet vs. a budget vs.
+// a marketing funnel) instead of generic "item / value" language. There's
+// no file-type metadata to lean on here — a pasted table or an extracted
+// PDF column looks the same either way — so this is built entirely from
+// the text the person typed or imported: the chart title and the row labels.
+const DG_DOMAINS = {
+  sales_revenue: {
+    label: 'Sales & Revenue',
+    keywords: ['revenue', 'sales', 'income', 'earnings', 'turnover', 'gmv', 'bookings', 'orders', 'ARR', 'MRR']
+  },
+  budget_cost: {
+    label: 'Budget & Cost',
+    keywords: ['budget', 'expense', 'cost', 'spend', 'opex', 'capex', 'allocation', 'overhead']
+  },
+  profit_margin: {
+    label: 'Profit & Margin',
+    keywords: ['profit', 'margin', 'ebitda', 'bridge', 'net income', 'gross margin']
+  },
+  marketing_funnel: {
+    label: 'Marketing / Funnel',
+    keywords: ['visitor', 'lead', 'funnel', 'campaign', 'ctr', 'impression', 'click', 'conversion', 'signup', 'trial', 'mql', 'sql']
+  },
+  market_share: {
+    label: 'Market Share / Competitive',
+    keywords: ['market share', 'competitor', 'rival', 'vs.', 'incumbent']
+  },
+  customer_support: {
+    label: 'Customer / Support',
+    keywords: ['complaint', 'ticket', 'churn', 'satisfaction', 'nps', 'support', 'refund', 'return rate']
+  },
+  hr_headcount: {
+    label: 'HR & Headcount',
+    keywords: ['employee', 'headcount', 'hire', 'attrition', 'salary', 'staff', 'payroll', 'fte']
+  },
+  operations_inventory: {
+    label: 'Operations & Inventory',
+    keywords: ['inventory', 'stock', 'unit', 'defect', 'downtime', 'production', 'shipment', 'sku', 'warehouse', 'backlog']
+  }
+};
+
+function dgDetectDomain(rows, title, type) {
+  const haystack = (String(title || '') + ' ' + (rows || []).map(r => r.label || '').join(' ')).toLowerCase();
+  let bestKey = null, bestScore = 0;
+  Object.entries(DG_DOMAINS).forEach(([key, def]) => {
+    let score = 0;
+    def.keywords.forEach(kw => { if (haystack.includes(kw.toLowerCase())) score += kw.includes(' ') ? 2 : 1; });
+    // A small nudge from chart type toward the domain it's typically used for —
+    // never enough on its own to override a real keyword match elsewhere.
+    if (type === 'funnel' && key === 'marketing_funnel') score += 1;
+    if (type === 'waterfall' && key === 'profit_margin') score += 1;
+    if (type === 'pareto' && key === 'customer_support') score += 0.5;
+    if (score > bestScore) { bestScore = score; bestKey = key; }
+  });
+  return bestKey
+    ? { key: bestKey, label: DG_DOMAINS[bestKey].label, confident: bestScore >= 2 }
+    : { key: 'general', label: 'General Dataset', confident: false };
+}
+
+// ── Turns a detected domain + the stats already computed into one plain-
+// English "business read" sentence — the part of the analysis that isn't
+// just describing the numbers but saying what they'd mean to someone
+// running the sales, budget, funnel, etc. Deliberately conservative: if a
+// domain-specific read doesn't clearly apply (too few rows, no negatives
+// to point at, etc.) it returns '' rather than forcing a weak sentence in.
+function dgBuildBusinessReadSentence(domain, stats, rows, opts) {
+  const fmt = v => dgFormatNumber(v, opts.numberFormat);
+  const n = rows.length;
+  switch (domain.key) {
+    case 'sales_revenue': {
+      if (stats.growthPct === null) return '';
+      if (stats.trend === 'up') {
+        return `From a sales lens, ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% growth is a healthy signal — worth confirming whether <b>${dgEsc(stats.maxLabel)}</b> is a repeatable driver or a one-off spike before it's baked into next period's target.`;
+      }
+      if (stats.trend === 'down') {
+        return `From a sales lens, the drop from first to last period is worth flagging before it compounds — check whether it traces to one channel, region, or account rather than a broad slowdown.`;
+      }
+      return `Sales are holding roughly flat rather than compounding — fine as a stable base, but worth asking what would need to change to reignite growth.`;
+    }
+    case 'budget_cost': {
+      if (stats.topShare >= 35 && n > 2) {
+        return `<b>${dgEsc(stats.maxLabel)}</b> alone absorbs ${Math.round(stats.topShare)}% of the budget — that's the line worth the tightest governance, since an overrun there moves the whole total more than an overrun anywhere else.`;
+      }
+      if (stats.trend === 'up') {
+        return `Spend is trending upward across the period — worth confirming that's planned investment rather than budget creep before it's locked into next cycle's baseline.`;
+      }
+      return `Spend is fairly evenly spread across line items — that limits single-line risk, but it also means savings have to come from several places at once rather than one big cut.`;
+    }
+    case 'profit_margin': {
+      const negatives = rows.filter(r => r.value < 0);
+      if (negatives.length) {
+        const worst = negatives.reduce((a, b) => (a.value < b.value ? a : b));
+        return `<b>${dgEsc(worst.label)}</b> is the single largest drag on the bridge at ${fmt(worst.value)} — that's the lever to pull first if the goal is protecting margin next period.`;
+      }
+      return `Every item on the bridge is additive here — reads as a clean, broad-based improvement rather than one line carrying the whole gain.`;
+    }
+    case 'marketing_funnel': {
+      if (n < 2) return '';
+      let worstDrop = null;
+      for (let i = 1; i < rows.length; i++) {
+        const prev = rows[i - 1].value, cur = rows[i].value;
+        if (prev > 0) {
+          const dropPct = ((prev - cur) / prev) * 100;
+          if (!worstDrop || dropPct > worstDrop.dropPct) worstDrop = { from: rows[i - 1].label, to: rows[i].label, dropPct };
+        }
+      }
+      if (!worstDrop) return '';
+      return `The steepest drop-off is between <b>${dgEsc(worstDrop.from)}</b> and <b>${dgEsc(worstDrop.to)}</b> — about ${Math.round(worstDrop.dropPct)}% of volume is lost at that step, making it the highest-leverage stage to fix, since improving it compounds through every stage after.`;
+    }
+    case 'market_share': {
+      if (n < 2) return '';
+      const leader = stats.sorted[0], runnerUp = stats.sorted[1];
+      const gap = leader.value - runnerUp.value;
+      const gapShare = stats.total !== 0 ? gap / stats.total : 0;
+      return `<b>${dgEsc(leader.label)}</b> leads by ${fmt(gap)} over the next closest, <b>${dgEsc(runnerUp.label)}</b> — a gap ${gapShare > 0.1 ? 'comfortable enough to defend with steady execution' : 'thin enough that it could flip within a quarter or two'}.`;
+    }
+    case 'customer_support': {
+      if (stats.vitalFewCount && stats.vitalFewCount < n) {
+        return `Just <b>${stats.vitalFewCount}</b> of ${n} categories account for roughly 80% of the total — fixing those first will move the overall number far more than spreading effort evenly across all ${n}.`;
+      }
+      return '';
+    }
+    case 'hr_headcount': {
+      if (stats.growthPct === null) return '';
+      if (stats.trend === 'up') return `Headcount is expanding over the period — worth pairing this with a cost-per-hire or output metric so the growth reads as investment rather than just added overhead.`;
+      if (stats.trend === 'down') return `Headcount is contracting over the period — if that wasn't planned, worth checking whether it's attrition concentrated in one team or spread broadly.`;
+      return '';
+    }
+    case 'operations_inventory': {
+      if (stats.outliers.length) {
+        const who = stats.outliers.length > 1 ? 'A few items stand' : `<b>${dgEsc(stats.outliers[0].label)}</b> stands`;
+        return `${who} well outside the normal range — worth a quick check for a data error, a one-off event, or a genuine bottleneck before acting on the average.`;
+      }
+      return '';
+    }
+    default:
+      return '';
+  }
 }
 
 // ─── INSIGHTS PANEL TOGGLE (mirrors the PDF editor's right-panel collapse) ───
@@ -41794,6 +42188,10 @@ function dgRenderInsightsStrip() {
   }
   const opts = dgGetOpts();
   const stats = dgComputeStats(dgState.rows);
+  const chartTitle = dgState.title || document.getElementById('dgTitleInput')?.value || '';
+  const domain = dgDetectDomain(dgState.rows, chartTitle, dgState.type);
+  const subEl = document.getElementById('dgInsightsHeadSub');
+  if (subEl) subEl.textContent = domain.confident ? `Detected as ${domain.label} data` : 'Auto-generated from your data';
   const fmt = v => dgFormatNumber(v, opts.numberFormat);
   const hasGrowth = stats.growthPct !== null;
   const growthSign = hasGrowth && stats.growthPct >= 0 ? '+' : '';
@@ -41852,9 +42250,10 @@ function dgRenderInsightsStrip() {
   `;
   if (sentenceEl) {
     const trendWord = stats.trend === 'up' ? 'trending upward overall' : stats.trend === 'down' ? 'trending downward overall' : 'holding roughly steady';
+    const domainPrefix = domain.confident ? `<b>${dgEsc(domain.label)}</b> read — ` : '';
     sentenceEl.innerHTML = `
       <div class="dg-insight-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.5.4.9 1.1 1 1.8v.5h6v-.5c.1-.7.5-1.4 1-1.8A7 7 0 0 0 12 2Z"/></svg>Key takeaway</div>
-      <span class="dg-insight-text">The data is <b>${dgEsc(trendWord)}</b>. <b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)}, while <b>${dgEsc(stats.minLabel)}</b> is lowest at ${fmt(stats.min)} — a spread of ${fmt(stats.max - stats.min)}.</span>
+      <span class="dg-insight-text">${domainPrefix}The data is <b>${dgEsc(trendWord)}</b>. <b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)}, while <b>${dgEsc(stats.minLabel)}</b> is lowest at ${fmt(stats.min)} — a spread of ${fmt(stats.max - stats.min)}.</span>
     `;
     sentenceEl.classList.add('show');
   }
@@ -41872,6 +42271,15 @@ function dgBuildSmartAnalysisText(stats, rows, opts) {
   const fmt = v => dgFormatNumber(v, opts.numberFormat);
   const n = rows.length;
   const label = (dgState.title || document.getElementById('dgTitleInput')?.value || 'This dataset').trim() || 'This dataset';
+
+  // 0. Domain read — figured out purely from the title + row labels, since
+  // that's the only signal available for what this data is actually for.
+  // Shown only when confident, so a generic dataset doesn't get a forced
+  // label slapped on it.
+  const domain = dgDetectDomain(rows, label, dgState.type);
+  const domainIntro = domain.confident
+    ? `This reads as a <b>${dgEsc(domain.label)}</b> dataset based on the title and labels used — here's the read through that lens.`
+    : '';
 
   // 1. Overview sentence — what the chart is showing at a glance.
   const overview = `<b>${dgEsc(label)}</b> covers ${n} item${n === 1 ? '' : 's'} totalling ${fmt(stats.total)}, averaging ${fmt(stats.avg)} per item.`;
@@ -41919,7 +42327,11 @@ function dgBuildSmartAnalysisText(stats, rows, opts) {
   }
   const improvement = `To make it stronger, consider ${improvementIdeas[0]}.`;
 
-  return [overview, trajectory, distribution, improvement].filter(Boolean).join(' ');
+  // 5. Business read — the domain-specific sentence that says what the
+  // numbers would mean to someone actually running sales, budget, funnel, etc.
+  const businessRead = dgBuildBusinessReadSentence(domain, stats, rows, opts);
+
+  return [domainIntro, overview, trajectory, distribution, businessRead, improvement].filter(Boolean).join(' ');
 }
 
 function dgRenderSmartAnalysis(precomputedStats) {
@@ -42104,10 +42516,13 @@ function dgApplyTemplate(key) {
   if (sameToggle) sameToggle.checked = false;
   dgState.rows = t.rows.map((r, i) => ({ label: r.label, value: r.value, color: scheme[i % scheme.length] }));
   dgState.type = t.type;
+  dgState.currencySymbol = '$'; // sample templates are illustrative USD figures
+  dgState.formatUserSet = true; // the template's own format is deliberate — don't let a later upload's auto-detection silently override it
   const titleInput = document.getElementById('dgTitleInput');
   if (titleInput) titleInput.value = t.title;
   const fmtSelect = document.getElementById('dgFormatSelect');
   if (fmtSelect) fmtSelect.value = t.format || 'plain';
+  if (typeof dgSyncFormatUI === 'function') dgSyncFormatUI();
   document.querySelectorAll('#dgTypeGrid .dg-type-tile').forEach(el => {
     const active = el.dataset.type === t.type;
     el.classList.toggle('active', active);
@@ -42457,8 +42872,8 @@ function dgDrawChart() {
     const probeScale = dgYScale(vals, { y: 0, h: 100 });
     ctx.font = '11px Inter, sans-serif';
     let maxLabelW = 0;
-    for (let i = 0; i <= 4; i++) {
-      const v = probeScale.min + probeScale.range * i / 4;
+    for (let i = 0; i <= probeScale.tickCount; i++) {
+      const v = probeScale.min + probeScale.step * i;
       const w = ctx.measureText(dgFormatNumber(v, opts.numberFormat)).width;
       if (w > maxLabelW) maxLabelW = w;
     }
@@ -42530,23 +42945,54 @@ function dgDrawChart() {
 // clipping off the chart. This is what makes mixed positive/negative data
 // (profit & loss, deltas, YoY change) render accurately instead of just
 // "mostly right".
+// Rounds a raw span to the nearest "nice" number — 1, 2, or 5 times a power of
+// ten (Heckbert's nice-numbers method, the standard axis-tick algorithm behind
+// D3, Chart.js, and every serious BI tool). Used so gridlines land on values
+// like 5,000 / 10,000 / 15,000 instead of the ugly quantities (4,287.50,
+// 8,575, 12,862.50 ...) that fall out of just splitting min→max into 4 even
+// fractions.
+function dgNiceNum(range, round) {
+  if (!range || range <= 0 || !isFinite(range)) return 1;
+  const exponent = Math.floor(Math.log10(range));
+  const fraction = range / Math.pow(10, exponent);
+  let niceFraction;
+  if (round) {
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else {
+    if (fraction <= 1) niceFraction = 1;
+    else if (fraction <= 2) niceFraction = 2;
+    else if (fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+  }
+  return niceFraction * Math.pow(10, exponent);
+}
+
 function dgYScale(vals, area) {
   const dataMax = Math.max(0, ...vals);
   const dataMin = Math.min(0, ...vals);
-  const span = (dataMax - dataMin) || (Math.abs(dataMax) || 1);
-  const pad = span * 0.15 || 1;
-  const max = dataMax + (dataMax > 0 || dataMax === dataMin ? pad : 0);
-  const min = dataMin - (dataMin < 0 ? pad : 0);
-  const range = (max - min) || 1;
-  return { max, min, range, toY: v => area.y + area.h - ((v - min) / range) * area.h };
+  const rawSpan = (dataMax - dataMin) || (Math.abs(dataMax) || 1);
+  const niceSpan = dgNiceNum(rawSpan * 1.15, false);
+  const TICK_COUNT = 4;
+  const step = dgNiceNum(niceSpan / TICK_COUNT, true) || 1;
+  const min = dataMin < 0 ? Math.floor(dataMin / step) * step : 0;
+  let max = Math.ceil(dataMax / step) * step;
+  // Guarantee at least a sliver of headroom above the tallest bar/point so it
+  // never touches the top edge of the chart.
+  if (max - dataMax < step * 0.05) max += step;
+  const range = (max - min) || step;
+  const tickCount = Math.max(1, Math.round(range / step));
+  return { max, min, range, step, tickCount, toY: v => area.y + area.h - ((v - min) / range) * area.h };
 }
 
 function dgDrawAxisGrid(ctx, area, scale, opts) {
   ctx.font = '11px Inter, sans-serif';
   ctx.fillStyle = '#5b6474';
   ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const v = scale.min + scale.range * i / 4;
+  for (let i = 0; i <= scale.tickCount; i++) {
+    const v = scale.min + scale.step * i;
     const y = scale.toY(v);
     // Faint horizontal gridline across the plot area
     ctx.strokeStyle = '#eef1f5';
@@ -44849,6 +45295,7 @@ window.dgSetDgMode = dgSetDgMode;
 window.dgFlowRender = dgFlowRender;
 window.dgFlowDebouncedRender = dgFlowDebouncedRender;
 window.dgFlowInsertTemplate = dgFlowInsertTemplate;
+window.dgBuildBusinessMindMapCode = dgBuildBusinessMindMapCode;
 window.dgFlowPersist = dgFlowPersist;
 window.dgOpenMultiPushChoice = dgOpenMultiPushChoice;
 window.dgCloseMultiPushChoice = dgCloseMultiPushChoice;
