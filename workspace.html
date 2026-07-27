@@ -5520,7 +5520,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 
 /* ─────────────────────────  DATA ARRANGEMENT  ───────────────────────── */
 .da-section { display:flex; flex-direction:column; gap:16px; padding:28px; position:relative; z-index:1; transition:padding 0.15s ease; }
-.da-section.da-working { padding:14px 18px; gap:10px; }
+.da-section.da-working { padding:10px 14px; gap:8px; }
 .da-header-card {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -5596,30 +5596,40 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 
 /* Toolbar */
 .da-toolbar {
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  padding:8px 10px; border-radius:10px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:7px 9px; border-radius:9px;
   background:var(--bg2); border:1px solid var(--border);
 }
+/* Logical clusters (file ops / view ops / edit ops / push ops / destructive+export)
+   sit inside faint chips so the bar reads as a handful of grouped actions
+   instead of a long unbroken row of identical pills. */
+.da-toolbar-group {
+  display:flex; align-items:center; gap:4px;
+  padding:3px; border-radius:8px;
+  background:rgba(255,255,255,0.015);
+}
+.da-toolbar-group + .da-toolbar-group { margin-left:0; }
 .da-search {
   display:flex; align-items:center; gap:7px;
-  padding:6px 10px; border-radius:8px;
+  padding:6px 10px; border-radius:7px;
   background:var(--surface); border:1px solid var(--border);
-  color:var(--text3); min-width:180px; flex:0 1 220px;
+  color:var(--text3); min-width:170px; flex:0 1 200px;
 }
 .da-search input {
   border:none; background:transparent; outline:none;
   font-size:12px; color:var(--text); width:100%;
 }
 .da-toolbar-spacer { flex:1; }
-.da-meta { font-size:11px; color:var(--text3); font-weight:600; white-space:nowrap; }
+.da-meta { font-size:10.5px; color:var(--text3); font-weight:500; white-space:nowrap; }
 .da-tool-btn {
   display:inline-flex; align-items:center; gap:5px;
-  padding:6px 11px; border-radius:8px; font-size:11.5px; font-weight:600;
-  background:var(--surface); border:1px solid var(--border); color:var(--text2);
-  cursor:pointer; white-space:nowrap; transition:background 0.15s ease, color 0.15s ease;
+  padding:6px 10px; border-radius:6px; font-size:11.5px; font-weight:500;
+  background:transparent; border:1px solid transparent; color:var(--text2);
+  cursor:pointer; white-space:nowrap; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.da-tool-btn:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
-.da-tool-btn.active { background:rgba(0,194,255,0.14); color:var(--blue); border-color:var(--border2); }
+.da-tool-btn svg { opacity:0.75; }
+.da-tool-btn:hover { background:var(--surface2); color:var(--text); border-color:transparent; }
+.da-tool-btn.active { background:rgba(0,194,255,0.10); color:var(--blue); border-color:rgba(0,194,255,0.18); }
 .da-tool-btn-stacked {
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
   padding:5px 10px; min-width:44px; font-size:9.5px;
@@ -5628,7 +5638,75 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:3px !important;
   padding:6px 12px !important; min-width:48px; font-size:10px !important; line-height:1;
 }
-.da-tool-divider { width:1px; align-self:stretch; background:var(--border); margin:0 2px; }
+.da-tool-divider { width:1px; height:18px; align-self:center; background:var(--border); margin:0 4px; }
+
+/* Calmer, flatter variants for the two "push" actions and the destructive /
+   primary actions that live inside the data-arrangement toolbar specifically —
+   scoped so the rest of the app's bold gradient buttons are untouched. */
+.da-toolbar .btn-secondary {
+  background:transparent; border:1px solid var(--border2); color:var(--text2);
+  font-weight:500; box-shadow:none; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.da-toolbar .btn-secondary:hover {
+  background:rgba(0,194,255,0.06); color:var(--text); border-color:var(--border2);
+  transform:none;
+}
+.da-toolbar .btn-primary {
+  background:var(--blue); color:#04131c;
+  box-shadow:none; font-weight:600;
+}
+.da-toolbar .btn-primary:hover { background:var(--blue); filter:brightness(1.08); box-shadow:none; transform:none; }
+.da-toolbar #daClearAllBtn {
+  color:var(--text3) !important; border-color:transparent !important; opacity:0.9;
+}
+.da-toolbar #daClearAllBtn:hover {
+  color:#ef4444 !important; background:rgba(239,68,68,0.08); opacity:1;
+}
+
+/* Day/light mode: the flat, borders-on-hover-only treatment above works on a
+   dark background because the button still reads against var(--bg2), but on
+   a white bg2 an invisible border means the button has no visible edge to
+   navigate by. Give the toolbar and every button inside it a soft resting
+   shadow + faint border in light mode so users can see what's clickable
+   without needing to hover first. */
+[data-theme="light"] .da-toolbar {
+  box-shadow: var(--shadow-card);
+}
+[data-theme="light"] .da-toolbar-group {
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(16,40,90,0.05), 0 1px 1px rgba(16,40,90,0.03);
+}
+[data-theme="light"] .da-tool-btn {
+  border-color: transparent;
+}
+[data-theme="light"] .da-tool-btn:hover {
+  box-shadow: 0 1px 3px rgba(16,40,90,0.08);
+}
+[data-theme="light"] .da-tool-divider { background: var(--border2); opacity:0.6; }
+[data-theme="light"] .da-search,
+[data-theme="light"] .da-fb-autosum-btn,
+[data-theme="light"] .da-fb-fx-btn {
+  box-shadow: 0 1px 2px rgba(16,40,90,0.05);
+}
+[data-theme="light"] .da-toolbar .btn-secondary {
+  background: #fff; box-shadow: 0 1px 2px rgba(16,40,90,0.06);
+}
+[data-theme="light"] .da-toolbar .btn-secondary:hover {
+  box-shadow: 0 2px 6px rgba(16,40,90,0.10);
+}
+[data-theme="light"] .da-toolbar .btn-primary {
+  box-shadow: 0 2px 6px rgba(0,150,210,0.25);
+}
+[data-theme="light"] .da-toolbar .btn-primary:hover {
+  box-shadow: 0 4px 10px rgba(0,150,210,0.32);
+}
+[data-theme="light"] .da-toolbar #daClearAllBtn {
+  border-color: transparent !important;
+}
+[data-theme="light"] .da-toolbar #daClearAllBtn:hover {
+  box-shadow: 0 1px 3px rgba(239,68,68,0.15);
+}
 
 /* Grid */
 .da-grid-wrap {
@@ -5637,6 +5715,10 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   max-height:60vh;
   box-shadow:0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,20,40,0.18);
 }
+/* In the tight "working" state (a table is loaded) let the grid claim
+   most of the viewport height, the way Google Sheets fills the window
+   below its toolbar, instead of stopping at an arbitrary 60vh. */
+.da-working .da-grid-wrap { max-height: calc(100vh - var(--topnav-h, 56px) - 150px); }
 /* Table sizes itself to its content instead of being force-stretched to fill
    the wrapper, a 3-column dataset now reads as a compact, well-proportioned
    table instead of a few words scattered across the full viewport width. */
@@ -5774,9 +5856,10 @@ th:hover .da-th-del { opacity:1; }
 .da-formula-bar input::placeholder { color:var(--text3); font-family:'Inter', sans-serif; font-style:italic; }
 .da-formula-bar input:disabled { color:var(--text3); }
 .da-fb-autosum-btn {
-  flex-shrink:0; padding:5px 10px; border-radius:7px; font-size:11px; font-weight:700;
-  color:var(--text2); background:var(--surface); border:1px solid var(--border); cursor:pointer;
+  flex-shrink:0; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;
+  color:var(--text2); background:transparent; border:1px solid var(--border); cursor:pointer;
   display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  transition:background 0.15s ease, color 0.15s ease;
 }
 .da-fb-autosum-btn:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
 
@@ -8853,29 +8936,38 @@ button.dg-show-chip.active { background:var(--blue); }
 
           <!-- Toolbar -->
           <div class="da-toolbar">
-            <button class="da-tool-btn" id="daAddFileBtn" onclick="document.getElementById('daFileInput').click()" title="Add another file"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add File</button>
-            <button class="da-tool-btn" id="daNewTableBtn" onclick="daCreateBlankTable()" title="Add a new blank table, no file needed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg> New Table</button>
+            <div class="da-toolbar-group">
+              <button class="da-tool-btn" id="daAddFileBtn" onclick="document.getElementById('daFileInput').click()" title="Add another file"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add File</button>
+              <button class="da-tool-btn" id="daNewTableBtn" onclick="daCreateBlankTable()" title="Add a new blank table, no file needed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg> New Table</button>
+            </div>
             <div class="da-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" id="daSearchInput" placeholder="Search this table…" oninput="daRenderTable()">
             </div>
             <div class="da-toolbar-spacer"></div>
             <span class="da-meta" id="daFxRatesLabel" style="opacity:0.7"></span>
-            <button class="da-tool-btn" onclick="daFetchExchangeRates()" title="Fetch live currency rates (opt-in, from Frankfurter/ECB) so =CURRENCY(...) works in formulas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Get Live Rates</button>
+            <div class="da-toolbar-group">
+              <button class="da-tool-btn" onclick="daFetchExchangeRates()" title="Fetch live currency rates (opt-in, from Frankfurter/ECB) so =CURRENCY(...) works in formulas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Get Live Rates</button>
+            </div>
             <span class="da-meta" id="daMeta"></span>
-            <button class="da-tool-btn" onclick="daToggleFreeze()" id="daFreezeBtn" title="Freeze header row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg> Freeze Header</button>
-            <button class="da-tool-btn" onclick="daAutoFit()" title="Auto-fit column widths"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/></svg> Auto-fit</button>
-            <button class="da-tool-btn" onclick="daAddRow()" title="Add a row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Row</button>
-            <button class="da-tool-btn" onclick="daAddColumn()" title="Add a column"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Column</button>
+            <div class="da-toolbar-group">
+              <button class="da-tool-btn" onclick="daToggleFreeze()" id="daFreezeBtn" title="Freeze header row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg> Freeze Header</button>
+              <button class="da-tool-btn" onclick="daAutoFit()" title="Auto-fit column widths"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/></svg> Auto-fit</button>
+              <button class="da-tool-btn" onclick="daAddRow()" title="Add a row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Row</button>
+              <button class="da-tool-btn" onclick="daAddColumn()" title="Add a column"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Column</button>
+            </div>
             <div class="da-tool-divider"></div>
-            <button class="da-tool-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>
-            <button class="da-tool-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo</button>
+            <div class="da-toolbar-group">
+              <button class="da-tool-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>
+              <button class="da-tool-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo</button>
+            </div>
             <div class="da-tool-divider"></div>
-            <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
-            <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
+            <div class="da-toolbar-group">
+              <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
+              <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
+            </div>
             <div class="da-tool-divider"></div>
-            <button class="da-tool-btn" id="daClearAllBtn" onclick="daClearAll()" title="Clear all loaded data" style="color:#ef4444;border-color:rgba(239,68,68,0.35)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Clear All</button>
-            
+            <button class="da-tool-btn" id="daClearAllBtn" onclick="daClearAll()" title="Clear all loaded data"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Clear All</button>
             <button class="btn-primary" style="padding:6px 12px;font-size:11.5px" onclick="daOpenExportModal()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</span></button>
           </div>
 
@@ -10226,6 +10318,13 @@ button.dg-show-chip.active { background:var(--blue); }
         <div class="dg-push-choice-text">
           <h4>Add to Live Page on Workspace</h4>
           <p>Drops the table onto the page currently open in the Workspace.</p>
+        </div>
+      </button>
+      <button type="button" class="dg-push-choice-card" id="daPushAllCard" style="display:none" onclick="daConfirmPushAllChoice()">
+        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <div class="dg-push-choice-text">
+          <h4 id="daPushAllCardTitle">Push All Tables (Smart Layout)</h4>
+          <p>Arranges every table neatly across as few pages as possible &mdash; tables that fit together share a page, and anything that doesn't fit spills onto extra pages.</p>
         </div>
       </button>
     </div>
@@ -30391,6 +30490,7 @@ async function daIngestFiles(fileList) {
   }
   daSetProgress(false);
   daWorkspaceRefreshVisibility();
+  daRenderTabs();
   daRenderTable();
   if (noTableFiles.length) {
     const who = noTableFiles.length === 1 ? `"${noTableFiles[0]}"` : `${noTableFiles.length} files`;
@@ -30575,7 +30675,7 @@ async function daExtractImageTable(file) {
     // on the actual pixels Tesseract read, not just word spacing.
     const { tableRows, proseLines } = daExtractOcrTableAndProse(words, ocrCanvas);
     const blocks = daLinesToBlocksFromText(proseLines.join('\n'));
-    const proseWordCount = blocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
+    const proseWordCount = blocks.filter(b => !b.heading).reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
 
     const hasTable = tableRows.length >= 2 && tableRows[0] && tableRows[0].length > 1;
     const hasProse = proseWordCount > 12;
@@ -31326,15 +31426,94 @@ function daCollectProseBlocks(root) {
 // with terms underneath, a spec sheet with notes — comes back as two
 // connected datasets: one for the table, one ("Content found on the page")
 // for the written parts, rather than forcing the whole document one way. ───
+// ─── Splits the page-ordered sequence of table/prose rows pulled from a PDF
+// into separate table blocks. One PDF can legitimately hold several
+// unrelated tables — a "Q1 Sales" table, a "Headcount by Department" table,
+// an "Expenses" table, all in the same file — so instead of gluing every
+// lined-up row in the whole document into one giant dataset, this looks for
+// the same breaks a person would use to tell where one table ends and the
+// next begins:
+//   • a heading-style line of prose sitting between two runs of table rows
+//     (used as the next table's title, when one is found)
+//   • a run of two or more ordinary prose lines separating table rows
+//   • a change in column count between one run of table rows and the next,
+//     once the current run already has a header + a data row (a different
+//     shape almost always means a different table, not a ragged row)
+// A run of table rows that doesn't hit any of these breaks — e.g. a table
+// that simply continues onto the next page — stays together as one table. ───
+function daSegmentPdfSequenceIntoTables(seq) {
+  const tables = [];   // { title: string|null, rows: string[][], colMode }
+  const proseLines = [];
+  let current = null;
+  let pendingHeading = null;
+  let proseRunLen = 0;
+
+  function modeColCount(rows) {
+    const counts = {};
+    rows.forEach(r => { counts[r.length] = (counts[r.length] || 0) + 1; });
+    let best = null, bestN = 0;
+    Object.keys(counts).forEach(k => { if (counts[k] > bestN) { bestN = counts[k]; best = +k; } });
+    return best;
+  }
+
+  function closeCurrent() {
+    if (current && current.rows.length) tables.push(current);
+    current = null;
+  }
+
+  seq.forEach(entry => {
+    if (entry.type === 'break') {
+      // A page break alone isn't a table break — a table can legitimately
+      // run onto the next page — but reset the prose-run counter so a
+      // near-empty page doesn't get miscounted as a paragraph separator.
+      proseRunLen = 0;
+      return;
+    }
+    if (entry.type === 'prose') {
+      proseLines.push(entry.text);
+      if (daLooksLikeHeading(entry.text)) { pendingHeading = entry.text; proseRunLen = 0; }
+      else proseRunLen++;
+      return;
+    }
+    // entry.type === 'table'
+    const cells = entry.cells;
+    const startsNewTable = !current || pendingHeading || proseRunLen >= 2 ||
+      (current.colMode && cells.length !== current.colMode && current.rows.length >= 2);
+
+    if (startsNewTable) {
+      closeCurrent();
+      current = { title: pendingHeading ? daCleanHeadingText(pendingHeading) : null, rows: [], colMode: null };
+    }
+    current.rows.push(cells);
+    current.colMode = modeColCount(current.rows);
+    pendingHeading = null;
+    proseRunLen = 0;
+  });
+  closeCurrent();
+
+  // A lone 1-row "table" is usually just a label/value line that happened
+  // to line up into 2+ columns, not a real table — fold it back into prose
+  // instead of showing it as a near-empty tab.
+  const realTables = [];
+  tables.forEach(t => {
+    if (t.rows.length >= 2) realTables.push(t);
+    else t.rows.forEach(r => proseLines.push(r.join('  ')));
+  });
+
+  return { tables: realTables, proseLines };
+}
+
 async function daExtractPdf(arrayBuffer, filename) {
   const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const tableRows = [];
-  const proseLines = [];
+  // Ordered sequence of every row on every page, tagged as a table row, a
+  // prose line, or a page break — segmented into separate tables below
+  // instead of flattening straight into one array like before.
+  const seq = [];
 
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
-    if (!content.items.length) continue;
+    if (!content.items.length) { seq.push({ type: 'break' }); continue; }
 
     // Group items into rows by Y coordinate (allowing small jitter)
     const items = content.items.map(it => ({
@@ -31343,7 +31522,7 @@ async function daExtractPdf(arrayBuffer, filename) {
       y: Math.round(it.transform[5]),
       w: it.width
     })).filter(it => it.str.trim() !== '');
-    if (!items.length) continue;
+    if (!items.length) { seq.push({ type: 'break' }); continue; }
 
     const rowsMap = [];
     items.forEach(it => {
@@ -31390,24 +31569,38 @@ async function daExtractPdf(arrayBuffer, filename) {
       return cells;
     });
 
-    // Classify each row: 2+ columns lined up = part of a table. A single
-    // run of text = a line of prose. Blank line between pages helps the
-    // paragraph-merging step below tell where one page's text ends.
+    // Classify each row in document order: 2+ columns lined up = part of a
+    // table, a single run of text = a line of prose (possibly a table's
+    // title). Keeping them in one ordered sequence — instead of two
+    // separate flat arrays — is what lets the segmenter below tell where
+    // one table ends and the next begins.
     pageRows.forEach(cells => {
-      if (cells.length > 1) tableRows.push(cells);
-      else if (cells.length === 1 && cells[0]) proseLines.push(cells[0]);
+      if (cells.length > 1) seq.push({ type: 'table', cells });
+      else if (cells.length === 1 && cells[0]) seq.push({ type: 'prose', text: cells[0] });
     });
-    proseLines.push('');
+    seq.push({ type: 'break' });
   }
 
-  const hasTable = tableRows.length >= 2;
+  const { tables, proseLines } = daSegmentPdfSequenceIntoTables(seq);
+
+  const hasTable = tables.length > 0;
   const proseText = proseLines.join('\n');
   const blocks = daLinesToBlocksFromText(proseText);
-  const proseWordCount = blocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
+  const proseWordCount = blocks.filter(b => !b.heading).reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
   const hasProse = proseWordCount > 5;
 
   if (hasTable) {
-    daAddDataset(hasProse ? `${daBaseName(filename)}${DA_TABLE_SUFFIX}` : daBaseName(filename), tableRows);
+    // Several distinct tables in one PDF (different topics, different
+    // shapes) become several separate datasets/tabs, each named from its
+    // own heading when one was found just above it in the document, rather
+    // than one dataset with every table's rows run together.
+    const multi = tables.length > 1;
+    tables.forEach((t, i) => {
+      const name = multi
+        ? (t.title || `${daBaseName(filename)} — Table ${i + 1}`)
+        : (hasProse ? `${daBaseName(filename)}${DA_TABLE_SUFFIX}` : daBaseName(filename));
+      daAddDataset(name, t.rows);
+    });
   }
   if (hasProse) {
     const aoa = daArrangeBlocksIntoTopics(blocks);
@@ -31467,7 +31660,7 @@ async function daExtractScannedPdfViaOcr(doc, filename) {
   }
 
   const ocrBlocks = daLinesToBlocksFromText(ocrProseLines.join('\n'));
-  const ocrProseWordCount = ocrBlocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
+  const ocrProseWordCount = ocrBlocks.filter(b => !b.heading).reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
   const ocrHasTable = ocrTableRows.length >= 2;
   const ocrHasProse = ocrProseWordCount > 12;
 
@@ -31516,7 +31709,7 @@ function daIngestTextContent(text, forcedDelim, filename) {
     blocks = daLinesToBlocksFromText(text);
   }
 
-  const proseWordCount = blocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
+  const proseWordCount = blocks.filter(b => !b.heading).reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
   const hasProse = proseWordCount > 0;
 
   if (hasTable) daAddDataset(hasProse ? `${daBaseName(filename)} — Table` : daBaseName(filename), tableAoa);
@@ -32067,6 +32260,15 @@ function daWorkspaceRefreshVisibility() {
   // and the section padding itself tightens up for more usable width.
   const card = document.getElementById('daHeaderCard');
   if (card) card.style.display = has ? 'none' : '';
+  // The "or / Create Blank Table" CTA that sits under the drop zone is
+  // only relevant before any data exists — once a table is loaded it was
+  // being left on screen above the tabs/toolbar, eating a big block of
+  // dead vertical space. Tuck it away with everything else so the grid
+  // starts right under the toolbar, Google-Sheets style.
+  const blankDivider = document.getElementById('daBlankDivider');
+  if (blankDivider) blankDivider.style.display = has ? 'none' : '';
+  const blankBtn = document.getElementById('daBlankTableBtn');
+  if (blankBtn) blankBtn.style.display = has ? 'none' : '';
   const section = document.getElementById('daSection');
   if (section) section.classList.toggle('da-working', has);
 }
@@ -33135,6 +33337,17 @@ function daOpenPushChoiceModal() {
   if (!ds) { toast('Upload a file first', 'info'); return; }
   if (!ds.headers || !ds.headers.length) { toast('Nothing to push yet', 'info'); return; }
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+
+  // "Push All Tables" only makes sense when there's more than one table with
+  // actual content sitting in Data Arrangement, so it's hidden otherwise.
+  const pushableCount = daState.datasets.filter(d => d.headers && d.headers.length).length;
+  const allCard = document.getElementById('daPushAllCard');
+  if (allCard) {
+    allCard.style.display = pushableCount > 1 ? '' : 'none';
+    const title = document.getElementById('daPushAllCardTitle');
+    if (title) title.textContent = `Push All ${pushableCount} Tables (Smart Layout)`;
+  }
+
   const overlay = document.getElementById('daPushChoiceOverlay');
   if (overlay) overlay.classList.add('open');
 }
@@ -33145,6 +33358,10 @@ function daClosePushChoice() {
 function daConfirmPushChoice(mode) {
   daClosePushChoice();
   daPushToWorkflow(mode);
+}
+function daConfirmPushAllChoice() {
+  daClosePushChoice();
+  daPushAllToWorkflow();
 }
 
 // ── Push to Diagrams & Graphs: hand the active table straight to the chart
@@ -33318,6 +33535,215 @@ async function daPushToWorkflow(mode) {
   } catch (err) {
     console.error('Push to Workflow failed:', err);
     toast('Could not push to Workspace, please try again', 'error');
+  } finally {
+    if (pushBtn) pushBtn.disabled = false;
+  }
+}
+
+// ── Push ALL tables to Workspace, smartly laid out ──────────────────────────
+// Instead of pushing one table at a time, this takes every table currently
+// sitting in Data Arrangement and packs them onto as few Workspace pages as
+// possible: small tables that fit next to each other share a page (a simple
+// shelf/row bin-pack), and anything that doesn't fit — either because a page
+// is already full, or because a single table is just too big to share —
+// spills onto its own fresh page(s), the same way one long table already
+// spills onto extra pages today.
+const DA_PACK_MAX_W = 1600;  // packing canvas width cap (px) — room for a few tables side by side
+const DA_PACK_MAX_H = 2200;  // packing canvas height cap (px) — a couple of tall tables stacked
+const DA_PACK_GAP = 44;      // gap between tables, and margin around the page edge
+
+// Shelf-packs a list of {tableWidth, tableHeight, ...} blocks into pages.
+// Returns an array of pages, each `{ items: [{block, x, y}], w, h }` where
+// x/y are the block's offset within that page and w/h is the page's actual
+// used footprint (before rounding up to a whole page size).
+function daPackBlocksIntoPages(blocks) {
+  const pages = [];
+  let page = null, rowX = 0, rowY = 0, rowH = 0;
+
+  function startPage() {
+    page = { items: [], w: 0, h: 0 };
+    pages.push(page);
+    rowX = DA_PACK_GAP; rowY = DA_PACK_GAP; rowH = 0;
+  }
+  startPage();
+
+  blocks.forEach(b => {
+    const bw = b.tableWidth, bh = b.tableHeight;
+
+    // A table wider than the whole packing canvas can't share a row with
+    // anything else — give it a dedicated page instead of squeezing it.
+    if (bw + DA_PACK_GAP * 2 > DA_PACK_MAX_W) {
+      if (page.items.length) startPage();
+      page.items.push({ block: b, x: DA_PACK_GAP, y: DA_PACK_GAP });
+      page.w = bw + DA_PACK_GAP * 2;
+      page.h = bh + DA_PACK_GAP * 2;
+      startPage();
+      return;
+    }
+
+    // Wrap to a new row if this table won't fit next to the current one.
+    if (rowX > DA_PACK_GAP && rowX + bw + DA_PACK_GAP > DA_PACK_MAX_W) {
+      rowY += rowH + DA_PACK_GAP;
+      rowX = DA_PACK_GAP;
+      rowH = 0;
+    }
+    // If starting a fresh row would blow past the page's height cap, the
+    // rest move to a brand-new page instead of making this one enormous.
+    if (rowX === DA_PACK_GAP && rowY + bh + DA_PACK_GAP > DA_PACK_MAX_H && page.items.length) {
+      startPage();
+    }
+
+    page.items.push({ block: b, x: rowX, y: rowY });
+    rowX += bw + DA_PACK_GAP;
+    rowH = Math.max(rowH, bh);
+    page.w = Math.max(page.w, rowX);
+    page.h = Math.max(page.h, rowY + rowH + DA_PACK_GAP);
+  });
+
+  return pages;
+}
+
+async function daPushAllToWorkflow() {
+  const datasets = daState.datasets.filter(d => d.headers && d.headers.length);
+  if (datasets.length < 2) { toast('Add more than one table first', 'info'); return; }
+  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+
+  const pushBtn = document.getElementById('daPushBtn');
+  if (pushBtn) pushBtn.disabled = true;
+
+  try {
+    const isNewDoc = pdfed.pages.length === 0;
+    let truncatedCols = 0;
+
+    // Build one "block" per table (its first page's worth of rows), plus a
+    // separate list of any leftover rows for tables too long for one page —
+    // those always get their own dedicated continuation page(s), same as a
+    // single push, rather than being packed in with unrelated tables.
+    const packableBlocks = [];
+    const continuations = []; // { headers, layout, chunks }
+
+    datasets.forEach(ds => {
+      let headers = ds.headers.slice();
+      if (headers.length > DA_PUSH_MAX_COLS) {
+        truncatedCols += headers.length - DA_PUSH_MAX_COLS;
+        headers = headers.slice(0, DA_PUSH_MAX_COLS);
+      }
+      const allRows = daComputedRowsForExport(ds).map(r => r.slice(0, headers.length));
+      const layout = daComputeTableLayout(headers, allRows);
+
+      const chunks = [];
+      for (let i = 0; i < allRows.length; i += DA_PUSH_MAX_ROWS) {
+        chunks.push(allRows.slice(i, i + DA_PUSH_MAX_ROWS));
+      }
+      if (!chunks.length) chunks.push([]); // empty table still gets its headers pushed
+
+      const firstChunk = chunks[0];
+      const rowHeights = [daRowHeightFor(headers, layout.colWidths, layout.fontSize)];
+      firstChunk.forEach(r => rowHeights.push(daRowHeightFor(r, layout.colWidths, layout.fontSize)));
+      const tableWidth = layout.colWidths.reduce((a, b) => a + b, 0);
+      const tableHeight = rowHeights.reduce((a, b) => a + b, 0);
+
+      packableBlocks.push({
+        name: ds.name, headers, rows: firstChunk,
+        colWidths: layout.colWidths, fontSize: layout.fontSize,
+        rowHeights, tableWidth, tableHeight,
+      });
+
+      if (chunks.length > 1) continuations.push({ headers, layout, chunks: chunks.slice(1) });
+    });
+
+    // Biggest tables first tends to pack tighter (classic bin-packing
+    // heuristic), smaller ones then fill in the gaps left in each row.
+    packableBlocks.sort((a, b) => (b.tableWidth * b.tableHeight) - (a.tableWidth * a.tableHeight));
+
+    const packedPages = daPackBlocksIntoPages(packableBlocks);
+    const startIdx = pdfed.pages.length;
+
+    packedPages.forEach(pp => {
+      const neededWpx = pp.w, neededHpx = pp.h;
+      const mmW = Math.max(210, Math.ceil(neededWpx / DA_PUSH_PXMM));
+      const mmH = Math.max(297, Math.ceil(neededHpx / DA_PUSH_PXMM));
+      const eW = Math.round(mmW * DA_PUSH_PXMM), eH = Math.round(mmH * DA_PUSH_PXMM);
+      const offX = Math.max(0, Math.round((eW - pp.w) / 2));
+      const offY = Math.max(0, Math.round((eH - pp.h) / 2));
+
+      const pg = { type: 'blank', dataUrl: null, modified: true, edits: {}, textBlocks: [], label: 'Data Tables', bgColor: '#ffffff', pageMM: [mmW, mmH], placedTables: [] };
+      pdfed.pages.push(pg);
+
+      pp.items.forEach(({ block, x, y }) => {
+        const cells = [block.headers.map(h => String(h ?? ''))];
+        block.rows.forEach(r => cells.push(block.headers.map((_, ci) => String(r[ci] ?? ''))));
+        pg.placedTables.push({
+          id: 'tbl_' + (++pdfedTableSeq),
+          x: x + offX, y: y + offY,
+          rows: block.rows.length + 1,
+          cols: block.headers.length,
+          colWidths: block.colWidths.slice(),
+          rowHeights: block.rowHeights,
+          fontSize: block.fontSize,
+          headerRow: true,
+          cells,
+          locked: false,
+          zIndex: pdfedNextZ(pg),
+        });
+      });
+    });
+
+    // Actually render the page images now that every page object exists
+    // (kept as a separate pass so the blank-page render calls can run one
+    // after another without blocking the packing math above).
+    for (let i = startIdx; i < pdfed.pages.length; i++) {
+      const pg = pdfed.pages[i];
+      const [mmW, mmH] = pg.pageMM;
+      pg.dataUrl = await pdfedRenderBlankPage('', pg.bgColor, mmW, mmH);
+      pdfedMarkModified(i);
+    }
+
+    // Tables too long to fit on one page get their own fitted continuation
+    // page(s), appended after the packed overview pages.
+    let continuationPageCount = 0;
+    for (const c of continuations) {
+      await pdfedAppendTableFitPages(c.chunks, c.headers, c.layout);
+      continuationPageCount += c.chunks.length;
+    }
+
+    if (isNewDoc) {
+      pdfed.pdfDoc = null;
+      pdfed.file = { name: 'Untitled Document' };
+      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = '';
+      });
+      const upBtn = document.getElementById('pdfedUploadBtn');
+      if (upBtn) upBtn.style.display = 'none';
+      const fnEl = document.getElementById('pdfedFileName');
+      if (fnEl) fnEl.textContent = pdfed.file.name;
+      document.getElementById('pdfedPlaceholder').style.display = 'none';
+      document.getElementById('pdfedCanvasWrap').style.display = 'inline-block';
+      const tb = document.getElementById('pdfedToolbar');
+      if (tb) tb.style.visibility = 'visible';
+      state.stats.pdfs++;
+    }
+    document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+    const totalNewPages = packedPages.length + continuationPageCount;
+    state.stats.pages += totalNewPages;
+    updateStats();
+
+    navigate('pdfeditor');
+    await pdfedBuildStrip();
+    await pdfedGoto(startIdx);
+    setTimeout(pdfedZoomFit, 60);
+
+    let msg = `${datasets.length} tables pushed to Workspace across ${totalNewPages} page${totalNewPages !== 1 ? 's' : ''}`;
+    msg += packedPages.length < datasets.length
+      ? `, smartly grouped onto ${packedPages.length} overview page${packedPages.length !== 1 ? 's' : ''}.`
+      : '.';
+    if (continuationPageCount) msg += ` ${continuationPageCount} extra page${continuationPageCount !== 1 ? 's' : ''} added for tables too long to fit.`;
+    if (truncatedCols > 0) msg += ` (${truncatedCols} column${truncatedCols !== 1 ? 's' : ''} left off across your tables, each table tops out at ${DA_PUSH_MAX_COLS}.)`;
+    toast(msg, 'success');
+  } catch (err) {
+    console.error('Push All to Workflow failed:', err);
+    toast('Could not push all tables to Workspace, please try again', 'error');
   } finally {
     if (pushBtn) pushBtn.disabled = false;
   }
