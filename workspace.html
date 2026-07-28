@@ -27636,6 +27636,8 @@ function pdfedRenderPlacedTables(idx) {
         if (fmtSt) {
           cell.style.textAlign = fmtSt.align || 'left';
           if (fmtSt.bold) cell.style.fontWeight = '700';
+          if (fmtSt.italic) cell.style.fontStyle = 'italic';
+          if (fmtSt.color) cell.style.color = fmtSt.color;
           if (fmtSt.topBorder) cell.style.borderTop = '2px solid rgba(10,25,45,0.55)';
           if (fmtSt.fill) cell.style.background = fmtSt.fill;
         }
@@ -33902,12 +33904,72 @@ function daCellLooksNumericForFormat(v) {
   return cleaned !== '' && !isNaN(Number(cleaned));
 }
 
+// ── Smart Data-Type Detection ────────────────────────────────────────────────
+// Looks at the header row only (fast, and headers are the most reliable
+// signal — "Debit"/"Credit" or "Employee ID"/"Department" say a lot more
+// about what a table *is* than scanning every cell would). Scored by
+// keyword hits per category; a table needs at least 2 hits in one category
+// to be called out specifically, otherwise it's treated as general data and
+// only gets the existing numeric/total formatting.
+function daNormHeader(h) {
+  return String(h ?? '').toLowerCase().replace(/[_\-]+/g, ' ').replace(/[^a-z0-9% ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+const DA_TYPE_KEYWORDS = {
+  hr: ['employee', 'emp id', 'emp code', 'emp no', 'designation', 'department', 'date of joining',
+       'doj', 'salary', 'ctc', 'leave balance', 'attendance', 'manager', 'hire date', 'staff id',
+       'gender', 'pf number', 'uan', 'esi number', 'shift'],
+  accounting: ['debit', 'credit', 'ledger', 'voucher', 'particulars', 'gstin', 'gst no', 'invoice no',
+       'tds', 'pan no', 'cess', 'journal', 'opening balance', 'closing balance', 'narration',
+       'bill no', 'account number', 'account no'],
+  sales: ['product', 'sku', 'order id', 'order no', 'customer name', 'quantity', 'qty', 'unit price',
+       'discount', 'item name', 'order date', 'revenue', 'customer id', 'sales rep'],
+};
+
+const DA_TYPE_LABELS = { hr: 'HR', accounting: 'Accounting', sales: 'Sales', generic: 'General' };
+
+// Returns { type, label } — type is one of 'hr' | 'accounting' | 'sales' | 'generic'.
+function daDetectDataType(headers) {
+  if (!headers || !headers.length) return { type: 'generic', label: DA_TYPE_LABELS.generic };
+  const norm = headers.map(daNormHeader);
+  const scores = { hr: 0, accounting: 0, sales: 0 };
+  Object.keys(DA_TYPE_KEYWORDS).forEach(type => {
+    DA_TYPE_KEYWORDS[type].forEach(kw => { if (norm.some(h => h.includes(kw))) scores[type]++; });
+  });
+  let best = 'generic', bestScore = 1; // need >=2 keyword hits to beat the "generic" default
+  Object.keys(scores).forEach(type => { if (scores[type] >= 2 && scores[type] > bestScore) { best = type; bestScore = scores[type]; } });
+  return { type: best, label: DA_TYPE_LABELS[best] };
+}
+
+// First header index whose normalized text contains any of `patterns`, or -1.
+function daFindCol(headers, patterns) {
+  const norm = (headers || []).map(daNormHeader);
+  for (let i = 0; i < norm.length; i++) if (patterns.some(p => norm[i].includes(p))) return i;
+  return -1;
+}
+
+// Per-type header tint, so a table visibly announces what kind of data it
+// holds the moment it lands on the canvas.
+const DA_HEADER_FILL = {
+  hr: 'rgba(0,150,136,0.14)',
+  accounting: 'rgba(0,115,230,0.14)',
+  sales: 'rgba(255,152,0,0.14)',
+  generic: 'rgba(15,23,42,0.05)',
+};
+
 // Builds a per-cell style grid parallel to `cells` (row 0 = header). Safe to
 // call on any headers+rows table shape; returns [] for an empty table.
+// Automatically detects the data's "shape" (HR, Accounting, Sales, or
+// General) from the header row and layers type-specific touches on top of
+// the base numeric/total formatting: HR bolds the name column and italicizes
+// department/designation; Accounting colors Debit red and Credit green;
+// every type gets its own header tint so the canvas visually sorts tables
+// by kind at a glance.
 function daBuildCellStyles(cells) {
   if (!cells || !cells.length) return [];
   const rowCount = cells.length, colCount = cells[0].length;
   const dataRows = cells.slice(1);
+  const headers = cells[0];
 
   const numericCol = new Array(colCount).fill(false);
   for (let c = 0; c < colCount; c++) {
@@ -33919,6 +33981,16 @@ function daBuildCellStyles(cells) {
     numericCol[c] = filled > 0 && (numeric / filled) >= 0.6;
   }
 
+  const dtype = daDetectDataType(headers).type;
+  let nameCol = -1, deptCol = -1, debitCol = -1, creditCol = -1;
+  if (dtype === 'hr') {
+    nameCol = daFindCol(headers, ['name']);
+    deptCol = daFindCol(headers, ['department', 'dept', 'designation']);
+  } else if (dtype === 'accounting') {
+    debitCol = daFindCol(headers, ['debit']);
+    creditCol = daFindCol(headers, ['credit']);
+  }
+
   const styles = [];
   for (let r = 0; r < rowCount; r++) {
     const isHead = r === 0;
@@ -33926,12 +33998,24 @@ function daBuildCellStyles(cells) {
     const isTotalRow = !isHead && DA_TOTAL_ROW_RE.test(rowLabel);
     const rowStyles = [];
     for (let c = 0; c < colCount; c++) {
-      rowStyles.push({
+      const st = {
         align: numericCol[c] ? 'right' : 'left',
         bold: isHead || isTotalRow,
+        italic: false,
+        color: null,
         topBorder: isTotalRow,
         fill: isTotalRow ? 'rgba(0,115,230,0.07)' : null,
-      });
+      };
+      if (isHead) {
+        st.fill = DA_HEADER_FILL[dtype] || DA_HEADER_FILL.generic;
+      } else if (!isTotalRow) {
+        const cellVal = String((cells[r] && cells[r][c]) ?? '').trim();
+        if (dtype === 'hr' && c === nameCol) st.bold = true;
+        if (dtype === 'hr' && c === deptCol) st.italic = true;
+        if (dtype === 'accounting' && c === debitCol && cellVal !== '') st.color = '#c62828';
+        if (dtype === 'accounting' && c === creditCol && cellVal !== '') st.color = '#2e7d32';
+      }
+      rowStyles.push(st);
     }
     styles.push(rowStyles);
   }
@@ -33973,6 +34057,12 @@ async function daPushToWorkflow(mode) {
     // Work out column widths & font size ONCE from the whole dataset, so
     // every page of a multi-page push lines up with the same column layout.
     const layout = daComputeTableLayout(headers, allRows);
+
+    // Figure out what kind of data this looks like (HR, Accounting, Sales,
+    // or General) so the table can be aligned/tinted accordingly and the
+    // toast can tell the user what it detected.
+    const detected = daDetectDataType(headers);
+    const detectedNote = detected.type === 'generic' ? '' : ` as ${detected.label} data`;
 
     // Split into page-sized chunks, long tables spill onto extra pages
     // (each repeating the header row) instead of getting cut off.
@@ -34041,7 +34131,7 @@ async function daPushToWorkflow(mode) {
       const pageWord = totalPages > 1
         ? `${totalPages} pages (dropped onto the live page, ${remainingChunks.length} new page${remainingChunks.length !== 1 ? 's' : ''} added for the rest)`
         : 'the live page';
-      let msg = `"${ds.name}" pushed to Workspace, ${allRows.length} row${allRows.length !== 1 ? 's' : ''} across ${pageWord}.`;
+      let msg = `"${ds.name}" pushed to Workspace${detectedNote}, ${allRows.length} row${allRows.length !== 1 ? 's' : ''} across ${pageWord}.`;
       if (truncatedCols > 0) msg += ` (Last ${truncatedCols} column${truncatedCols !== 1 ? 's' : ''} left off, a table tops out at ${DA_PUSH_MAX_COLS}.)`;
       toast(msg, 'success');
     } else {
@@ -34057,7 +34147,7 @@ async function daPushToWorkflow(mode) {
       setTimeout(pdfedZoomFit, 60);
 
       const pageWord = chunks.length > 1 ? `${chunks.length} pages` : '1 page';
-      let msg = `"${ds.name}" pushed to Workspace, ${allRows.length} row${allRows.length !== 1 ? 's' : ''} across ${pageWord}. Canvas size adjusted to fit the table.`;
+      let msg = `"${ds.name}" pushed to Workspace${detectedNote}, ${allRows.length} row${allRows.length !== 1 ? 's' : ''} across ${pageWord}. Canvas size adjusted to fit the table.`;
       if (truncatedCols > 0) msg += ` (Last ${truncatedCols} column${truncatedCols !== 1 ? 's' : ''} left off, a table tops out at ${DA_PUSH_MAX_COLS}.)`;
       toast(msg, 'success');
     }
@@ -34150,6 +34240,7 @@ async function daPushAllToWorkflow() {
     // single push, rather than being packed in with unrelated tables.
     const packableBlocks = [];
     const continuations = []; // { headers, layout, chunks }
+    const typeCounts = {}; // e.g. { HR: 2, Accounting: 1 } — for the summary toast
 
     datasets.forEach(ds => {
       let headers = ds.headers.slice();
@@ -34159,6 +34250,9 @@ async function daPushAllToWorkflow() {
       }
       const allRows = daComputedRowsForExport(ds).map(r => r.slice(0, headers.length));
       const layout = daComputeTableLayout(headers, allRows);
+
+      const detected = daDetectDataType(headers);
+      if (detected.type !== 'generic') typeCounts[detected.label] = (typeCounts[detected.label] || 0) + 1;
 
       const chunks = [];
       for (let i = 0; i < allRows.length; i += DA_PUSH_MAX_ROWS) {
@@ -34270,6 +34364,8 @@ async function daPushAllToWorkflow() {
       : '.';
     if (continuationPageCount) msg += ` ${continuationPageCount} extra page${continuationPageCount !== 1 ? 's' : ''} added for tables too long to fit.`;
     if (truncatedCols > 0) msg += ` (${truncatedCols} column${truncatedCols !== 1 ? 's' : ''} left off across your tables, each table tops out at ${DA_PUSH_MAX_COLS}.)`;
+    const typeSummary = Object.keys(typeCounts).map(label => `${typeCounts[label]} ${label}`).join(', ');
+    if (typeSummary) msg += ` Detected: ${typeSummary} — each aligned and tinted to match.`;
     toast(msg, 'success');
   } catch (err) {
     console.error('Push All to Workflow failed:', err);
