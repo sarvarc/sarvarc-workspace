@@ -27630,6 +27630,15 @@ function pdfedRenderPlacedTables(idx) {
         cell.contentEditable = !item.locked;
         cell.spellcheck = false;
         cell.textContent = (item.cells[r] && item.cells[r][c]) || '';
+        // Auto Format: report-hierarchy styling computed from the data itself
+        // (numeric columns right-align, total/subtotal rows bold + top rule).
+        const fmtSt = item.cellStyles && item.cellStyles[r] && item.cellStyles[r][c];
+        if (fmtSt) {
+          cell.style.textAlign = fmtSt.align || 'left';
+          if (fmtSt.bold) cell.style.fontWeight = '700';
+          if (fmtSt.topBorder) cell.style.borderTop = '2px solid rgba(10,25,45,0.55)';
+          if (fmtSt.fill) cell.style.background = fmtSt.fill;
+        }
         // Shift+click on a cell moves the whole table instead of editing it —
         // a plain click still edits, so typing never gets accidentally hijacked.
         cell.addEventListener('mousedown', ev => {
@@ -27715,6 +27724,14 @@ function pdfedRenderPlacedTables(idx) {
       opBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
       opBtn.onclick = (ev) => pdfedOpenOpacityPopover(ev, 'table', idx, item.id);
       el.appendChild(opBtn);
+
+      const fmtBtn = document.createElement('button');
+      fmtBtn.title = 'Auto Format — right-align numbers, bold totals';
+      fmtBtn.className = 'pdfed-badge-btn table-chrome';
+      fmtBtn.style.cssText = `position:absolute;top:-8px;right:72px;z-index:2;`;
+      fmtBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="2.5"/></svg>';
+      fmtBtn.onclick = (ev) => { ev.stopPropagation(); pdfedAutoFormatTable(idx, item.id); };
+      el.appendChild(fmtBtn);
 
       const delBtn = document.createElement('button');
       delBtn.title = 'Remove table';
@@ -33865,6 +33882,75 @@ function daResolveDiagramPush(mode) {
   if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
 }
 
+// ── Auto Format: professional report styling, computed straight from the
+// data itself — no manual alignment/bolding needed. Two passes:
+//   1. Per-column numeric detection → numeric columns get right-aligned.
+//   2. Per-row total/subtotal detection (by label keyword) → that row gets
+//      bold text, a top border, and a faint tint, the same way an audited
+//      P&L or Balance Sheet visually announces its subtotal lines.
+// Runs automatically on every push (single table or Push All / Smart
+// Layout), and can also be re-run on demand via the per-table "Auto Format"
+// badge for tables already sitting on the canvas.
+const DA_TOTAL_ROW_RE = /^(grand\s+)?(total|sub-?total|net\s|gross\s|profit\s(before|after)?|balance\s(c\/f|b\/f|carried|brought)?|closing\s+balance|opening\s+balance)/i;
+
+function daCellLooksNumericForFormat(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return false;
+  // Strip common financial-statement dressing (currency symbols, thousands
+  // separators, %, and accounting-style negative parentheses) before testing.
+  const cleaned = s.replace(/^\(|\)$/g, '').replace(/[₹$€£,%\s]/g, '');
+  return cleaned !== '' && !isNaN(Number(cleaned));
+}
+
+// Builds a per-cell style grid parallel to `cells` (row 0 = header). Safe to
+// call on any headers+rows table shape; returns [] for an empty table.
+function daBuildCellStyles(cells) {
+  if (!cells || !cells.length) return [];
+  const rowCount = cells.length, colCount = cells[0].length;
+  const dataRows = cells.slice(1);
+
+  const numericCol = new Array(colCount).fill(false);
+  for (let c = 0; c < colCount; c++) {
+    let filled = 0, numeric = 0;
+    dataRows.forEach(r => {
+      const v = r[c];
+      if (String(v ?? '').trim() !== '') { filled++; if (daCellLooksNumericForFormat(v)) numeric++; }
+    });
+    numericCol[c] = filled > 0 && (numeric / filled) >= 0.6;
+  }
+
+  const styles = [];
+  for (let r = 0; r < rowCount; r++) {
+    const isHead = r === 0;
+    const rowLabel = String((cells[r] && cells[r][0]) ?? '').trim();
+    const isTotalRow = !isHead && DA_TOTAL_ROW_RE.test(rowLabel);
+    const rowStyles = [];
+    for (let c = 0; c < colCount; c++) {
+      rowStyles.push({
+        align: numericCol[c] ? 'right' : 'left',
+        bold: isHead || isTotalRow,
+        topBorder: isTotalRow,
+        fill: isTotalRow ? 'rgba(0,115,230,0.07)' : null,
+      });
+    }
+    styles.push(rowStyles);
+  }
+  return styles;
+}
+
+// Manual re-format for a table already placed on the canvas (older tables,
+// or ones the user has since edited/reordered) — recomputes from its
+// current cell contents and re-renders in place.
+function pdfedAutoFormatTable(idx, id) {
+  const pg = pdfed.pages[idx];
+  const item = (pg && pg.placedTables || []).find(i => i.id === id);
+  if (!item) return;
+  item.cellStyles = daBuildCellStyles(item.cells);
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTables(idx);
+  toast('Table auto-formatted', 'success');
+}
+
 async function daPushToWorkflow(mode) {
   const ds = daGetActive();
   if (!ds) { toast('Upload a file first', 'info'); return; }
@@ -33934,6 +34020,7 @@ async function daPushToWorkflow(mode) {
         fontSize: fitted.fontSize,
         headerRow: true,
         cells,
+        cellStyles: daBuildCellStyles(cells),
         locked: false,
         zIndex: pdfedNextZ(pg),
       });
@@ -34125,6 +34212,7 @@ async function daPushAllToWorkflow() {
           fontSize: block.fontSize,
           headerRow: true,
           cells,
+          cellStyles: daBuildCellStyles(cells),
           locked: false,
           zIndex: pdfedNextZ(pg),
         });
@@ -34300,6 +34388,7 @@ async function pdfedAppendTableFitPages(chunks, headers, layout) {
       fontSize,
       headerRow: true,
       cells,
+      cellStyles: daBuildCellStyles(cells),
       locked: false,
       zIndex: pdfedNextZ(pg),
     });
