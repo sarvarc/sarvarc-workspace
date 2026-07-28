@@ -7850,6 +7850,10 @@ button.dg-show-chip.active { background:var(--blue); }
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><path d="M14 21h4a2 2 0 0 0 2-2V9l-5-6"/><path d="M14 3v5h5"/><path d="M9 14l3 3 3-3"/><path d="M12 17v-6"/></svg>
                     Merge PDF
                   </div>
+                  <div class="pdfed-shapes-opt" id="pdfedToolsOpt-unlock" onclick="pdfedToolsUnlockClick()" title="Downloads an unprotected copy of this PDF, no password">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                    Remove Password
+                  </div>
                 </div>
               </div>
             </div>
@@ -10862,6 +10866,37 @@ button.dg-show-chip.active { background:var(--blue); }
   </div>
 </div>
 
+<!-- SHARED "ENTER PDF PASSWORD" PROMPT — the unlock companion to the
+     password-protect prompt above. Every PDF load path in the app (Extract
+     Images, PDF Editor, PDF Editor's "Merge PDF Into Document", Data
+     Arrangement, Redact PII) routes through sarvarcOpenPdfDocument(), which
+     shows this prompt the moment pdf.js reports a file is encrypted, and
+     re-shows it with an error if the password entered was wrong. -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcUnlockPromptOverlay" onmousedown="if(event.target===this)sarvarcUnlockPromptCancel()">
+  <div class="sarvarc-pw-modal">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Password-protected PDF</h3>
+        <div class="pdfed-export-sub" id="sarvarcUnlockPromptSub">Enter the password to open it</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="sarvarcUnlockPromptCancel()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+      <input type="password" id="sarvarcUnlockPwInput" class="pdfed-export-range-input" placeholder="Enter password" autocomplete="current-password" style="margin-top:0" oninput="sarvarcUnlockPromptInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();sarvarcUnlockPromptConfirm();}">
+      <div id="sarvarcUnlockPwError" style="font-size:10px;color:#ef4444;display:none;margin-top:6px">Incorrect password, try again</div>
+      <div style="font-size:10.5px;color:var(--text3);margin-top:6px">This password is only used in your browser to open the file — it's never uploaded or stored anywhere.</div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="sarvarcUnlockPromptCancel()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" onclick="sarvarcUnlockPromptConfirm()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="3" y="11" width="18" height="11" rx="2"/></svg> Unlock
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- CROP MODAL -->
 <div class="crop-overlay" id="cropOverlay">
   <div class="crop-modal">
@@ -12799,13 +12834,14 @@ async function processFile(file) {
 async function loadPDF(file) {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    state.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    state.pdfDoc = await sarvarcOpenPdfDocument(arrayBuffer);
     state.stats.pdfs++;
     state.stats.pages += state.pdfDoc.numPages;
     updateStats();
     toast('PDF loaded, ' + state.pdfDoc.numPages + ' pages', 'success');
     await renderPageThumbs();
   } catch(e) {
+    if (e && e.message === 'Password entry cancelled') { toast('Unlock cancelled', 'info'); return; }
     toast('Failed to load PDF: ' + e.message, 'error');
   }
 }
@@ -15190,7 +15226,7 @@ async function pdfedLoadFileObject(file) {
   toast('Loading PDF...', 'info');
   try {
     const ab = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({data: ab}).promise;
+    const doc = await sarvarcOpenPdfDocument(ab);
     pdfed.pdfDoc = doc;
     pdfed.file = file;
     pdfed.pages = [];
@@ -15227,6 +15263,7 @@ async function pdfedLoadFileObject(file) {
     toast('Loaded ' + doc.numPages + ' pages', 'success');
     return true;
   } catch(err) {
+    if (err && err.message === 'Password entry cancelled') { toast('Unlock cancelled', 'info'); return false; }
     toast(err.message, 'error');
     console.error(err);
     return false;
@@ -15263,10 +15300,17 @@ async function pdfedQueueProbeCounts() {
     if (it.pageCount !== null) continue;
     try {
       const ab = await it.file.arrayBuffer();
+      // Plain getDocument (no onPassword) on purpose — this is a silent
+      // background probe for the queue list, so a locked file should just
+      // show a lock badge instead of popping the unlock prompt. The real
+      // password prompt happens later, when this item is actually opened.
       const doc = await pdfjsLib.getDocument({data: ab}).promise;
       it.pageCount = doc.numPages;
       pdfedQueueRender();
-    } catch(err) { it.pageCount = '?'; }
+    } catch(err) {
+      it.pageCount = (err && err.name === 'PasswordException') ? '🔒' : '?';
+      pdfedQueueRender();
+    }
   }
 }
 
@@ -20033,7 +20077,7 @@ async function pdfedMergeLoadFile(file) {
   toast('Loading ' + file.name + '...', 'info');
   try {
     const buf = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const doc = await sarvarcOpenPdfDocument(buf);
     pdfedMerge.srcDoc = doc;
     pdfedMerge.srcFile = file;
     pdfedMerge.pages = [];
@@ -20058,8 +20102,9 @@ async function pdfedMergeLoadFile(file) {
     document.getElementById('pdfedMergeConfirmBtn').style.display = '';
     toast('Loaded ' + doc.numPages + ' page(s) from ' + file.name, 'success');
   } catch (err) {
+    if (err && err.message === 'Password entry cancelled') { toast('Unlock cancelled', 'info'); return; }
     console.error('Merge file load failed:', err);
-    toast('Could not read that PDF, it may be corrupted or password-protected', 'error');
+    toast('Could not read that PDF, it may be corrupted', 'error');
   }
 }
 
@@ -20308,7 +20353,7 @@ async function pdfedRenderBlankPage(htmlContent, bg, mmW, mmH) {
 // pageIndices is an optional array of 0-based page indices to export, in order.
 // Omitted/empty => export every page (keeps the batch queue and context-menu
 // callers, which call pdfedExport() with no args, working exactly as before).
-async function pdfedExport(pageIndices, password) {
+async function pdfedExport(pageIndices, password, suffixOverride, successLabel) {
   if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
   // Finalize any image the user was still mid-drag/mid-resize on the currently
   // open page, so it lands in pg.placedImages before we read that array below.
@@ -20382,13 +20427,13 @@ async function pdfedExport(pageIndices, password) {
     }
     if (!pdf) { hideExportOverlay(); toast('Nothing to export', 'error'); return; }
     updateExportProgress(95, 'Saving file…');
-    const suffix = (pageIndices && pageIndices.length && pageIndices.length !== pdfed.pages.length) ? '_pages' : '_edited';
+    const suffix = suffixOverride || ((pageIndices && pageIndices.length && pageIndices.length !== pdfed.pages.length) ? '_pages' : '_edited');
     const fname = (pdfed.file ? pdfed.file.name.replace(/\.pdf$/i,'') : 'edited') + suffix + '.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     state.stats.exports++;
     updateStats();
     completeExportOverlay(total + (total > 1 ? ' pages exported' : ' page exported'));
-    toast('Exported ' + total + ' pages' + (password ? ' (password protected)' : ''), 'success');
+    toast(successLabel || ('Exported ' + total + ' pages' + (password ? ' (password protected)' : '')), 'success');
     pdfedQueueAutoContinueAfter();
   } catch(e) {
     hideExportOverlay();
@@ -22369,6 +22414,23 @@ function pdfedToolsToggleDropdown(e) {
 function pdfedToolsMergeClick() {
   document.getElementById('pdfedToolsDropdown').classList.remove('open');
   pdfedOpenMerge();
+}
+
+function pdfedToolsUnlockClick() {
+  document.getElementById('pdfedToolsDropdown').classList.remove('open');
+  pdfedRemovePassword();
+}
+
+// The companion to export-time password protection: downloads a fresh,
+// unencrypted copy of whatever PDF is currently open. If the file needed a
+// password to open in the first place, sarvarcOpenPdfDocument already asked
+// for it back when it was loaded (see pdfedLoadFileObject) — by this point
+// it's sitting decrypted in memory, so this is just a normal export that's
+// forced to skip the password step and use a clearer filename, regardless
+// of whatever the export modal's password toggle happens to be set to.
+async function pdfedRemovePassword() {
+  if (pdfed.pages.length === 0) { toast('Open a PDF first', 'error'); return; }
+  await pdfedExport(null, null, '_unlocked', 'Password removed, unlocked PDF downloaded');
 }
 
 // Close PDF tools dropdown on outside click
@@ -30319,6 +30381,72 @@ function sarvarcPdfEncryptionOpts(password) {
   return password ? { encryption: { userPassword: password, ownerPassword: password, userPermissions: ['print', 'modify', 'copy', 'annot-forms'] } } : {};
 }
 
+// ─── SHARED PDF PASSWORD *REMOVAL* / UNLOCK ──────────────────────────────
+// Companion to the encryption helper above. Before this, every PDF upload
+// path called pdfjsLib.getDocument() directly, so a locked file just threw
+// a PasswordException and died with a generic "could not read that PDF"
+// toast — SARVARC genuinely couldn't touch a client's protected file.
+// sarvarcOpenPdfDocument() wraps pdf.js's own onPassword hook with a prompt,
+// so any module that opens a PDF through it gains password support for
+// free, and re-prompts automatically if the password typed was wrong.
+let _sarvarcUnlockResolve = null;
+function sarvarcAskUnlockPassword(isRetry) {
+  return new Promise(resolve => {
+    _sarvarcUnlockResolve = resolve;
+    document.getElementById('sarvarcUnlockPwInput').value = '';
+    document.getElementById('sarvarcUnlockPromptSub').textContent = isRetry ? "That password didn't work, try again" : 'Enter the password to open it';
+    document.getElementById('sarvarcUnlockPwError').style.display = isRetry ? 'block' : 'none';
+    document.getElementById('sarvarcUnlockPromptOverlay').classList.add('open');
+    setTimeout(() => { const el = document.getElementById('sarvarcUnlockPwInput'); if (el) el.focus(); }, 50);
+  });
+}
+function sarvarcUnlockPromptInput() {
+  document.getElementById('sarvarcUnlockPwError').style.display = 'none';
+}
+function sarvarcUnlockPromptCancel() {
+  document.getElementById('sarvarcUnlockPromptOverlay').classList.remove('open');
+  if (_sarvarcUnlockResolve) { const r = _sarvarcUnlockResolve; _sarvarcUnlockResolve = null; r(undefined); }
+}
+function sarvarcUnlockPromptConfirm() {
+  const pw = document.getElementById('sarvarcUnlockPwInput').value;
+  if (!pw) return;
+  document.getElementById('sarvarcUnlockPromptOverlay').classList.remove('open');
+  if (_sarvarcUnlockResolve) { const r = _sarvarcUnlockResolve; _sarvarcUnlockResolve = null; r(pw); }
+}
+// Drop-in replacement for pdfjsLib.getDocument({data}).promise that
+// transparently prompts for a password (and re-prompts on a wrong one) the
+// moment pdf.js reports the file is encrypted. Every module's file-load
+// code should call this instead of pdfjsLib.getDocument() directly so a
+// locked PDF works everywhere in the app, not just wherever someone
+// remembered to add a password prompt. Rejects with a plain Error (message
+// 'Password entry cancelled') if the person cancels instead of entering one.
+function sarvarcOpenPdfDocument(data, extraOpts) {
+  return new Promise((resolve, reject) => {
+    let cancelled = false;
+    let task;
+    try {
+      task = pdfjsLib.getDocument(Object.assign({ data }, extraOpts));
+      // pdf.js only recognizes onPassword when it's set on the returned
+      // loading task itself — passing it inside the params object to
+      // getDocument() is silently ignored, which is why this used to fail
+      // instantly with pdf.js's own "No password given" error instead of
+      // ever showing the unlock prompt.
+      task.onPassword = async (updatePassword, reason) => {
+        const isRetry = reason === pdfjsLib.PasswordResponses.INCORRECT_PASSWORD;
+        const pw = await sarvarcAskUnlockPassword(isRetry);
+        if (pw === undefined) {
+          cancelled = true;
+          try { task.destroy(); } catch(e) {}
+          reject(new Error('Password entry cancelled'));
+          return;
+        }
+        updatePassword(pw);
+      };
+    } catch(e) { reject(e); return; }
+    task.promise.then(resolve).catch(err => { if (!cancelled) reject(err); });
+  });
+}
+
 // ─── TOAST ───
 function toast(msg, type = 'info') {
   const icons = {
@@ -31730,7 +31858,7 @@ function daSegmentPdfSequenceIntoTables(seq) {
 }
 
 async function daExtractPdf(arrayBuffer, filename) {
-  const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const doc = await sarvarcOpenPdfDocument(arrayBuffer);
   // Ordered sequence of every row on every page, tagged as a table row, a
   // prose line, or a page break — segmented into separate tables below
   // instead of flattening straight into one array like before.
@@ -34695,7 +34823,7 @@ async function rdxParseFile(file) {
   const pages = [];
   if (isPdf) {
     const buf = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const doc = await sarvarcOpenPdfDocument(buf);
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i);
       const vp1 = page.getViewport({ scale: 1 });
