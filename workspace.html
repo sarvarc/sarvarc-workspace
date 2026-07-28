@@ -3949,6 +3949,17 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .pdfed-export-download-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,194,255,0.38); }
 
+/* ─── SHARED PASSWORD-PROTECT PROMPT (one-click export flows that don't
+   already have a full export settings modal — Redaction, Make Forms, Form
+   Canvas, Diagrams) ─── */
+.sarvarc-pw-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; width: 92%; max-width: 380px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.65), var(--glow-blue);
+}
+.sarvarc-pw-modal-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+
 /* ─── SLIDESHOW ICON BUTTON (sits beside Cancel in the PDF export modal) ─── */
 .pdfed-slideshow-icon-btn {
   width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
@@ -7047,18 +7058,15 @@ button.dg-show-chip.active { background:var(--blue); }
     </div>
     <div class="nav-item" onclick="navigate('makeforms')" title="Make Forms">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></span> Make Forms
-      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,0.18);color:#10B981;margin-left:auto;letter-spacing:0.3px">NEW</span>
     </div>
     <div class="nav-item" onclick="navigate('diagrams')" title="Diagrams &amp; Graphs">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Diagrams &amp; Graphs
-      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(16,185,129,0.18);color:#10B981;margin-left:auto;letter-spacing:0.3px">NEW</span>
     </div>
     <div class="nav-item" onclick="navigate('export')" title="Export Center">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> Export Center
     </div>
     <div class="nav-item" onclick="navigate('redact')" title="Privacy Redaction">
       <span class="nav-icon" style="color:#EF4444"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9.5" y1="9.5" x2="14.5" y2="14.5"/><line x1="14.5" y1="9.5" x2="9.5" y2="14.5"/></svg></span> Redact PII
-      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(239,68,68,0.18);color:#EF4444;margin-left:auto;letter-spacing:0.3px">NEW</span>
     </div>
 
     <!-- IMAGES FOLDER -->
@@ -7451,6 +7459,17 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="exp-custom-hint">Every image is fit to exactly <span id="exportCustomHintSize">1080×1080</span>px. "Fill &amp; crop" covers the frame and trims overflow — best for square or fixed-ratio grids. "Fit inside" keeps the whole image and pads empty space. "Stretch" forces the exact size without preserving proportions.</div>
             </div>
           </div>
+        </div>
+
+        <div id="exportPasswordField" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px">
+          <label class="pdfed-export-checkbox">
+            <input type="checkbox" id="exportPasswordToggle" onchange="extractToggleExportPassword()">
+            <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            Protect this PDF with a password
+          </label>
+          <input type="password" id="exportPasswordInput" class="pdfed-export-range-input" placeholder="Enter a password" autocomplete="new-password" style="display:none;margin-top:10px" oninput="extractExportPasswordChanged()">
+          <div id="exportPasswordError" style="font-size:10px;color:#ef4444;display:none;margin-top:6px"></div>
+          <div id="exportPasswordHint" style="font-size:10.5px;color:var(--text3);display:none;margin-top:6px">Anyone opening this PDF will need this password. There's no way to recover it if it's lost, so keep it somewhere safe.</div>
         </div>
 
         <div id="exportSummary" style="background:rgba(0,194,255,0.07);border:1px solid rgba(0,194,255,0.2);border-radius:var(--radius);padding:16px;margin-bottom:20px">
@@ -8885,6 +8904,7 @@ button.dg-show-chip.active { background:var(--blue); }
           <div class="upload-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
           <h3>Drop your file here</h3>
           <p>or click to browse files<br>Word, PDF, CSV, Excel, TSV, TXT, JSON, or a photo/screenshot of a table: SARVARC looks for a table, and arranges the content either way</p>
+          <p style="margin-top:6px;opacity:0.75">Already have a table copied from Excel, Sheets, or Word? Just press <strong>Ctrl+V</strong> (⌘V on Mac) anywhere here — no file needed.</p>
           <div class="upload-types">
             <span class="upload-type">DOCX</span>
             <span class="upload-type">PDF</span>
@@ -8904,6 +8924,10 @@ button.dg-show-chip.active { background:var(--blue); }
         <button type="button" class="upload-blank-btn" id="daBlankTableBtn" onclick="daCreateBlankTable()" title="Start an empty table and fill it in yourself, no file needed">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
           Create Blank Table
+        </button>
+        <button type="button" class="upload-blank-btn" id="daPasteTableBtnEmpty" onclick="daPasteTableFromButton()" title="Paste a table you've copied (Ctrl+C) from Excel, Sheets, Word, or any spreadsheet">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>
+          Paste Table (Ctrl+V)
         </button>
 
         <!-- Parsing progress -->
@@ -8939,6 +8963,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <div class="da-toolbar-group">
               <button class="da-tool-btn" id="daAddFileBtn" onclick="document.getElementById('daFileInput').click()" title="Add another file"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add File</button>
               <button class="da-tool-btn" id="daNewTableBtn" onclick="daCreateBlankTable()" title="Add a new blank table, no file needed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg> New Table</button>
+              <button class="da-tool-btn" id="daPasteTableBtn" onclick="daPasteTableFromButton()" title="Paste a table you've copied (Ctrl+C) from Excel, Sheets, Word, or any spreadsheet — or just press Ctrl+V anywhere in this module"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg> Paste Table</button>
             </div>
             <div class="da-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -10592,6 +10617,17 @@ button.dg-show-chip.active { background:var(--blue); }
           <div id="pdfedExportRangeError" style="font-size:10px;color:#ef4444;display:none;margin-top:6px"></div>
         </div>
 
+        <div class="pdfed-export-field" id="pdfedExportPasswordField" style="display:none">
+          <label class="pdfed-export-checkbox">
+            <input type="checkbox" id="pdfedExportPasswordToggle" onchange="pdfedToggleExportPassword()">
+            <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            Protect this PDF with a password
+          </label>
+          <input type="password" id="pdfedExportPasswordInput" class="pdfed-export-range-input" placeholder="Enter a password" autocomplete="new-password" style="display:none;margin-top:8px" oninput="pdfedExportPasswordChanged()">
+          <div id="pdfedExportPasswordError" style="font-size:10px;color:#ef4444;display:none;margin-top:6px"></div>
+          <div id="pdfedExportPasswordHint" style="font-size:10.5px;color:var(--text3);display:none;margin-top:6px">Anyone opening this PDF will need this password. There's no way to recover it if it's lost, so keep it somewhere safe.</div>
+        </div>
+
         <label class="pdfed-export-checkbox">
           <input type="checkbox" id="pdfedExportRemember">
           <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
@@ -10758,6 +10794,17 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
         </div>
 
+        <div class="pdfed-export-field" id="daExportPasswordField" style="display:none">
+          <label class="pdfed-export-checkbox">
+            <input type="checkbox" id="daExportPasswordToggle" onchange="daToggleExportPassword()">
+            <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            Protect this PDF with a password
+          </label>
+          <input type="password" id="daExportPasswordInput" class="pdfed-export-range-input" placeholder="Enter a password" autocomplete="new-password" style="display:none;margin-top:8px" oninput="daExportPasswordChanged()">
+          <div id="daExportPasswordError" style="font-size:10px;color:#ef4444;display:none;margin-top:6px"></div>
+          <div id="daExportPasswordHint" style="font-size:10.5px;color:var(--text3);display:none;margin-top:6px">Anyone opening this PDF will need this password. There's no way to recover it if it's lost, so keep it somewhere safe.</div>
+        </div>
+
         <label class="pdfed-export-checkbox">
           <input type="checkbox" id="daExportRemember">
           <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
@@ -10780,6 +10827,38 @@ button.dg-show-chip.active { background:var(--blue); }
       </button>
     </div>
 
+  </div>
+</div>
+
+<!-- SHARED PASSWORD-PROTECT PROMPT (used by one-click PDF export flows that
+     don't already have a full export settings modal of their own) -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcPwPromptOverlay" onmousedown="if(event.target===this)sarvarcPwPromptCancel()">
+  <div class="sarvarc-pw-modal">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> <span id="sarvarcPwPromptTitle">Export as PDF</span></h3>
+        <div class="pdfed-export-sub">Add a password before downloading</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="sarvarcPwPromptCancel()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+      <label class="pdfed-export-checkbox">
+        <input type="checkbox" id="sarvarcPwToggle" onchange="sarvarcPwPromptToggle()">
+        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        Protect this PDF with a password
+      </label>
+      <input type="password" id="sarvarcPwInput" class="pdfed-export-range-input" placeholder="Enter a password" autocomplete="new-password" style="display:none;margin-top:0" oninput="sarvarcPwPromptInput()">
+      <div id="sarvarcPwError" style="font-size:10px;color:#ef4444;display:none"></div>
+      <div id="sarvarcPwHint" style="font-size:10.5px;color:var(--text3);display:none">Anyone opening this PDF will need this password. There's no way to recover it if it's lost, so keep it somewhere safe.</div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="sarvarcPwPromptCancel()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" onclick="sarvarcPwPromptConfirm()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export
+      </button>
+    </div>
   </div>
 </div>
 
@@ -13603,7 +13682,19 @@ async function encodeExportFormat(dataUrl, format, quality) {
 async function runExport() {
   if(state.extractedImages.length === 0) { toast('No images to export. Extract first!', 'error'); return; }
   if(state.exportFormat === 'pdf') {
-    await exportAsPdf(state.extractedImages);
+    let exportPassword = null;
+    const pwToggle = document.getElementById('exportPasswordToggle');
+    if (pwToggle && pwToggle.checked) {
+      const pw = document.getElementById('exportPasswordInput').value;
+      if (!pw) {
+        const perr = document.getElementById('exportPasswordError');
+        perr.textContent = 'Enter a password, or untick password protection';
+        perr.style.display = 'block';
+        return;
+      }
+      exportPassword = pw;
+    }
+    await exportAsPdf(state.extractedImages, exportPassword);
     return;
   }
   // 'individual' only changes delivery (separate files vs zip) — image
@@ -13719,7 +13810,7 @@ function deleteSelected() {
 }
 
 // ─── PDF EXPORT ───
-async function exportAsPdf(imgs) {
+async function exportAsPdf(imgs, password) {
   if(!imgs || imgs.length === 0) { toast('No images to export', 'error'); return; }
   const total = imgs.length;
   showExportOverlay('Building your PDF…', total > 1 ? `Adding image 1 of ${total}…` : 'Adding image…');
@@ -13741,7 +13832,7 @@ async function exportAsPdf(imgs) {
           if(mmH > maxH) { mmH = maxH; mmW = (pw / ph) * maxH; }
           const orientation = mmW > mmH ? 'landscape' : 'portrait';
           if(!pdf) {
-            pdf = new jsPDF({ orientation, unit: 'mm', format: [mmW, mmH] });
+            pdf = new jsPDF(Object.assign({ orientation, unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
           } else {
             pdf.addPage([mmW, mmH], orientation);
           }
@@ -13757,7 +13848,7 @@ async function exportAsPdf(imgs) {
     state.stats.exports += imgs.length;
     updateStats();
     completeExportOverlay(total + ' page' + (total > 1 ? 's' : '') + ' exported');
-    toast('PDF exported, ' + imgs.length + ' page' + (imgs.length > 1 ? 's' : ''), 'success');
+    toast('PDF exported, ' + imgs.length + ' page' + (imgs.length > 1 ? 's' : '') + (password ? ' (password protected)' : ''), 'success');
   } catch(err) {
     hideExportOverlay();
     toast('PDF error: ' + err.message, 'error');
@@ -13767,7 +13858,9 @@ async function exportAsPdf(imgs) {
 async function exportSelectedAsPdf() {
   if(state.selectedImages.size === 0) { toast('No images selected', 'error'); return; }
   const imgs = [...state.selectedImages].sort((a,b)=>a-b).map(i => state.extractedImages[i]);
-  await exportAsPdf(imgs);
+  const password = await sarvarcAskExportPassword('Export Selected as PDF');
+  if (password === undefined) return; // cancelled
+  await exportAsPdf(imgs, password);
 }
 
 // ─── PREVIEW MODAL ───
@@ -13809,6 +13902,26 @@ function selectExport(el, fmt) {
   document.querySelectorAll('.export-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   state.exportFormat = fmt;
+  const pwField = document.getElementById('exportPasswordField');
+  if (pwField) pwField.style.display = (fmt === 'pdf') ? 'block' : 'none';
+}
+
+function extractToggleExportPassword() {
+  const on = document.getElementById('exportPasswordToggle').checked;
+  const input = document.getElementById('exportPasswordInput');
+  const hint = document.getElementById('exportPasswordHint');
+  input.style.display = on ? 'block' : 'none';
+  hint.style.display = on ? 'block' : 'none';
+  if (!on) {
+    input.value = '';
+    document.getElementById('exportPasswordError').style.display = 'none';
+  } else {
+    input.focus();
+  }
+}
+
+function extractExportPasswordChanged() {
+  document.getElementById('exportPasswordError').style.display = 'none';
 }
 
 // ─── OPTS ───
@@ -20195,7 +20308,7 @@ async function pdfedRenderBlankPage(htmlContent, bg, mmW, mmH) {
 // pageIndices is an optional array of 0-based page indices to export, in order.
 // Omitted/empty => export every page (keeps the batch queue and context-menu
 // callers, which call pdfedExport() with no args, working exactly as before).
-async function pdfedExport(pageIndices) {
+async function pdfedExport(pageIndices, password) {
   if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
   // Finalize any image the user was still mid-drag/mid-resize on the currently
   // open page, so it lands in pg.placedImages before we read that array below.
@@ -20249,7 +20362,10 @@ async function pdfedExport(pageIndices) {
           const pxPerMm = pg._pxPerMm || 3.7795;
           const wmm = iw / pxPerMm, hmm = ih / pxPerMm;
           const ori = wmm > hmm ? 'landscape' : 'portrait';
-          if (!pdf) pdf = new jsPDF({orientation:ori, unit:'mm', format:[wmm,hmm]});
+          if (!pdf) {
+            const pdfOpts = Object.assign({orientation:ori, unit:'mm', format:[wmm,hmm]}, sarvarcPdfEncryptionOpts(password));
+            pdf = new jsPDF(pdfOpts);
+          }
           else pdf.addPage([wmm,hmm], ori);
           pdf.setFillColor(255,255,255);
           pdf.rect(0,0,wmm,hmm,'F');
@@ -20272,7 +20388,7 @@ async function pdfedExport(pageIndices) {
     state.stats.exports++;
     updateStats();
     completeExportOverlay(total + (total > 1 ? ' pages exported' : ' page exported'));
-    toast('Exported ' + total + ' pages', 'success');
+    toast('Exported ' + total + ' pages' + (password ? ' (password protected)' : ''), 'success');
     pdfedQueueAutoContinueAfter();
   } catch(e) {
     hideExportOverlay();
@@ -20336,6 +20452,16 @@ async function pdfedOpenExportModal() {
 
   pdfedExportPreviewIdx = Math.max(0, pdfed.active);
   pdfedExportUpdatePreview(pdfedExportPreviewIdx);
+
+  // Password protection defaults to ON since most people exporting a PDF
+  // want it protected — but it stays fully optional: unticking the box
+  // exports a normal, unprotected PDF exactly as before. The password text
+  // itself never carries over between sessions, only this default state.
+  document.getElementById('pdfedExportPasswordToggle').checked = true;
+  document.getElementById('pdfedExportPasswordInput').value = '';
+  document.getElementById('pdfedExportPasswordInput').style.display = 'block';
+  document.getElementById('pdfedExportPasswordHint').style.display = 'block';
+  document.getElementById('pdfedExportPasswordError').style.display = 'none';
 
   pdfedCloseExportMenus();
   document.getElementById('pdfedExportOverlay2').classList.add('open');
@@ -20407,6 +20533,27 @@ function pdfedApplyExportFormat(fmt) {
   // Logo/background-removal choice only makes sense for Word exports, since
   // that's the only format that crops a header band as a real image.
   document.getElementById('pdfedExportLogoField').style.display = (fmt === 'docx') ? 'block' : 'none';
+  // Password protection only applies to the real PDF export path (jsPDF can
+  // encrypt at generation time); other formats have no equivalent here.
+  document.getElementById('pdfedExportPasswordField').style.display = (fmt === 'pdf') ? 'block' : 'none';
+}
+
+function pdfedToggleExportPassword() {
+  const on = document.getElementById('pdfedExportPasswordToggle').checked;
+  const input = document.getElementById('pdfedExportPasswordInput');
+  const hint = document.getElementById('pdfedExportPasswordHint');
+  input.style.display = on ? 'block' : 'none';
+  hint.style.display = on ? 'block' : 'none';
+  if (!on) {
+    input.value = '';
+    document.getElementById('pdfedExportPasswordError').style.display = 'none';
+  } else {
+    input.focus();
+  }
+}
+
+function pdfedExportPasswordChanged() {
+  document.getElementById('pdfedExportPasswordError').style.display = 'none';
 }
 
 function pdfedExportPickFormat(fmt, el) {
@@ -20714,6 +20861,22 @@ async function pdfedRunExportFromModal() {
     indices = pdfed.pages.map((_, i) => i);
   }
 
+  // Password protection: only relevant for the real PDF format, and only
+  // once the person has ticked the checkbox. A ticked box with an empty
+  // password is almost certainly a mistake, so catch it before we close the
+  // modal rather than silently exporting an unprotected file.
+  let exportPassword = null;
+  if (pdfedExportModalFmt === 'pdf' && document.getElementById('pdfedExportPasswordToggle').checked) {
+    const pw = document.getElementById('pdfedExportPasswordInput').value;
+    if (!pw) {
+      const perr = document.getElementById('pdfedExportPasswordError');
+      perr.textContent = 'Enter a password, or untick password protection';
+      perr.style.display = 'block';
+      return;
+    }
+    exportPassword = pw;
+  }
+
   // Persist the format choice only if the person opted in.
   try {
     const remember = document.getElementById('pdfedExportRemember').checked;
@@ -20722,7 +20885,7 @@ async function pdfedRunExportFromModal() {
   } catch(e) {}
 
   pdfedCloseExportModal();
-  if (pdfedExportModalFmt === 'pdf') await pdfedExport(indices);
+  if (pdfedExportModalFmt === 'pdf') await pdfedExport(indices, exportPassword);
   else if (pdfedExportModalFmt === 'csv') await pdfedExportCSV(indices);
   else if (pdfedExportModalFmt === 'xlsx') await pdfedExportXLSX(indices);
   else if (pdfedExportModalFmt === 'docx') await pdfedExportDOCX(indices);
@@ -30093,6 +30256,69 @@ function sarvarcInitBrandCheckbox(id) {
   el.onchange = () => sarvarcSetBrandingEnabled(el.checked);
 }
 
+// ─── SHARED PDF PASSWORD PROTECTION ──────────────────────────────────────
+// Used everywhere a PDF gets generated with jsPDF: the full Export modals
+// (PDF Editor, Data Arrangement) read the checkbox/input directly, while
+// every one-click export button (Redaction, Make Forms, Form Canvas,
+// Diagrams, Extract Images) routes through sarvarcAskExportPassword(), a
+// small reusable prompt, so the same "protect this PDF?" choice shows up
+// consistently across the whole app instead of only in the PDF Editor.
+let _sarvarcPwPromptResolve = null;
+function sarvarcAskExportPassword(label) {
+  return new Promise(resolve => {
+    _sarvarcPwPromptResolve = resolve;
+    document.getElementById('sarvarcPwPromptTitle').textContent = label || 'Export as PDF';
+    // Defaults to ON, same reasoning as the main PDF Editor export modal:
+    // most people exporting a PDF want it protected, but it's one click to
+    // turn off.
+    document.getElementById('sarvarcPwToggle').checked = true;
+    document.getElementById('sarvarcPwInput').value = '';
+    document.getElementById('sarvarcPwInput').style.display = 'block';
+    document.getElementById('sarvarcPwHint').style.display = 'block';
+    document.getElementById('sarvarcPwError').style.display = 'none';
+    document.getElementById('sarvarcPwPromptOverlay').classList.add('open');
+    setTimeout(() => { const el = document.getElementById('sarvarcPwInput'); if (el.style.display !== 'none') el.focus(); }, 50);
+  });
+}
+function sarvarcPwPromptToggle() {
+  const on = document.getElementById('sarvarcPwToggle').checked;
+  document.getElementById('sarvarcPwInput').style.display = on ? 'block' : 'none';
+  document.getElementById('sarvarcPwHint').style.display = on ? 'block' : 'none';
+  if (!on) {
+    document.getElementById('sarvarcPwInput').value = '';
+    document.getElementById('sarvarcPwError').style.display = 'none';
+  } else {
+    document.getElementById('sarvarcPwInput').focus();
+  }
+}
+function sarvarcPwPromptInput() {
+  document.getElementById('sarvarcPwError').style.display = 'none';
+}
+function sarvarcPwPromptCancel() {
+  document.getElementById('sarvarcPwPromptOverlay').classList.remove('open');
+  if (_sarvarcPwPromptResolve) { const r = _sarvarcPwPromptResolve; _sarvarcPwPromptResolve = null; r(undefined); }
+}
+function sarvarcPwPromptConfirm() {
+  const on = document.getElementById('sarvarcPwToggle').checked;
+  let pw = null;
+  if (on) {
+    pw = document.getElementById('sarvarcPwInput').value;
+    if (!pw) {
+      const err = document.getElementById('sarvarcPwError');
+      err.textContent = 'Enter a password, or untick password protection';
+      err.style.display = 'block';
+      return;
+    }
+  }
+  document.getElementById('sarvarcPwPromptOverlay').classList.remove('open');
+  if (_sarvarcPwPromptResolve) { const r = _sarvarcPwPromptResolve; _sarvarcPwPromptResolve = null; r(pw); }
+}
+// Builds the jsPDF constructor option that encrypts the file, or {} when no
+// password was chosen. Shared by every PDF export path in the app.
+function sarvarcPdfEncryptionOpts(password) {
+  return password ? { encryption: { userPassword: password, ownerPassword: password, userPermissions: ['print', 'modify', 'copy', 'annot-forms'] } } : {};
+}
+
 // ─── TOAST ───
 function toast(msg, type = 'info') {
   const icons = {
@@ -32249,6 +32475,94 @@ function daCreateBlankTable() {
   toast('Blank table created, click any cell to start typing', 'success');
 }
 
+// ─── Paste Table (Ctrl/Cmd+V): copy any table from Excel, Sheets, Word, or
+// a plain tab-separated block, and land it straight in Data Arrangement as
+// a new, fully editable dataset — no upload/export step needed. Reuses the
+// same clipboard <table> parser the PDF Editor's canvas paste uses
+// (pdfedParseHtmlTableClipboard), so Excel/Sheets/Word's real cell grid is
+// read exactly, not guessed from tab characters, whenever the source
+// clipboard provides it. ───
+document.addEventListener('paste', function (e) {
+  const daSection = document.getElementById('sec-dataarrange');
+  if (!daSection || !daSection.classList.contains('active')) return;
+  // A paste while actually typing into a cell, the formula bar, the search
+  // box, or any other field on the page should behave like a normal paste
+  // into that field — only a bare paste onto the module itself (nothing
+  // focused, or focus sitting on inert chrome like a button) creates a new
+  // table.
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+  const cd = e.clipboardData || window.clipboardData;
+  if (!cd) return;
+  const html = cd.getData('text/html');
+  const plain = cd.getData('text/plain');
+  let rowsData = null;
+  if (html && /<table[\s>]/i.test(html) && typeof pdfedParseHtmlTableClipboard === 'function') {
+    rowsData = pdfedParseHtmlTableClipboard(html);
+  } else if (plain && plain.includes('\t')) {
+    rowsData = plain.replace(/\r\n/g, '\n').split('\n').filter(l => l.length).map(l => l.split('\t'));
+  }
+  if (!rowsData || !rowsData.length || !rowsData.some(r => r.length > 1)) return;
+  e.preventDefault();
+  daPasteTableFromClipboard(rowsData);
+});
+
+// Builds a new Data Arrangement dataset straight from parsed clipboard rows
+// (array of arrays of cell text) — same daAddDataset/daNormalize pipeline an
+// uploaded file goes through, so header detection, formulas, and export all
+// work on a pasted table exactly like they do on an uploaded one.
+function daPasteTableFromClipboard(rowsData) {
+  const existingPastedCount = daState.datasets.filter(d => /^Pasted Table \d+$/.test(d.name)).length;
+  const name = `Pasted Table ${existingPastedCount + 1}`;
+  daAddDataset(name, rowsData);
+  if (typeof daResetFormulaBar === 'function') daResetFormulaBar();
+  daWorkspaceRefreshVisibility();
+  daRenderTabs();
+  daRenderTable();
+  const rows = rowsData.length, cols = Math.max(...rowsData.map(r => r.length));
+  toast(`${rows} x ${cols} table pasted into Data Arrangement`, 'success');
+}
+
+// Fallback for the "Paste Table" toolbar/empty-state buttons — a click can't
+// see a native paste event, so it reads the clipboard directly through the
+// async Clipboard API instead. Needs the browser to grant clipboard-read
+// permission (Chrome/Edge prompt for this automatically on click); if that's
+// blocked, the person can still always just press Ctrl+V, which uses the
+// listener above and needs no permission at all.
+async function daPasteTableFromButton() {
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    toast('Click inside Data Arrangement and press Ctrl+V (⌘V on Mac) to paste your table', 'info');
+    return;
+  }
+  try {
+    const items = await navigator.clipboard.read();
+    let rowsData = null;
+    for (const item of items) {
+      if (item.types.includes('text/html')) {
+        const blob = await item.getType('text/html');
+        const html = await blob.text();
+        if (/<table[\s>]/i.test(html) && typeof pdfedParseHtmlTableClipboard === 'function') {
+          rowsData = pdfedParseHtmlTableClipboard(html);
+          if (rowsData && rowsData.length) break;
+        }
+      }
+    }
+    if (!rowsData || !rowsData.length) {
+      const plain = await navigator.clipboard.readText().catch(() => '');
+      if (plain && plain.includes('\t')) {
+        rowsData = plain.replace(/\r\n/g, '\n').split('\n').filter(l => l.length).map(l => l.split('\t'));
+      }
+    }
+    if (!rowsData || !rowsData.length || !rowsData.some(r => r.length > 1)) {
+      toast('No table found on the clipboard — copy a table first, then try again', 'info');
+      return;
+    }
+    daPasteTableFromClipboard(rowsData);
+  } catch (err) {
+    toast('Couldn\'t read the clipboard — click inside Data Arrangement and press Ctrl+V instead', 'info');
+  }
+}
+
 function daWorkspaceRefreshVisibility() {
   const has = daState.datasets.length > 0;
   document.getElementById('daUploadZone').style.display = has ? 'none' : 'flex';
@@ -33957,6 +34271,14 @@ function daOpenExportModal() {
   if (daExportPreviewIdx < 0) daExportPreviewIdx = 0;
   daExportUpdatePreview(daExportPreviewIdx);
 
+  // Defaults to ON (most people want their exported PDF protected) but
+  // stays fully optional, same pattern as the PDF Editor's export modal.
+  document.getElementById('daExportPasswordToggle').checked = true;
+  document.getElementById('daExportPasswordInput').value = '';
+  document.getElementById('daExportPasswordInput').style.display = (startFmt === 'pdf') ? 'block' : 'none';
+  document.getElementById('daExportPasswordHint').style.display = (startFmt === 'pdf') ? 'block' : 'none';
+  document.getElementById('daExportPasswordError').style.display = 'none';
+
   daCloseExportMenus();
   document.getElementById('daExportOverlay').classList.add('open');
 }
@@ -34005,6 +34327,25 @@ function daApplyExportFormat(fmt) {
   const badge = document.getElementById('daExportTypeBadge');
   badge.textContent = meta.badge;
   badge.style.background = meta.color;
+  document.getElementById('daExportPasswordField').style.display = (fmt === 'pdf') ? 'block' : 'none';
+}
+
+function daToggleExportPassword() {
+  const on = document.getElementById('daExportPasswordToggle').checked;
+  const input = document.getElementById('daExportPasswordInput');
+  const hint = document.getElementById('daExportPasswordHint');
+  input.style.display = on ? 'block' : 'none';
+  hint.style.display = on ? 'block' : 'none';
+  if (!on) {
+    input.value = '';
+    document.getElementById('daExportPasswordError').style.display = 'none';
+  } else {
+    input.focus();
+  }
+}
+
+function daExportPasswordChanged() {
+  document.getElementById('daExportPasswordError').style.display = 'none';
 }
 
 function daExportPickFormat(fmt, el) {
@@ -34110,9 +34451,9 @@ function daTruncateForPdf(pdf, text, maxWidth) {
 // Builds a real, paginated jsPDF document out of one or more datasets, no
 // html2canvas involved, so it renders as clean vector text/lines rather than
 // a screenshot of the dark app UI.
-function daBuildPdfDoc(datasetsArr) {
+function daBuildPdfDoc(datasetsArr, password) {
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pdf = new jsPDF(Object.assign({ orientation: 'landscape', unit: 'mm', format: 'a4' }, sarvarcPdfEncryptionOpts(password)));
   const marginX = 12, marginTop = 18, marginBottom = 14;
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
@@ -34172,12 +34513,12 @@ function daBuildPdfDoc(datasetsArr) {
   return pdf;
 }
 
-async function daExportPDFFile(datasetsArr, fname) {
+async function daExportPDFFile(datasetsArr, fname, password) {
   if (!window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
   try {
-    const pdf = daBuildPdfDoc(datasetsArr);
+    const pdf = daBuildPdfDoc(datasetsArr, password);
     pdf.save(sarvarcBrandFilename(fname));
-    toast('PDF exported', 'success');
+    toast('PDF exported' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     toast('PDF export failed: ' + e.message, 'error');
     console.error(e);
@@ -34224,6 +34565,18 @@ async function daRunExportFromModal() {
 
   const baseName = (daExportScopeMode === 'all') ? 'sarvarc_data_export' : (ds.name || 'data');
 
+  let exportPassword = null;
+  if (daExportModalFmt === 'pdf' && document.getElementById('daExportPasswordToggle').checked) {
+    const pw = document.getElementById('daExportPasswordInput').value;
+    if (!pw) {
+      const perr = document.getElementById('daExportPasswordError');
+      perr.textContent = 'Enter a password, or untick password protection';
+      perr.style.display = 'block';
+      return;
+    }
+    exportPassword = pw;
+  }
+
   try {
     const remember = document.getElementById('daExportRemember').checked;
     if (remember) localStorage.setItem('sarvarcDaExportPrefs', JSON.stringify({ remember: true, fmt: daExportModalFmt }));
@@ -34244,7 +34597,7 @@ async function daRunExportFromModal() {
     if (datasetsArr.length === 1) daDownloadXLSX(datasetsArr[0]);
     else { daDownloadXLSXMulti(datasetsArr, baseName + '.xlsx'); toast(`Excel exported (${datasetsArr.length} sheets)`, 'success'); }
   } else if (daExportModalFmt === 'pdf') {
-    await daExportPDFFile(datasetsArr, baseName + '.pdf');
+    await daExportPDFFile(datasetsArr, baseName + '.pdf', exportPassword);
   } else if (daExportModalFmt === 'docx') {
     await daExportDOCXFile(datasetsArr, baseName + '.docx');
   }
@@ -36875,6 +37228,12 @@ function rdxOutputName(ext) {
 }
 async function rdxExport() {
   if (!rdxState.pages.length) return;
+  const willBePdf = !(rdxState.fileType === 'image' && rdxState.pages.length === 1);
+  let password = null;
+  if (willBePdf) {
+    password = await sarvarcAskExportPassword('Export Redacted Document');
+    if (password === undefined) return; // cancelled
+  }
   try {
     if (rdxState.fileType === 'image' && rdxState.pages.length === 1) {
       const pg = rdxState.pages[0];
@@ -36894,13 +37253,13 @@ async function rdxExport() {
         const wmm = pg.mmW || (pg.canvas.width * 25.4 / 96);
         const hmm = pg.mmH || (pg.canvas.height * 25.4 / 96);
         const ori = wmm > hmm ? 'landscape' : 'portrait';
-        if (!pdf) pdf = new jsPDF({ orientation: ori, unit: 'mm', format: [wmm, hmm] });
+        if (!pdf) pdf = new jsPDF(Object.assign({ orientation: ori, unit: 'mm', format: [wmm, hmm] }, sarvarcPdfEncryptionOpts(password)));
         else pdf.addPage([wmm, hmm], ori);
         pdf.addImage(imgData, 'JPEG', 0, 0, wmm, hmm);
       });
       pdf.save(rdxOutputName('pdf'));
     }
-    toast('Redacted document exported.', 'success');
+    toast('Redacted document exported.' + (password ? ' (password protected)' : ''), 'success');
     if (typeof state !== 'undefined' && state.stats) { state.stats.exports = (state.stats.exports || 0) + 1; if (typeof updateStats === 'function') updateStats(); }
   } catch (err) {
     console.warn('Redact export error', err);
@@ -36950,6 +37309,8 @@ function rdxExportAs(fmt) {
 async function rdxExportPDF() {
   if (!rdxState.pages.length) { toast('No document loaded', 'error'); return; }
   if (!window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const password = await sarvarcAskExportPassword('Export Redacted PDF');
+  if (password === undefined) return; // cancelled
   showExportOverlay('Exporting PDF…', rdxState.pages.length > 1 ? `Rendering page 1 of ${rdxState.pages.length}…` : 'Rendering page…');
   try {
     const { jsPDF } = window.jspdf;
@@ -36960,7 +37321,7 @@ async function rdxExportPDF() {
       const wmm = pg.mmW || (pg.canvas.width * 25.4 / 96);
       const hmm = pg.mmH || (pg.canvas.height * 25.4 / 96);
       const ori = wmm > hmm ? 'landscape' : 'portrait';
-      if (!pdf) pdf = new jsPDF({ orientation: ori, unit: 'mm', format: [wmm, hmm] });
+      if (!pdf) pdf = new jsPDF(Object.assign({ orientation: ori, unit: 'mm', format: [wmm, hmm] }, sarvarcPdfEncryptionOpts(password)));
       else pdf.addPage([wmm, hmm], ori);
       pdf.addImage(imgData, 'JPEG', 0, 0, wmm, hmm);
     });
@@ -36968,7 +37329,7 @@ async function rdxExportPDF() {
     pdf.save(sarvarcBrandFilename(rdxOutputName('pdf')));
     if (typeof state !== 'undefined' && state.stats) { state.stats.exports = (state.stats.exports || 0) + 1; if (typeof updateStats === 'function') updateStats(); }
     completeExportOverlay(rdxState.pages.length + (rdxState.pages.length > 1 ? ' pages exported' : ' page exported'));
-    toast('Redacted document exported to PDF.', 'success');
+    toast('Redacted document exported to PDF.' + (password ? ' (password protected)' : ''), 'success');
   } catch (err) {
     hideExportOverlay();
     console.warn('Redact PDF export error', err);
@@ -38538,6 +38899,8 @@ async function mfExportSingleResponsePDF(id, ev) {
   const f = mfGetCurrentForm(); if (!f) return;
   const r = mfGetResponses(f).find(x => x.id === id); if (!r) return;
   if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const password = await sarvarcAskExportPassword('Export Response as PDF');
+  if (password === undefined) return; // cancelled
   const savedDraft = mfDraftValues, savedActive = mfActiveResponseId;
   toast('Preparing PDF…', 'info');
   try {
@@ -38548,12 +38911,12 @@ async function mfExportSingleResponsePDF(id, ev) {
     const { jsPDF } = window.jspdf;
     const imgW = canvas.width, imgH = canvas.height;
     const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795);
-    const pdf = new jsPDF({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] });
+    const pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_response.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    toast('Response exported as PDF', 'success');
+    toast('Response exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     console.error(e);
     toast('Export failed: ' + e.message, 'error');
@@ -38568,6 +38931,8 @@ async function mfExportAllResponsesPDF() {
   const responses = mfGetResponses(f).slice().sort((a, b) => a.createdAt - b.createdAt);
   if (!responses.length) { toast('No saved responses yet', 'info'); return; }
   if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const password = await sarvarcAskExportPassword('Export All Responses as PDF');
+  if (password === undefined) return; // cancelled
   toast(`Preparing PDF for ${responses.length} response${responses.length > 1 ? 's' : ''}…`, 'info');
   const savedDraft = mfDraftValues, savedActive = mfActiveResponseId;
   try {
@@ -38581,14 +38946,14 @@ async function mfExportAllResponsesPDF() {
       const imgW = canvas.width, imgH = canvas.height;
       const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795);
       const orientation = mmW > mmH ? 'landscape' : 'portrait';
-      if (!pdf) pdf = new jsPDF({ orientation, unit: 'mm', format: [mmW, mmH] });
+      if (!pdf) pdf = new jsPDF(Object.assign({ orientation, unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
       else pdf.addPage([mmW, mmH], orientation);
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     }
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_responses.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    toast(`Exported ${responses.length} response${responses.length > 1 ? 's' : ''} as one PDF`, 'success');
+    toast(`Exported ${responses.length} response${responses.length > 1 ? 's' : ''} as one PDF` + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     console.error(e);
     toast('Export failed: ' + e.message, 'error');
@@ -38702,18 +39067,20 @@ async function mfExportPDF() {
   const page = document.getElementById('mfPreviewPage');
   if (!f || !page) { toast('Open a form first', 'error'); return; }
   if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const password = await sarvarcAskExportPassword('Export Form as PDF');
+  if (password === undefined) return; // cancelled
   toast('Preparing PDF…', 'info');
   try {
     const canvas = await html2canvas(page, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
     const { jsPDF } = window.jspdf;
     const imgW = canvas.width, imgH = canvas.height;
     const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795); // /2 to undo scale:2, then px->mm
-    const pdf = new jsPDF({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] });
+    const pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    toast('Form exported as PDF', 'success');
+    toast('Form exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch(e) {
     console.error(e);
     toast('Export failed: ' + e.message, 'error');
@@ -39238,6 +39605,8 @@ function mfcPrint() {
 async function mfcExportPDF() {
   const f = mfcGetForm(); if (!f) { toast('Open a form first', 'error'); return; }
   if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const password = await sarvarcAskExportPassword('Export Form as PDF');
+  if (password === undefined) return; // cancelled
   toast('Preparing PDF…', 'info');
   const prevZoom = mfc.zoom, prevSel = mfc.selectedId;
   mfc.zoom = 1; mfc.selectedId = null;
@@ -39253,14 +39622,14 @@ async function mfcExportPDF() {
     for (let i = 0; i < pageEls.length; i++) {
       const canvas = await html2canvas(pageEls[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true });
       const img = canvas.toDataURL('image/png');
-      if (!pdf) pdf = new jsPDF({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] });
+      if (!pdf) pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
       else pdf.addPage([mmW, mmH], mmW > mmH ? 'landscape' : 'portrait');
       pdf.addImage(img, 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     }
     const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    toast('Form exported as PDF', 'success');
+    toast('Form exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     console.error(e);
     toast('Export failed: ' + e.message, 'error');
@@ -44362,20 +44731,22 @@ function dgExportJPEG() {
   toast('Chart downloaded as JPEG', 'success');
 }
 
-function dgExportPDF() {
+async function dgExportPDF() {
   const canvas = dgGetExportCanvas();
   if (!canvas) return;
   if (!window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  const password = await sarvarcAskExportPassword('Export Chart as PDF');
+  if (password === undefined) return; // cancelled
   try {
     const { jsPDF } = window.jspdf;
     const PXMM = 3.7795; // 96dpi px → mm, same conversion used elsewhere in this app
     const margin = 12; // mm, so the chart isn't flush against the page edge
     const imgW = canvas.width / PXMM, imgH = canvas.height / PXMM;
     const pageW = imgW + margin * 2, pageH = imgH + margin * 2;
-    const pdf = new jsPDF({ orientation: pageW > pageH ? 'landscape' : 'portrait', unit: 'mm', format: [pageW, pageH] });
+    const pdf = new jsPDF(Object.assign({ orientation: pageW > pageH ? 'landscape' : 'portrait', unit: 'mm', format: [pageW, pageH] }, sarvarcPdfEncryptionOpts(password)));
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin, imgW, imgH, '', 'FAST');
     pdf.save(dgExportFilename('pdf'));
-    toast('Chart exported as PDF', 'success');
+    toast('Chart exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     console.error(e);
     toast('PDF export failed: ' + e.message, 'error');
