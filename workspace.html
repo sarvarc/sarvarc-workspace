@@ -8371,6 +8371,15 @@ button.dg-show-chip.active { background:var(--blue); }
                   <div class="pdfed-crop-handle w"  data-dir="w"></div>
                   <div class="pdfed-crop-handle e"  data-dir="e"></div>
                 </div>
+                <!-- Canva-style marquee/rubber-band selection box. Lives OUTSIDE the
+                     zoom-scaled #pdfedPlacedZoomWrap on purpose: pdfedInitMarqueeSelect()
+                     sets its left/top/width/height directly from raw mouse client-px
+                     (relative to pdfedCanvasWrap's own rect), so it must sit in an
+                     unscaled coordinate space. Nesting it inside the zoom wrap made the
+                     zoom transform scale those already-final pixel values a second time,
+                     which is what dragged the box away from the actual cursor position
+                     at any zoom level other than 100%. -->
+                <div id="pdfedMarqueeBox" class="pdfed-marquee-box"></div>
                 <!-- persistent placed/stamped images (movable + lockable, like Canva) -->
                 <div id="pdfedPlacedZoomWrap" style="position:absolute;top:0;left:0;pointer-events:none;">
                   <div id="pdfedPlacedBordersLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
@@ -8378,7 +8387,6 @@ button.dg-show-chip.active { background:var(--blue); }
                   <div id="pdfedPlacedTextsLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedTablesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedShapesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
-                  <div id="pdfedMarqueeBox" class="pdfed-marquee-box"></div>
                   <!-- image insert draggable ghost, lives INSIDE the zoom wrap so it scales
                        together with the canvas on zoom in/out, exactly like a stamped image
                        would. All its coordinates are stored/used in raw canvas-px (unscaled
