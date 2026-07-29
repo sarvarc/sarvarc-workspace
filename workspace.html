@@ -2973,6 +2973,24 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   opacity: 1;
   pointer-events: auto;
 }
+/* .ptxt-badge-row (the text-box action strip) uses inset:0 so its fade
+   transition covers the same box as the other chrome, but that meant it was
+   also intercepting every click meant for the actual text underneath the
+   instant the box became selected/editing. These overrides must match (or
+   beat) the specificity of the ".selected .ptxt-chrome" / ".editing
+   .ptxt-chrome" rule above — a plain ".ptxt-badge-row { pointer-events:none }"
+   rule is LESS specific than that rule and gets silently outranked by it even
+   though it appears later in the file, which is why an earlier attempt at
+   this same fix had no effect. The row itself must stay click-through in
+   both states; only its individual badge buttons should ever be clickable. */
+.pdfed-placed-text.selected .ptxt-badge-row,
+.pdfed-placed-text.editing .ptxt-badge-row {
+  pointer-events: none !important;
+}
+.pdfed-placed-text.selected .ptxt-badge-row .pdfed-badge-btn,
+.pdfed-placed-text.editing .ptxt-badge-row .pdfed-badge-btn {
+  pointer-events: auto !important;
+}
 /* Text action badges (fwd/back/arrange/delete/lock): same "dim until
    hovered" toolbar feel as placed shapes/images (.pdfed-badge-row), with the
    identical asymmetric timing — quick brighten on hover, a touch slower
