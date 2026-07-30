@@ -422,6 +422,13 @@ select.prop-input { cursor: pointer; }
   transition: all 0.18s ease; box-shadow: 0 4px 14px rgba(26,79,216,0.22); flex: 0 0 auto;
 }
 .conv-dl-btn:hover { box-shadow: 0 6px 20px rgba(26,79,216,0.3); transform: translateY(-1px); filter: brightness(1.04); }
+.conv-ws-btn {
+  padding: 9px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 600;
+  color: var(--primary); background: transparent; border: 1.5px solid var(--primary);
+  cursor: pointer; transition: all 0.18s ease; flex: 0 0 auto;
+}
+.conv-ws-btn:hover { background: rgba(26,79,216,0.08); transform: translateY(-1px); }
+.conv-ws-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .conv-progress {
   height: 4px; background: var(--border); border-radius: 2px;
   margin-top: 10px; overflow: hidden; display: none;
@@ -2239,7 +2246,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         showConvProgress(80);
         const outBytes = await outDoc.save();
         const baseName = spFile.name.replace(/\.pdf$/i, '');
-        dlBlob(new Blob([outBytes], { type: 'application/pdf' }), `${baseName}_${parts[0].label}.pdf`);
+        dlBlob(new Blob([outBytes], { type: 'application/pdf' }), `${baseName}_${parts[0].label}.pdf`, 'pdf');
         showConvProgress(100);
         setConvStatus(`Done — ${parts[0].pages.length} page${parts[0].pages.length !== 1 ? 's' : ''} extracted.`, 'ok');
       } else {
@@ -2339,6 +2346,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
           <button id="cc-copy" style="padding:9px 20px;background:var(--primary);color:white;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--primary-glow)'" onmouseout="this.style.background='var(--primary)'">Copy Result</button>
           <button id="cc-swap" style="padding:9px 16px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Use as Input</button>
           <button id="cc-clear" style="padding:9px 16px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Clear</button>
+          <button id="cc-push-ws" class="conv-ws-btn" style="margin-left:auto;">Push to Workspace →</button>
         </div>
       </div>`;
 
@@ -2386,6 +2394,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         btn.textContent = '✓ Copied!';
         setTimeout(() => btn.textContent = orig, 1800);
       });
+    });
+    main.querySelector('#cc-push-ws').addEventListener('click', () => {
+      const wsBtn = main.querySelector('#cc-push-ws');
+      if (!out.value) { alert('Convert some text first, there\'s nothing to push yet.'); return; }
+      const blob = new Blob([out.value], { type: 'text/plain' });
+      pushToWorkspace(blob, 'case-converted-text.txt', 'text', wsBtn);
     });
   }
 
@@ -3274,7 +3288,53 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     if (p) p.style.display = 'none';
   }
 
-  function dlBlob(blob, name) {
+  // ── Push to Workspace (same-origin IndexedDB handoff) ──────
+  // Converter (sarvarc.com) and Workspace (sarvarc.com/workspace) share an
+  // origin, so we can hand a result blob straight to Workspace without a
+  // server: stash it in IndexedDB under a fixed key, then navigate to
+  // /workspace?import=pending. Workspace reads it on load, clears the key,
+  // and routes it into the right module by wsType.
+  const WS_HANDOFF_DB = 'sarvarc-handoff';
+  const WS_HANDOFF_STORE = 'files';
+  const WS_HANDOFF_KEY = 'pending';
+
+  function wsHandoffOpenDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(WS_HANDOFF_DB, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(WS_HANDOFF_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function pushToWorkspace(blob, name, wsType, btn) {
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      const db = await wsHandoffOpenDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(WS_HANDOFF_STORE, 'readwrite');
+        tx.objectStore(WS_HANDOFF_STORE).put({ blob, name, wsType, ts: Date.now() }, WS_HANDOFF_KEY);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      window.location.href = '/workspace?import=pending';
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Push to Workspace →'; }
+      alert("Couldn't push to Workspace: " + (e.message || e));
+    }
+  }
+
+  // wsType: pass one of these to show a "Push to Workspace →" button for
+  // results that belong in a Workspace module — routing is by what the
+  // content actually IS, not just its file extension:
+  //   'pdf'   → PDF Editor (the result is itself a PDF)
+  //   'table' → Data Arrangement (rows/columns: CSV, spreadsheet exports)
+  //   'text'  → the Workspace document, dropped in as an editable text
+  //             block (written/prose content: case-converted text,
+  //             pretty-printed JSON/XML, extracted plain text, etc.)
+  // Leave undefined/null for everything else (video, audio, images, zips,
+  // and anything else that isn't headed into a Workspace module).
+  function dlBlob(blob, name, wsType) {
     const url = URL.createObjectURL(blob);
     const status = document.getElementById('convStatus');
     if (!status) { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); return; }
@@ -3296,15 +3356,22 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         btn.textContent = 'Opened in new tab — use Save/Share to keep it';
       }
     };
+    box.appendChild(info); box.appendChild(btn);
+    if (wsType) {
+      const wsBtn = document.createElement('button');
+      wsBtn.className = 'conv-ws-btn'; wsBtn.textContent = 'Push to Workspace →';
+      wsBtn.onclick = function() { pushToWorkspace(blob, name, wsType, wsBtn); };
+      box.appendChild(wsBtn);
+    }
     const fallback = document.createElement('a');
     fallback.className = 'conv-footer-link'; fallback.href = '#';
     fallback.style.cssText = 'display:block;width:100%;text-align:center;font-size:11px;margin-top:8px;';
     fallback.textContent = "Download didn't start? Open file in a new tab";
     fallback.onclick = function(e) { e.preventDefault(); window.open(url, '_blank'); };
-    box.appendChild(info); box.appendChild(btn); box.appendChild(fallback);
+    box.appendChild(fallback);
     status.insertAdjacentElement('afterend', box);
   }
-  function dlText(text, name, mime) { dlBlob(new Blob([text], { type: mime }), name); }
+  function dlText(text, name, mime, wsType) { dlBlob(new Blob([text], { type: mime }), name, wsType); }
 
   // ── Smart page-break image pagination ─────────────────
   // Splits a tall screenshot/render canvas into A4 pages WITHOUT cutting
@@ -3447,7 +3514,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     await stampSarvarcBranding(doc);
     showConvProgress(85);
     const pdfBytes = await doc.save();
-    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), files[0].name.replace(/\.[^.]+$/, '') + '_converted.pdf');
+    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), files[0].name.replace(/\.[^.]+$/, '') + '_converted.pdf', 'pdf');
   }
 
   // ── PDF → Images (PNG or JPG) ────────────────────────
@@ -3564,7 +3631,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     const outName = file.name.replace(/\.pdf$/i, '') + '_compressed.pdf';
     const savedPct = originalSize > 0 ? Math.round((1 - newSize / originalSize) * 100) : 0;
 
-    dlBlob(outBlob, outName);
+    dlBlob(outBlob, outName, 'pdf');
 
     const status = document.getElementById('convStatus');
     if (status) {
@@ -3613,7 +3680,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     showConvProgress(94);
     const pdfBytes = await outDoc.save();
     const outName = 'merged_' + files.length + '_files.pdf';
-    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), outName);
+    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), outName, 'pdf');
 
     const status = document.getElementById('convStatus');
     if (status) {
@@ -3727,7 +3794,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
     showConvProgress(95);
     const pdfBytes = pdf.output('arraybuffer');
-    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), baseName + '.pdf');
+    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), baseName + '.pdf', 'pdf');
   }
 
   // ── URL → PDF ────────────────────────────────────────
@@ -3875,7 +3942,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
         const pdf2 = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
         addSmartPagedImage(pdf2, canvas2, 0.9);
         showConvProgress(96);
-        dlBlob(new Blob([pdf2.output('arraybuffer')], { type: 'application/pdf' }), baseName + '.pdf');
+        dlBlob(new Blob([pdf2.output('arraybuffer')], { type: 'application/pdf' }), baseName + '.pdf', 'pdf');
         return;
       } catch(e3) {
         setConvStatus('Could not capture this URL — external screenshot/proxy services were unreachable (possibly blocked by an ad-blocker, VPN, or firewall). Try disabling any ad-blocker, or use "Save Page As → HTML" in your browser and upload that file instead. (' + e3.message + ')', 'err');
@@ -3910,7 +3977,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     addSmartPagedImage(pdf, srcCanvas, 0.92);
 
     showConvProgress(96);
-    dlBlob(new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' }), baseName + '.pdf');
+    dlBlob(new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' }), baseName + '.pdf', 'pdf');
   }
 
     // ── HTML → PDF ───────────────────────────────────────
@@ -3976,7 +4043,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
     showConvProgress(95);
     const pdfBytes = pdf.output('arraybuffer');
-    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), baseName + '.pdf');
+    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), baseName + '.pdf', 'pdf');
   }
 
   // ── DOCX → PDF ───────────────────────────────────────
@@ -4145,7 +4212,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     setConvStatus('Building PDF…', '');
 
     const pdfBytes = pdf.output('arraybuffer');
-    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), baseName + '.pdf');
+    dlBlob(new Blob([pdfBytes], { type: 'application/pdf' }), baseName + '.pdf', 'pdf');
   }
 
     // ── TXT → CSV ────────────────────────────────────────
@@ -4154,7 +4221,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     const rows = text.split('\n').map(line =>
       line.split(/\t|  +/).map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')
     );
-    dlText(rows.join('\n'), files[0].name.replace(/\.[^.]+$/,'') + '.csv', 'text/csv');
+    dlText(rows.join('\n'), files[0].name.replace(/\.[^.]+$/,'') + '.csv', 'text/csv', 'table');
   }
 
   // ── CSV → JSON ───────────────────────────────────────
@@ -4188,7 +4255,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       keys.map(k => `"${k}"`).join(','),
       ...arr.map(row => keys.map(k => `"${String(row[k] ?? '').replace(/"/g,'""')}"`).join(','))
     ].join('\n');
-    dlText(csv, files[0].name.replace(/\.[^.]+$/,'') + '.csv', 'text/csv');
+    dlText(csv, files[0].name.replace(/\.[^.]+$/,'') + '.csv', 'text/csv', 'table');
   }
 
   // ── TXT → Excel ──────────────────────────────────────
@@ -4615,7 +4682,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
   async function convertJSONToTxt(files) {
     const text = await files[0].text();
     const pretty = JSON.stringify(JSON.parse(text), null, 2);
-    dlText(pretty, files[0].name.replace(/\.[^.]+$/,'') + '.txt', 'text/plain');
+    dlText(pretty, files[0].name.replace(/\.[^.]+$/,'') + '.txt', 'text/plain', 'text');
   }
 
   // ── XML → JSON ───────────────────────────────────────
@@ -4641,7 +4708,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       return obj;
     }
     const json = JSON.stringify(xmlNodeToObj(doc.documentElement), null, 2);
-    dlText(json, files[0].name.replace(/\.[^.]+$/,'') + '.json', 'application/json');
+    dlText(json, files[0].name.replace(/\.[^.]+$/,'') + '.json', 'application/json', 'text');
   }
 
   // ── CSV → Excel ──────────────────────────────────────
@@ -4658,7 +4725,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       res.push(cur); return res;
     }));
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-    XLSX.writeFile(wb, files[0].name.replace(/\.[^.]+$/,'') + '.xlsx');
+    const outBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const outBlob = new Blob([outBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    dlBlob(outBlob, files[0].name.replace(/\.[^.]+$/,'') + '.xlsx', 'table');
   }
 
   // ── Excel → CSV ──────────────────────────────────────
@@ -4667,7 +4736,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
     const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const csv = XLSX.utils.sheet_to_csv(ws);
-    dlText(csv, files[0].name.replace(/\.[^.]+$/,'') + '.csv', 'text/csv');
+    dlText(csv, files[0].name.replace(/\.[^.]+$/,'') + '.csv', 'text/csv', 'table');
   }
 
   // ── JSON → XML ───────────────────────────────────────
@@ -4681,7 +4750,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       return `<${tag}>\n${Object.entries(obj).map(([k,v]) => '  ' + toXML(v, k)).join('\n')}\n</${tag}>`;
     }
     const root = Array.isArray(data) ? `<root>\n${data.map(i => toXML(i,'item')).join('\n')}\n</root>` : toXML(data, 'root');
-    dlText('<?xml version="1.0" encoding="UTF-8"?>\n' + root, files[0].name.replace(/\.[^.]+$/,'') + '.xml', 'application/xml');
+    dlText('<?xml version="1.0" encoding="UTF-8"?>\n' + root, files[0].name.replace(/\.[^.]+$/,'') + '.xml', 'application/xml', 'text');
   }
 
   // ── JSZip lazy loader ────────────────────────────────
