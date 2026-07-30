@@ -3504,9 +3504,35 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
       showConvProgress(30);
       const ab = await file.arrayBuffer();
       const bytes = new Uint8Array(ab);
+
+      // Detect the real format from magic bytes rather than trusting
+      // file.type (unreliable across browsers/OSes), so we route each
+      // image to the right pdf-lib embedder instead of blindly assuming
+      // JPEG — which caused "SOI not found in JPEG" for PNG/WebP/etc.
+      const isPng  = bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+      const isJpg  = bytes.length > 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+      const isWebp = bytes.length > 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+                     bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+
       let img;
-      if (file.type === 'image/png') img = await doc.embedPng(bytes);
-      else img = await doc.embedJpg(bytes);
+      if (isPng) {
+        img = await doc.embedPng(bytes);
+      } else if (isJpg) {
+        img = await doc.embedJpg(bytes);
+      } else if (isWebp) {
+        // pdf-lib can't embed WebP directly — decode it via canvas and
+        // re-encode as PNG bytes first.
+        const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/webp' }));
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.getContext('2d').drawImage(bitmap, 0, 0);
+        const pngDataUrl = canvas.toDataURL('image/png');
+        const pngBytes = Uint8Array.from(atob(pngDataUrl.split(',')[1]), c => c.charCodeAt(0));
+        img = await doc.embedPng(pngBytes);
+      } else {
+        throw new Error(`Unsupported image format in "${file.name}". Please use JPG, PNG, or WebP.`);
+      }
       const page = doc.addPage([img.width, img.height]);
       page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
     }
