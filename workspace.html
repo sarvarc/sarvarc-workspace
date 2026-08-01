@@ -3958,6 +3958,58 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   display: flex; gap: 10px; justify-content: flex-end;
   padding: 16px 24px 22px; border-top: 1px solid var(--border); flex-shrink: 0;
 }
+
+/* ── Data Arrangement: cell dropdown lists (Excel-style "Data Validation") ── */
+.da-dropdown-modal { max-width: 440px; }
+.da-dropdown-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.da-dropdown-target { font-size: 11.5px; color: var(--text2); }
+.da-dropdown-target b { color: var(--text); font-family: 'Inter', sans-serif; }
+.da-dropdown-scope { display: flex; gap: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+.da-dropdown-scope-btn {
+  flex: 1; text-align: center; padding: 8px 6px; border-radius: 7px; cursor: pointer;
+  font-size: 11.5px; font-weight: 700; color: var(--text2); transition: all 0.15s; user-select: none;
+  font-family: 'Inter', sans-serif;
+}
+.da-dropdown-scope-btn.active { background: var(--blue); color: #fff; box-shadow: 0 2px 8px rgba(0,194,255,0.3); }
+.da-dropdown-textarea {
+  width: 100%; min-height: 130px; resize: vertical; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.6;
+  outline: none; font-family: 'DM Sans', sans-serif; transition: border-color 0.15s;
+}
+.da-dropdown-textarea:focus { border-color: var(--blue); }
+.da-dropdown-remove-btn {
+  padding: 9px 16px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.35);
+  background: rgba(239,68,68,0.08); color: #ef4444; cursor: pointer; margin-right: auto; transition: all 0.15s;
+  font-family: 'Inter', sans-serif; font-weight: 600;
+}
+.da-dropdown-remove-btn:hover { background: rgba(239,68,68,0.16); }
+
+/* select rendered in a cell that has a dropdown list attached */
+.da-td-select {
+  width: 100%; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237BA8C4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center;
+  background-size: 10px; border: 1px solid transparent; border-radius: 4px;
+  color: var(--text); font-family: inherit; font-size: inherit;
+  padding: 6px 22px 6px 8px; cursor: pointer; outline: none; box-sizing: border-box;
+}
+.da-td-select:hover { background-color: var(--surface2); }
+.da-td-select:focus { border-color: var(--border2); box-shadow: 0 0 0 2px rgba(0,194,255,0.12); }
+
+/* right-click context menu for a data cell */
+.da-ctx-menu {
+  position: fixed; z-index: 500; min-width: 190px; background: var(--bg2);
+  border: 1px solid var(--border2); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  padding: 5px; display: none;
+}
+.da-ctx-item {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; font-size: 12px; color: var(--text); transition: background 0.12s;
+}
+.da-ctx-item:hover { background: var(--bg3); }
+.da-ctx-item svg { flex-shrink: 0; color: var(--text2); }
+.da-ctx-item-danger { color: #ef4444; }
+.da-ctx-item-danger svg { color: #ef4444; }
+[data-theme="light"] .da-ctx-menu { box-shadow: 0 16px 40px rgba(16,40,90,0.18); }
 .pdfed-export-download-btn {
   display: flex; align-items: center; gap: 7px; justify-content: center;
   padding: 10px 22px; font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
@@ -7897,6 +7949,10 @@ button.dg-show-chip.active { background:var(--blue); }
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 <span class="pdfed-slide-label">Close</span>
               </button>
+              <button class="pdfed-appbar-btn pdfed-slide-btn" id="pdfedRefineBtn" onclick="pdfedOpenRefineReportModal()" style="display:none" title="One-click: sync headers, right-size fonts, straighten tables">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <span class="pdfed-slide-label">Refine Report</span>
+              </button>
               <button class="pdfed-appbar-btn primary pdfed-slide-btn" id="pdfedExportBtn" onclick="pdfedOpenExportModal()" style="display:none">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 <span class="pdfed-slide-label">Export</span>
@@ -9010,6 +9066,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="da-tool-btn" onclick="daAutoFit()" title="Auto-fit column widths"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/></svg> Auto-fit</button>
               <button class="da-tool-btn" onclick="daAddRow()" title="Add a row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Row</button>
               <button class="da-tool-btn" onclick="daAddColumn()" title="Add a column"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Column</button>
+              <button class="da-tool-btn" onclick="daOpenDropdownModal()" title="Turn a cell (or a whole column) into an Excel-style dropdown list — right-click any cell for the same option"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="8 10 12 14 16 10"/></svg> Dropdown</button>
             </div>
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
@@ -10859,6 +10916,125 @@ button.dg-show-chip.active { background:var(--blue); }
 
   </div>
 </div>
+
+<!-- DATA ARRANGEMENT: Dropdown List modal — Excel-style "Data Validation".
+     Lets a person turn a single cell, or an entire column, into a picker
+     with a fixed set of choices instead of free-typed text. -->
+<div class="pdfed-insert-modal-overlay" id="daDropdownOverlay" onmousedown="if(event.target===this)daCloseDropdownModal()">
+  <div class="pdfed-export-modal da-dropdown-modal">
+
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="8 10 12 14 16 10"/></svg> Dropdown List</h3>
+        <div class="pdfed-export-sub">Give this cell a fixed set of choices, like a dropdown in Excel</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="daCloseDropdownModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="da-dropdown-body">
+      <div class="da-dropdown-target">Applies to <b id="daDropdownCellLabel">—</b></div>
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Apply to</label>
+        <div class="da-dropdown-scope">
+          <div class="da-dropdown-scope-btn" id="daDropdownScopeCell" onclick="daSetDropdownScope('cell')">Just this cell</div>
+          <div class="da-dropdown-scope-btn" id="daDropdownScopeColumn" onclick="daSetDropdownScope('column')">Entire column</div>
+        </div>
+      </div>
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Choices (one per line)</label>
+        <textarea class="da-dropdown-textarea" id="daDropdownOptionsInput" placeholder="Yes&#10;No&#10;Maybe" spellcheck="false"></textarea>
+      </div>
+
+      <div class="pdfed-export-note">The cell will show a dropdown arrow — clicking it lets you pick one of these choices instead of typing. Existing text that isn't in the list is kept as an extra option so nothing gets lost.</div>
+    </div>
+
+    <div class="pdfed-export-footer">
+      <button type="button" class="da-dropdown-remove-btn" id="daDropdownRemoveBtn" onclick="daRemoveDropdownFromModal()" style="display:none">Remove Dropdown</button>
+      <button class="btn-secondary" onclick="daCloseDropdownModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" onclick="daSaveDropdownModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- REFINE REPORT — one-click pass over every page in the document: syncs
+     heading styles, gives every table the same header treatment, shrinks/grows
+     table fonts so nothing overflows its column, and straightens table
+     placement. Asks just a couple of quick questions first so the result
+     matches what the report is actually for. -->
+<div class="pdfed-insert-modal-overlay" id="pdfedRefineOverlay" onmousedown="if(event.target===this)pdfedCloseRefineModal()">
+  <div class="pdfed-export-modal da-dropdown-modal">
+
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Refine Report</h3>
+        <div class="pdfed-export-sub">Sync headers, right-size fonts, and straighten every table across all <span id="pdfedRefinePageCount">0</span> page(s)</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="pdfedCloseRefineModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="da-dropdown-body">
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Document style</label>
+        <div class="da-dropdown-scope" id="pdfedRefineThemeGroup" style="flex-wrap:wrap">
+          <div class="da-dropdown-scope-btn active" data-theme="general" onclick="pdfedSetRefineTheme('general',this)">General</div>
+          <div class="da-dropdown-scope-btn" data-theme="financial" onclick="pdfedSetRefineTheme('financial',this)">Financial</div>
+          <div class="da-dropdown-scope-btn" data-theme="corporate" onclick="pdfedSetRefineTheme('corporate',this)">Corporate</div>
+          <div class="da-dropdown-scope-btn" data-theme="modern" onclick="pdfedSetRefineTheme('modern',this)">Modern</div>
+        </div>
+      </div>
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Table alignment</label>
+        <div class="da-dropdown-scope" id="pdfedRefineAlignGroup">
+          <div class="da-dropdown-scope-btn active" data-align="left" onclick="pdfedSetRefineAlign('left',this)">Left margin</div>
+          <div class="da-dropdown-scope-btn" data-align="center" onclick="pdfedSetRefineAlign('center',this)">Centered</div>
+          <div class="da-dropdown-scope-btn" data-align="stretch" onclick="pdfedSetRefineAlign('stretch',this)">Stretch to width</div>
+        </div>
+      </div>
+
+      <label class="pdfed-export-checkbox">
+        <input type="checkbox" id="pdfedRefineAdjustA4" checked>
+        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        Adjust every page to A4 (fits odd-sized pages in cleanly, nothing cropped or stretched)
+      </label>
+
+      <label class="pdfed-export-checkbox">
+        <input type="checkbox" id="pdfedRefineAutoFit" checked>
+        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        Auto-fit table fonts so nothing overflows a column
+      </label>
+
+      <label class="pdfed-export-checkbox">
+        <input type="checkbox" id="pdfedRefineSyncHeadings" checked>
+        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        Sync heading font &amp; scale headings to their table
+      </label>
+
+      <div class="pdfed-export-note">This re-styles every table's header row, right-aligns numeric columns, bolds total rows, and straightens table placement on every page. Headings pick up the report's font and are sized off the table they introduce — a heading over a compact table stays modest, one over a roomy table reads bigger — instead of one fixed size everywhere. Any page that isn't already A4 is fit onto a clean A4 sheet first — scaled to fit, never stretched or cropped — with everything on it (tables, text, images) rescaled to match, so the whole report reads as one consistent, easy-to-read size. It's one undo-able step (Ctrl+Z), so nothing is lost if the result isn't what you wanted.</div>
+    </div>
+
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="pdfedCloseRefineModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" id="pdfedRefineRunBtn" onclick="pdfedRunRefineReportFromModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Refine Report
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Right-click context menu for a Data Arrangement cell -->
+<div class="da-ctx-menu" id="daCellCtxMenu"></div>
 
 <!-- SHARED PASSWORD-PROTECT PROMPT (used by one-click PDF export flows that
      don't already have a full export settings modal of their own) -->
@@ -13412,7 +13588,7 @@ async function pushImageToPdfEditor(idx, e) {
     pdfed.file = { name: img.name || 'Image Document' };
     pdfed.pages = [newPg];
     pdfed.active = -1;
-    ['pdfedExportBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
+    ['pdfedExportBtn','pdfedRefineBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
     });
@@ -14993,7 +15169,7 @@ async function pdfedRestore() {
     pdfed.active = -1;
     pdfed.zoom = saved.zoom || 1.0;
 
-    ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+    ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = '';
     });
@@ -15265,7 +15441,7 @@ async function pdfedLoadFileObject(file) {
       pdfed.pages.push({type:'pdf', pageNum:i, dataUrl:null, modified:false, edits:{}, textBlocks:[], label:'Page '+i});
     }
     // show UI
-    ['pdfedExportBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
+    ['pdfedExportBtn','pdfedRefineBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = '';
     });
@@ -19647,6 +19823,8 @@ function pdfedResetToNoDocument() {
   document.getElementById('pdfedCanvasWrap').style.display = 'none';
   pdfedUpdatePageActions();
   document.getElementById('pdfedExportBtn').style.display = 'none';
+  const refineBtnEl = document.getElementById('pdfedRefineBtn');
+  if (refineBtnEl) refineBtnEl.style.display = 'none';
   const exportBtn2 = document.getElementById('pdfedExportBtn2');
   if (exportBtn2) exportBtn2.style.display = 'none';
   document.getElementById('pdfedCloseBtn').style.display = 'none';
@@ -19666,7 +19844,7 @@ function pdfedResetToNoDocument() {
 function pdfedReopenAfterLastPageUndo(restoredFileName) {
   pdfed.pdfDoc = null;
   pdfed.file = { name: restoredFileName || 'Untitled Document' };
-  ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+  ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
   });
@@ -20032,7 +20210,7 @@ async function confirmInsertPage() {
       // Bring up the editor chrome the same way opening a PDF would.
       pdfed.pdfDoc = null;
       pdfed.file = { name: 'Untitled Document' };
-      ['pdfedExportBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn','pdfedRefineBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -27652,6 +27830,7 @@ function pdfedRenderPlacedTables(idx) {
         const cell = document.createElement('div');
         cell.className = 'pdfed-table-cell' + (item.headerRow && r === 0 ? ' pdfed-table-head' : '');
         cell.style.fontSize = item.fontSize + 'px';
+        if (item.fontFamily) cell.style.fontFamily = pdfedFontCss(item.fontFamily);
         cell.style.pointerEvents = item.locked ? 'none' : 'auto';
         cell.contentEditable = !item.locked;
         cell.spellcheck = false;
@@ -28170,23 +28349,44 @@ function pdfedDrawPlacedTablesOnCtx(ctx, list) {
       for (let c = 0; c < item.cols; c++) {
         const w = item.colWidths[c];
         const isHead = item.headerRow && r === 0;
-        ctx.fillStyle = isHead ? 'rgba(0,194,255,0.16)' : 'rgba(255,255,255,0.94)';
+        // Same per-cell "Auto Format" styles the live DOM editor applies
+        // (pdfedRenderPlacedTables): totals/subtotal bold+fill, custom
+        // color, italics, alignment, top rule. Previously this raster path
+        // only knew about the header row, so anything styled after that —
+        // bold Total rows, blue-tinted subtotal bands, etc. — silently
+        // vanished from the exported PDF/PNG even though it was visible
+        // on screen. Reading item.cellStyles here keeps the two in sync.
+        const fmtSt = item.cellStyles && item.cellStyles[r] && item.cellStyles[r][c];
+
+        ctx.fillStyle = fmtSt && fmtSt.fill ? fmtSt.fill : (isHead ? 'rgba(0,194,255,0.16)' : 'rgba(255,255,255,0.94)');
         ctx.fillRect(x, y, w, h);
         ctx.strokeStyle = 'rgba(0,0,0,0.4)';
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, w, h);
+        if (fmtSt && fmtSt.topBorder) {
+          ctx.strokeStyle = 'rgba(10,25,45,0.55)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, y + 1);
+          ctx.lineTo(x + w, y + 1);
+          ctx.stroke();
+        }
         const text = (item.cells[r] && item.cells[r][c]) || '';
         if (text) {
-          ctx.fillStyle = '#101820';
-          ctx.font = `${isHead ? '700' : '400'} ${item.fontSize}px Inter, Arial, sans-serif`;
+          const bold = isHead || (fmtSt && fmtSt.bold);
+          const italic = fmtSt && fmtSt.italic;
+          ctx.fillStyle = (fmtSt && fmtSt.color) ? fmtSt.color : '#101820';
+          ctx.font = `${italic ? 'italic ' : ''}${bold ? '700' : '400'} ${item.fontSize}px Inter, Arial, sans-serif`;
           ctx.textBaseline = 'middle';
-          ctx.textAlign = 'left';
+          const align = (fmtSt && fmtSt.align) || 'left';
+          ctx.textAlign = align;
+          const tx = align === 'right' ? (x + w - 6) : align === 'center' ? (x + w / 2) : (x + 6);
           // Simple clip so overflowing text doesn't spill into neighboring cells
           ctx.save();
           ctx.beginPath();
           ctx.rect(x, y, w, h);
           ctx.clip();
-          ctx.fillText(text, x + 6, y + h / 2, w - 12);
+          ctx.fillText(text, tx, y + h / 2, w - 12);
           ctx.restore();
         }
         x += w;
@@ -28580,7 +28780,7 @@ async function pdfedEnsureBlankDocument() {
   }];
   pdfed.pdfDoc = null;
   pdfed.file = { name: 'Untitled Document' };
-  ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+  ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
   });
@@ -29094,7 +29294,7 @@ async function pdfedOpenImageAsPage(dataUrl, file) {
   if (isNewDoc) {
     pdfed.pdfDoc = null;
     pdfed.file = { name: label || 'Untitled Document' };
-    ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+    ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = '';
     });
@@ -30232,6 +30432,8 @@ function pdfedClosePdf() {
   document.getElementById('pdfedCanvasWrap').style.display = 'none';
   pdfedUpdatePageActions();
   document.getElementById('pdfedExportBtn').style.display = 'none';
+  const refineBtnEl = document.getElementById('pdfedRefineBtn');
+  if (refineBtnEl) refineBtnEl.style.display = 'none';
   const exportBtn2 = document.getElementById('pdfedExportBtn2');
   if (exportBtn2) exportBtn2.style.display = 'none';
   document.getElementById('pdfedCloseBtn').style.display = 'none';
@@ -32626,7 +32828,7 @@ function daNormalize(aoa) {
 function daAddDataset(name, aoa) {
   const { headers, rows } = daNormalize(aoa);
   const id = 'ds' + (++daIdCounter);
-  daState.datasets.push({ id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, frozen: true });
+  daState.datasets.push({ id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, frozen: true, colDropdowns: {}, cellDropdowns: {} });
   daState.activeId = id;
 }
 
@@ -32640,7 +32842,7 @@ function daCreateBlankTable() {
   const rows = Array.from({ length: rowCount }, () => new Array(colCount).fill(''));
   const existingBlankCount = daState.datasets.filter(d => /^Table \d+$/.test(d.name)).length;
   const id = 'ds' + (++daIdCounter);
-  daState.datasets.push({ id, name: `Table ${existingBlankCount + 1}`, headers, rows, frozen: true });
+  daState.datasets.push({ id, name: `Table ${existingBlankCount + 1}`, headers, rows, frozen: true, colDropdowns: {}, cellDropdowns: {} });
   daState.activeId = id;
   daWorkspaceRefreshVisibility();
   daRenderTabs();
@@ -33402,8 +33604,13 @@ function daCellFocus(el, ri, ci) {
   const ds = daGetActive(); if (!ds) return;
   daActiveCell = { row: ri, col: ci };
   const raw = String((ds.rows[ri] || [])[ci] ?? '');
-  el.textContent = raw;
-  daPlaceCaretEnd(el);
+  // Dropdown cells are real <select> elements, not contenteditable text —
+  // rewriting textContent would blow away their <option> list, and there's
+  // no caret to place, so only the free-typed text cells get this treatment.
+  if (el.tagName !== 'SELECT') {
+    el.textContent = raw;
+    daPlaceCaretEnd(el);
+  }
   daUpdateFormulaBar(ri, ci, raw);
 }
 
@@ -33634,10 +33841,11 @@ function daRenderTable() {
   html += `</tr><tr>`;
   html += `<th class="da-rownum">#</th>`;
   ds.headers.forEach((h, ci) => {
-    html += `<th>
+    html += `<th oncontextmenu="daCellContextMenu(event, -1, ${ci});return false;">
       <div class="da-th-cell" contenteditable="true" spellcheck="false"
            onblur="daRenameHeader(${ci}, this.textContent)"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${daEsc(h)}<span class="da-th-type">${colTypes[ci]}</span><span class="da-th-del" title="Delete column" onclick="daDeleteColumn(${ci})">×</span></div>
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+           title="Right-click for a column-wide dropdown list">${daEsc(h)}<span class="da-th-type">${colTypes[ci]}</span><span class="da-th-del" title="Delete column" onclick="daDeleteColumn(${ci})">×</span></div>
       ${colTypes[ci] === 'NUM' ? `<div class="da-th-ops">
         <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '+' ? ' da-th-opbtn-active' : ''}" title="Sum this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '+')">+</button>
         <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '-' ? ' da-th-opbtn-active' : ''}" title="Subtract down this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '-')">−</button>
@@ -33674,11 +33882,30 @@ function daRenderTable() {
           isFormula ? 'da-cell-formula' : '',
           isError ? 'da-cell-error' : ''
         ].filter(Boolean).join(' ');
-        html += `<td><div class="da-td-cell${cls ? ' ' + cls : ''}" contenteditable="true" spellcheck="false"
-             onfocus="daCellFocus(this, ${ri}, ${ci})"
-             onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-             title="${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : '')}">${!isFormula && displayRaw === '' ? '—' : showVal}</div></td>`;
+        const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
+        if (dropdownOpts && !isFormula) {
+          let matched = false;
+          let optsHtml = dropdownOpts.map(opt => {
+            const isSel = opt === val;
+            if (isSel) matched = true;
+            return `<option value="${daEsc(opt)}"${isSel ? ' selected' : ''}>${daEsc(opt)}</option>`;
+          }).join('');
+          if (!matched) {
+            optsHtml = `<option value="${daEsc(val)}" selected>${val === '' ? '—' : daEsc(val)}</option>` + optsHtml;
+          }
+          html += `<td><select class="da-td-select" data-da-dropdown="1"
+               onfocus="daCellFocus(this, ${ri}, ${ci})"
+               onchange="daUpdateCell(${ri}, ${ci}, this.value)"
+               oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
+               title="Dropdown list, right-click to edit choices">${optsHtml}</select></td>`;
+        } else {
+          html += `<td><div class="da-td-cell${cls ? ' ' + cls : ''}" contenteditable="true" spellcheck="false"
+               onfocus="daCellFocus(this, ${ri}, ${ci})"
+               onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+               oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
+               title="${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : 'Right-click to add a dropdown list')}">${!isFormula && displayRaw === '' ? '—' : showVal}</div></td>`;
+        }
       });
       html += `</tr>`;
     });
@@ -33753,6 +33980,18 @@ function daAddColumn() {
 function daDeleteRow(rowIdx) {
   const ds = daGetActive(); if (!ds) return;
   ds.rows.splice(rowIdx, 1);
+  // Single-cell dropdowns are keyed by "row_col" — shift every row below the
+  // deleted one up by one so they stay attached to the right cell.
+  if (ds.cellDropdowns) {
+    const shifted = {};
+    Object.keys(ds.cellDropdowns).forEach(k => {
+      const [rStr, cStr] = k.split('_');
+      const r = Number(rStr), c = Number(cStr);
+      if (r === rowIdx) return;
+      shifted[(r > rowIdx ? r - 1 : r) + '_' + c] = ds.cellDropdowns[k];
+    });
+    ds.cellDropdowns = shifted;
+  }
   daRecalcColumnOps(ds);
   daRenderTable();
 }
@@ -33773,8 +34012,182 @@ function daDeleteColumn(colIdx) {
     });
     ds.colOps = shifted;
   }
+  // Same left-shift for any dropdown lists, cell- or column-level, so they
+  // keep pointing at the right column/cell after the delete.
+  daEnsureDropdownStore(ds);
+  const shiftedCol = {};
+  Object.keys(ds.colDropdowns).forEach(k => {
+    const ci = Number(k);
+    if (ci === colIdx) return;
+    shiftedCol[ci > colIdx ? ci - 1 : ci] = ds.colDropdowns[k];
+  });
+  ds.colDropdowns = shiftedCol;
+  const shiftedCell = {};
+  Object.keys(ds.cellDropdowns).forEach(k => {
+    const [rStr, cStr] = k.split('_');
+    const r = Number(rStr), c = Number(cStr);
+    if (c === colIdx) return;
+    shiftedCell[r + '_' + (c > colIdx ? c - 1 : c)] = ds.cellDropdowns[k];
+  });
+  ds.cellDropdowns = shiftedCell;
   daRecalcColumnOps(ds);
   daRenderTable();
+}
+
+// ─── Cell Dropdown Lists ("Data Validation", Excel-style) ───
+// A dropdown can be attached at two levels:
+//   ds.cellDropdowns["r_c"] -> array of choices for one specific cell (wins)
+//   ds.colDropdowns[ci]     -> array of choices applied to every cell in a column
+// Older saved datasets (from before this feature existed) won't have either
+// object yet, so every entry point defends against that with daEnsureDropdownStore.
+function daEnsureDropdownStore(ds) {
+  if (!ds.colDropdowns) ds.colDropdowns = {};
+  if (!ds.cellDropdowns) ds.cellDropdowns = {};
+}
+
+function daGetEffectiveDropdown(ds, ri, ci) {
+  if (!ds) return null;
+  daEnsureDropdownStore(ds);
+  const cellOpts = ds.cellDropdowns[ri + '_' + ci];
+  if (cellOpts && cellOpts.length) return cellOpts;
+  const colOpts = ds.colDropdowns[ci];
+  if (colOpts && colOpts.length) return colOpts;
+  return null;
+}
+
+let daDropdownCtx = null;   // { row, col } the modal is currently editing (row -1 = whole column, opened from the header)
+let daDropdownScope = 'cell'; // 'cell' | 'column', which the modal will save to
+
+// Right-click on any grid cell (or a header, with row = -1) opens a small
+// menu offering to create/edit/remove that cell's (or column's) dropdown.
+function daCellContextMenu(e, ri, ci) {
+  e.preventDefault();
+  const ds = daGetActive(); if (!ds) return;
+  daEnsureDropdownStore(ds);
+  const menu = document.getElementById('daCellCtxMenu');
+  if (!menu) return;
+
+  const isHeader = ri === -1;
+  const hasDropdown = isHeader ? !!(ds.colDropdowns[ci] && ds.colDropdowns[ci].length) : !!daGetEffectiveDropdown(ds, ri, ci);
+  const editLabel = isHeader ? (hasDropdown ? 'Edit Column Dropdown…' : 'Set Column Dropdown…') : (hasDropdown ? 'Edit Dropdown List…' : 'Create Dropdown List…');
+  const removeLabel = isHeader ? 'Remove Column Dropdown' : 'Remove Dropdown';
+
+  menu.innerHTML = `
+    <div class="da-ctx-item" onclick="daCloseCellCtxMenu();daOpenDropdownModal(${ri}, ${ci})">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="8 10 12 14 16 10"/></svg>
+      ${editLabel}
+    </div>
+    ${hasDropdown ? `<div class="da-ctx-item da-ctx-item-danger" onclick="daCloseCellCtxMenu();daRemoveDropdown(${ri}, ${ci})">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      ${removeLabel}
+    </div>` : ''}
+  `;
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 90) + 'px';
+  menu.style.display = 'block';
+}
+
+function daCloseCellCtxMenu() {
+  const menu = document.getElementById('daCellCtxMenu');
+  if (menu) menu.style.display = 'none';
+}
+document.addEventListener('mousedown', function (e) {
+  const menu = document.getElementById('daCellCtxMenu');
+  if (menu && menu.style.display === 'block' && !menu.contains(e.target)) daCloseCellCtxMenu();
+});
+
+function daSetDropdownScope(scope) {
+  daDropdownScope = scope;
+  document.getElementById('daDropdownScopeCell').classList.toggle('active', scope === 'cell');
+  document.getElementById('daDropdownScopeColumn').classList.toggle('active', scope === 'column');
+}
+
+// Opens the modal. Called from: the toolbar "Dropdown" button (no args, uses
+// the currently focused cell), a data-cell right-click (ri/ci given), or a
+// header right-click (ri === -1, meaning "set this up for the whole column").
+function daOpenDropdownModal(ri, ci) {
+  const ds = daGetActive();
+  if (!ds) { toast('Upload or create a table first', 'info'); return; }
+  daEnsureDropdownStore(ds);
+
+  if (ri === undefined || ci === undefined) {
+    if (!daActiveCell) { toast('Click a cell first, then set its dropdown list', 'info'); return; }
+    ri = daActiveCell.row; ci = daActiveCell.col;
+  }
+  if (ci == null || ci < 0 || ci >= ds.headers.length) { toast('Pick a column first', 'info'); return; }
+
+  daDropdownCtx = { row: ri, col: ci };
+  const isHeader = ri === -1;
+  const key = isHeader ? null : (ri + '_' + ci);
+  const hasCellOverride = !isHeader && !!(ds.cellDropdowns[key] && ds.cellDropdowns[key].length);
+  const startScope = isHeader ? 'column' : (hasCellOverride ? 'cell' : (ds.colDropdowns[ci] && ds.colDropdowns[ci].length ? 'column' : 'cell'));
+  const existing = isHeader ? ds.colDropdowns[ci] : daGetEffectiveDropdown(ds, ri, ci);
+
+  document.getElementById('daDropdownCellLabel').textContent = isHeader
+    ? `all of column ${daColToLetters(ci)} (${ds.headers[ci] || ''})`
+    : `cell ${daColToLetters(ci)}${ri + 1}`;
+  document.getElementById('daDropdownOptionsInput').value = existing ? existing.join('\n') : '';
+  document.getElementById('daDropdownRemoveBtn').style.display = existing && existing.length ? '' : 'none';
+
+  // A header right-click can only ever mean "whole column" — hide the choice
+  // entirely rather than show a scope toggle that has no other option.
+  const scopeField = document.getElementById('daDropdownScopeCell').closest('.pdfed-export-field');
+  scopeField.style.display = isHeader ? 'none' : '';
+  daSetDropdownScope(startScope);
+
+  document.getElementById('daDropdownOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('daDropdownOptionsInput').focus(), 50);
+}
+
+function daCloseDropdownModal() {
+  document.getElementById('daDropdownOverlay').classList.remove('open');
+}
+
+function daSaveDropdownModal() {
+  const ds = daGetActive(); if (!ds || !daDropdownCtx) { daCloseDropdownModal(); return; }
+  daEnsureDropdownStore(ds);
+  const { row: ri, col: ci } = daDropdownCtx;
+
+  const raw = document.getElementById('daDropdownOptionsInput').value;
+  const options = raw.split('\n').map(s => s.trim()).filter(s => s !== '');
+  const deduped = [...new Set(options)];
+  if (!deduped.length) { toast('Add at least one choice, one per line', 'info'); return; }
+
+  const isHeader = ri === -1;
+  if (isHeader || daDropdownScope === 'column') {
+    ds.colDropdowns[ci] = deduped;
+    // A column-wide list takes over, so any older single-cell overrides in
+    // this column would just be confusing leftovers — clear them.
+    Object.keys(ds.cellDropdowns).forEach(k => { if (k.endsWith('_' + ci)) delete ds.cellDropdowns[k]; });
+  } else {
+    ds.cellDropdowns[ri + '_' + ci] = deduped;
+  }
+
+  daPersist();
+  daRenderTable();
+  daCloseDropdownModal();
+  toast('Dropdown list saved', 'success');
+}
+
+function daRemoveDropdownFromModal() {
+  if (!daDropdownCtx) { daCloseDropdownModal(); return; }
+  daRemoveDropdown(daDropdownCtx.row, daDropdownCtx.col);
+  daCloseDropdownModal();
+}
+
+function daRemoveDropdown(ri, ci) {
+  const ds = daGetActive(); if (!ds) return;
+  daEnsureDropdownStore(ds);
+  if (ri === -1) {
+    delete ds.colDropdowns[ci];
+  } else {
+    const key = ri + '_' + ci;
+    if (ds.cellDropdowns[key]) delete ds.cellDropdowns[key];
+    else delete ds.colDropdowns[ci]; // was showing a column-level dropdown for this cell
+  }
+  daPersist();
+  daRenderTable();
+  toast('Dropdown removed', 'info');
 }
 
 function daToggleFreeze() {
@@ -34059,6 +34472,516 @@ function pdfedAutoFormatTable(idx, id) {
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
   toast('Table auto-formatted', 'success');
+}
+
+// ── Refine Report ───────────────────────────────────────────────────────
+// One button, a couple of quick questions, and a single pass over every
+// page in the document: every table's header row gets the same treatment
+// (instead of whatever color/weight it happened to arrive with), table
+// fonts grow or shrink to whatever's actually readable inside their own
+// columns, headings share one font + a clean two-level size scale, and
+// tables that were dropped at odd offsets get straightened onto a common
+// margin. The whole thing is one undo-able step.
+
+const PDFED_REFINE_THEMES = {
+  general:   { label: 'General',   font: 'Inter',                             headerFill: 'rgba(15,23,42,0.07)',   accent: '#0f172a' },
+  financial: { label: 'Financial', font: 'Georgia, Cambria, serif',           headerFill: 'rgba(0,115,230,0.13)',  accent: '#0073e6' },
+  corporate: { label: 'Corporate', font: 'Arial, Helvetica, sans-serif',      headerFill: 'rgba(0,121,107,0.13)',  accent: '#00796b' },
+  modern:    { label: 'Modern',    font: 'Poppins, Inter, sans-serif',        headerFill: 'rgba(124,58,237,0.11)', accent: '#7c3aed' },
+};
+
+let pdfedRefineState = { theme: 'general', align: 'left' };
+
+// ── Adjust to A4 ────────────────────────────────────────────────────────
+// A page built (or imported) at some other size — a stray Letter page mixed
+// into an A4 report, a screenshot pasted in at its native pixel size, a PDF
+// page that came in oversized — reads as "off" next to the rest of a report
+// even after headings/tables are otherwise refined. This fits every page
+// that isn't already A4 onto a clean A4 sheet: the existing page content is
+// scaled to fit (never stretched, never cropped) and centered, and every
+// placed table/text/image/shape/border on that page is rescaled the same
+// amount so nothing drifts out of place relative to what's around it.
+//
+// A page's real pixel size is read straight off its own stored raster
+// (pg.dataUrl), not the live on-screen canvas — see pdfedLoadPageImage
+// below for why.
+const PDFED_A4_TOLERANCE_MM = 3; // how close counts as "already A4" — skip it
+
+function pdfedPageDensity(pg) {
+  // PDF-sourced pages record their true raster density (pdfedPageUrl sets
+  // pg._pxPerMm); blank/inserted/image pages are all rendered at the same
+  // 96 DPI (3.7795 px/mm) used throughout the rest of the PDF editor.
+  return (pg && pg._pxPerMm) || 3.7795;
+}
+
+// Uniformly rescales every placed object on a page by `scale`, then shifts
+// it by (offsetX, offsetY) — used right after a page's canvas is resized so
+// its content lands centered on the new sheet instead of stuck in whatever
+// corner the old page's coordinates put it in.
+function pdfedRescalePlacedItems(pg, scale, offsetX, offsetY) {
+  ['placedTables', 'placedTexts', 'placedImages', 'placedShapes', 'placedBorders'].forEach(key => {
+    (pg[key] || []).forEach(item => {
+      if (typeof item.x === 'number') item.x = item.x * scale + offsetX;
+      if (typeof item.y === 'number') item.y = item.y * scale + offsetY;
+      if (typeof item.w === 'number') item.w = item.w * scale;
+      if (typeof item.h === 'number') item.h = item.h * scale;
+      if (typeof item.fontSize === 'number') item.fontSize = item.fontSize * scale;
+      if (Array.isArray(item.colWidths)) item.colWidths = item.colWidths.map(v => v * scale);
+      if (Array.isArray(item.rowHeights)) item.rowHeights = item.rowHeights.map(v => v * scale);
+    });
+  });
+}
+
+// Loads a page's stored raster as a fresh, untainted Image element. Always
+// reads from pg.dataUrl (a data: URI) rather than the live, currently-
+// displayed #pdfedPageCanvas — drawing from that live canvas is what the
+// earlier version of this feature did, and it's fragile: if any image ever
+// got drawn onto that canvas from an external URL without CORS headers
+// (a stock photo, certain pasted images), the canvas becomes "tainted" and
+// canvas.toDataURL() throws a SecurityError with no visible message,
+// silently killing the whole Adjust-to-A4 pass. Working from pg.dataUrl
+// sidesteps that entirely, since it's always a self-contained data: URI.
+async function pdfedLoadPageImage(pg) {
+  const url = await pdfedPageUrl(pg);
+  if (!url) return null;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// Tight bounding box (in page px) of every placed table/text/image/shape/
+// border on a page. Returns null if the page has no placed items at all.
+// This is what a composed report page's real "size" actually is — the
+// page's own raster is frequently just a blank/oversized canvas underneath,
+// so measuring THAT tells you nothing about where the content sits on it.
+function pdfedContentBBox(pg) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let found = false;
+  ['placedTables', 'placedTexts', 'placedImages', 'placedShapes', 'placedBorders'].forEach(key => {
+    (pg[key] || []).forEach(item => {
+      if (typeof item.x !== 'number' || typeof item.y !== 'number') return;
+      const w = typeof item.w === 'number' ? item.w : 0;
+      const h = typeof item.h === 'number' ? item.h : 0;
+      minX = Math.min(minX, item.x); minY = Math.min(minY, item.y);
+      maxX = Math.max(maxX, item.x + w); maxY = Math.max(maxY, item.y + h);
+      found = true;
+    });
+  });
+  if (!found) return null;
+  return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+}
+
+// A normal breathing margin (page px) around content when it's re-centered
+// on a fresh A4 sheet — matches the margin push-to-workflow itself uses.
+const PDFED_A4_CONTENT_MARGIN = 60;
+
+// Fits one page onto a fresh A4 (portrait or landscape) canvas — contain,
+// not cover, so nothing gets cropped off — and rescales every placed object
+// to match. Returns { adjusted, curMmW, curMmH } so the caller can report
+// exactly what it found, even when nothing needed fixing.
+//
+// A composed page (tables/text dropped onto a blank canvas, e.g. anything
+// from Push to Workflow) is handled differently from a real scanned/PDF
+// page: for those, the page's raster IS the content, so fitting/centering
+// the raster is correct. For a composed page, the raster is frequently just
+// a blank (possibly oversized) sheet with the real content living in
+// pg.placedTables/etc — fitting THAT raster only resizes the blank canvas
+// and drags whatever corner the content was already sitting in along with
+// it, never actually re-centering the content itself. So for those pages
+// this fits/centers the content's own bounding box instead, and rebuilds
+// the background as a fresh, correctly-sized blank sheet.
+async function pdfedFitPageToA4(idx) {
+  const pg = pdfed.pages[idx];
+  if (!pg) return { adjusted: false, curMmW: 0, curMmH: 0 };
+
+  const pxPerMm = pdfedPageDensity(pg);
+  const bbox = pg.type === 'blank' ? pdfedContentBBox(pg) : null;
+
+  if (bbox && bbox.w > 0 && bbox.h > 0) {
+    const curMmW = bbox.w / pxPerMm, curMmH = bbox.h / pxPerMm;
+    const neededW = bbox.w + PDFED_A4_CONTENT_MARGIN * 2;
+    const neededH = bbox.h + PDFED_A4_CONTENT_MARGIN * 2;
+    const landscape = neededW > neededH;
+    const targetMmW = landscape ? 297 : 210, targetMmH = landscape ? 210 : 297;
+    const targetW = Math.round(targetMmW * pxPerMm);
+    const targetH = Math.round(targetMmH * pxPerMm);
+
+    // Already sitting correctly (right page size, content already centered
+    // within tolerance)? Leave it alone rather than re-baking it for nothing.
+    const [curPageMmW, curPageMmH] = pg.pageMM || [0, 0];
+    const alreadyRightSize = Math.abs(curPageMmW - targetMmW) <= PDFED_A4_TOLERANCE_MM
+      && Math.abs(curPageMmH - targetMmH) <= PDFED_A4_TOLERANCE_MM;
+    const centeredX = Math.abs(bbox.minX - (targetW - bbox.w) / 2) <= PDFED_A4_CONTENT_MARGIN / 2;
+    const centeredY = Math.abs(bbox.minY - (targetH - bbox.h) / 2) <= PDFED_A4_CONTENT_MARGIN / 2;
+    if (alreadyRightSize && centeredX && centeredY) {
+      return { adjusted: false, curMmW: Math.round(curPageMmW), curMmH: Math.round(curPageMmH) };
+    }
+
+    // Never upscale content just to fill more of the sheet — only shrink if
+    // it doesn't fit within the target margins, same "contain" rule as the
+    // raster path below.
+    const scale = Math.min(1, targetW / neededW, targetH / neededH);
+    const offsetX = Math.round((targetW - bbox.w * scale) / 2) - bbox.minX * scale;
+    const offsetY = Math.round((targetH - bbox.h * scale) / 2) - bbox.minY * scale;
+
+    let newDataUrl;
+    try {
+      newDataUrl = await pdfedRenderBlankPage('', pg.bgColor || '#ffffff', targetMmW, targetMmH);
+    } catch (e) {
+      console.error('Adjust to A4: could not rebuild background for page ' + (idx + 1), e);
+      return { adjusted: false, curMmW: Math.round(curMmW), curMmH: Math.round(curMmH) };
+    }
+
+    pg.dataUrl = newDataUrl;
+    pg.pageMM = [targetMmW, targetMmH];
+    pg.width = targetW; pg.height = targetH;
+    pg._pxPerMm = pxPerMm;
+    pdfedRescalePlacedItems(pg, scale, offsetX, offsetY);
+    return { adjusted: true, curMmW: Math.round(curMmW), curMmH: Math.round(curMmH) };
+  }
+
+  // No placed content to go on (or a real scanned/PDF/image page, where the
+  // raster itself is the actual content) — fall back to fitting the raster
+  // as a whole, same as before.
+  let img;
+  try {
+    img = await pdfedLoadPageImage(pg);
+  } catch (e) {
+    console.error('Adjust to A4: could not load page ' + (idx + 1), e);
+    return { adjusted: false, curMmW: 0, curMmH: 0 };
+  }
+  if (!img || !img.naturalWidth || !img.naturalHeight) return { adjusted: false, curMmW: 0, curMmH: 0 };
+
+  const curMmW = img.naturalWidth / pxPerMm, curMmH = img.naturalHeight / pxPerMm;
+  const landscape = curMmW > curMmH;
+  const targetMmW = landscape ? 297 : 210, targetMmH = landscape ? 210 : 297;
+
+  if (Math.abs(curMmW - targetMmW) <= PDFED_A4_TOLERANCE_MM && Math.abs(curMmH - targetMmH) <= PDFED_A4_TOLERANCE_MM) {
+    return { adjusted: false, curMmW, curMmH }; // already A4 — leave it alone
+  }
+
+  const targetW = Math.round(targetMmW * pxPerMm);
+  const targetH = Math.round(targetMmH * pxPerMm);
+  const scale = Math.min(targetW / img.naturalWidth, targetH / img.naturalHeight);
+  const newW = Math.round(img.naturalWidth * scale);
+  const newH = Math.round(img.naturalHeight * scale);
+  const offsetX = Math.round((targetW - newW) / 2);
+  const offsetY = Math.round((targetH - newH) / 2);
+
+  const out = document.createElement('canvas');
+  out.width = targetW; out.height = targetH;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#ffffff';
+  octx.fillRect(0, 0, targetW, targetH);
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = 'high';
+  octx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, offsetX, offsetY, newW, newH);
+
+  let newDataUrl;
+  try {
+    newDataUrl = out.toDataURL('image/png');
+  } catch (e) {
+    console.error('Adjust to A4: could not export resized page ' + (idx + 1) + ' (likely a tainted canvas from an externally-loaded image)', e);
+    return { adjusted: false, curMmW, curMmH };
+  }
+
+  pg.dataUrl = newDataUrl;
+  // pageMM is the field the rest of the app (push-to-workflow, Diagrams,
+  // Forms, File Converter) actually reads back as a page's real-world
+  // size — keep it in sync, not just the raster itself, so anything added
+  // to this page afterwards lays out against the new A4 size correctly.
+  pg.pageMM = [targetMmW, targetMmH];
+  pg.width = targetW; pg.height = targetH;
+  pg._pxPerMm = pxPerMm;
+
+  pdfedRescalePlacedItems(pg, scale, offsetX, offsetY);
+  return { adjusted: true, curMmW, curMmH };
+}
+
+// Runs pdfedFitPageToA4 across every page in the document. Returns
+// { adjusted, details } — details is one { index, curMmW, curMmH, changed }
+// entry per page, in mm, so the caller can show exactly what it found even
+// when a page needed no change (which is the common case if the report
+// was already built at A4 — e.g. anything pushed over from Data
+// Arrangement already lands close to A4 by design). Works entirely off the
+// stored page data, so — unlike the DOM-navigation approach this replaced —
+// it doesn't need to visit/display every page to do its job; only the page
+// that ends up on screen afterward gets a real re-render.
+async function pdfedAdjustAllPagesToA4() {
+  const total = (pdfed.pages || []).length;
+  const startActive = pdfed.active;
+  let adjusted = 0;
+  const details = [];
+  for (let i = 0; i < total; i++) {
+    const result = await pdfedFitPageToA4(i);
+    details.push({ index: i, curMmW: Math.round(result.curMmW), curMmH: Math.round(result.curMmH), changed: result.adjusted });
+    if (result.adjusted) { adjusted++; pdfedMarkModified(i); }
+  }
+  if (startActive >= 0) await pdfedGoto(startActive);
+  return { adjusted, details };
+}
+
+function pdfedOpenRefineReportModal() {
+  const pages = (typeof pdfed !== 'undefined' && pdfed.pages) || [];
+  if (!pages.length) { toast('Open or build a report first', 'info'); return; }
+  const hasContent = pages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length));
+  if (!hasContent) { toast('Add some tables or text to the canvas first', 'info'); return; }
+  const countEl = document.getElementById('pdfedRefinePageCount');
+  if (countEl) countEl.textContent = pages.length;
+  const overlay = document.getElementById('pdfedRefineOverlay');
+  if (overlay) overlay.classList.add('open');
+}
+
+function pdfedCloseRefineModal() {
+  const overlay = document.getElementById('pdfedRefineOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function pdfedSetRefineTheme(key, el) {
+  pdfedRefineState.theme = key;
+  const group = document.getElementById('pdfedRefineThemeGroup');
+  if (group) group.querySelectorAll('.da-dropdown-scope-btn').forEach(b => b.classList.toggle('active', b === el));
+}
+
+function pdfedSetRefineAlign(key, el) {
+  pdfedRefineState.align = key;
+  const group = document.getElementById('pdfedRefineAlignGroup');
+  if (group) group.querySelectorAll('.da-dropdown-scope-btn').forEach(b => b.classList.toggle('active', b === el));
+}
+
+// A text box counts as a "heading" if it reads like one (short, one or two
+// lines) and already looks styled like one (larger than body copy, or
+// bold) — this stays conservative on purpose so a stray bolded word inside
+// a paragraph doesn't get pulled out and blown up to title size.
+function pdfedTextLooksLikeHeading(t) {
+  const txt = String(t.text || '').trim();
+  if (!txt) return false;
+  const size = t.fontSize || 14;
+  const lineish = txt.length <= 90 && txt.split('\n').length <= 2;
+  return lineish && (size >= 17 || !!t.bold);
+}
+
+let _pdfedRefineMeasureCtx = null;
+function pdfedRefineMeasureCtx() {
+  if (!_pdfedRefineMeasureCtx) _pdfedRefineMeasureCtx = document.createElement('canvas').getContext('2d');
+  return _pdfedRefineMeasureCtx;
+}
+
+// Re-styles one table to the chosen theme (numeric alignment + total-row
+// bolding recomputed straight from its own content via daBuildCellStyles,
+// then the header row is forced onto the shared theme fill so every table
+// in the report announces itself the same way), and — if requested — picks
+// the largest font size, within a comfortable 8–13px reading range, that
+// still lets every cell's text sit on one line inside its own column.
+function pdfedRefineOneTable(item, theme, autoFit) {
+  if (!item.cells || !item.cells.length) return;
+  const styles = daBuildCellStyles(item.cells);
+  if (styles.length) {
+    styles[0].forEach(st => { st.fill = theme.headerFill; st.bold = true; st.color = null; });
+  }
+  item.cellStyles = styles;
+  if (item.rows > 1) item.headerRow = true;
+  item.fontFamily = theme.font;
+
+  if (autoFit) {
+    const ctx = pdfedRefineMeasureCtx();
+    const fits = (size) => {
+      ctx.font = `${size}px ${pdfedFontCss(theme.font)}`;
+      for (let r = 0; r < item.rows; r++) {
+        for (let c = 0; c < item.cols; c++) {
+          const text = String((item.cells[r] && item.cells[r][c]) || '');
+          if (!text) continue;
+          if (ctx.measureText(text).width + 14 > (item.colWidths[c] || 60)) return false;
+        }
+      }
+      return true;
+    };
+    let fs = 13;
+    while (fs > 8 && !fits(fs)) fs -= 0.5;
+    item.fontSize = fs;
+  }
+}
+
+// Straightens a page's tables against a shared margin (or centers/stretches
+// them), then restacks them top-to-bottom with an even gap in whatever
+// order they already read in, so nothing pushed or pasted at an odd offset
+// ends up overlapping or hanging off the page edge.
+function pdfedAutoAlignTables(pg, tables, mode) {
+  if (!tables.length) return;
+  const pc = document.getElementById('pdfedPageCanvas');
+  const pageW = pg.width || (pc && pc.width) || 600;
+  const margin = 36, gap = 22;
+  const ordered = tables.slice().sort((a, b) => (a.y || 0) - (b.y || 0));
+  let cursorY = Math.max(margin, ordered[0].y || margin);
+
+  ordered.forEach(item => {
+    const totalW = (item.colWidths || []).reduce((a, b) => a + b, 0);
+    if (mode === 'stretch') {
+      const targetW = Math.max(120, pageW - margin * 2);
+      if (totalW > 0 && Math.abs(totalW - targetW) > 1) {
+        const ratio = targetW / totalW;
+        item.colWidths = item.colWidths.map(w => Math.max(30, Math.round(w * ratio)));
+      }
+      item.x = margin;
+    } else if (mode === 'center') {
+      const w = (item.colWidths || []).reduce((a, b) => a + b, 0);
+      item.x = Math.round((pageW - w) / 2);
+    } else {
+      item.x = margin;
+    }
+    item.y = Math.round(cursorY);
+    const totalH = (item.rowHeights || []).reduce((a, b) => a + b, 0);
+    cursorY += totalH + gap;
+  });
+}
+
+function pdfedTableWidth(t) {
+  return (t.colWidths || []).reduce((a, b) => a + b, 0);
+}
+
+// A heading "belongs to" whichever table it introduces — the nearest table
+// sitting at or below it on the same page. Falls back to the nearest table
+// overall (above included) if nothing sits below, so a heading placed under
+// its table (a caption-style label) still picks something up.
+function pdfedFindAssociatedTable(pg, heading) {
+  const tables = pg.placedTables || [];
+  if (!tables.length) return null;
+  const below = tables.filter(t => (t.y || 0) >= (heading.y || 0) - 10)
+                       .sort((a, b) => (a.y || 0) - (b.y || 0));
+  if (below.length) return below[0];
+  return tables.slice().sort((a, b) =>
+    Math.abs((a.y || 0) - (heading.y || 0)) - Math.abs((b.y || 0) - (heading.y || 0))
+  )[0];
+}
+
+// The actual multi-page pass. Returns a summary used for the confirmation
+// toast. `snapshotPages`, if passed, is a deep clone of pdfed.pages taken
+// before any change, purely so the caller can wire up a single Ctrl+Z step.
+function pdfedApplyReportRefinement(opts) {
+  const theme = PDFED_REFINE_THEMES[opts.theme] || PDFED_REFINE_THEMES.general;
+  const pages = pdfed.pages || [];
+  let headingsSynced = 0, tablesFormatted = 0;
+
+  // Pass 1: refine and align every table first, so headings can then size
+  // themselves against real, final table metrics instead of guessing —
+  // a heading above a dense 8px table shouldn't sit at the same 24px a
+  // heading above a roomy 13px table would get.
+  pages.forEach(pg => {
+    const tables = pg.placedTables || [];
+    if (tables.length) {
+      tables.forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
+      if (opts.align) pdfedAutoAlignTables(pg, tables, opts.align);
+    }
+  });
+
+  // Document-wide fallback for a heading whose page has no table of its own.
+  const allTableSizes = [];
+  pages.forEach(pg => (pg.placedTables || []).forEach(t => allTableSizes.push(t.fontSize || 12)));
+  const avgTableSize = allTableSizes.length ? allTableSizes.reduce((a, b) => a + b, 0) / allTableSizes.length : 12;
+
+  pages.forEach((pg, idx) => {
+    let pageTouched = !!(pg.placedTables && pg.placedTables.length);
+
+    if (opts.syncHeadings && pg.placedTexts && pg.placedTexts.length) {
+      const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
+      if (headings.length) {
+        // The biggest heading already on the page reads as its section
+        // title; everything else on that page is treated as a sub-heading —
+        // both tiers still scale off their own nearest table, just with a
+        // different multiplier, so a title always reads larger than a
+        // sub-heading sitting above the very same table.
+        const maxOrigSize = Math.max(...headings.map(h => h.fontSize || 14));
+        headings.forEach(t => {
+          const assoc = pdfedFindAssociatedTable(pg, t);
+          const base = assoc ? (assoc.fontSize || avgTableSize) : avgTableSize;
+          const isTitle = (t.fontSize || 14) >= maxOrigSize - 0.5;
+          let size = Math.round(base * (isTitle ? 2.0 : 1.5));
+          size = isTitle ? Math.min(30, Math.max(18, size)) : Math.min(22, Math.max(14, size));
+          t.fontFamily = theme.font;
+          t.bold = true;
+          t.fontSize = size;
+          if (assoc) {
+            t.x = assoc.x;
+            const w = pdfedTableWidth(assoc);
+            if (w > 40) t.w = w;
+          }
+          headingsSynced++;
+        });
+        pageTouched = true;
+      }
+    }
+
+    if (pageTouched) pdfedMarkModified(idx);
+  });
+
+  return { headingsSynced, tablesFormatted, pages: pages.length };
+}
+
+async function pdfedRunRefineReportFromModal() {
+  const opts = {
+    theme: pdfedRefineState.theme || 'general',
+    align: pdfedRefineState.align || 'left',
+    autoFit: !!document.getElementById('pdfedRefineAutoFit')?.checked,
+    syncHeadings: !!document.getElementById('pdfedRefineSyncHeadings')?.checked,
+    adjustA4: !!document.getElementById('pdfedRefineAdjustA4')?.checked,
+  };
+  pdfedCloseRefineModal();
+
+  let before;
+  try { before = JSON.parse(JSON.stringify(pdfed.pages)); } catch (e) { before = null; }
+
+  // Fit any odd-sized page onto A4 first, so the table/heading pass right
+  // after it sizes fonts and lays out headings against each page's real,
+  // final width instead of whatever width it happened to arrive at.
+  let a4Result = { adjusted: 0, details: [] };
+  if (opts.adjustA4) a4Result = await pdfedAdjustAllPagesToA4();
+
+  const summary = pdfedApplyReportRefinement(opts);
+
+  const activeIdx = pdfed.active;
+  // A full pdfedGoto (not just re-rendering the placed layers) since the A4
+  // pass above may have replaced this page's background raster.
+  if (activeIdx >= 0) await pdfedGoto(activeIdx);
+  if (typeof pdfedRefreshSelectionPanel === 'function') pdfedRefreshSelectionPanel();
+
+  if (before) {
+    const after = JSON.parse(JSON.stringify(pdfed.pages));
+    pushAppHistory({
+      label: 'Refine Report',
+      undo: async () => {
+        pdfed.pages = JSON.parse(JSON.stringify(before));
+        if (pdfed.active >= 0) await pdfedGoto(pdfed.active);
+        pdfed.pages.forEach((_, i) => pdfedMarkModified(i));
+        toast('Refine Report undone', 'info');
+      },
+      redo: async () => {
+        pdfed.pages = JSON.parse(JSON.stringify(after));
+        if (pdfed.active >= 0) await pdfedGoto(pdfed.active);
+        pdfed.pages.forEach((_, i) => pdfedMarkModified(i));
+        toast('Report refined', 'success');
+      }
+    });
+  }
+
+  const parts = [];
+  if (opts.adjustA4) {
+    if (a4Result.adjusted) {
+      parts.push(`${a4Result.adjusted} page${a4Result.adjusted !== 1 ? 's' : ''} fit to A4`);
+    } else if (a4Result.details.length === 1) {
+      // Single-page doc, nothing needed fixing — say exactly what size it
+      // already detected so it's clear the check actually ran.
+      const d = a4Result.details[0];
+      parts.push(`page already A4 (${d.curMmW}×${d.curMmH}mm)`);
+    } else if (a4Result.details.length > 1) {
+      parts.push('all pages already A4');
+    }
+  }
+  if (summary.tablesFormatted) parts.push(`${summary.tablesFormatted} table${summary.tablesFormatted !== 1 ? 's' : ''} formatted`);
+  if (summary.headingsSynced) parts.push(`${summary.headingsSynced} heading${summary.headingsSynced !== 1 ? 's' : ''} synced`);
+  toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
 }
 
 async function daPushToWorkflow(mode) {
@@ -34360,7 +35283,7 @@ async function daPushAllToWorkflow() {
     if (isNewDoc) {
       pdfed.pdfDoc = null;
       pdfed.file = { name: 'Untitled Document' };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -34520,7 +35443,7 @@ async function pdfedAppendTableFitPages(chunks, headers, layout) {
   if (isNewDoc) {
     pdfed.pdfDoc = null;
     pdfed.file = { name: 'Untitled Document' };
-    ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+    ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = '';
     });
@@ -37870,7 +38793,7 @@ async function rdxInsertIntoWorkspace(mode) {
 
       pdfed.pdfDoc = null;
       pdfed.file = { name: label };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -39506,7 +40429,7 @@ async function mfPushToWorkspace() {
     if (isNewDoc) {
       pdfed.pdfDoc = null;
       pdfed.file = { name: f.title || 'Untitled Form' };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -40059,7 +40982,7 @@ async function mfcPushToWorkspace(mode) {
       pdfed.pages = [];
       pdfed.pdfDoc = null;
       pdfed.file = { name: f.title || 'Untitled Canvas Form' };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -42457,7 +43380,7 @@ async function dgPushAllMultiCharts(mode) {
     pdfed.pages = [{ type: 'blank', dataUrl: bg.toDataURL('image/png'), modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], label: 'Diagram', bgColor: '#ffffff', pageMM: [210, 297] }];
     pdfed.pdfDoc = null;
     pdfed.file = { name: 'Diagrams & Graphs' };
-    ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+    ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = '';
     });
@@ -43568,7 +44491,7 @@ async function dgInsertAnalysisIntoWorkspace(mode) {
       pdfed.pages = [makeBlankPage()];
       pdfed.pdfDoc = null;
       pdfed.file = { name: 'Diagrams & Graphs' };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -45198,7 +46121,7 @@ async function dgInsertIntoWorkspace(mode) {
 
       pdfed.pdfDoc = null;
       pdfed.file = { name: 'Diagrams & Graphs' };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -46761,7 +47684,7 @@ async function wsInsertTextIntoWorkspace(text, name) {
       pdfed.pages = [makeBlankPage()];
       pdfed.pdfDoc = null;
       pdfed.file = { name: name || 'File Converter' };
-      ['pdfedExportBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
+      ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
