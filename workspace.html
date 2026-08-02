@@ -17972,6 +17972,72 @@ async function pdfedComposeThumb(pg, idx) {
   return can.toDataURL('image/png');
 }
 
+// How much sharper the final exported PDF raster is than the page's native
+// on-screen editing resolution (96 DPI for blank/composed pages, 144 DPI for
+// native PDF pages). The editor itself intentionally stays at that lower
+// density — it's plenty for on-screen work and keeps everything fast — but
+// baking straight from it into the exported PDF meant tables/text/images
+// came out soft once printed or zoomed in. 3x brings a typical A4 page up to
+// ~288 DPI (native PDF pages ~432 DPI), which reads as crisp, print-quality
+// output without ballooning file size or export time the way a bigger jump
+// would. Tables, placed text, placed images, shapes and borders are all
+// redrawn fresh at this higher pixel density (not just stretched afterward),
+// so this is real added sharpness, not an upscale of an already-soft image.
+const PDFED_EXPORT_SUPERSAMPLE = 3;
+
+// Same job as pdfedComposeThumb (flattens background + placed items +
+// annotations into one raster) but renders everything at
+// PDFED_EXPORT_SUPERSAMPLE× pixel density instead of the page's native
+// editing resolution. Kept separate from pdfedComposeThumb, which stays at
+// native resolution for on-screen thumbnails/previews where extra pixels
+// would only cost time for zero visible benefit.
+// Returns { url, iw, ih } where iw/ih are the page's ORIGINAL (non-
+// supersampled) pixel dimensions — callers use those, not the supersampled
+// canvas size, to compute the page's physical mm size, so the output image
+// is denser but the printed page size doesn't change.
+async function pdfedComposeThumbHiRes(pg, idx, ssFactor) {
+  const ss = ssFactor || 1;
+  const baseUrl = await pdfedFlattenPageDataUrl(pg);
+  const hasPlaced = (pg.placedImages && pg.placedImages.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedTables && pg.placedTables.length) || (pg.placedBorders && pg.placedBorders.length) || (pg.placedShapes && pg.placedShapes.length);
+  const strokes = pg.annotStrokes;
+  const hasAnnot = strokes && strokes.length > 0;
+
+  let baseImg;
+  try {
+    baseImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = baseUrl; });
+  } catch (e) { return { url: baseUrl, iw: 0, ih: 0 }; }
+  const origW = baseImg.naturalWidth, origH = baseImg.naturalHeight;
+
+  if (!hasPlaced && !hasAnnot) {
+    // Nothing but the flat background raster — supersampling it would only
+    // stretch pixels that are already there, no real detail to gain.
+    return { url: baseUrl, iw: origW, ih: origH };
+  }
+
+  const can = document.createElement('canvas');
+  can.width = Math.round(origW * ss);
+  can.height = Math.round(origH * ss);
+  const ctx = can.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.scale(ss, ss);
+  ctx.drawImage(baseImg, 0, 0);
+
+  if (hasPlaced) {
+    await pdfedEnsureFontsLoaded(pg);
+    await pdfedDrawOrderedPlacedOnCtx(ctx, pg);
+  }
+
+  if (hasAnnot) {
+    try {
+      const annotImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = strokes[strokes.length - 1]; });
+      ctx.drawImage(annotImg, 0, 0, origW, origH);
+    } catch (e) { /* skip if snapshot failed to decode */ }
+  }
+
+  return { url: can.toDataURL('image/png'), iw: origW, ih: origH };
+}
+
 // ─── EDITABLE PDF EXPORT BASE ───────────────────────────────────────────
 // Same idea as pdfedComposeThumb (bakes images/tables/annotations onto a flat
 // raster of the page), EXCEPT placed text boxes are deliberately left out.
@@ -20596,38 +20662,35 @@ async function pdfedExport(pageIndices, password, suffixOverride, successLabel) 
       // deliberately over the previous vector-text path, which substituted
       // a built-in PDF font (Helvetica) and could never match the real
       // on-screen font's metrics exactly.
-      const url = await pdfedComposeThumb(pg, i);
-      if (!url) continue;
-      await new Promise(res => {
-        const img = new Image();
-        img.onload = () => {
-          const iw = img.naturalWidth, ih = img.naturalHeight;
-          // Different page origins rasterize at different densities (native
-          // PDF pages render at 144 DPI, blank/inserted/table pages at 96
-          // DPI) — use the density that page was ACTUALLY rendered at,
-          // falling back to 96 DPI (3.7795 px/mm) only when untagged, so
-          // every page comes out at its true physical size instead of
-          // native PDF pages exporting ~1.5x too large next to others.
-          const pxPerMm = pg._pxPerMm || 3.7795;
-          const wmm = iw / pxPerMm, hmm = ih / pxPerMm;
-          const ori = wmm > hmm ? 'landscape' : 'portrait';
-          if (!pdf) {
-            const pdfOpts = Object.assign({orientation:ori, unit:'mm', format:[wmm,hmm]}, sarvarcPdfEncryptionOpts(password));
-            pdf = new jsPDF(pdfOpts);
-          }
-          else pdf.addPage([wmm,hmm], ori);
-          pdf.setFillColor(255,255,255);
-          pdf.rect(0,0,wmm,hmm,'F');
-          pdf.addImage(url, 'PNG', 0, 0, wmm, hmm, '', 'FAST');
-          // Text itself is already baked into the image above (pixel-exact
-          // match to the editor); this only adds back invisible clickable
-          // regions so links still work in the downloaded PDF.
-          pdfedAddPlacedTextLinkAnnotations(pdf, pg, wmm, iw);
-          res();
-        };
-        img.onerror = res;
-        img.src = url;
-      });
+      const composed = await pdfedComposeThumbHiRes(pg, i, PDFED_EXPORT_SUPERSAMPLE);
+      if (!composed || !composed.url) continue;
+      const { url, iw, ih } = composed;
+      // Different page origins rasterize at different densities (native
+      // PDF pages render at 144 DPI, blank/inserted/table pages at 96
+      // DPI) — use the density that page was ACTUALLY rendered at,
+      // falling back to 96 DPI (3.7795 px/mm) only when untagged, so
+      // every page comes out at its true physical size instead of
+      // native PDF pages exporting ~1.5x too large next to others.
+      // iw/ih here are the page's ORIGINAL pixel dimensions (not the
+      // supersampled raster actually embedded below), so this mm math is
+      // unaffected by PDFED_EXPORT_SUPERSAMPLE — only the pixel density of
+      // the embedded image goes up, not the printed page size.
+      const pxPerMm = pg._pxPerMm || 3.7795;
+      const wmm = iw / pxPerMm, hmm = ih / pxPerMm;
+      const ori = wmm > hmm ? 'landscape' : 'portrait';
+      if (!pdf) {
+        const pdfOpts = Object.assign({orientation:ori, unit:'mm', format:[wmm,hmm]}, sarvarcPdfEncryptionOpts(password));
+        pdf = new jsPDF(pdfOpts);
+      }
+      else pdf.addPage([wmm,hmm], ori);
+      pdf.setFillColor(255,255,255);
+      pdf.rect(0,0,wmm,hmm,'F');
+      pdf.addImage(url, 'PNG', 0, 0, wmm, hmm, '', 'FAST');
+      // Text itself is already baked into the image above (pixel-exact
+      // match to the editor, just at a much higher pixel density now);
+      // this only adds back invisible clickable regions so links still
+      // work in the downloaded PDF.
+      pdfedAddPlacedTextLinkAnnotations(pdf, pg, wmm, iw);
     }
     if (!pdf) { hideExportOverlay(); toast('Nothing to export', 'error'); return; }
     updateExportProgress(95, 'Saving file…');
