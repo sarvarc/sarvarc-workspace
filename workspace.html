@@ -11005,22 +11005,22 @@ button.dg-show-chip.active { background:var(--blue); }
       <label class="pdfed-export-checkbox">
         <input type="checkbox" id="pdfedRefineAdjustA4" checked>
         <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Adjust every page to A4 (fits odd-sized pages in cleanly, nothing cropped or stretched)
+        Standardize all pages to A4
       </label>
 
       <label class="pdfed-export-checkbox">
         <input type="checkbox" id="pdfedRefineAutoFit" checked>
         <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Auto-fit table fonts so nothing overflows a column
+        Auto-fit table fonts to columns
       </label>
 
       <label class="pdfed-export-checkbox">
         <input type="checkbox" id="pdfedRefineSyncHeadings" checked>
         <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Sync heading font &amp; scale headings to their table
+        Sync heading styles &amp; formatting
       </label>
 
-      <div class="pdfed-export-note">This re-styles every table's header row, right-aligns numeric columns, bolds total rows, and restacks the whole page — tables, headings/text, and content images (charts, figures) — top-to-bottom with no overlaps. Any small logo near the top is auto-detected and snapped into a clean header slot (left, center, or right, whichever it already reads closest to) instead of being stacked into the body, and the rest of the content flows clear of it automatically. Headings pick up the report's font and are sized off the table they introduce — a heading over a compact table stays modest, one over a roomy table reads bigger — instead of one fixed size everywhere. Any page that isn't already A4 is fit onto a clean A4 sheet first — scaled to fit, never stretched or cropped — with everything on it rescaled to match, so the whole report reads as one consistent, easy-to-read size. It's one undo-able step (Ctrl+Z), so nothing is lost if the result isn't what you wanted.</div>
+      <div class="pdfed-export-note">One undo-able pass (Ctrl+Z) that re-styles tables, aligns headings, and cleans up page layout throughout the document.</div>
     </div>
 
     <div class="pdfed-export-footer">
@@ -34764,6 +34764,21 @@ function pdfedTextLooksLikeHeading(t) {
   return lineish && (size >= 17 || !!t.bold);
 }
 
+// A text box reads as an un-styled list — several short, independent lines
+// (a "Highlights" block typed or pasted one fact per line) that never
+// actually got turned into a real bulleted list — when most of its lines
+// are short and there are several of them. Deliberately conservative: it
+// takes 3+ qualifying lines before this fires, and any line that reads long
+// enough to be ordinary wrapped prose disqualifies the whole box, so a
+// normal paragraph that just happens to contain a line break or two is
+// never mistaken for a list.
+function pdfedTextLooksLikeList(t) {
+  if (t.bullet) return false; // already a real list — leave it alone
+  const lines = String(t.text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 3) return false;
+  return lines.every(l => l.length > 0 && l.length <= 100);
+}
+
 let _pdfedRefineMeasureCtx = null;
 function pdfedRefineMeasureCtx() {
   if (!_pdfedRefineMeasureCtx) _pdfedRefineMeasureCtx = document.createElement('canvas').getContext('2d');
@@ -34843,13 +34858,50 @@ function pdfedAnchorSlotX(img, pageW, margin) {
 
 // A flowed item's own footprint — a table's is the sum of its row heights/
 // column widths (colWidths can change under 'stretch', so width has to be
-// read fresh rather than cached), everything else just reports its own w/h.
-function pdfedFlowSize(item, kind) {
+// read fresh rather than cached). A text box has NO stored height the real
+// renderer trusts at all (pdfedPositionPlacedTextEl never sets el.style.
+// height — the box always auto-sizes to its content), so item.h is not
+// meaningful here; height has to be worked out the same way the browser
+// would actually wrap it. Images/shapes just report their own w/h.
+function pdfedEstimateTextHeight(item, pageW, margin) {
+  const text = String(item.text || '').trim();
+  const fontSize = item.fontSize || 14;
+  const lineHeight = fontSize * 1.25; // matches .pdfed-ptxt-content's line-height:1.25
+  const vPad = PDFED_PTXT_PAD_Y * 2 + PDFED_PTXT_BORDER * 2;
+  if (!text) return Math.round(lineHeight + vPad);
+  // Same wrap-width rule pdfedPositionPlacedTextEl actually renders with: a
+  // fixed item.w if one was ever set, otherwise capped to whatever room is
+  // left to the page edge — NOT some arbitrary narrow default. Getting this
+  // wrong is what was inflating line counts (and heights) for any ordinary
+  // auto-width paragraph.
+  const wrapW = item.w
+    ? Math.max(20, item.w - PDFED_PTXT_PAD_X * 2 - PDFED_PTXT_BORDER * 2)
+    : Math.max(48, (pageW || 800) - (margin || 36) - 12 - PDFED_PTXT_PAD_X * 2 - PDFED_PTXT_BORDER * 2);
+  const ctx = pdfedRefineMeasureCtx();
+  ctx.font = `${item.bold ? 'bold ' : ''}${fontSize}px ${pdfedFontCss(item.fontFamily || 'Inter')}`;
+  let lines = 0;
+  text.split('\n').forEach(paragraph => {
+    if (!paragraph) { lines += 1; return; }
+    let line = '';
+    paragraph.split(' ').forEach(word => {
+      const test = line ? line + ' ' + word : word;
+      if (line && ctx.measureText(test).width > wrapW) { lines += 1; line = word; }
+      else { line = test; }
+    });
+    if (line) lines += 1;
+  });
+  return Math.round(Math.max(1, lines) * lineHeight + vPad);
+}
+
+function pdfedFlowSize(item, kind, pageW, margin) {
   if (kind === 'table') {
     return {
       w: (item.colWidths || []).reduce((a, b) => a + b, 0),
       h: (item.rowHeights || []).reduce((a, b) => a + b, 0),
     };
+  }
+  if (kind === 'text') {
+    return { w: item.w || 0, h: pdfedEstimateTextHeight(item, pageW, margin) };
   }
   return { w: item.w || 0, h: item.h || 0 };
 }
@@ -34870,7 +34922,15 @@ function pdfedAutoAlignContent(pg, mode) {
   const pc = document.getElementById('pdfedPageCanvas');
   const pageW = pg.width || (pc && pc.width) || 600;
   const pageH = pg.height || (pc && pc.height) || 800;
-  const margin = 36, gap = 22;
+  const margin = 36;
+  let gap = 22;
+  const MIN_GAP = 8;
+  // Never shrink content past this fraction of its original size — beyond
+  // this point it's reading as broken, not "fitted", so a page this
+  // overloaded needs more pages, not smaller and smaller text. The flow
+  // still gets clamped to the page as an absolute last resort below, but
+  // this is where "shrink to fit" stops being the right tool for it.
+  const MIN_SHRINK = 0.55;
 
   const flow = [];
   const anchors = [];
@@ -34894,40 +34954,102 @@ function pdfedAutoAlignContent(pg, mode) {
   });
   const anchorBottom = anchors.length ? Math.max(...anchors.map(a => a.y + (a.h || 0))) : 0;
 
-  if (flow.length) {
-    flow.sort((a, b) => (a.item.y || 0) - (b.item.y || 0));
-    let cursorY = Math.max(margin, flow[0].item.y || margin);
+  if (!flow.length) return;
 
-    flow.forEach(({ item, kind }, i) => {
-      const size = pdfedFlowSize(item, kind);
-      if (mode === 'stretch' && kind === 'table') {
-        const targetW = Math.max(120, pageW - margin * 2);
-        if (size.w > 0 && Math.abs(size.w - targetW) > 1) {
-          const ratio = targetW / size.w;
-          item.colWidths = item.colWidths.map(w => Math.max(30, Math.round(w * ratio)));
+  flow.sort((a, b) => (a.item.y || 0) - (b.item.y || 0));
+
+  // Always start from the same, consistent top position — never from
+  // wherever the first item happened to already be sitting. Inheriting the
+  // original y0 (the old behavior) is exactly what produced inconsistent
+  // top gaps from one refine pass to the next: a page whose content
+  // happened to start low kept a big blank gap up top, while a page that
+  // started near the margin didn't.
+  const startY = Math.max(margin, anchorBottom ? anchorBottom + gap : margin);
+
+  // Measure the flow's natural footprint at the requested gap *before*
+  // placing anything, so a page that doesn't actually fit gets compressed
+  // instead of quietly spilling content past the bottom edge.
+  let sizes = flow.map(({ item, kind }) => pdfedFlowSize(item, kind, pageW, margin));
+  const naturalContentH = sizes.reduce((sum, s) => sum + s.h, 0);
+  const availableH = Math.max(40, pageH - margin - startY);
+  const naturalTotalH = naturalContentH + gap * Math.max(0, flow.length - 1);
+
+  if (naturalTotalH > availableH) {
+    // Step 1 — tighten the gap first. Cheapest fix, and the one least
+    // likely to be visually noticeable.
+    const roomForGaps = availableH - naturalContentH;
+    const neededGap = flow.length > 1 ? roomForGaps / (flow.length - 1) : gap;
+    gap = Math.max(MIN_GAP, Math.min(gap, neededGap));
+
+    // Step 2 — if it still doesn't fit even at the minimum gap, shrink
+    // every flowed item's font size (and a table's row heights along with
+    // it) by one shared ratio, so the page's actual content — not just its
+    // spacing — gets smaller together rather than any one piece getting
+    // singled out. This is what guarantees a refine pass can't leave a
+    // table or paragraph hanging off the bottom of the canvas.
+    const tightTotalH = naturalContentH + gap * Math.max(0, flow.length - 1);
+    if (tightTotalH > availableH) {
+      const rawScale = availableH / tightTotalH;
+      const scale = Math.max(MIN_SHRINK, Math.min(1, rawScale));
+      flow.forEach(({ item, kind }) => {
+        if (kind === 'table') {
+          item.fontSize = Math.max(7, (item.fontSize || 12) * scale);
+          if (Array.isArray(item.rowHeights)) item.rowHeights = item.rowHeights.map(h => Math.max(12, h * scale));
+        } else if (kind === 'text') {
+          item.fontSize = Math.max(9, (item.fontSize || 14) * scale);
+        } else if (kind === 'image') {
+          const w = (item.w || 0) * scale, h = (item.h || 0) * scale;
+          if (w > 0) item.w = w;
+          if (h > 0) item.h = h;
         }
-        item.x = margin;
-      } else if (mode === 'center') {
-        item.x = Math.round((pageW - size.w) / 2);
-      } else {
-        // 'left', and the fallback for 'stretch' on non-table items —
-        // stretching an image or a chart would distort it, so those always
-        // just left-align (or center, above) instead of scaling to width.
-        item.x = margin;
-      }
-      // Clearance: the first item in the flow is the one that would open
-      // directly under a header logo, since everything after it is pushed
-      // down anyway by the normal stacking below. If this item's own
-      // horizontal span would pass under any logo's footprint, start it
-      // below the logo instead of at the plain top margin.
-      if (i === 0 && anchorBottom > cursorY) {
-        const itemRight = item.x + size.w;
-        const overlapsAnyAnchor = anchors.some(a => itemRight > a.x && item.x < a.x + (a.w || 0));
-        if (overlapsAnyAnchor || !size.w) cursorY = anchorBottom + gap;
-      }
-      item.y = Math.round(cursorY);
-      cursorY += size.h + gap;
-    });
+      });
+      // Re-measure against the now-smaller items for the actual stacking
+      // pass below — heights above were computed pre-shrink.
+      sizes = flow.map(({ item, kind }) => pdfedFlowSize(item, kind, pageW, margin));
+    }
+  }
+
+  let cursorY = startY;
+  flow.forEach(({ item, kind }, i) => {
+    const size = sizes[i];
+    if (mode === 'center') {
+      item.x = Math.round((pageW - size.w) / 2);
+    } else {
+      // 'left', and 'stretch' for non-table items — stretching an image,
+      // chart, or heading would distort/misjudge it, so those always just
+      // left-align instead of scaling to width. Table width for 'stretch'
+      // is already settled before this runs (see pdfedApplyReportRefinement).
+      item.x = margin;
+    }
+    // Clearance: the first item in the flow is the one that would open
+    // directly under a header logo, since everything after it is pushed
+    // down anyway by the normal stacking below. If this item's own
+    // horizontal span would pass under any logo's footprint, start it
+    // below the logo instead of at the plain top margin.
+    if (i === 0 && anchorBottom > cursorY) {
+      const itemRight = item.x + size.w;
+      const overlapsAnyAnchor = anchors.some(a => itemRight > a.x && item.x < a.x + (a.w || 0));
+      if (overlapsAnyAnchor || !size.w) cursorY = anchorBottom + gap;
+    }
+    item.y = Math.round(cursorY);
+    cursorY += size.h + gap;
+  });
+
+  // Absolute safety net: even after tightening the gap and shrinking
+  // everything down to the minimum, an extreme page (far more content than
+  // could ever read cleanly on one sheet) could still end past the bottom
+  // edge. Rather than let that spill silently off-canvas, pull the whole
+  // stack up by the overflow amount — bounded so it never pushes the first
+  // item above the top margin/anchor clearance it started at.
+  const maxBottom = pageH - margin;
+  let overflowBy = 0;
+  flow.forEach(({ item }, i) => {
+    const bottom = item.y + sizes[i].h;
+    if (bottom > maxBottom) overflowBy = Math.max(overflowBy, bottom - maxBottom);
+  });
+  if (overflowBy > 0) {
+    const shiftUp = Math.min(overflowBy, startY - margin);
+    if (shiftUp > 0) flow.forEach(({ item }) => { item.y = Math.round(item.y - shiftUp); });
   }
 }
 
@@ -34956,62 +35078,155 @@ function pdfedFindAssociatedTable(pg, heading) {
 function pdfedApplyReportRefinement(opts) {
   const theme = PDFED_REFINE_THEMES[opts.theme] || PDFED_REFINE_THEMES.general;
   const pages = pdfed.pages || [];
-  let headingsSynced = 0, tablesFormatted = 0;
+  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0;
 
-  // Pass 1: refine and align every table first, so headings can then size
-  // themselves against real, final table metrics instead of guessing —
-  // a heading above a dense 8px table shouldn't sit at the same 24px a
-  // heading above a roomy 13px table would get.
+  // Pass 1: table styling/autofit first — headings size themselves off each
+  // table's real, final font, not a guess.
   pages.forEach(pg => {
-    const tables = pg.placedTables || [];
-    tables.forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
-    if (opts.align) pdfedAutoAlignContent(pg, opts.align);
+    (pg.placedTables || []).forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
   });
+
+  // Pass 2: settle every table's (and other placed item's) final width up
+  // front — before headings copy that width, and before the flow measures
+  // anything against it — so nothing downstream gets sized off a width
+  // that's about to change again a few passes later.
+  //
+  // This now always runs, not just for 'stretch'. Previously a table
+  // brought in wider than the page (a full-bleed PDF import, a wide
+  // pasted dataset) was only ever resized under 'stretch' — under 'left'
+  // or 'center' it was left exactly as wide as it arrived, so it simply
+  // hung off the right edge of the canvas after refine. For 'stretch' the
+  // width is set to fill the content area exactly, same as before; for
+  // 'left'/'center' it's only ever shrunk down to fit — never grown — so
+  // a table that already fits is left untouched.
+  {
+    const pc = document.getElementById('pdfedPageCanvas');
+    pages.forEach(pg => {
+      const pageW = pg.width || (pc && pc.width) || 600;
+      const margin = 36;
+      const maxW = Math.max(120, pageW - margin * 2);
+
+      (pg.placedTables || []).forEach(item => {
+        const totalW = (item.colWidths || []).reduce((a, b) => a + b, 0);
+        if (totalW <= 0) return;
+        const targetW = opts.align === 'stretch' ? maxW : Math.min(totalW, maxW);
+        if (Math.abs(totalW - targetW) > 1) {
+          const ratio = targetW / totalW;
+          item.colWidths = item.colWidths.map(w => Math.max(30, Math.round(w * ratio)));
+        }
+      });
+
+      // Same guarantee for text boxes and images with an explicit stored
+      // width — only ever shrink one wider than the page, preserving an
+      // image's aspect ratio while doing it.
+      (pg.placedTexts || []).forEach(item => {
+        if (typeof item.w === 'number' && item.w > maxW) item.w = maxW;
+      });
+      (pg.placedImages || []).forEach(item => {
+        if (typeof item.w === 'number' && item.w > maxW) {
+          const ratio = maxW / item.w;
+          item.w = maxW;
+          if (typeof item.h === 'number') item.h = Math.round(item.h * ratio);
+        }
+      });
+    });
+  }
 
   // Document-wide fallback for a heading whose page has no table of its own.
   const allTableSizes = [];
   pages.forEach(pg => (pg.placedTables || []).forEach(t => allTableSizes.push(t.fontSize || 12)));
   const avgTableSize = allTableSizes.length ? allTableSizes.reduce((a, b) => a + b, 0) / allTableSizes.length : 12;
 
-  pages.forEach((pg, idx) => {
-    let pageTouched = !!(
-      (pg.placedTables && pg.placedTables.length) ||
-      (opts.align && ((pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length)))
-    );
-
-    if (opts.syncHeadings && pg.placedTexts && pg.placedTexts.length) {
-      const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
-      if (headings.length) {
-        // The biggest heading already on the page reads as its section
-        // title; everything else on that page is treated as a sub-heading —
-        // both tiers still scale off their own nearest table, just with a
-        // different multiplier, so a title always reads larger than a
-        // sub-heading sitting above the very same table.
-        const maxOrigSize = Math.max(...headings.map(h => h.fontSize || 14));
-        headings.forEach(t => {
-          const assoc = pdfedFindAssociatedTable(pg, t);
-          const base = assoc ? (assoc.fontSize || avgTableSize) : avgTableSize;
-          const isTitle = (t.fontSize || 14) >= maxOrigSize - 0.5;
-          let size = Math.round(base * (isTitle ? 2.0 : 1.5));
-          size = isTitle ? Math.min(30, Math.max(18, size)) : Math.min(22, Math.max(14, size));
-          t.fontFamily = theme.font;
-          t.bold = true;
-          t.fontSize = size;
-          if (assoc) {
-            t.x = assoc.x;
-            const w = pdfedTableWidth(assoc);
-            if (w > 40) t.w = w;
-          }
-          headingsSynced++;
-        });
-        pageTouched = true;
+  // Pass 3: settle every heading's final font size and width — off its
+  // table's now-final width — before anything gets stacked. A heading has
+  // to know its own real size before the flow can measure how much room it
+  // actually needs; sizing it up *after* stacking is what caused the
+  // overlap (the slot it landed in was measured for the old, smaller text).
+  pages.forEach(pg => {
+    if (!opts.syncHeadings || !pg.placedTexts || !pg.placedTexts.length) return;
+    const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
+    if (!headings.length) return;
+    // The biggest heading already on the page reads as its section title;
+    // everything else on that page is treated as a sub-heading — both
+    // tiers still scale off their own nearest table, just with a different
+    // multiplier, so a title always reads larger than a sub-heading sitting
+    // above the very same table.
+    const maxOrigSize = Math.max(...headings.map(h => h.fontSize || 14));
+    headings.forEach(t => {
+      const assoc = pdfedFindAssociatedTable(pg, t);
+      const base = assoc ? (assoc.fontSize || avgTableSize) : avgTableSize;
+      const isTitle = (t.fontSize || 14) >= maxOrigSize - 0.5;
+      let size = Math.round(base * (isTitle ? 2.0 : 1.5));
+      size = isTitle ? Math.min(30, Math.max(18, size)) : Math.min(22, Math.max(14, size));
+      t.fontFamily = theme.font;
+      t.bold = true;
+      t.fontSize = size;
+      // Smart underline: a heading that's actually introducing a section —
+      // a sub-heading sitting under a bigger document title, or the only
+      // heading on the page, doing double duty as that section's own label
+      // — gets a clean underline to separate it from whatever sits below
+      // it. The one true document masthead (the largest heading on a page
+      // that has more than one heading on it) is left alone; at that size
+      // it's already reading as a title and doesn't need the extra
+      // decoration on top.
+      t.underline = !isTitle || headings.length === 1;
+      if (assoc) {
+        const w = pdfedTableWidth(assoc);
+        if (w > 40) t.w = w;
       }
-    }
+      headingsSynced++;
+    });
+  });
 
+  // Pass 3.5: smart bullets — a text box that's really just several short,
+  // independent lines (a "Highlights" block typed or pasted one fact per
+  // line) but was never actually styled as a list reads as a flat wall of
+  // text next to a properly bulleted section elsewhere in the same report.
+  // This turns exactly those boxes into a real bulleted list — headings are
+  // never touched, an ordinary paragraph is never touched, and a box that's
+  // already a list is left exactly as it is. Runs before the flow/stacking
+  // pass below so the box's new (taller) list height is what actually gets
+  // measured, not its old single-paragraph height.
+  if (opts.syncHeadings) {
+    pages.forEach(pg => {
+      (pg.placedTexts || []).forEach(t => {
+        if (pdfedTextLooksLikeHeading(t) || !pdfedTextLooksLikeList(t)) return;
+        const lines = String(t.text || '').split('\n').map(l => l.trim()).filter(Boolean);
+        t.html = '<ul style="margin:0;padding-left:20px">' + lines.map(l => `<li>${escapeHtml(l)}</li>`).join('') + '</ul>';
+        t.bullet = true;
+        bulletsApplied++;
+      });
+    });
+  }
+
+  // Pass 4: now that every table and heading knows its final size, restack
+  // the whole page — tables, headings/text, and content images — as one
+  // shared flow with no overlaps, and pin any logo to its header slot.
+  pages.forEach(pg => {
+    if (opts.align) pdfedAutoAlignContent(pg, opts.align);
+  });
+
+  // Pass 5: re-anchor each heading's x under its associated table's now-
+  // final x — stacking may have moved the table; width was already
+  // settled in Pass 3, this just keeps the heading lined up over it.
+  pages.forEach(pg => {
+    if (!opts.syncHeadings || !pg.placedTexts || !pg.placedTexts.length) return;
+    pg.placedTexts.filter(pdfedTextLooksLikeHeading).forEach(t => {
+      const assoc = pdfedFindAssociatedTable(pg, t);
+      if (assoc) t.x = assoc.x;
+    });
+  });
+
+  pages.forEach((pg, idx) => {
+    const pageTouched = !!(
+      (pg.placedTables && pg.placedTables.length) ||
+      (opts.align && ((pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length))) ||
+      (opts.syncHeadings && pg.placedTexts && pg.placedTexts.some(pdfedTextLooksLikeHeading))
+    );
     if (pageTouched) pdfedMarkModified(idx);
   });
 
-  return { headingsSynced, tablesFormatted, pages: pages.length };
+  return { headingsSynced, tablesFormatted, bulletsApplied, pages: pages.length };
 }
 
 async function pdfedRunRefineReportFromModal() {
@@ -35075,6 +35290,7 @@ async function pdfedRunRefineReportFromModal() {
   }
   if (summary.tablesFormatted) parts.push(`${summary.tablesFormatted} table${summary.tablesFormatted !== 1 ? 's' : ''} formatted`);
   if (summary.headingsSynced) parts.push(`${summary.headingsSynced} heading${summary.headingsSynced !== 1 ? 's' : ''} synced`);
+  if (summary.bulletsApplied) parts.push(`${summary.bulletsApplied} list${summary.bulletsApplied !== 1 ? 's' : ''} bulleted`);
   toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
 }
 
