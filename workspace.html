@@ -3961,7 +3961,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 
 /* ── Data Arrangement: cell dropdown lists (Excel-style "Data Validation") ── */
 .da-dropdown-modal { max-width: 440px; }
-.da-dropdown-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.da-dropdown-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0; }
 .da-dropdown-target { font-size: 11.5px; color: var(--text2); }
 .da-dropdown-target b { color: var(--text); font-family: 'Inter', sans-serif; }
 .da-dropdown-scope { display: flex; gap: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
@@ -10994,7 +10994,7 @@ button.dg-show-chip.active { background:var(--blue); }
       </div>
 
       <div class="pdfed-export-field">
-        <label class="pdfed-export-label">Table alignment</label>
+        <label class="pdfed-export-label">Content alignment</label>
         <div class="da-dropdown-scope" id="pdfedRefineAlignGroup">
           <div class="da-dropdown-scope-btn active" data-align="left" onclick="pdfedSetRefineAlign('left',this)">Left margin</div>
           <div class="da-dropdown-scope-btn" data-align="center" onclick="pdfedSetRefineAlign('center',this)">Centered</div>
@@ -11020,7 +11020,7 @@ button.dg-show-chip.active { background:var(--blue); }
         Sync heading font &amp; scale headings to their table
       </label>
 
-      <div class="pdfed-export-note">This re-styles every table's header row, right-aligns numeric columns, bolds total rows, and straightens table placement on every page. Headings pick up the report's font and are sized off the table they introduce — a heading over a compact table stays modest, one over a roomy table reads bigger — instead of one fixed size everywhere. Any page that isn't already A4 is fit onto a clean A4 sheet first — scaled to fit, never stretched or cropped — with everything on it (tables, text, images) rescaled to match, so the whole report reads as one consistent, easy-to-read size. It's one undo-able step (Ctrl+Z), so nothing is lost if the result isn't what you wanted.</div>
+      <div class="pdfed-export-note">This re-styles every table's header row, right-aligns numeric columns, bolds total rows, and restacks the whole page — tables, headings/text, and content images (charts, figures) — top-to-bottom with no overlaps. Any small logo near the top is auto-detected and snapped into a clean header slot (left, center, or right, whichever it already reads closest to) instead of being stacked into the body, and the rest of the content flows clear of it automatically. Headings pick up the report's font and are sized off the table they introduce — a heading over a compact table stays modest, one over a roomy table reads bigger — instead of one fixed size everywhere. Any page that isn't already A4 is fit onto a clean A4 sheet first — scaled to fit, never stretched or cropped — with everything on it rescaled to match, so the whole report reads as one consistent, easy-to-read size. It's one undo-able step (Ctrl+Z), so nothing is lost if the result isn't what you wanted.</div>
     </div>
 
     <div class="pdfed-export-footer">
@@ -34727,8 +34727,8 @@ async function pdfedAdjustAllPagesToA4() {
 function pdfedOpenRefineReportModal() {
   const pages = (typeof pdfed !== 'undefined' && pdfed.pages) || [];
   if (!pages.length) { toast('Open or build a report first', 'info'); return; }
-  const hasContent = pages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length));
-  if (!hasContent) { toast('Add some tables or text to the canvas first', 'info'); return; }
+  const hasContent = pages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length));
+  if (!hasContent) { toast('Add some tables, text, or images to the canvas first', 'info'); return; }
   const countEl = document.getElementById('pdfedRefinePageCount');
   if (countEl) countEl.textContent = pages.length;
   const overlay = document.getElementById('pdfedRefineOverlay');
@@ -34805,37 +34805,130 @@ function pdfedRefineOneTable(item, theme, autoFit) {
   }
 }
 
-// Straightens a page's tables against a shared margin (or centers/stretches
-// them), then restacks them top-to-bottom with an even gap in whatever
-// order they already read in, so nothing pushed or pasted at an odd offset
-// ends up overlapping or hanging off the page edge.
-function pdfedAutoAlignTables(pg, tables, mode) {
-  if (!tables.length) return;
+// A small image reads as a logo/brand mark no matter where it currently
+// sits on the page — a report header logo dragged mid-canvas by accident,
+// or dropped low during editing, is still a logo, not a content image, and
+// belongs pinned in the header on refine. So this is purely a size check;
+// it deliberately does NOT require the image to already be near the top —
+// that's the whole point of forcing it up there. Thresholds scale with the
+// page itself so this works the same on a small canvas as it does on a
+// full A4 sheet, not just at one fixed pixel size.
+function pdfedIsAnchorImage(img, pageW, pageH) {
+  const maxW = Math.max(220, pageW * 0.42);
+  const maxH = Math.max(170, pageH * 0.22);
+  return (img.w || 0) <= maxW && (img.h || 0) <= maxH;
+}
+
+// Which of the three natural header slots — left, center, right — the logo
+// already reads closest to, going purely off where its center currently
+// sits. This is what makes the placement feel "smart": a logo dropped a
+// little off-center still lands wherever it was clearly headed, instead of
+// every logo defaulting to the same corner regardless of intent.
+function pdfedAnchorSlotX(img, pageW, margin) {
+  const w = img.w || 0;
+  const center = (img.x || 0) + w / 2;
+  const slots = {
+    left: margin,
+    center: Math.round((pageW - w) / 2),
+    right: Math.round(pageW - margin - w),
+  };
+  const dist = {
+    left: Math.abs(center - (margin + w / 2)),
+    center: Math.abs(center - pageW / 2),
+    right: Math.abs(center - (pageW - margin - w / 2)),
+  };
+  const best = Object.keys(dist).reduce((a, b) => (dist[a] <= dist[b] ? a : b));
+  return slots[best];
+}
+
+// A flowed item's own footprint — a table's is the sum of its row heights/
+// column widths (colWidths can change under 'stretch', so width has to be
+// read fresh rather than cached), everything else just reports its own w/h.
+function pdfedFlowSize(item, kind) {
+  if (kind === 'table') {
+    return {
+      w: (item.colWidths || []).reduce((a, b) => a + b, 0),
+      h: (item.rowHeights || []).reduce((a, b) => a + b, 0),
+    };
+  }
+  return { w: item.w || 0, h: item.h || 0 };
+}
+
+// Straightens a page's *entire* content — tables, headings/paragraphs, and
+// real content images (charts, figures, screenshots) — against a shared
+// margin (or centers/stretches), then restacks all of it top-to-bottom in
+// one shared flow, in whatever reading order it already sits in, with an
+// even gap between pieces. This is what stops a chart landing on top of a
+// table, or a table landing on top of a heading, after a refine pass.
+//
+// Small corner logos are deliberately left out of the stack (see
+// pdfedIsAnchorImage) and instead snapped into whichever of the three
+// natural header slots — left, center, right — they already read closest
+// to. Once the logo has its slot, the flow's own starting position is
+// pushed clear of it, so a heading or table can never open underneath it.
+function pdfedAutoAlignContent(pg, mode) {
   const pc = document.getElementById('pdfedPageCanvas');
   const pageW = pg.width || (pc && pc.width) || 600;
+  const pageH = pg.height || (pc && pc.height) || 800;
   const margin = 36, gap = 22;
-  const ordered = tables.slice().sort((a, b) => (a.y || 0) - (b.y || 0));
-  let cursorY = Math.max(margin, ordered[0].y || margin);
 
-  ordered.forEach(item => {
-    const totalW = (item.colWidths || []).reduce((a, b) => a + b, 0);
-    if (mode === 'stretch') {
-      const targetW = Math.max(120, pageW - margin * 2);
-      if (totalW > 0 && Math.abs(totalW - targetW) > 1) {
-        const ratio = targetW / totalW;
-        item.colWidths = item.colWidths.map(w => Math.max(30, Math.round(w * ratio)));
-      }
-      item.x = margin;
-    } else if (mode === 'center') {
-      const w = (item.colWidths || []).reduce((a, b) => a + b, 0);
-      item.x = Math.round((pageW - w) / 2);
-    } else {
-      item.x = margin;
-    }
-    item.y = Math.round(cursorY);
-    const totalH = (item.rowHeights || []).reduce((a, b) => a + b, 0);
-    cursorY += totalH + gap;
+  const flow = [];
+  const anchors = [];
+
+  (pg.placedTables || []).forEach(item => flow.push({ item, kind: 'table' }));
+  (pg.placedTexts || []).forEach(item => flow.push({ item, kind: 'text' }));
+  (pg.placedImages || []).forEach(item => {
+    if (pdfedIsAnchorImage(item, pageW, pageH)) anchors.push(item);
+    else flow.push({ item, kind: 'image' });
   });
+  // placedShapes/placedBorders are left as-is — mostly page-level decoration
+  // (dividers, background panels, frame borders) rather than stackable
+  // content, and reflowing them tends to do more harm than good.
+
+  // Smart auto-arrange: snap each logo into its nearest natural header slot
+  // (left / center / right), at a consistent, professional offset from the
+  // page edge — never wherever it happened to be dropped.
+  anchors.forEach(img => {
+    img.x = pdfedAnchorSlotX(img, pageW, margin);
+    img.y = Math.round(margin * 0.6);
+  });
+  const anchorBottom = anchors.length ? Math.max(...anchors.map(a => a.y + (a.h || 0))) : 0;
+
+  if (flow.length) {
+    flow.sort((a, b) => (a.item.y || 0) - (b.item.y || 0));
+    let cursorY = Math.max(margin, flow[0].item.y || margin);
+
+    flow.forEach(({ item, kind }, i) => {
+      const size = pdfedFlowSize(item, kind);
+      if (mode === 'stretch' && kind === 'table') {
+        const targetW = Math.max(120, pageW - margin * 2);
+        if (size.w > 0 && Math.abs(size.w - targetW) > 1) {
+          const ratio = targetW / size.w;
+          item.colWidths = item.colWidths.map(w => Math.max(30, Math.round(w * ratio)));
+        }
+        item.x = margin;
+      } else if (mode === 'center') {
+        item.x = Math.round((pageW - size.w) / 2);
+      } else {
+        // 'left', and the fallback for 'stretch' on non-table items —
+        // stretching an image or a chart would distort it, so those always
+        // just left-align (or center, above) instead of scaling to width.
+        item.x = margin;
+      }
+      // Clearance: the first item in the flow is the one that would open
+      // directly under a header logo, since everything after it is pushed
+      // down anyway by the normal stacking below. If this item's own
+      // horizontal span would pass under any logo's footprint, start it
+      // below the logo instead of at the plain top margin.
+      if (i === 0 && anchorBottom > cursorY) {
+        const itemRight = item.x + size.w;
+        const overlapsAnyAnchor = anchors.some(a => itemRight > a.x && item.x < a.x + (a.w || 0));
+        if (overlapsAnyAnchor || !size.w) cursorY = anchorBottom + gap;
+      }
+      item.y = Math.round(cursorY);
+      cursorY += size.h + gap;
+    });
+  }
 }
 
 function pdfedTableWidth(t) {
@@ -34871,10 +34964,8 @@ function pdfedApplyReportRefinement(opts) {
   // heading above a roomy 13px table would get.
   pages.forEach(pg => {
     const tables = pg.placedTables || [];
-    if (tables.length) {
-      tables.forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
-      if (opts.align) pdfedAutoAlignTables(pg, tables, opts.align);
-    }
+    tables.forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
+    if (opts.align) pdfedAutoAlignContent(pg, opts.align);
   });
 
   // Document-wide fallback for a heading whose page has no table of its own.
@@ -34883,7 +34974,10 @@ function pdfedApplyReportRefinement(opts) {
   const avgTableSize = allTableSizes.length ? allTableSizes.reduce((a, b) => a + b, 0) / allTableSizes.length : 12;
 
   pages.forEach((pg, idx) => {
-    let pageTouched = !!(pg.placedTables && pg.placedTables.length);
+    let pageTouched = !!(
+      (pg.placedTables && pg.placedTables.length) ||
+      (opts.align && ((pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length)))
+    );
 
     if (opts.syncHeadings && pg.placedTexts && pg.placedTexts.length) {
       const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
