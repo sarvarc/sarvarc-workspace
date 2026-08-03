@@ -3066,6 +3066,17 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   font-weight: 700;
   background: rgba(0,194,255,0.16);
 }
+.pdfed-table-cell.pdfed-th-has-icon {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.pdfed-th-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.pdfed-th-icon svg { display: block; }
 .pdfed-table-resize {
   position: absolute; bottom: -4px; right: -4px; width: 9px; height: 9px;
   background: #fff; border: 1.5px solid #0073E6; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
@@ -3953,6 +3964,30 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .pdfed-export-checkbox input:checked + .pdfed-export-checkbox-box { background: var(--blue); border-color: var(--blue); }
 .pdfed-export-checkbox-box svg { opacity: 0; width: 11px; height: 11px; color: #fff; }
 .pdfed-export-checkbox input:checked + .pdfed-export-checkbox-box svg { opacity: 1; }
+
+.pdfed-refine-logo-row { display: flex; gap: 12px; align-items: flex-start; }
+.pdfed-refine-logo-drop {
+  width: 72px; height: 72px; flex-shrink: 0; border-radius: 10px;
+  border: 1.5px dashed var(--border2); background: var(--bg3);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s; overflow: hidden; padding: 6px;
+}
+.pdfed-refine-logo-drop:hover { border-color: var(--blue); background: var(--surface2); }
+.pdfed-refine-logo-drop img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pdfed-refine-logo-drop-label { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text3); }
+.pdfed-refine-logo-drop-label span { font-size: 10px; }
+.pdfed-refine-logo-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pdfed-refine-logo-status { font-size: 12px; color: var(--text2); line-height: 1.4; }
+.pdfed-refine-logo-swatches { display: flex; gap: 6px; align-items: center; }
+.pdfed-refine-logo-swatch {
+  width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border2);
+  flex-shrink: 0;
+}
+.pdfed-refine-logo-remove {
+  align-self: flex-start; background: none; border: none; color: var(--text3);
+  font-size: 11px; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 2px;
+}
+.pdfed-refine-logo-remove:hover { color: var(--text2); }
 
 .pdfed-export-footer {
   display: flex; gap: 10px; justify-content: flex-end;
@@ -10996,6 +11031,39 @@ button.dg-show-chip.active { background:var(--blue); }
           <div class="da-dropdown-scope-btn" data-theme="corporate" onclick="pdfedSetRefineTheme('corporate',this)">Corporate</div>
           <div class="da-dropdown-scope-btn" data-theme="modern" onclick="pdfedSetRefineTheme('modern',this)">Modern</div>
         </div>
+        <div class="pdfed-export-note" id="pdfedRefineIconHint" style="margin-top:6px;display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+          Each section's own title (Working Capital, Banking Facilities, Compliance, etc.) can get a filled color badge icon beside it and a soft divider bar underneath — see "Highlight section titles" below. Uses the style's accent color, or your logo's own color when a logo is uploaded.
+        </div>
+      </div>
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Business logo <span style="font-weight:400;opacity:.65">(optional)</span></label>
+        <div class="pdfed-refine-logo-row" id="pdfedRefineLogoRow">
+          <div class="pdfed-refine-logo-drop" id="pdfedRefineLogoDrop" onclick="document.getElementById('pdfedRefineLogoInput').click()">
+            <img id="pdfedRefineLogoPreviewImg" style="display:none" alt="Logo preview">
+            <div id="pdfedRefineLogoDropLabel" class="pdfed-refine-logo-drop-label">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Upload logo</span>
+            </div>
+          </div>
+          <input type="file" id="pdfedRefineLogoInput" accept="image/*" style="display:none" onchange="pdfedHandleLogoFileInput(this)">
+          <div class="pdfed-refine-logo-info">
+            <div id="pdfedRefineLogoStatus" class="pdfed-refine-logo-status">No logo uploaded — the report uses the style colors above.</div>
+            <div id="pdfedRefineLogoSwatches" class="pdfed-refine-logo-swatches" style="display:none"></div>
+            <label class="pdfed-export-checkbox" id="pdfedRefineUseLogoColorsRow" style="display:none;margin-top:4px">
+              <input type="checkbox" id="pdfedRefineUseLogoColors" checked onchange="pdfedRefineState.useLogoColors=this.checked">
+              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              Match report colors to logo
+            </label>
+            <label class="pdfed-export-checkbox" id="pdfedRefineAddLogoRow" style="display:none">
+              <input type="checkbox" id="pdfedRefineAddLogoToHeader" checked onchange="pdfedRefineState.addLogoToHeader=this.checked">
+              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              Place logo in report header
+            </label>
+            <button type="button" id="pdfedRefineRemoveLogoBtn" class="pdfed-refine-logo-remove" style="display:none" onclick="pdfedClearRefineLogo()">Remove logo</button>
+          </div>
+        </div>
       </div>
 
       <div class="pdfed-export-field">
@@ -11010,7 +11078,7 @@ button.dg-show-chip.active { background:var(--blue); }
       <label class="pdfed-export-checkbox">
         <input type="checkbox" id="pdfedRefineAdjustA4" checked>
         <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Standardize all pages to A4
+        Standardize all pages to <span id="pdfedRefineAdjustA4Size">one size</span>
       </label>
 
       <label class="pdfed-export-checkbox">
@@ -11022,10 +11090,16 @@ button.dg-show-chip.active { background:var(--blue); }
       <label class="pdfed-export-checkbox">
         <input type="checkbox" id="pdfedRefineSyncHeadings" checked>
         <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Sync heading styles &amp; formatting
+        Sync heading &amp; paragraph fonts to style
       </label>
 
-      <div class="pdfed-export-note">One undo-able pass (Ctrl+Z) that re-styles tables, aligns headings, and cleans up page layout throughout the document.</div>
+      <label class="pdfed-export-checkbox" id="pdfedRefineSectionIconsRow" style="display:none">
+        <input type="checkbox" id="pdfedRefineSectionIcons" checked>
+        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+        Highlight section titles <span style="font-weight:400;opacity:.65">(color badge + divider bar)</span>
+      </label>
+
+      <div class="pdfed-export-note">One undo-able pass (Ctrl+Z) that re-styles tables, aligns headings, adds section-title icons, and cleans up page layout throughout the document.</div>
     </div>
 
     <div class="pdfed-export-footer">
@@ -27780,7 +27854,23 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
       // wrapped to the next line. That's what made the thumbnail/exported
       // page's line breaks (and box height) drift from the live editor the
       // longer an auto-width paragraph got.
-      const pageW = ctx.canvas ? ctx.canvas.width : 0;
+      // ctx.canvas.width is the RAW device-pixel canvas size. On the plain
+      // on-screen thumbnail (pdfedComposeThumb, no scale) that equals the
+      // page's logical width, so this worked. But export renders through
+      // pdfedComposeThumbHiRes, which supersamples the canvas 3x AND applies
+      // ctx.scale(3,3) so item.x/y/w keep working unchanged in the original
+      // coordinate space. Reading ctx.canvas.width there returns 3x the real
+      // page width while item.x stays unscaled — the wrap math thought it had
+      // 3x the actual room, so an auto-width paragraph's first "line" grew to
+      // roughly triple its real length before wrapping, ran off the true page
+      // edge, and got hard-clipped in the exported PDF (bug: paragraph text
+      // cut off in export, e.g. "Management Remarks"-style free paragraphs).
+      // Dividing by the context's own current horizontal scale converts back
+      // to the logical page width regardless of supersample factor — 1 on the
+      // plain thumbnail (no-op), 3 during export — so wrap width always
+      // matches what the editor actually showed.
+      const scaleX = (ctx.getTransform && ctx.getTransform().a) || 1;
+      const pageW = ctx.canvas ? ctx.canvas.width / scaleX : 0;
       maxWidth = Math.max(10, (pageW ? (pageW - item.x - 12) : 99999) - padX * 2);
     }
     const wrapped = [];
@@ -28059,12 +28149,27 @@ function pdfedRenderPlacedTables(idx) {
         cell.style.pointerEvents = item.locked ? 'none' : 'auto';
         cell.contentEditable = !item.locked;
         cell.spellcheck = false;
-        cell.textContent = (item.cells[r] && item.cells[r][c]) || '';
+        const cellText = (item.cells[r] && item.cells[r][c]) || '';
+        const headerIconKey = (item.headerRow && r === 0 && item.headerIcons) ? item.headerIcons[c] : null;
+        if (headerIconKey) {
+          cell.classList.add('pdfed-th-has-icon');
+          const iconWrap = document.createElement('span');
+          iconWrap.className = 'pdfed-th-icon';
+          iconWrap.contentEditable = 'false';
+          iconWrap.innerHTML = pdfedIconToSVG(headerIconKey, 13);
+          cell.appendChild(iconWrap);
+          cell.appendChild(document.createTextNode(cellText));
+        } else {
+          cell.textContent = cellText;
+        }
         // Auto Format: report-hierarchy styling computed from the data itself
         // (numeric columns right-align, total/subtotal rows bold + top rule).
         const fmtSt = item.cellStyles && item.cellStyles[r] && item.cellStyles[r][c];
         if (fmtSt) {
           cell.style.textAlign = fmtSt.align || 'left';
+          if (headerIconKey) {
+            cell.style.justifyContent = fmtSt.align === 'right' ? 'flex-end' : fmtSt.align === 'center' ? 'center' : 'flex-start';
+          }
           if (fmtSt.bold) cell.style.fontWeight = '700';
           if (fmtSt.italic) cell.style.fontStyle = 'italic';
           if (fmtSt.color) cell.style.color = fmtSt.color;
@@ -28597,21 +28702,45 @@ function pdfedDrawPlacedTablesOnCtx(ctx, list) {
           ctx.stroke();
         }
         const text = (item.cells[r] && item.cells[r][c]) || '';
-        if (text) {
+        const iconKey = (isHead && item.headerIcons) ? item.headerIcons[c] : null;
+        if (text || iconKey) {
           const bold = isHead || (fmtSt && fmtSt.bold);
           const italic = fmtSt && fmtSt.italic;
-          ctx.fillStyle = (fmtSt && fmtSt.color) ? fmtSt.color : '#101820';
+          const textColor = (fmtSt && fmtSt.color) ? fmtSt.color : '#101820';
+          ctx.fillStyle = textColor;
           ctx.font = `${italic ? 'italic ' : ''}${bold ? '700' : '400'} ${item.fontSize}px Inter, Arial, sans-serif`;
           ctx.textBaseline = 'middle';
           const align = (fmtSt && fmtSt.align) || 'left';
           ctx.textAlign = align;
-          const tx = align === 'right' ? (x + w - 6) : align === 'center' ? (x + w / 2) : (x + 6);
-          // Simple clip so overflowing text doesn't spill into neighboring cells
+          let tx = align === 'right' ? (x + w - 6) : align === 'center' ? (x + w / 2) : (x + 6);
+          // Simple clip so overflowing text/icon doesn't spill into neighboring cells
           ctx.save();
           ctx.beginPath();
           ctx.rect(x, y, w, h);
           ctx.clip();
-          ctx.fillText(text, tx, y + h / 2, w - 12);
+          let maxTextW = w - 12;
+          if (iconKey) {
+            // Same icon glyph the live DOM header cell shows, stroked straight
+            // onto the raster — this is what makes it survive export, not
+            // just look right on screen.
+            const iconSize = Math.max(9, Math.min(item.fontSize, 14));
+            const gap = 4;
+            const textW = text ? ctx.measureText(text).width : 0;
+            if (align === 'right') {
+              const iconX = x + w - 6 - textW - gap - iconSize;
+              pdfedDrawIconOnCtx(ctx, iconKey, iconX, y + h / 2 - iconSize / 2, iconSize, textColor);
+            } else if (align === 'center') {
+              const startX = x + w / 2 - (iconSize + gap + textW) / 2;
+              pdfedDrawIconOnCtx(ctx, iconKey, startX, y + h / 2 - iconSize / 2, iconSize, textColor);
+              ctx.textAlign = 'left';
+              tx = startX + iconSize + gap;
+            } else {
+              pdfedDrawIconOnCtx(ctx, iconKey, x + 6, y + h / 2 - iconSize / 2, iconSize, textColor);
+              tx = x + 6 + iconSize + gap;
+            }
+            maxTextW = Math.max(10, w - 12 - iconSize - gap);
+          }
+          if (text) ctx.fillText(text, tx, y + h / 2, maxTextW);
           ctx.restore();
         }
         x += w;
@@ -29779,6 +29908,15 @@ function pdfedRenderPlacedImages(idx) {
     badgeRow.className = 'pdfed-badge-row';
     el.appendChild(badgeRow);
 
+    // Section-title icons are tiny (~17-24px), always locked, and get
+    // regenerated fresh on every Refine Report pass — they're not meant to
+    // be individually dragged/resized/reordered/deleted by hand, so none of
+    // the badge chrome below applies to them. Skipping it here matters
+    // because the lock badge in particular is sized for a normal placed
+    // image; on a box this small it would visually dominate the icon
+    // itself, making it look oversized and misaligned next to the heading.
+    if (!item._sectionIcon && !item._sectionDivider && !item._sectionBar) {
+
     // Lock/unlock toggle badge, always interactive, even when image itself is locked
     const lockBtn = document.createElement('button');
     lockBtn.title = item.locked ? 'Unlock to move/resize' : 'Lock in place';
@@ -29869,6 +30007,7 @@ function pdfedRenderPlacedImages(idx) {
     } else {
       badgeRow.appendChild(lockBtn);
     }
+    } // end !item._sectionIcon guard
 
     layer.appendChild(el);
   });
@@ -34708,14 +34847,439 @@ function pdfedAutoFormatTable(idx, id) {
 // tables that were dropped at odd offsets get straightened onto a common
 // margin. The whole thing is one undo-able step.
 
+// `font` is the DISPLAY face — headings and table text, both already sized
+// and weighted to read as titles/data, where a geometric sans or a confident
+// serif carries its own visual weight fine.
+// `bodyFont` is the READING face for ordinary paragraph text boxes (e.g. a
+// "Management Remarks" block) — picked from the professional-document
+// pairings lawyers/CAs actually expect (serif body for financial/legal-style
+// prose, a plain workhorse sans everywhere else), since a display face at
+// paragraph size and line-length reads noticeably less professional than the
+// same face used sparingly for headings.
 const PDFED_REFINE_THEMES = {
-  general:   { label: 'General',   font: 'Inter',                             headerFill: 'rgba(15,23,42,0.07)',   accent: '#0f172a' },
-  financial: { label: 'Financial', font: 'Georgia, Cambria, serif',           headerFill: 'rgba(0,115,230,0.13)',  accent: '#0073e6' },
-  corporate: { label: 'Corporate', font: 'Arial, Helvetica, sans-serif',      headerFill: 'rgba(0,121,107,0.13)',  accent: '#00796b' },
-  modern:    { label: 'Modern',    font: 'Poppins, Inter, sans-serif',        headerFill: 'rgba(124,58,237,0.11)', accent: '#7c3aed' },
+  general:   { label: 'General',   font: 'Inter',                        bodyFont: 'Inter, Arial, sans-serif',            headerFill: 'rgba(15,23,42,0.07)',   accent: '#0f172a' },
+  financial: { label: 'Financial', font: 'Georgia, Cambria, serif',      bodyFont: '"Times New Roman", Times, serif',     headerFill: 'rgba(0,115,230,0.13)',  accent: '#0073e6' },
+  corporate: { label: 'Corporate', font: 'Arial, Helvetica, sans-serif', bodyFont: 'Calibri, Candara, Arial, sans-serif', headerFill: 'rgba(0,121,107,0.13)',  accent: '#00796b' },
+  modern:    { label: 'Modern',    font: 'Poppins, Inter, sans-serif',   bodyFont: 'Inter, Roboto, sans-serif',           headerFill: 'rgba(124,58,237,0.11)', accent: '#7c3aed' },
 };
 
-let pdfedRefineState = { theme: 'general', align: 'left' };
+// ── Smart header icons (Modern theme) ──────────────────────────────────
+// A small outline-icon set, drawn from one shared shape definition per icon
+// so the exact same glyph renders two ways: as inline SVG in the live DOM
+// table editor, and stroked directly onto the export canvas for the actual
+// PDF/PNG/image output — the two are never allowed to drift out of sync.
+// Every icon is authored on a 24x24 grid using only rects/circles/ellipses/
+// lines/polylines/arcs, so both renderers can walk the same definition.
+const PDFED_HEADER_ICONS = {
+  company:     { rects: [[3,8,18,12,1],[9,4,6,3,1]], lines: [[3,14,21,14]] },
+  person:      { circles: [[12,8,3.3]], arcs: [[12,23,8.5,3.49,6.02]] },
+  team:        { circles: [[8,9,2.8],[16,9,2.8]], arcs: [[7.5,21,6,3.49,6.02],[17,21,6.3,3.55,5.95]] },
+  email:       { rects: [[3,5,18,14,1]], polylines: [[[3,6],[12,14],[21,6]]] },
+  phone:       { rects: [[7,2,10,20,3]], lines: [[10,18,14,18]] },
+  location:    { circles: [[12,9,2.2]], polylines: [[[6.5,9],[12,21],[17.5,9]]] },
+  website:     { circles: [[12,12,9]], lines: [[3,12,21,12]], ellipses: [[12,12,4,9]] },
+  date:        { rects: [[3,5,18,16,2]], lines: [[3,10,21,10],[8,3,8,7],[16,3,16,7]] },
+  time:        { circles: [[12,12,9]], lines: [[12,12,12,7],[12,12,16,14]] },
+  amount:      { rects: [[3,6,18,13,2]], lines: [[3,10,21,10]], circles: [[17,15.5,1.3]] },
+  percent:     { circles: [[7,7,2],[17,17,2]], lines: [[6,18,18,6]] },
+  status:      { circles: [[12,12,9]], polylines: [[[8,12.5],[11,15.5],[16,9]]] },
+  quantity:    { lines: [[5,20,5,12],[12,20,12,8],[19,20,19,15]] },
+  description: { rects: [[5,3,14,18,1]], lines: [[8,8,16,8],[8,12,16,12],[8,16,13,16]] },
+  id:          { lines: [[9,4,7,20],[16,4,14,20],[4,9,19,9],[4,15,19,15]] },
+  category:    { polylines: [[[4,5],[15,5],[21,11],[15,17],[4,17],[4,5]]], circles: [[8,11,1.4]] },
+  // Added for section-title icons (see PDFED_SECTION_ICON_RULES) — these
+  // read as whole-section glyphs (a little chart, a bank building, a
+  // compliance shield) rather than per-column header marks.
+  chart:       { rects: [[4,13,4,8,1],[10,8,4,13,1],[16,3,4,18,1]] },
+  bank:        { polylines: [[[2,9],[12,3],[22,9]]], lines: [[2,9,22,9],[5,9,5,18],[10,9,10,18],[14,9,14,18],[19,9,19,18],[2,20,22,20]] },
+  shield:      { polylines: [[[12,2],[20,5],[20,11],[12,22],[4,11],[4,5],[12,2]],[[8.5,12],[11,14.5],[15.5,9]]] },
+  checklist:   { rects: [[5,4,14,18,2],[9,2,6,3,1]], polylines: [[[8,10.5],[10,12.5],[14.5,8.5]]], lines: [[8,16,16,16]] },
+  remarks:     { rects: [[3,4,18,12,3]], polylines: [[[7,16],[7,20],[11,16]]], lines: [[7,9,17,9],[7,12,14,12]] },
+};
+
+// Which whole-section icon (drawn from the same PDFED_HEADER_ICONS shape
+// library) fits a section title's own wording — e.g. "Working Capital
+// Analysis" reads as a chart, "Compliance Checklist" reads as a shield.
+// Ordered most-specific-first, same convention as PDFED_HEADER_ICON_RULES;
+// first match wins, and an unrecognized title is simply left with no icon
+// rather than guessing.
+const PDFED_SECTION_ICON_RULES = [
+  { icon: 'bank',        re: /\b(bank(ing)?|facilit(y|ies)|loan|overdraft|credit\s*line)\b/i },
+  { icon: 'shield',      re: /\b(compliance|audit(or'?s)?|statutory|regulatory|governance|security)\b/i },
+  { icon: 'checklist',   re: /\b(checklist|to-?do|action\s*items?|tasks?)\b/i },
+  { icon: 'remarks',     re: /\b(management\s*remarks?|remarks?|comments?|observations?)\b/i },
+  { icon: 'chart',       re: /\b(working\s*capital|cash\s*flow|financial\s*(analysis|summary|performance|ratios?)|turnover|profit(ability)?|margin\s*analysis|analytics|kpis?)\b/i },
+  { icon: 'amount',      re: /\b(invoice|billing|balance\s*sheet|p\s*&\s*l|profit\s*&?\s*loss|revenue|payment|expenses?|receivables?|payables?|inventory|stock|asset(s)?|liabilit(y|ies)|depreciation|provision(s)?|reserves?|equity|capital|fund(s)?|ledger|statement(s)?|balance)\b/i },
+  { icon: 'percent',     re: /\b(tax(es)?|gst|ratio|percentage)\b/i },
+  { icon: 'team',        re: /\b(team|staff|hr|human\s*resources|department|payroll)\b/i },
+  { icon: 'person',      re: /\b(client|customer|employee|contact\s*(person|details))\b/i },
+  { icon: 'date',        re: /\b(timeline|schedule|calendar|history|ageing|aging)\b/i },
+  { icon: 'location',    re: /\b(location|address|branch(es)?|site)\b/i },
+  { icon: 'company',     re: /\b(company|organi[sz]ation(al)?|profile|corporate|business)\s*(overview|profile|details|information)?\b/i },
+  { icon: 'description', re: /\b(summary|overview|description|details|particulars|highlights)\b/i },
+];
+
+// Detects the best-fit whole-section icon for a heading/title's own text —
+// null when nothing recognizable matches.
+function pdfedDetectSectionIcon(headingText) {
+  const txt = String(headingText || '').trim();
+  if (!txt) return null;
+  for (const rule of PDFED_SECTION_ICON_RULES) {
+    if (rule.re.test(txt)) return rule.icon;
+  }
+  return null;
+}
+
+// Renders one icon as a standalone data: URI image (fixed stroke color,
+// since a standalone <img>/placedImage has no CSS context to resolve
+// currentColor against) — used to plant a section-title icon as a small
+// placedImage next to a heading. size is the icon's rendered px box.
+function pdfedSectionIconDataUrl(key, color, size) {
+  const svg = pdfedIconToSVG(key, size).replace('stroke="currentColor"', `stroke="${color}"`);
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// Just the raw shape markup for one icon (no wrapping <svg>) — shared by
+// pdfedIconToSVG (outline icon, transparent) and the badge renderer below
+// (filled square, white icon) so both draw from the exact same glyph.
+function pdfedIconShapeMarkup(key) {
+  const def = PDFED_HEADER_ICONS[key];
+  if (!def) return '';
+  const parts = [];
+  (def.rects || []).forEach(([x, y, w, h, r]) => {
+    parts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}"${r ? ` rx="${r}"` : ''}/>`);
+  });
+  (def.circles || []).forEach(([cx, cy, r]) => parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}"/>`));
+  (def.ellipses || []).forEach(([cx, cy, rx, ry]) => parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`));
+  (def.lines || []).forEach(([x1, y1, x2, y2]) => parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`));
+  (def.polylines || []).forEach(pts => parts.push(`<polyline points="${pts.map(p => p.join(',')).join(' ')}"/>`));
+  (def.arcs || []).forEach(([cx, cy, r, a1, a2]) => {
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+    const large = ((a2 - a1) % (Math.PI * 2)) > Math.PI ? 1 : 0;
+    parts.push(`<path d="M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}"/>`);
+  });
+  return parts.join('');
+}
+
+// The section-title badge: a softly tinted rounded square (a light tint of
+// the theme's accent — or the logo's own extracted color, when "Match
+// report colors to logo" is on, see pdfedResolveRefineTheme) with the icon
+// itself stroked in that same accent color on top — an icon "chip", not a
+// solid filled block. This is the quiet, editorial-report look (icon reads
+// as part of the page, not as a UI button), as opposed to a heavy filled
+// badge which reads more like an app icon than a document element. size is
+// the badge's rendered px box (both width and height, always square).
+function pdfedSectionIconBadgeDataUrl(key, accentColor, size) {
+  const shape = pdfedIconShapeMarkup(key);
+  if (!shape) return null;
+  const r = 7; // corner radius in the icon's own 0-24 coordinate space
+  const tint = pdfedHexToRgba(accentColor, 0.13);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+    `<rect x="0" y="0" width="24" height="24" rx="${r}" fill="${tint}"/>` +
+    `<g fill="none" stroke="${accentColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${shape}</g>` +
+    `</svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// The thin gradient rule placed under each section heading — accent color
+// fading to a lighter tint of itself along the same hue, left to right —
+// the crisp, colorful accent line that does the actual "highlighting" of
+// the heading, in place of a heavy filled background band. Sits directly
+// above the heading's associated table so it reads as the table's own
+// title rule. w/h are the rendered px box of the bar image.
+function pdfedSectionDividerDataUrl(color, w, h) {
+  const id = 'g' + Math.random().toString(36).slice(2, 8);
+  const light = pdfedShadeHex(color, 0.4);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+    `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0">` +
+    `<stop offset="0%" stop-color="${color}"/>` +
+    `<stop offset="100%" stop-color="${light}"/>` +
+    `</linearGradient></defs>` +
+    `<rect x="0" y="0" width="${w}" height="${h}" rx="${h / 2}" fill="url(#${id})"/>` +
+    `</svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// Ordered most-specific-first so e.g. a "Contact Person" column matches
+// person, not phone, and "Email" never falls through to the generic
+// company/person buckets. First matching rule wins.
+const PDFED_HEADER_ICON_RULES = [
+  { icon: 'email',       re: /\be-?mail\b/i },
+  { icon: 'phone',       re: /\b(phone|mobile|contact\s*no\.?|contact\s*number|tel(ephone)?|cell)\b/i },
+  { icon: 'location',    re: /\b(address|location|city|place|region|branch|site)\b/i },
+  { icon: 'website',     re: /\b(website|url|domain|web\s*link|link)\b/i },
+  { icon: 'date',        re: /\b(date|day|month|year|dob|deadline|due\s*date|issued?\s*date)\b/i },
+  { icon: 'time',        re: /\b(time|duration|hour|hrs?)\b/i },
+  { icon: 'percent',     re: /(%|\bpercent(age)?\b|\bmargin\b|\btax\s*rate\b)/i },
+  { icon: 'amount',      re: /\b(amount|total|price|cost|value|revenue|salary|fee|payment|paid|balance|subtotal|grand\s*total|gst|tax\s*amount|invoice\s*amount)\b/i },
+  { icon: 'status',      re: /\b(status|state|approved|completed|stage)\b/i },
+  { icon: 'quantity',    re: /\b(qty|quantity|units?|count|stock|inventory)\b/i },
+  { icon: 'id',          re: /\b(id|no\.?|number|sr\.?\s*no\.?|serial|code|ref(erence)?|sku|invoice\s*no\.?|order\s*no\.?)\b/i },
+  { icon: 'category',    re: /\b(category|type|class|tag|label)\b/i },
+  { icon: 'company',     re: /\b(company|organi[sz]ation|firm|vendor|supplier|business)\b/i },
+  { icon: 'team',        re: /\b(team|department|dept\.?|staff|group)\b/i },
+  { icon: 'person',      re: /\b(name|employee|customer|client|person)\b/i },
+  { icon: 'description', re: /\b(description|details|remarks|notes?|summary|particulars|items?)\b/i },
+];
+
+// Detects the best-fit icon key for a header cell's own text — null when
+// nothing recognizable matches, so an unrecognized column is simply left
+// with no icon rather than guessing.
+function pdfedDetectHeaderIcon(headerText) {
+  const txt = String(headerText || '').trim();
+  if (!txt) return null;
+  for (const rule of PDFED_HEADER_ICON_RULES) {
+    if (rule.re.test(txt)) return rule.icon;
+  }
+  return null;
+}
+
+// Renders one icon as a standalone inline <svg> string (used inside the
+// live, editable DOM table header cells). stroke="currentColor" so it
+// always matches whatever color the header text itself is drawn in.
+function pdfedIconToSVG(key, size) {
+  const def = PDFED_HEADER_ICONS[key];
+  if (!def) return '';
+  const parts = [];
+  (def.rects || []).forEach(([x, y, w, h, r]) => {
+    parts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}"${r ? ` rx="${r}"` : ''}/>`);
+  });
+  (def.circles || []).forEach(([cx, cy, r]) => parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}"/>`));
+  (def.ellipses || []).forEach(([cx, cy, rx, ry]) => parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`));
+  (def.lines || []).forEach(([x1, y1, x2, y2]) => parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`));
+  (def.polylines || []).forEach(pts => parts.push(`<polyline points="${pts.map(p => p.join(',')).join(' ')}"/>`));
+  (def.arcs || []).forEach(([cx, cy, r, a1, a2]) => {
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+    const large = ((a2 - a1) % (Math.PI * 2)) > Math.PI ? 1 : 0;
+    parts.push(`<path d="M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}"/>`);
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${parts.join('')}</svg>`;
+}
+
+// Strokes the same icon definition directly onto a canvas context — used
+// when baking the header row into the actual exported PDF/PNG, since that
+// path never touches the DOM. Coordinates are authored in a 0-24 box; the
+// translate+scale below maps that box onto a `size`-px square at (x,y),
+// and — because canvas scaling affects line width too — a lineWidth set in
+// that same 0-24 space naturally comes out to a consistent on-page stroke.
+function pdfedDrawIconOnCtx(ctx, key, x, y, size, color) {
+  const def = PDFED_HEADER_ICONS[key];
+  if (!def) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 24, size / 24);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  (def.rects || []).forEach(([rx, ry, rw, rh, rr]) => {
+    ctx.beginPath();
+    if (rr && ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, rr); else ctx.rect(rx, ry, rw, rh);
+    ctx.stroke();
+  });
+  (def.circles || []).forEach(([cx, cy, r]) => { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke(); });
+  (def.ellipses || []).forEach(([cx, cy, rx, ry]) => { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke(); });
+  (def.lines || []).forEach(([x1, y1, x2, y2]) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); });
+  (def.polylines || []).forEach(pts => {
+    ctx.beginPath();
+    pts.forEach((p, i) => i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]));
+    ctx.stroke();
+  });
+  (def.arcs || []).forEach(([cx, cy, r, a1, a2]) => { ctx.beginPath(); ctx.arc(cx, cy, r, a1, a2); ctx.stroke(); });
+  ctx.restore();
+}
+
+let pdfedRefineState = {
+  theme: 'general', align: 'left',
+  logoDataUrl: null, logoColors: [], logoAccent: null,
+  useLogoColors: true, addLogoToHeader: true,
+};
+
+// Builds the effective theme for a refine pass: the chosen preset, unless a
+// logo was uploaded and "Match report colors to logo" is on, in which case
+// the preset's accent/header-fill colors are swapped for ones read straight
+// off the logo — so headings, table header rows, and section icons all
+// pick up the brand color automatically.
+function pdfedResolveRefineTheme(opts) {
+  const base = PDFED_REFINE_THEMES[opts.theme] || PDFED_REFINE_THEMES.general;
+  if (opts.useLogoColors && opts.logoAccent) {
+    return Object.assign({}, base, {
+      accent: opts.logoAccent,
+      headerFill: pdfedHexToRgba(opts.logoAccent, 0.13),
+    });
+  }
+  return base;
+}
+
+function pdfedHexToRgba(hex, alpha) {
+  const h = String(hex || '').replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Blends a hex color toward black (negative percent) or white (positive
+// percent) — used to derive a matching darker/lighter stop for a two-tone
+// gradient from a single theme accent color, e.g. the badge and divider
+// gradients below, without needing a second color defined per theme.
+function pdfedShadeHex(hex, percent) {
+  const h = String(hex || '').replace('#', '');
+  let r = parseInt(h.substring(0, 2), 16) || 0;
+  let g = parseInt(h.substring(2, 4), 16) || 0;
+  let b = parseInt(h.substring(4, 6), 16) || 0;
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent);
+  r = Math.round((t - r) * p) + r;
+  g = Math.round((t - g) * p) + g;
+  b = Math.round((t - b) * p) + b;
+  const toHex = v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+// Samples a logo image down to a small canvas and picks out its most
+// prominent, actually-colorful pixels (skipping near-white, near-black, and
+// near-grey ones so the result reads as "the brand color" rather than the
+// background or an anti-aliased edge). Returns up to 3 hex colors, most
+// prominent first — [] if the image can't be read (e.g. a tainted canvas
+// from a cross-origin source) or nothing colorful enough is found.
+async function pdfedExtractLogoColors(dataUrl) {
+  let img;
+  try {
+    img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = dataUrl;
+    });
+  } catch (e) { return []; }
+  const size = 48;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  ctx.drawImage(img, 0, 0, size, size);
+  let data;
+  try { data = ctx.getImageData(0, 0, size, size).data; }
+  catch (e) { return []; }
+  const buckets = {};
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+    if (a < 100) continue; // skip transparent background pixels
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const lum = (r + g + b) / 3;
+    if (lum > 240 || lum < 15) continue; // skip near-white / near-black
+    if (max - min < 14) continue; // skip greys — want an actual brand hue
+    const key = [Math.round(r / 24) * 24, Math.round(g / 24) * 24, Math.round(b / 24) * 24].join(',');
+    buckets[key] = (buckets[key] || 0) + 1;
+  }
+  return Object.entries(buckets)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([key]) => {
+      const [r, g, b] = key.split(',').map(Number);
+      return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+    });
+}
+
+// Reads the uploaded logo file, extracts its brand colors, and updates the
+// modal's preview/swatch UI. Runs entirely client-side.
+function pdfedHandleLogoFileInput(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const dataUrl = e.target.result;
+    pdfedRefineState.logoDataUrl = dataUrl;
+    let colors = [];
+    try { colors = await pdfedExtractLogoColors(dataUrl); } catch (err) { console.error('Logo color extraction failed', err); }
+    pdfedRefineState.logoColors = colors;
+    pdfedRefineState.logoAccent = colors[0] || null;
+    pdfedUpdateLogoPreviewUI();
+  };
+  reader.onerror = () => toast('Could not read that logo file', 'error');
+  reader.readAsDataURL(file);
+}
+
+function pdfedClearRefineLogo() {
+  pdfedRefineState.logoDataUrl = null;
+  pdfedRefineState.logoColors = [];
+  pdfedRefineState.logoAccent = null;
+  const input = document.getElementById('pdfedRefineLogoInput');
+  if (input) input.value = '';
+  pdfedUpdateLogoPreviewUI();
+}
+
+// Reflects pdfedRefineState's logo fields into the modal: preview thumbnail,
+// detected color swatches, and the two logo-dependent checkboxes.
+function pdfedUpdateLogoPreviewUI() {
+  const img = document.getElementById('pdfedRefineLogoPreviewImg');
+  const label = document.getElementById('pdfedRefineLogoDropLabel');
+  const status = document.getElementById('pdfedRefineLogoStatus');
+  const swatchWrap = document.getElementById('pdfedRefineLogoSwatches');
+  const useColorsRow = document.getElementById('pdfedRefineUseLogoColorsRow');
+  const addLogoRow = document.getElementById('pdfedRefineAddLogoRow');
+  const removeBtn = document.getElementById('pdfedRefineRemoveLogoBtn');
+  const hasLogo = !!pdfedRefineState.logoDataUrl;
+
+  if (img) { img.src = hasLogo ? pdfedRefineState.logoDataUrl : ''; img.style.display = hasLogo ? 'block' : 'none'; }
+  if (label) label.style.display = hasLogo ? 'none' : 'flex';
+  if (useColorsRow) useColorsRow.style.display = hasLogo && pdfedRefineState.logoColors.length ? 'flex' : 'none';
+  if (addLogoRow) addLogoRow.style.display = hasLogo ? 'flex' : 'none';
+  if (removeBtn) removeBtn.style.display = hasLogo ? 'block' : 'none';
+
+  if (swatchWrap) {
+    if (hasLogo && pdfedRefineState.logoColors.length) {
+      swatchWrap.style.display = 'flex';
+      swatchWrap.innerHTML = pdfedRefineState.logoColors
+        .map(c => `<span class="pdfed-refine-logo-swatch" style="background:${c}" title="${c}"></span>`).join('');
+    } else {
+      swatchWrap.style.display = 'none';
+      swatchWrap.innerHTML = '';
+    }
+  }
+
+  if (status) {
+    if (!hasLogo) status.textContent = 'No logo uploaded — the report uses the style colors above.';
+    else if (pdfedRefineState.logoColors.length) status.textContent = 'Logo colors detected — will be used to theme headings, tables, and icons.';
+    else status.textContent = 'Logo added — no strong brand color detected, so the style colors above are used.';
+  }
+}
+
+// Adds the uploaded logo as a small placedImage near the top of every page
+// that doesn't already have one of its own (a logo the user placed by hand
+// wins — this never overwrites it). Sized to a sensible header width and
+// dropped near the top-right; the normal auto-align pass right after this
+// (pdfedAutoAlignContent) is what snaps it to its final, consistent slot.
+function pdfedInsertLogoIntoPages(dataUrl) {
+  const pages = pdfed.pages || [];
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const naturalW = img.naturalWidth || 160, naturalH = img.naturalHeight || 60;
+      const targetW = 110;
+      const targetH = Math.max(1, Math.round(naturalH * (targetW / naturalW)));
+      let inserted = 0;
+      pages.forEach((pg, idx) => {
+        pg.placedImages = pg.placedImages || [];
+        const pageW = pg.width || 800, pageH = pg.height || 1100;
+        const alreadyHasAnchor = pg.placedImages.some(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar && pdfedIsAnchorImage(im, pageW, pageH));
+        if (alreadyHasAnchor) return;
+        const margin = 36;
+        pg.placedImages.push({
+          id: 'logo_' + idx + '_' + Date.now().toString(36),
+          dataUrl, x: pageW - margin - targetW, y: Math.round(margin * 0.6),
+          w: targetW, h: targetH, zIndex: 999, locked: false,
+        });
+        inserted++;
+      });
+      resolve(inserted);
+    };
+    img.onerror = () => resolve(0);
+    img.src = dataUrl;
+  });
+}
 
 // ── Adjust to A4 ────────────────────────────────────────────────────────
 // A page built (or imported) at some other size — a stray Letter page mixed
@@ -34730,7 +35294,34 @@ let pdfedRefineState = { theme: 'general', align: 'left' };
 // A page's real pixel size is read straight off its own stored raster
 // (pg.dataUrl), not the live on-screen canvas — see pdfedLoadPageImage
 // below for why.
-const PDFED_A4_TOLERANCE_MM = 3; // how close counts as "already A4" — skip it
+const PDFED_A4_TOLERANCE_MM = 3; // how close counts as "already matching the target" — skip it
+
+// Looks at every existing page's own recorded size (pg.pageMM) and picks
+// whichever size shows up most often, normalized to its portrait
+// orientation (a 297x210 landscape A4 page and a 210x297 portrait A4 page
+// both count as "A4" for this vote) — that's the size the report is
+// *actually* mostly built at, whether that's A4, A3, Letter, or some
+// custom canvas someone set up. Falls back to A4 only when there's nothing
+// to go on at all (brand-new/blank pages with no recorded size yet), so a
+// report that was never A4 to begin with doesn't get silently forced onto
+// it. Ties fall back to whichever size was seen first.
+function pdfedDetectStandardFormat() {
+  const pages = (pdfed.pages || []);
+  const counts = new Map(); // key "wxh" (portrait, rounded mm) -> { w, h, count }
+  pages.forEach(pg => {
+    const [w, h] = pg.pageMM || [];
+    if (!(w > 0) || !(h > 0)) return;
+    const pw = Math.round(Math.min(w, h));
+    const ph = Math.round(Math.max(w, h));
+    const key = pw + 'x' + ph;
+    const entry = counts.get(key) || { w: pw, h: ph, count: 0 };
+    entry.count++;
+    counts.set(key, entry);
+  });
+  let best = null;
+  counts.forEach(entry => { if (!best || entry.count > best.count) best = entry; });
+  return best ? [best.w, best.h] : [210, 297];
+}
 
 function pdfedPageDensity(pg) {
   // PDF-sourced pages record their true raster density (pdfedPageUrl sets
@@ -34818,9 +35409,10 @@ const PDFED_A4_CONTENT_MARGIN = 60;
 // it, never actually re-centering the content itself. So for those pages
 // this fits/centers the content's own bounding box instead, and rebuilds
 // the background as a fresh, correctly-sized blank sheet.
-async function pdfedFitPageToA4(idx) {
+async function pdfedFitPageToA4(idx, baseMM) {
   const pg = pdfed.pages[idx];
   if (!pg) return { adjusted: false, curMmW: 0, curMmH: 0 };
+  const [baseW, baseH] = (baseMM && baseMM[0] > 0 && baseMM[1] > 0) ? baseMM : [210, 297];
 
   const pxPerMm = pdfedPageDensity(pg);
   const bbox = pg.type === 'blank' ? pdfedContentBBox(pg) : null;
@@ -34830,18 +35422,25 @@ async function pdfedFitPageToA4(idx) {
     const neededW = bbox.w + PDFED_A4_CONTENT_MARGIN * 2;
     const neededH = bbox.h + PDFED_A4_CONTENT_MARGIN * 2;
     const landscape = neededW > neededH;
-    const targetMmW = landscape ? 297 : 210, targetMmH = landscape ? 210 : 297;
+    const targetMmW = landscape ? baseH : baseW, targetMmH = landscape ? baseW : baseH;
     const targetW = Math.round(targetMmW * pxPerMm);
     const targetH = Math.round(targetMmH * pxPerMm);
 
-    // Already sitting correctly (right page size, content already centered
-    // within tolerance)? Leave it alone rather than re-baking it for nothing.
+    // Already the right size? Leave it alone, full stop — page size is the
+    // only thing that decides whether this page needs touching. This used
+    // to also require the content to already sit centered on the page
+    // before skipping, which sounds harmless but wasn't: a normal report
+    // uses left-margin (or stretch) alignment, not centered, so that check
+    // failed on every single refine pass after the first one — even though
+    // the page was already correct A4 — and the page got silently rebuilt
+    // and its content rescaled/re-centered again each time, undoing
+    // whatever alignment Pass 4 had just set. A page that's already A4
+    // sized is done; it is never resized again no matter how its content
+    // happens to be positioned.
     const [curPageMmW, curPageMmH] = pg.pageMM || [0, 0];
     const alreadyRightSize = Math.abs(curPageMmW - targetMmW) <= PDFED_A4_TOLERANCE_MM
       && Math.abs(curPageMmH - targetMmH) <= PDFED_A4_TOLERANCE_MM;
-    const centeredX = Math.abs(bbox.minX - (targetW - bbox.w) / 2) <= PDFED_A4_CONTENT_MARGIN / 2;
-    const centeredY = Math.abs(bbox.minY - (targetH - bbox.h) / 2) <= PDFED_A4_CONTENT_MARGIN / 2;
-    if (alreadyRightSize && centeredX && centeredY) {
+    if (alreadyRightSize) {
       return { adjusted: false, curMmW: Math.round(curPageMmW), curMmH: Math.round(curPageMmH) };
     }
 
@@ -34882,7 +35481,7 @@ async function pdfedFitPageToA4(idx) {
 
   const curMmW = img.naturalWidth / pxPerMm, curMmH = img.naturalHeight / pxPerMm;
   const landscape = curMmW > curMmH;
-  const targetMmW = landscape ? 297 : 210, targetMmH = landscape ? 210 : 297;
+  const targetMmW = landscape ? baseH : baseW, targetMmH = landscape ? baseW : baseH;
 
   if (Math.abs(curMmW - targetMmW) <= PDFED_A4_TOLERANCE_MM && Math.abs(curMmH - targetMmH) <= PDFED_A4_TOLERANCE_MM) {
     return { adjusted: false, curMmW, curMmH }; // already A4 — leave it alone
@@ -34938,15 +35537,36 @@ async function pdfedFitPageToA4(idx) {
 async function pdfedAdjustAllPagesToA4() {
   const total = (pdfed.pages || []).length;
   const startActive = pdfed.active;
+  // Always the real A4 sheet (210x297mm) — this used to vote for whichever
+  // size showed up most often across the document's own pages, which meant
+  // a report built entirely on some odd/custom canvas just got "standardized"
+  // right back onto that same odd size and never actually became A4. The
+  // checkbox says A4, so the target is always A4, regardless of what the
+  // pages currently are.
+  const baseMM = [210, 297];
   let adjusted = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
-    const result = await pdfedFitPageToA4(i);
+    const result = await pdfedFitPageToA4(i, baseMM);
     details.push({ index: i, curMmW: Math.round(result.curMmW), curMmH: Math.round(result.curMmH), changed: result.adjusted });
     if (result.adjusted) { adjusted++; pdfedMarkModified(i); }
   }
   if (startActive >= 0) await pdfedGoto(startActive);
-  return { adjusted, details };
+  return { adjusted, details, baseMM };
+}
+
+// Friendly name for a detected [mmW, mmH] pair — matches it against the
+// standard paper sizes (within the same tolerance the fit pass itself
+// uses) so a report that's mostly A3 says "A3", not a raw mm figure; only
+// falls through to the exact dimensions when it's a genuinely custom size.
+function pdfedFormatLabelForMM(mmW, mmH) {
+  for (const key of Object.keys(PDFED_FORMAT_MM)) {
+    const [pw, ph] = PDFED_FORMAT_MM[key];
+    if (Math.abs(mmW - pw) <= PDFED_A4_TOLERANCE_MM && Math.abs(mmH - ph) <= PDFED_A4_TOLERANCE_MM) {
+      return PDFED_FORMAT_LABELS[key] || key.toUpperCase();
+    }
+  }
+  return Math.round(mmW) + ' × ' + Math.round(mmH) + ' mm';
 }
 
 function pdfedOpenRefineReportModal() {
@@ -34956,8 +35576,16 @@ function pdfedOpenRefineReportModal() {
   if (!hasContent) { toast('Add some tables, text, or images to the canvas first', 'info'); return; }
   const countEl = document.getElementById('pdfedRefinePageCount');
   if (countEl) countEl.textContent = pages.length;
+  // Always A4 now — the checkbox label matches exactly what the pass below
+  // targets, rather than describing the document's own current dominant
+  // size (which was the actual bug: an odd/custom canvas would get
+  // "standardized" right back onto itself instead of becoming real A4).
+  const sizeEl = document.getElementById('pdfedRefineAdjustA4Size');
+  if (sizeEl) sizeEl.textContent = 'A4';
   const overlay = document.getElementById('pdfedRefineOverlay');
   if (overlay) overlay.classList.add('open');
+  pdfedUpdateLogoPreviewUI();
+  pdfedUpdateSectionIconsVisibility();
 }
 
 function pdfedCloseRefineModal() {
@@ -34969,6 +35597,27 @@ function pdfedSetRefineTheme(key, el) {
   pdfedRefineState.theme = key;
   const group = document.getElementById('pdfedRefineThemeGroup');
   if (group) group.querySelectorAll('.da-dropdown-scope-btn').forEach(b => b.classList.toggle('active', b === el));
+  pdfedUpdateSectionIconsVisibility();
+}
+
+// Highlighted section headings (color badge + divider bar) are SVG-based
+// icon art, so they're only offered for the Modern style — the other
+// styles (General/Financial/Corporate) are meant to read as plain, classic
+// document typography with no icon glyphs in them. Switching away from
+// Modern hides the checkbox/hint and force-unchecks it so a badge choice
+// made under Modern doesn't silently carry over and still get applied.
+// Switching back TO Modern re-checks it by default (its original on-by-
+// default state) — otherwise, once you'd ever touched another style first
+// (or the modal simply opened on its General default), the box stayed
+// unchecked forever and Modern quietly ran with no icons at all.
+function pdfedUpdateSectionIconsVisibility() {
+  const row = document.getElementById('pdfedRefineSectionIconsRow');
+  const hint = document.getElementById('pdfedRefineIconHint');
+  const isModern = pdfedRefineState.theme === 'modern';
+  if (row) row.style.display = isModern ? '' : 'none';
+  if (hint) hint.style.display = isModern ? '' : 'none';
+  const cb = document.getElementById('pdfedRefineSectionIcons');
+  if (cb) cb.checked = isModern;
 }
 
 function pdfedSetRefineAlign(key, el) {
@@ -35026,6 +35675,13 @@ function pdfedRefineOneTable(item, theme, autoFit) {
   if (item.rows > 1) item.headerRow = true;
   item.fontFamily = theme.font;
 
+  // Per-column header icons used to be tagged into the table's own header
+  // row here. That's deliberately turned off now — icons live next to each
+  // section's own title instead (see pdfedApplySectionIcons below), so a
+  // report reads as "icon + heading" rather than a row of tiny repeated
+  // icons packed inside the table itself.
+  item.headerIcons = null;
+
   if (autoFit) {
     const ctx = pdfedRefineMeasureCtx();
     const fits = (size) => {
@@ -35043,6 +35699,114 @@ function pdfedRefineOneTable(item, theme, autoFit) {
     while (fs > 8 && !fits(fs)) fs -= 0.5;
     item.fontSize = fs;
   }
+}
+
+// Plants a small filled badge icon immediately to the left of each section's
+// own title, a soft highlighted band behind the whole badge+heading row, and
+// a gradient accent rule along that band's bottom edge — the "highlighted
+// heading" premium report look. All three pick up the report's accent/tint
+// colors, which are automatically the logo's own extracted color whenever a
+// logo is uploaded and "Match report colors to logo" is on (see
+// pdfedResolveRefineTheme), so highlighted headings always match the brand.
+// Idempotent: re-running Refine Report first strips any badge/band/divider
+// this same pass added before, and undoes the heading x-shift, so repeated
+// runs never keep nudging the title further right or leaving stale marks
+// behind.
+function pdfedApplySectionIcons(pages, theme, addIcons) {
+  let count = 0;
+  const accent = theme.accent || '#0f172a';
+  pages.forEach(pg => {
+    // Strip any badges/bands/dividers from a previous run before anything
+    // else — this also matters for pdfedAutoAlignContent on a *second*
+    // refine pass, since a stale mark left in placedImages would otherwise
+    // be small enough to get misread as a logo anchor by that function.
+    pg.placedImages = (pg.placedImages || []).filter(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar);
+    if (!addIcons) return; // "Highlight section titles" was left off — stripping above still happened
+    if (!pg.placedTexts || !pg.placedTexts.length) return;
+    const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
+    if (!headings.length) return;
+    const pageW = pg.width || 800;
+    const margin = 36;
+    headings.forEach(t => {
+      // Every heading on the page is checked against the section-icon rules
+      // (PDFED_SECTION_ICON_RULES) — not just the page's single biggest
+      // heading. A page commonly carries both an overall document/page title
+      // AND one or more section headings underneath it (Cash Flow Analysis,
+      // Compliance Checklist, Team, etc.) — those section headings are
+      // exactly what the icon rules are meant to match, so gating on "is
+      // this the biggest heading on the page" was silently skipping them
+      // whenever a bigger title heading was also present. A heading simply
+      // gets a badge if its own text matches a rule; one that doesn't match
+      // anything is still correctly left unhighlighted.
+      // Undo any shift left over from an earlier refine pass so this one
+      // starts from the heading's true, unshifted position.
+      if (t._sectionIconShift) { t.x = (t.x || 0) - t._sectionIconShift; t._sectionIconShift = 0; }
+      const key = pdfedDetectSectionIcon(t.text);
+      if (!key) return;
+      const fontSize = t.fontSize || 20;
+      // A filled badge reads best a touch larger than a bare outline icon
+      // did, so it never looks cramped against its own background square.
+      const iconSize = Math.max(20, Math.round(fontSize * 1.3));
+      const gap = 10;
+      const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
+      const lineHeight = fontSize * 1.25;
+      const lines = String(t.text || '').split('\n').length;
+      const origX = t.x || 0;
+
+      // Divider geometry is resolved from the associated table's own
+      // left/right edges (same table pdfedFindAssociatedTable/Pass 5 already
+      // lined the heading up under), so the rule reads as belonging to
+      // "its" table rather than a generic width that happens to be nearby.
+      // Falls back to the heading's own position only when no table is on
+      // the page at all.
+      const assocTable = pdfedFindAssociatedTable(pg, t);
+      const tableX = assocTable ? (assocTable.x || 0) : null;
+      const tableW = assocTable ? pdfedTableWidth(assocTable) : 0;
+      const innerPadX = 12; // fixed left inset for the badge, independent of the heading's own raw x
+      const barPad = 6;
+      let bandX = (assocTable && tableW > 0) ? Math.round(tableX) : Math.max(0, Math.round(origX + padX - innerPadX));
+      let bandW = (assocTable && tableW > 0) ? Math.round(tableW) : Math.max(60, Math.round(pageW - margin - bandX));
+      // Clamp to the page's own content margin so a mismeasured or stale
+      // table width can never push the rule past the page edge.
+      if (bandX < margin) { bandW -= (margin - bandX); bandX = margin; }
+      if (bandX + bandW > pageW - margin) bandW = Math.max(60, pageW - margin - bandX);
+
+      // The badge is anchored from the rule's OWN left edge (not the
+      // heading's raw x) with a fixed inset, so it always sits with
+      // consistent breathing room — it can never float off to one side.
+      const iconX = bandX + innerPadX;
+      const iconY = Math.round((t.y || 0) + padY + (lineHeight - iconSize) / 2);
+      const rowBottom = (t.y || 0) + padY + lines * lineHeight;
+      const bandBottom = Math.round(Math.max(rowBottom, iconY + iconSize) + barPad);
+
+      // Gradient accent rule under the heading row — this is the actual
+      // "highlight" (no filled background rectangle behind the text/icon;
+      // a plain page background with a crisp accent rule underneath reads
+      // as an editorial report, where a big tinted block reads as a UI
+      // banner). Same width/x as the table below so it lines up cleanly.
+      const ruleH = Math.max(2, Math.round(fontSize * 0.14));
+      pg.placedImages.push({
+        id: 'sectiondivider_' + t.id + '_' + Date.now().toString(36),
+        dataUrl: pdfedSectionDividerDataUrl(accent, bandW, ruleH),
+        x: bandX, y: Math.round(bandBottom - ruleH), w: bandW, h: ruleH,
+        zIndex: (t.zIndex || 0) + 1, locked: true, _sectionDivider: true,
+      });
+
+      // Text is drawn at (t.x + padX) — see pdfedDrawPlacedTextsOnCtx — so
+      // solve backwards from where the badge now sits (iconX, rule-anchored)
+      // to the t.x that lands the text exactly `gap` past the badge.
+      t.x = Math.round(iconX + iconSize + gap - padX);
+      t._sectionIconShift = t.x - origX;
+      pg.placedImages.push({
+        id: 'sectionicon_' + t.id + '_' + Date.now().toString(36),
+        dataUrl: pdfedSectionIconBadgeDataUrl(key, accent, iconSize * 2),
+        x: iconX, y: iconY, w: iconSize, h: iconSize,
+        zIndex: (t.zIndex || 0) + 1, locked: true, _sectionIcon: true,
+      });
+      count++;
+    });
+  });
+  return count;
 }
 
 // A small image reads as a logo/brand mark no matter where it currently
@@ -35148,8 +35912,20 @@ function pdfedAutoAlignContent(pg, mode) {
   const pageW = pg.width || (pc && pc.width) || 600;
   const pageH = pg.height || (pc && pc.height) || 800;
   const margin = 36;
-  let gap = 22;
-  const MIN_GAP = 8;
+  // Two gap tiers instead of one flat number: SECTION_GAP is the real
+  // visual break between one section's content and the NEXT section's
+  // heading — that's the gap that should read clearly. HEADING_GAP is the
+  // tight space directly under a heading, before the content it introduces
+  // — a heading should hug what it's labeling, not float the same distance
+  // from it as it does from the section above. Applying one flat gap
+  // everywhere (the old behavior) made every junction look the same
+  // regardless of what was actually next to what, which is what read as
+  // "uneven" — a heading sat exactly as far from its own table as from the
+  // unrelated content above it, so nothing about the spacing signaled which
+  // heading belonged to which block.
+  const SECTION_GAP = 24;
+  const HEADING_GAP = 10;
+  const MIN_GAP = 6;
   // Never shrink content past this fraction of its original size — beyond
   // this point it's reading as broken, not "fitted", so a page this
   // overloaded needs more pages, not smaller and smaller text. The flow
@@ -35163,6 +35939,7 @@ function pdfedAutoAlignContent(pg, mode) {
   (pg.placedTables || []).forEach(item => flow.push({ item, kind: 'table' }));
   (pg.placedTexts || []).forEach(item => flow.push({ item, kind: 'text' }));
   (pg.placedImages || []).forEach(item => {
+    if (item._sectionIcon || item._sectionDivider || item._sectionBar) return; // handled separately by pdfedApplySectionIcons — never an anchor/flow item
     if (pdfedIsAnchorImage(item, pageW, pageH)) anchors.push(item);
     else flow.push({ item, kind: 'image' });
   });
@@ -35189,30 +35966,42 @@ function pdfedAutoAlignContent(pg, mode) {
   // top gaps from one refine pass to the next: a page whose content
   // happened to start low kept a big blank gap up top, while a page that
   // started near the margin didn't.
-  const startY = Math.max(margin, anchorBottom ? anchorBottom + gap : margin);
+  const startY = Math.max(margin, anchorBottom ? anchorBottom + SECTION_GAP : margin);
 
-  // Measure the flow's natural footprint at the requested gap *before*
+  // One gap value per junction between consecutive flow items — the gap
+  // AFTER item i, before item i+1. A heading immediately followed by its
+  // own content gets the tight HEADING_GAP; every other junction (including
+  // the real break into a new section) gets the full SECTION_GAP.
+  let gaps = flow.slice(0, -1).map(({ item, kind }) => (kind === 'text' && pdfedTextLooksLikeHeading(item)) ? HEADING_GAP : SECTION_GAP);
+
+  // Measure the flow's natural footprint at the requested gaps *before*
   // placing anything, so a page that doesn't actually fit gets compressed
   // instead of quietly spilling content past the bottom edge.
   let sizes = flow.map(({ item, kind }) => pdfedFlowSize(item, kind, pageW, margin));
   const naturalContentH = sizes.reduce((sum, s) => sum + s.h, 0);
   const availableH = Math.max(40, pageH - margin - startY);
-  const naturalTotalH = naturalContentH + gap * Math.max(0, flow.length - 1);
+  const totalGap = () => gaps.reduce((a, b) => a + b, 0);
+  const naturalTotalH = naturalContentH + totalGap();
 
   if (naturalTotalH > availableH) {
-    // Step 1 — tighten the gap first. Cheapest fix, and the one least
-    // likely to be visually noticeable.
+    // Step 1 — tighten the gaps first, proportionally, so a HEADING_GAP
+    // junction stays visibly tighter than a SECTION_GAP one even after
+    // compression instead of everything collapsing to the same value.
+    // Cheapest fix, and the one least likely to be visually noticeable.
     const roomForGaps = availableH - naturalContentH;
-    const neededGap = flow.length > 1 ? roomForGaps / (flow.length - 1) : gap;
-    gap = Math.max(MIN_GAP, Math.min(gap, neededGap));
+    const tg = totalGap();
+    if (tg > 0) {
+      const gapScale = Math.max(0, Math.min(1, roomForGaps / tg));
+      gaps = gaps.map(g => Math.max(MIN_GAP, g * gapScale));
+    }
 
-    // Step 2 — if it still doesn't fit even at the minimum gap, shrink
+    // Step 2 — if it still doesn't fit even at the minimum gaps, shrink
     // every flowed item's font size (and a table's row heights along with
     // it) by one shared ratio, so the page's actual content — not just its
     // spacing — gets smaller together rather than any one piece getting
     // singled out. This is what guarantees a refine pass can't leave a
     // table or paragraph hanging off the bottom of the canvas.
-    const tightTotalH = naturalContentH + gap * Math.max(0, flow.length - 1);
+    const tightTotalH = naturalContentH + totalGap();
     if (tightTotalH > availableH) {
       const rawScale = availableH / tightTotalH;
       const scale = Math.max(MIN_SHRINK, Math.min(1, rawScale));
@@ -35254,10 +36043,10 @@ function pdfedAutoAlignContent(pg, mode) {
     if (i === 0 && anchorBottom > cursorY) {
       const itemRight = item.x + size.w;
       const overlapsAnyAnchor = anchors.some(a => itemRight > a.x && item.x < a.x + (a.w || 0));
-      if (overlapsAnyAnchor || !size.w) cursorY = anchorBottom + gap;
+      if (overlapsAnyAnchor || !size.w) cursorY = anchorBottom + SECTION_GAP;
     }
     item.y = Math.round(cursorY);
-    cursorY += size.h + gap;
+    cursorY += size.h + (gaps[i] || 0);
   });
 
   // Absolute safety net: even after tightening the gap and shrinking
@@ -35301,9 +36090,9 @@ function pdfedFindAssociatedTable(pg, heading) {
 // toast. `snapshotPages`, if passed, is a deep clone of pdfed.pages taken
 // before any change, purely so the caller can wire up a single Ctrl+Z step.
 function pdfedApplyReportRefinement(opts) {
-  const theme = PDFED_REFINE_THEMES[opts.theme] || PDFED_REFINE_THEMES.general;
+  const theme = pdfedResolveRefineTheme(opts);
   const pages = pdfed.pages || [];
-  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0;
+  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0;
 
   // Pass 1: table styling/autofit first — headings size themselves off each
   // table's real, final font, not a guess.
@@ -35357,11 +36146,6 @@ function pdfedApplyReportRefinement(opts) {
     });
   }
 
-  // Document-wide fallback for a heading whose page has no table of its own.
-  const allTableSizes = [];
-  pages.forEach(pg => (pg.placedTables || []).forEach(t => allTableSizes.push(t.fontSize || 12)));
-  const avgTableSize = allTableSizes.length ? allTableSizes.reduce((a, b) => a + b, 0) / allTableSizes.length : 12;
-
   // Pass 3: settle every heading's final font size and width — off its
   // table's now-final width — before anything gets stacked. A heading has
   // to know its own real size before the flow can measure how much room it
@@ -35372,17 +36156,26 @@ function pdfedApplyReportRefinement(opts) {
     const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
     if (!headings.length) return;
     // The biggest heading already on the page reads as its section title;
-    // everything else on that page is treated as a sub-heading — both
-    // tiers still scale off their own nearest table, just with a different
-    // multiplier, so a title always reads larger than a sub-heading sitting
-    // above the very same table.
+    // everything else on that page is treated as a sub-heading. Every
+    // heading — title or sub-heading — is fixed at one ideal size (20px)
+    // rather than computed off any table's content: scaling off a
+    // document-wide average still let title-tier and sub-heading-tier
+    // headings differ (and drift between reports), and a report reads most
+    // professional when every heading is unmistakably the same size. Only
+    // weight/underline still distinguish a title from a sub-heading.
+    const PDFED_REFINE_HEADING_SIZE = 20;
     const maxOrigSize = Math.max(...headings.map(h => h.fontSize || 14));
     headings.forEach(t => {
       const assoc = pdfedFindAssociatedTable(pg, t);
-      const base = assoc ? (assoc.fontSize || avgTableSize) : avgTableSize;
       const isTitle = (t.fontSize || 14) >= maxOrigSize - 0.5;
-      let size = Math.round(base * (isTitle ? 2.0 : 1.5));
-      size = isTitle ? Math.min(30, Math.max(18, size)) : Math.min(22, Math.max(14, size));
+      // Sizes are about to be flattened to one uniform value below, which
+      // would erase the only signal (relative size) that Pass 6's section
+      // icons rely on to tell a real title from a sub-heading. Stash the
+      // determination made here, off the ORIGINAL pre-refine sizes, so that
+      // pass can still target just the true title even once every heading
+      // reads at the same fixed size.
+      t._refineIsTitle = isTitle;
+      const size = PDFED_REFINE_HEADING_SIZE;
       t.fontFamily = theme.font;
       t.bold = true;
       t.fontSize = size;
@@ -35424,6 +36217,27 @@ function pdfedApplyReportRefinement(opts) {
     });
   }
 
+  // Pass 3.6: body paragraph font — every text box on the page that ISN'T a
+  // heading (and isn't a heading-that-just-became-a-heading in Pass 3 above)
+  // gets switched to the theme's bodyFont, the professional reading face for
+  // that document style (e.g. Times New Roman for Financial, Calibri for
+  // Corporate) rather than whatever font it happened to be typed in. This is
+  // what a plain "Management Remarks"-style paragraph picks up — headings and
+  // tables already get their own font from theme.font elsewhere, so this only
+  // ever touches ordinary prose/list boxes, never a title.
+  // Runs before Pass 4's flow/stacking so a font swap that changes line count
+  // (a different face measures slightly wider/narrower per word) is already
+  // reflected in the box's height before anything gets restacked around it.
+  if (opts.syncHeadings) {
+    pages.forEach(pg => {
+      (pg.placedTexts || []).forEach(t => {
+        if (pdfedTextLooksLikeHeading(t)) return;
+        t.fontFamily = theme.bodyFont || theme.font;
+        bodyFontsSynced++;
+      });
+    });
+  }
+
   // Pass 4: now that every table and heading knows its final size, restack
   // the whole page — tables, headings/text, and content images — as one
   // shared flow with no overlaps, and pin any logo to its header slot.
@@ -35442,16 +36256,30 @@ function pdfedApplyReportRefinement(opts) {
     });
   });
 
+  // Pass 6: plant a filled color badge + divider bar beside/under each
+  // section's own title, last of all — this must run after headings have
+  // their final x/y settled (passes 4-5), since the badge rides alongside
+  // whatever position the heading ends up at, and shifts that heading right
+  // to make room. This ALWAYS runs (not just under Modern) because its
+  // first step strips any badge/bar left over from an earlier Modern pass —
+  // skipping the call entirely on other themes would leave those stale SVGs
+  // sitting on the page forever. Only the actual add-new-badges step is
+  // Modern-gated: SVG icon art only fits the Modern style's look, so
+  // General/Financial/Corporate always end this pass with icons removed
+  // and never gain any of their own.
+  sectionIconsApplied = pdfedApplySectionIcons(pages, theme, opts.sectionIcons && opts.theme === 'modern');
+
   pages.forEach((pg, idx) => {
     const pageTouched = !!(
       (pg.placedTables && pg.placedTables.length) ||
       (opts.align && ((pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length))) ||
-      (opts.syncHeadings && pg.placedTexts && pg.placedTexts.some(pdfedTextLooksLikeHeading))
+      (opts.syncHeadings && pg.placedTexts && pg.placedTexts.length) ||
+      sectionIconsApplied
     );
     if (pageTouched) pdfedMarkModified(idx);
   });
 
-  return { headingsSynced, tablesFormatted, bulletsApplied, pages: pages.length };
+  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, pages: pages.length };
 }
 
 async function pdfedRunRefineReportFromModal() {
@@ -35461,6 +36289,11 @@ async function pdfedRunRefineReportFromModal() {
     autoFit: !!document.getElementById('pdfedRefineAutoFit')?.checked,
     syncHeadings: !!document.getElementById('pdfedRefineSyncHeadings')?.checked,
     adjustA4: !!document.getElementById('pdfedRefineAdjustA4')?.checked,
+    sectionIcons: !!document.getElementById('pdfedRefineSectionIcons')?.checked,
+    useLogoColors: !!pdfedRefineState.useLogoColors,
+    logoAccent: pdfedRefineState.logoAccent,
+    addLogoToHeader: !!pdfedRefineState.addLogoToHeader,
+    logoDataUrl: pdfedRefineState.logoDataUrl,
   };
   pdfedCloseRefineModal();
 
@@ -35472,6 +36305,14 @@ async function pdfedRunRefineReportFromModal() {
   // final width instead of whatever width it happened to arrive at.
   let a4Result = { adjusted: 0, details: [] };
   if (opts.adjustA4) a4Result = await pdfedAdjustAllPagesToA4();
+
+  // Drop the logo into any page that doesn't already have one of its own,
+  // before the styling/alignment pass — so it's already in placedImages
+  // when that pass's auto-align step snaps it into its final header slot.
+  let logoInserted = 0;
+  if (opts.addLogoToHeader && opts.logoDataUrl) {
+    logoInserted = await pdfedInsertLogoIntoPages(opts.logoDataUrl);
+  }
 
   const summary = pdfedApplyReportRefinement(opts);
 
@@ -35502,20 +36343,28 @@ async function pdfedRunRefineReportFromModal() {
 
   const parts = [];
   if (opts.adjustA4) {
+    const sizeLabel = a4Result.baseMM ? pdfedFormatLabelForMM(a4Result.baseMM[0], a4Result.baseMM[1]) : 'A4';
     if (a4Result.adjusted) {
-      parts.push(`${a4Result.adjusted} page${a4Result.adjusted !== 1 ? 's' : ''} fit to A4`);
+      parts.push(`${a4Result.adjusted} page${a4Result.adjusted !== 1 ? 's' : ''} fit to ${sizeLabel}`);
     } else if (a4Result.details.length === 1) {
       // Single-page doc, nothing needed fixing — say exactly what size it
       // already detected so it's clear the check actually ran.
       const d = a4Result.details[0];
-      parts.push(`page already A4 (${d.curMmW}×${d.curMmH}mm)`);
+      parts.push(`page already ${sizeLabel} (${d.curMmW}×${d.curMmH}mm)`);
     } else if (a4Result.details.length > 1) {
-      parts.push('all pages already A4');
+      parts.push(`all pages already ${sizeLabel}`);
     }
   }
   if (summary.tablesFormatted) parts.push(`${summary.tablesFormatted} table${summary.tablesFormatted !== 1 ? 's' : ''} formatted`);
   if (summary.headingsSynced) parts.push(`${summary.headingsSynced} heading${summary.headingsSynced !== 1 ? 's' : ''} synced`);
   if (summary.bulletsApplied) parts.push(`${summary.bulletsApplied} list${summary.bulletsApplied !== 1 ? 's' : ''} bulleted`);
+  if (summary.bodyFontsSynced) {
+    const themeLabel = (PDFED_REFINE_THEMES[opts.theme] || PDFED_REFINE_THEMES.general).label;
+    parts.push(`${summary.bodyFontsSynced} paragraph${summary.bodyFontsSynced !== 1 ? 's' : ''} set to ${themeLabel} body font`);
+  }
+  if (summary.sectionIconsApplied) parts.push(`${summary.sectionIconsApplied} section icon${summary.sectionIconsApplied !== 1 ? 's' : ''} added`);
+  if (logoInserted) parts.push(`logo placed on ${logoInserted} page${logoInserted !== 1 ? 's' : ''}`);
+  if (opts.useLogoColors && opts.logoAccent) parts.push('logo colors applied');
   toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
 }
 
