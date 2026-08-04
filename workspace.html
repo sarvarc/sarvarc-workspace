@@ -5841,6 +5841,30 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 table.da-table { border-collapse:separate; border-spacing:0; width:auto; min-width:0; }
 table.da-table.da-frozen thead th { position:sticky; top:0; z-index:3; }
 
+/* Detected main heading (report title) — sits above the sub-headers/column
+   row so the two levels never get visually confused, and stays sticky with
+   the table so it's visible even when scrolled down. */
+.da-title-banner {
+  position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px;
+  padding:9px 14px; margin-bottom:-1px;
+  background:linear-gradient(180deg, var(--surface2), var(--surface));
+  border:1px solid var(--border2); border-radius:12px 12px 0 0;
+}
+.da-title-banner-label {
+  flex:none; font-size:9.5px; font-weight:700; letter-spacing:.06em;
+  color:var(--accent, #00c2ff); opacity:.85; white-space:nowrap;
+}
+.da-title-banner-text {
+  flex:1; font-size:14px; font-weight:700; color:var(--text);
+  outline:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.da-title-banner-text:focus { text-overflow:clip; overflow:visible; white-space:normal; }
+.da-title-banner-del {
+  flex:none; width:18px; height:18px; display:flex; align-items:center; justify-content:center;
+  border-radius:5px; cursor:pointer; color:var(--text3); font-size:14px; line-height:1;
+}
+.da-title-banner-del:hover { background:rgba(255,80,80,0.12); color:#ff5050; }
+
 .da-table th, .da-table td {
   border-bottom:1px solid var(--border);
   border-right:1px solid var(--border);
@@ -6017,30 +6041,30 @@ th:hover .da-th-del { opacity:1; }
 }
 .dg-type-tile svg { color:var(--text3); transition:color 0.15s ease; }
 .dg-type-tile:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
-.dg-type-tile.active { background:rgba(0,194,255,0.1); border-color:var(--blue); color:var(--blue); }
-.dg-type-tile.active svg { color:var(--blue); }
+.dg-type-tile.active { background:var(--pdfed-accent-bg); border-color:var(--pdfed-accent); color:var(--pdfed-accent); }
+.dg-type-tile.active svg { color:var(--pdfed-accent); }
 .dg-field { display:flex; flex-direction:column; gap:6px; }
 .dg-field label { font-size:11px; font-weight:700; color:var(--text2); }
 .dg-field input[type="text"] {
   padding:8px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border);
   color:var(--text); font-size:12.5px; outline:none; width:100%;
 }
-.dg-field input[type="text"]:focus { border-color:var(--blue); }
+.dg-field input[type="text"]:focus { border-color:var(--pdfed-accent); }
 .dg-toggle-row {
   display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); font-weight:600;
   background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 11px;
   cursor:pointer; transition:border-color 0.15s ease, background 0.15s ease;
 }
 .dg-toggle-row:hover { border-color:var(--border2); background:var(--surface2); }
-.dg-toggle-row input[type="checkbox"] { accent-color: var(--blue); width:15px; height:15px; cursor:pointer; }
-.dg-palette { display:flex; gap:8px; flex-wrap:wrap; }
+.dg-toggle-row input[type="checkbox"] { accent-color: var(--pdfed-accent); width:15px; height:15px; cursor:pointer; }
+.dg-palette { display:flex; gap:9px; flex-wrap:wrap; }
 .dg-palette-swatch {
-  width:24px; height:24px; border-radius:8px; cursor:pointer; border:2px solid transparent;
+  width:26px; height:26px; border-radius:9px; cursor:pointer; border:2px solid transparent;
   transition:transform 0.15s cubic-bezier(.2,.8,.3,1.4), box-shadow 0.15s ease;
-  box-shadow:0 1px 2px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.08);
+  box-shadow:0 1px 3px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -6px 10px rgba(0,0,0,0.14);
 }
 .dg-palette-swatch:hover { transform:scale(1.16) translateY(-1px); box-shadow:0 6px 14px rgba(0,0,0,0.38), inset 0 0 0 1px rgba(255,255,255,0.18); }
-.dg-palette-swatch.active { border-color:var(--bg2); box-shadow:0 0 0 2px var(--blue), 0 4px 14px rgba(0,194,255,0.4); }
+.dg-palette-swatch.active { border-color:var(--bg2); box-shadow:0 0 0 2px var(--pdfed-accent), 0 4px 14px var(--pdfed-accent-bg); }
 .dg-rows { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; }
 .dg-row {
   display:flex; align-items:center; gap:6px; padding:6px; border-radius:8px;
@@ -6064,7 +6088,7 @@ th:hover .da-th-del { opacity:1; }
   padding:8px; border-radius:8px; font-size:11.5px; font-weight:700;
   background:var(--surface); border:1px dashed var(--border2); color:var(--text2); cursor:pointer;
 }
-.dg-add-row-btn:hover { background:var(--surface2); color:var(--blue); border-color:var(--blue); }
+.dg-add-row-btn:hover { background:var(--surface2); color:var(--pdfed-accent); border-color:var(--pdfed-accent); }
 
 /* Compact floating info icon (replaces the old always-on title+description header bar,
    so the ribbon + canvas get essentially all the vertical space). */
@@ -6074,7 +6098,7 @@ th:hover .da-th-del { opacity:1; }
   background:var(--surface); border:1px solid var(--border); border-radius:50%; color:var(--text3);
   cursor:pointer; transition:background 0.15s, color 0.15s, border-color 0.15s;
 }
-.dg-info-btn:hover { background:var(--surface2); color:var(--blue); border-color:var(--blue); }
+.dg-info-btn:hover { background:var(--surface2); color:var(--pdfed-accent); border-color:var(--pdfed-accent); }
 .dg-info-popover {
   display:none; position:absolute; top:32px; right:2px; z-index:20; width:280px;
   background:var(--bg2); border:1px solid var(--border2); border-radius:12px; padding:14px 16px;
@@ -6084,30 +6108,35 @@ th:hover .da-th-del { opacity:1; }
 .dg-info-popover h2 { font-family:'Inter',sans-serif; font-size:15px; font-weight:800; margin-bottom:6px; }
 .dg-info-popover p { color:var(--text2); font-size:12.5px; line-height:1.5; }
 
-.dg-rbn-btn-accent { background:rgba(0,194,255,0.12); color:var(--blue); }
-.dg-rbn-btn-accent:hover { background:rgba(0,194,255,0.22); color:var(--blue); }
+.dg-rbn-btn-accent { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); }
+.dg-rbn-btn-accent:hover { background:var(--pdfed-accent-bg); filter:brightness(1.15); color:var(--pdfed-accent); }
 
 /* Push-to-Workspace is the one ribbon action that actually does something with the
-   finished chart (everything else is editing/formatting) — a solid filled gradient
+   finished chart (everything else is editing/formatting) — a solid filled accent
    button, instead of the same flat tint as every other ribbon icon, keeps it reading
-   as the primary action rather than blending into the row. */
+   as the primary action rather than blending into the row. Built from the same
+   --pdfed-accent the rest of the (now Workspace-matched) ribbon uses, so the one bright
+   spot in the bar still belongs to the same colour family instead of a mismatched brand hue. */
 .dg-rbn-btn-push {
-  background:linear-gradient(135deg, var(--cyan, #00C2FF), var(--purple, #7C5CFF)) !important;
+  background:linear-gradient(135deg, var(--pdfed-accent), var(--purple, #7C5CFC)) !important;
   color:#fff !important; padding:5px 9px !important; border-radius:6px !important;
-  box-shadow:0 2px 8px rgba(0,194,255,0.3);
+  box-shadow:0 2px 8px var(--pdfed-accent-bg);
   align-self:center;
 }
-.dg-rbn-btn-push:hover { box-shadow:0 3px 12px rgba(0,194,255,0.45); transform:translateY(-1px); color:#fff !important; }
+.dg-rbn-btn-push:hover { box-shadow:0 3px 12px var(--pdfed-accent-bg); transform:translateY(-1px); color:#fff !important; filter:brightness(1.08); }
 .dg-rbn-btn-push svg { flex-shrink:0; }
 /* Keep the Push group visually anchored inside the ribbon row, same height/alignment
    as every other group — no special padding that could push it out of vertical rhythm. */
 #dgPushGroup { align-self:stretch; justify-content:center; }
 
-/* ── Diagrams & Graphs ribbon bar, Workspace-style icon toolbar for fast chart building ── */
+/* ── Diagrams & Graphs ribbon bar — restyled to match the Workspace (PDF editor)
+   ribbon exactly: same toolbar surface, border, and accent tokens (--pdfed-*), not the
+   standalone cyan brand color, so the two toolbars read as one consistent product. ── */
 .dg-ribbon-bar {
   display:flex; align-items:center; gap:2px; height:52px; flex-shrink:0;
-  border:1px solid var(--border); border-radius:12px;
-  background:var(--bg2); padding:0 8px; overflow-x:auto; overflow-y:hidden;
+  border:1px solid var(--pdfed-toolbar-border); border-radius:12px;
+  background:var(--pdfed-toolbar-bg); padding:0 8px; overflow-x:auto; overflow-y:hidden;
+  box-shadow:var(--shadow-nav);
   transition: height 0.24s cubic-bezier(.4,0,.2,1), opacity 0.16s ease, padding 0.2s ease, border-color 0.2s ease;
 }
 /* Collapsed: shrink the whole bar to a slim clickable strip instead of hiding it,
@@ -6154,19 +6183,19 @@ th:hover .da-th-del { opacity:1; }
   border:none; background:transparent; color:var(--text2); font-family:'Inter',sans-serif; font-size:9.5px;
   font-weight:600; letter-spacing:0.1px; line-height:1; cursor:pointer; transition:all 0.12s; white-space:nowrap; min-width:44px;
 }
-.dg-rbn-btn:hover { background:var(--surface2); color:var(--text); }
-.dg-rbn-btn.active { background:rgba(0,194,255,0.14); color:var(--blue); }
+.dg-rbn-btn:hover { background:var(--pdfed-btn-hover); color:var(--text); }
+.dg-rbn-btn.active { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); }
 .dg-rbn-btn svg { flex-shrink:0; }
 .dg-rbn-dropdown-group { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
 .dg-rbn-dropdown-group:hover { background:rgba(255,255,255,0.025); }
 .dg-rbn-dropdown-group:hover .dg-rbn-group-label { opacity:0.9; color:var(--text2); }
 .dg-rbn-btn-row { display:flex; align-items:center; }
 .dg-rbn-caret {
-  display:flex; align-items:center; justify-content:center; width:16px; background:var(--surface);
-  border:none; border-left:1px solid var(--border); border-radius:0 6px 6px 0; cursor:pointer; color:var(--text2);
+  display:flex; align-items:center; justify-content:center; width:16px; background:var(--pdfed-btn-bg);
+  border:none; border-left:1px solid var(--pdfed-toolbar-border); border-radius:0 6px 6px 0; cursor:pointer; color:var(--text2);
   transition:background 0.15s, color 0.15s; flex-shrink:0;
 }
-.dg-rbn-caret:hover { background:var(--surface2); color:var(--text); }
+.dg-rbn-caret:hover { background:var(--pdfed-btn-hover); color:var(--text); }
 .dg-rbn-caret svg { pointer-events:none; }
 .dg-rbn-main { border-radius:6px 0 0 6px !important; }
 .dg-rbn-inline-field { display:flex; flex-direction:column; gap:3px; padding:3px 8px; justify-content:flex-start; }
@@ -6176,7 +6205,7 @@ th:hover .da-th-del { opacity:1; }
   width:132px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
   font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none;
 }
-.dg-rbn-inline-field input[type="text"]:focus { border-color:var(--blue); }
+.dg-rbn-inline-field input[type="text"]:focus { border-color:var(--pdfed-accent); }
 .dg-rbn-inline-field select {
   width:118px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
   font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none; cursor:pointer;
@@ -6469,7 +6498,7 @@ button.dg-show-chip.active { background:var(--blue); }
   transition:border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .dg-scheme-select:hover { border-color:var(--border2); }
-.dg-scheme-select:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,194,255,0.15); }
+.dg-scheme-select:focus { border-color:var(--pdfed-accent); box-shadow:0 0 0 3px var(--pdfed-accent-bg); }
 .dg-custom-swatch-wrap { position:relative; display:inline-block; }
 .dg-custom-swatch-del {
   position:absolute; top:-6px; right:-6px; width:13px; height:13px; border-radius:50%;
@@ -6633,56 +6662,35 @@ button.dg-show-chip.active { background:var(--blue); }
 .dg-bw-black { background:#0a0a0a; color:#ffffff; border-color:#000; }
 .dg-bw-white { background:#ffffff; color:#101820; border-color:var(--border2); }
 
-.dg-wheel-box {
-  margin-top:2px; padding:18px; border-radius:16px; position:relative; overflow:hidden;
+.dg-custom-colour-box {
+  margin-top:2px; padding:16px; border-radius:16px; position:relative; overflow:hidden;
   background:linear-gradient(165deg, var(--bg2) 0%, var(--surface) 100%);
   border:1px solid var(--border2);
   box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 10px 30px -18px rgba(0,0,0,0.55);
 }
-.dg-wheel-box::before {
-  content:''; position:absolute; top:-40%; right:-30%; width:220px; height:220px; border-radius:50%;
-  background:radial-gradient(circle, rgba(0,194,255,0.14), transparent 70%);
-  pointer-events:none;
-}
-.dg-wheel-heading { margin-bottom:14px; position:relative; z-index:1; }
+.dg-wheel-heading { margin-bottom:12px; position:relative; z-index:1; }
 .dg-wheel-heading-title {
   display:block; font-size:12.5px; font-weight:800; color:var(--text); letter-spacing:0.2px;
 }
 .dg-wheel-heading-sub {
   display:block; font-size:10.5px; color:var(--text3); margin-top:2px; font-weight:500;
 }
-.dg-wheel-row { display:flex; align-items:center; gap:18px; position:relative; z-index:1; }
-.dg-wheel-ring {
-  flex-shrink:0; width:166px; height:166px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  background:conic-gradient(from 90deg, rgba(255,255,255,0.06), rgba(255,255,255,0), rgba(255,255,255,0.1), rgba(255,255,255,0));
-  box-shadow:0 0 0 1px var(--border2) inset, 0 12px 24px -10px rgba(0,0,0,0.5), 0 0 0 6px var(--bg2);
-  padding:8px;
-}
-#dgWheelCanvas {
-  cursor:crosshair; border-radius:50%; flex-shrink:0; display:block;
-  box-shadow:0 2px 10px rgba(0,0,0,0.35);
-}
-.dg-wheel-side { display:flex; flex-direction:column; gap:6px; flex:1; min-width:0; }
-.dg-wheel-preview-row { display:flex; align-items:center; gap:10px; }
-.dg-wheel-preview {
-  width:44px; height:44px; border-radius:50%; border:3px solid var(--bg2);
-  box-shadow:0 0 0 1px var(--border2), 0 6px 16px -6px rgba(0,0,0,0.5); flex-shrink:0;
+.dg-custom-colour-row { display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
+.dg-custom-colour-row input[type="color"] {
+  width:40px; height:40px; border-radius:10px; border:none; padding:0; cursor:pointer; flex-shrink:0;
+  box-shadow:0 0 0 1px var(--border2), 0 6px 16px -6px rgba(0,0,0,0.5);
 }
 .dg-wheel-hex {
   font-size:13px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0.3px;
 }
-.dg-wheel-slider-label {
-  font-size:10px; color:var(--text3); font-weight:700; text-transform:uppercase; letter-spacing:0.4px; margin-top:6px;
-}
-.dg-wheel-side input[type="range"] { width:100%; accent-color:var(--blue); }
 .dg-wheel-actions { display:flex; gap:8px; margin-top:14px; position:relative; z-index:1; }
 .dg-wheel-actions .btn-secondary, .dg-wheel-actions .btn-primary {
   flex:1; padding:9px; font-size:11px; border-radius:10px; font-weight:700; letter-spacing:0.2px;
   transition:filter 0.15s ease, transform 0.1s ease;
 }
 .dg-wheel-actions .btn-primary {
-  background:linear-gradient(135deg, var(--blue), #7C5CFC); border:none; color:#fff;
-  box-shadow:0 8px 18px -6px rgba(0,194,255,0.5);
+  background:linear-gradient(135deg, var(--pdfed-accent), var(--purple, #7C5CFC)); border:none; color:#fff;
+  box-shadow:0 8px 18px -6px var(--pdfed-accent-bg);
 }
 .dg-wheel-actions .btn-primary:hover { filter:brightness(1.08); transform:translateY(-1px); }
 .dg-wheel-actions .btn-secondary:hover { transform:translateY(-1px); }
@@ -9448,23 +9456,14 @@ button.dg-show-chip.active { background:var(--blue); }
                   <input type="color" id="dgSameColorInput" value="#00C2FF" oninput="dgOnSameColorInput(this.value)" style="width:22px;height:22px;border:none;border-radius:6px;padding:0;cursor:pointer;margin-left:auto">
                 </label>
 
-                <div class="dg-wheel-box" style="margin-top:14px">
+                <div class="dg-custom-colour-box" style="margin-top:14px">
                   <div class="dg-wheel-heading">
-                    <span class="dg-wheel-heading-title">Custom Colour Wheel</span>
-                    <span class="dg-wheel-heading-sub">Drag to pick a precise shade</span>
+                    <span class="dg-wheel-heading-title">Custom Colour</span>
+                    <span class="dg-wheel-heading-sub">Pick any exact shade</span>
                   </div>
-                  <div class="dg-wheel-row">
-                    <div class="dg-wheel-ring">
-                      <canvas id="dgWheelCanvas" width="150" height="150"></canvas>
-                    </div>
-                    <div class="dg-wheel-side">
-                      <div class="dg-wheel-preview-row">
-                        <div class="dg-wheel-preview" id="dgWheelPreview"></div>
-                        <span class="dg-wheel-hex" id="dgWheelHex">#00C2FF</span>
-                      </div>
-                      <label class="dg-wheel-slider-label">Lightness</label>
-                      <input type="range" id="dgWheelLightness" min="0" max="100" value="50" oninput="dgOnWheelLightness(this.value)">
-                    </div>
+                  <div class="dg-custom-colour-row">
+                    <input type="color" id="dgCustomColorInput" value="#00C2FF" oninput="dgOnCustomColorInput(this.value)" title="Pick a custom colour">
+                    <span class="dg-wheel-hex" id="dgCustomColorHex">#00C2FF</span>
                   </div>
                   <div class="dg-wheel-actions">
                     <button type="button" class="btn-secondary" onclick="dgAddCustomSwatch()">Save Colour</button>
@@ -9670,6 +9669,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   <label class="dg-show-chip active" id="dgLegendChip" title="Show legend"><input type="checkbox" id="dgLegendToggle" checked onchange="dgToggleShowChip(this,'dgLegendChip')"> Legend</label>
                   <label class="dg-show-chip active" id="dgValuesChip" title="Show values on chart"><input type="checkbox" id="dgValuesToggle" checked onchange="dgToggleShowChip(this,'dgValuesChip')"> Values</label>
                   <label class="dg-show-chip" id="dgTrendChip" title="Trendline (bar/line/area, incl. 3D)"><input type="checkbox" id="dgTrendlineToggle" onchange="dgToggleShowChip(this,'dgTrendChip')"> Trend</label>
+                  <label class="dg-show-chip" id="dgGrowthChip" title="Plot bar/line/area charts as % change from the first value instead of raw numbers"><input type="checkbox" id="dgGrowthToggle" onchange="dgToggleShowChip(this,'dgGrowthChip')"> Growth %</label>
                   <label class="dg-show-chip active" id="dgInsightsChip" title="Show insights strip"><input type="checkbox" id="dgInsightsToggle" checked onchange="dgToggleShowChip(this,'dgInsightsChip')"> Insights</label>
                   <label class="dg-show-chip dg-hologram-chip" id="dgHologramChip" title="Futuristic glowing hologram style — applies to the 3D chart types"><input type="checkbox" id="dgHologramToggle" onchange="dgToggleShowChip(this,'dgHologramChip')"> Hologram</label>
                   <button type="button" class="dg-show-chip" id="dgWrittenAnalysisChip" onclick="dgToggleWrittenAnalysis()" title="Show a written paragraph analysis beneath the chart">Written Analysis</button>
@@ -9731,6 +9731,21 @@ button.dg-show-chip.active { background:var(--blue); }
                         </select>
                         <span id="dgVideoStatus" style="margin-left:auto;font-size:11px;color:var(--text2);"></span>
                       </div>
+
+                      <div style="display:flex;align-items:center;gap:10px;">
+                        <label style="font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;">Quality</label>
+                        <select id="dgVideoQualitySelect" onchange="dgVideoOnQualityChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:12px;">
+                          <option value="1080">1080p (Full HD)</option>
+                          <option value="1440">1440p (QHD)</option>
+                          <option value="2160" selected>4K (Ultra HD)</option>
+                        </select>
+                        <label style="font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;margin-left:6px;">FPS</label>
+                        <select id="dgVideoFpsSelect" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:12px;">
+                          <option value="30">30</option>
+                          <option value="60" selected>60 (butter smooth)</option>
+                        </select>
+                      </div>
+                      <div id="dgVideoQualityNote" style="font-size:11px;color:var(--text2);opacity:0.75;margin-top:-6px;"></div>
 
                       <div style="display:flex;gap:10px;margin-top:4px;">
                         <button class="btn-secondary" onclick="dgCloseVideoExportModal()" style="flex:1;padding:9px;">Cancel</button>
@@ -11667,15 +11682,15 @@ function daUndo() { if (!daHistory.undo()) toast('Nothing to undo', 'info'); }
 function daRedo() { if (!daHistory.redo()) toast('Nothing to redo', 'info'); }
 
 // Diagrams & Graphs — snapshots the whole chart state (data rows, colours,
-// text labels, titles, chart type); wheelBase is an offscreen canvas cache,
-// not real data, so it's excluded and always rebuilt fresh on restore.
+// text labels, titles, chart type). No offscreen canvas in state anymore
+// (the colour wheel was removed in favour of a plain native colour picker),
+// so the whole thing is plain, directly-serializable JSON.
 const dgHistory = createModuleHistory(
-  () => { const { wheelBase, ...s } = dgState; return JSON.stringify(s); },
+  () => JSON.stringify(dgState),
   (snap) => {
     const s = JSON.parse(snap);
-    Object.keys(dgState).forEach(k => { if (k !== 'wheelBase') delete dgState[k]; });
+    Object.keys(dgState).forEach(k => delete dgState[k]);
     Object.assign(dgState, s);
-    dgState.wheelBase = null;
     if (typeof dgRender === 'function') dgRender();
   }
 );
@@ -26261,6 +26276,111 @@ function pdfedDeleteSelectedPlacedItems() {
 // multi selections are both deletable through one code path.
 function pdfedDeleteSelectedPlacedTexts() { return pdfedDeleteSelectedPlacedItems(); }
 
+// ── Cross-page Copy / Cut / Paste (Ctrl+C / Ctrl+X / Ctrl+V) ──────────────
+// A separate, app-internal clipboard for placed text/image/table objects —
+// distinct from the OS clipboard the paste listener further below reads
+// from. This is what makes "copy on page 1, switch to page 4, paste" work:
+// selected objects are deep-cloned into pdfedInternalClipboard on Ctrl+C,
+// and a later Ctrl+V — on ANY page of the document, at any time — drops
+// fresh copies onto whichever page is active at that moment, styling and
+// content untouched. Every placed kind travels through it — text, image,
+// table, shape, and border.
+let pdfedInternalClipboard = [];
+let pdfedClipboardPasteCount = 0;
+
+function pdfedCopySelectedToClipboard() {
+  const { items } = pdfedGetActiveSelection();
+  const copyable = items; // every kind is copyable: text, image, table, shape, border
+  if (!copyable.length) return false;
+  pdfedInternalClipboard = copyable.map(o => {
+    const data = JSON.parse(JSON.stringify(o.item));
+    delete data.id;
+    return { kind: o.kind, data };
+  });
+  pdfedClipboardPasteCount = 0;
+  const n = pdfedInternalClipboard.length;
+  toast('Copied ' + n + (n === 1 ? ' item' : ' items') + ' — switch page and press Ctrl+V to paste', 'info');
+  return true;
+}
+
+function pdfedCutSelectedToClipboard() {
+  if (!pdfedCopySelectedToClipboard()) return false;
+  pdfedDeleteSelectedPlacedItems();
+  return true;
+}
+
+// Drops whatever's on pdfedInternalClipboard onto the currently active page.
+// Repeated Ctrl+V presses on the same page cascade the offset (same idea as
+// the Diagrams & Graphs module's own text clipboard) so pastes don't stack
+// exactly on top of each other.
+function pdfedPasteFromInternalClipboard() {
+  if (!pdfedInternalClipboard.length) return false;
+  const idx = pdfed.active;
+  const pg = (idx >= 0 && pdfed.pages) ? pdfed.pages[idx] : null;
+  if (!pg) return false;
+
+  pdfedClipboardPasteCount++;
+  const offset = 20 * pdfedClipboardPasteCount;
+  const created = []; // { kind, key, item }
+
+  pdfedInternalClipboard.forEach(entry => {
+    const clone = JSON.parse(JSON.stringify(entry.data));
+    clone.x = (clone.x || 0) + offset;
+    clone.y = (clone.y || 0) + offset;
+    clone.locked = false;
+    let key;
+    if (entry.kind === 'text') { clone.id = 'ptxt_' + (++pdfedPlacedTextSeq); key = 'placedTexts'; }
+    else if (entry.kind === 'image') { clone.id = 'pimg_' + (++pdfedAnnotState.placedImgSeq); key = 'placedImages'; }
+    else if (entry.kind === 'table') { clone.id = 'tbl_' + (++pdfedTableSeq); key = 'placedTables'; }
+    else if (entry.kind === 'shape') { clone.id = 'pshp_' + (++pdfedPlacedShapeSeq); key = 'placedShapes'; }
+    else { clone.id = 'pbrd_' + (++pdfedBorderSeq); key = 'placedBorders'; }
+    clone.zIndex = pdfedNextZ(pg);
+    if (!pg[key]) pg[key] = [];
+    pg[key].push(clone);
+    created.push({ kind: entry.kind, key, item: clone });
+  });
+
+  pdfedMarkModified(idx);
+  const kinds = new Set(created.map(c => c.kind));
+  kinds.forEach(k => pdfedRenderKind(k, idx));
+  pdfedClearMultiSelection();
+  created.forEach(c => {
+    if (c.kind === 'text') pdfedSelected.add(c.item.id);
+    else if (c.kind === 'image') pdfedSelectedImgs.add(c.item.id);
+    else if (c.kind === 'table') pdfedSelectedTables.add(c.item.id);
+    // shapes/borders track selection purely via the .selected DOM class,
+    // which pdfedReapplySelectedClass (below) already applies for every kind.
+  });
+  pdfedReapplySelectedClass(created.map(c => c.item.id));
+  const n = created.length;
+  toast('Pasted ' + n + (n === 1 ? ' item' : ' items'), 'success');
+
+  pushAppHistory({
+    label: 'Paste',
+    undo: () => {
+      created.forEach(c => {
+        const list = pg[c.key];
+        if (!list) return;
+        const at = list.indexOf(c.item);
+        if (at !== -1) list.splice(at, 1);
+      });
+      pdfedMarkModified(idx);
+      kinds.forEach(k => pdfedRenderKind(k, idx));
+      pdfedClearMultiSelection();
+      toast('Paste undone', 'info');
+    },
+    redo: () => {
+      created.forEach(c => {
+        if (!pg[c.key]) pg[c.key] = [];
+        if (pg[c.key].indexOf(c.item) === -1) pg[c.key].push(c.item);
+      });
+      pdfedMarkModified(idx);
+      kinds.forEach(k => pdfedRenderKind(k, idx));
+    }
+  });
+  return true;
+}
+
 // Arrow-key nudge: moves every currently-selected, unlocked placed item by
 // (dx, dy) canvas-px. Consecutive presses within a short window (a "burst",
 // same idea as a mouse drag) are coalesced into a single undo step so
@@ -26333,6 +26453,16 @@ document.addEventListener('keydown', function (e) {
   if (mod && e.key.toLowerCase() === 'a') {
     e.preventDefault();
     pdfedSelectAllPlacedTexts();
+  } else if (mod && e.key.toLowerCase() === 'c' && pdfedGetActiveSelection().items.length >= 1) {
+    if (pdfedCopySelectedToClipboard()) e.preventDefault();
+  } else if (mod && e.key.toLowerCase() === 'x' && pdfedGetActiveSelection().items.length >= 1) {
+    if (pdfedCutSelectedToClipboard()) e.preventDefault();
+  } else if (mod && e.key.toLowerCase() === 'v' && pdfedInternalClipboard.length) {
+    // Internal clipboard takes priority over the OS-clipboard paste
+    // listener below — preventDefault here stops that native 'paste' event
+    // from firing at all, so this never double-pastes.
+    e.preventDefault();
+    pdfedPasteFromInternalClipboard();
   } else if ((e.key === 'Delete' || e.key === 'Backspace') && pdfedGetActiveSelection().items.length >= 1) {
     e.preventDefault();
     pdfedDeleteSelectedPlacedItems();
@@ -26410,8 +26540,8 @@ document.addEventListener('paste', async function (e) {
   let rowsData = null;
   if (html && /<table[\s>]/i.test(html)) {
     rowsData = pdfedParseHtmlTableClipboard(html);
-  } else if (plain && plain.includes('\t')) {
-    rowsData = plain.replace(/\r\n/g, '\n').split('\n').filter(l => l.length).map(l => l.split('\t'));
+  } else if (plain && plain.trim() && typeof daSplitDelimitedText === 'function') {
+    rowsData = daSplitDelimitedText(plain);
   }
   if (rowsData && rowsData.length && rowsData.some(r => r.length > 1)) {
     e.preventDefault();
@@ -28363,6 +28493,17 @@ function pdfedStartTableDrag(el, item, idx, e) {
   const guideV = document.getElementById('pdfedSmartGuideV');
   const guideH = document.getElementById('pdfedSmartGuideH');
   let moved = false;
+  // A table pushed from Data Arrangement can bring its own heading text box
+  // along for the ride (item.linkedTitleId points at it). Without this, the
+  // heading stayed put on the page the moment the table underneath it was
+  // dragged — it needs to translate by the exact same amount, snapping
+  // included, so the two always move together.
+  const pg = pdfed.pages[idx];
+  const linkedText = item.linkedTitleId && pg && pg.placedTexts
+    ? pg.placedTexts.find(t => t.id === item.linkedTitleId)
+    : null;
+  const linkedTextEl = linkedText ? document.querySelector(`.pdfed-placed-text[data-id="${linkedText.id}"]`) : null;
+  const ltx = linkedText ? linkedText.x : 0, lty = linkedText ? linkedText.y : 0;
   const mm = (e2) => {
     let nx = ox + (e2.clientX - sx) / z;
     let ny = oy + (e2.clientY - sy) / z;
@@ -28388,6 +28529,15 @@ function pdfedStartTableDrag(el, item, idx, e) {
     item.y = Math.round(ny);
     el.style.left = item.x + 'px';
     el.style.top = item.y + 'px';
+    if (linkedText) {
+      const dx = item.x - ox, dy = item.y - oy;
+      linkedText.x = Math.round(ltx + dx);
+      linkedText.y = Math.round(lty + dy);
+      if (linkedTextEl) {
+        linkedTextEl.style.left = linkedText.x + 'px';
+        linkedTextEl.style.top = linkedText.y + 'px';
+      }
+    }
     moved = true;
   };
   const mu = () => {
@@ -28560,6 +28710,7 @@ function pdfedTableAddRow(idx, id) {
   item.cells.push(new Array(item.cols).fill(''));
   item.rowHeights.push(item.rowHeights[item.rowHeights.length - 1] || 30);
   item.rows++;
+  item._refineBaseline = null; // structure changed — a stale baseline from before this edit would mismatch the new row/col count on the next Refine Report
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
 }
@@ -28571,6 +28722,7 @@ function pdfedTableAddCol(idx, id) {
   item.colWidths.push(w);
   item.cells.forEach(row => row.push(''));
   item.cols++;
+  item._refineBaseline = null; // structure changed — a stale baseline from before this edit would mismatch the new row/col count on the next Refine Report
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
 }
@@ -28582,6 +28734,7 @@ function pdfedTableInsertRowAt(idx, id, ri, before) {
   item.cells.splice(at, 0, new Array(item.cols).fill(''));
   item.rowHeights.splice(at, 0, item.rowHeights[ri] || 30);
   item.rows++;
+  item._refineBaseline = null; // structure changed — a stale baseline from before this edit would mismatch the new row/col count on the next Refine Report
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
 }
@@ -28593,6 +28746,7 @@ function pdfedTableInsertColAt(idx, id, ci, before) {
   item.colWidths.splice(at, 0, item.colWidths[ci] || 90);
   item.cells.forEach(row => row.splice(at, 0, ''));
   item.cols++;
+  item._refineBaseline = null; // structure changed — a stale baseline from before this edit would mismatch the new row/col count on the next Refine Report
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
 }
@@ -28604,6 +28758,7 @@ function pdfedTableDeleteRowAt(idx, id, ri) {
   item.cells.splice(ri, 1);
   item.rowHeights.splice(ri, 1);
   item.rows--;
+  item._refineBaseline = null; // structure changed — a stale baseline from before this edit would mismatch the new row/col count on the next Refine Report
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
 }
@@ -28615,6 +28770,7 @@ function pdfedTableDeleteColAt(idx, id, ci) {
   item.colWidths.splice(ci, 1);
   item.cells.forEach(row => row.splice(ci, 1));
   item.cols--;
+  item._refineBaseline = null; // structure changed — a stale baseline from before this edit would mismatch the new row/col count on the next Refine Report
   pdfedMarkModified(idx);
   pdfedRenderPlacedTables(idx);
 }
@@ -29883,9 +30039,21 @@ function pdfedRenderPlacedImages(idx) {
     // re-rendered, e.g. every time it's locked or unlocked.
     const rotInner = document.createElement('div');
     rotInner.className = 'pdfed-rot-inner';
+    // Section dividers/badges are tiny, always-locked decoration (a divider
+    // rule can be just 2-3px tall) regenerated fresh on every Refine Report
+    // pass. The normal 2px selection/lock border below is fine on an
+    // ordinary placed image, but with box-sizing:border-box a 2px top+bottom
+    // border on a 2-3px-tall box consumes MORE than the box's own height,
+    // squeezing the actual <img> (the visible accent-colored rule) down to
+    // zero height — so on the live canvas only a near-invisible sliver of
+    // border shows, while export/thumbnail generation (which stamps these
+    // pixels straight onto a canvas, no border wrapper involved) renders the
+    // divider correctly. These items already skip the badge-row chrome
+    // below for the same "just decoration" reason — skip the border too.
+    const isSectionDecoration = item._sectionIcon || item._sectionDivider || item._sectionBar;
     rotInner.style.cssText = `position:absolute;inset:0;box-sizing:border-box;
-      border:2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'};
-      border-radius:4px;transform-origin:50% 50%;`;
+      border:${isSectionDecoration ? '0' : `2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'}`};
+      border-radius:${isSectionDecoration ? '0' : '4px'};transform-origin:50% 50%;`;
     el.appendChild(rotInner);
     pdfedPositionPlacedEl(el, item, pc);
 
@@ -33077,6 +33245,229 @@ function daCellLooksNumeric(c) {
   return !isNaN(parseFloat(cleaned)) && isFinite(cleaned);
 }
 
+// ── Smart column-type realignment ─────────────────────────────────────────
+// OCR text, space-aligned paste, and misparsed delimiters routinely shift a
+// row's cells by one column — a two-word name that splits into two cells
+// pushes everything after it one slot to the right, for that row only. The
+// symptom is exactly what shows up after a messy paste: an email sitting
+// under "Age", an amount sitting under "Dept", a date column holding
+// "N/A" while the actual date drifted into the next cell.
+//
+// Rather than trust raw column position, this looks at what TYPE of value
+// each header expects (guessed from its label — "Email", "Date", "Amount",
+// "Age" are unambiguous) and what type each cell in that row actually looks
+// like (an email has an @, a date matches known date shapes, an amount is
+// currency-like or N/A, tolerant of common OCR letter/digit swaps like O↔0
+// and l/I↔1). Cells are then reassigned to the header whose expected type
+// they match, even if that means pulling a value from a different column
+// in the same row. Free-text columns (name, department, and anything else
+// with no reliable content signature) are left in left-to-right order in
+// whatever slots remain — there's no generic way to tell "a name" from
+// "a department" by content alone, so those are never guessed at, only
+// the unambiguous typed columns are actively corrected.
+const DA_OCR_DIGIT_LENIENT = v => v.replace(/[Oo]/g, '0').replace(/[lI]/g, '1');
+
+// Each finder either returns null (no match anywhere in the cell) or
+// { match, remainder } — remainder is whatever text was left over after
+// pulling the matched piece out, fed back into the pool of unclaimed cells
+// so it isn't silently dropped (e.g. a cell that merged a date with a
+// trailing "N/A" amount splits into both pieces instead of losing one).
+function daFindEmail(v) {
+  const m = /[a-zA-Z0-9._%+-]+\s*@\s*[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})?/.exec(v);
+  if (!m) return null;
+  return { match: m[0].trim(), remainder: (v.slice(0, m.index) + ' ' + v.slice(m.index + m[0].length)).trim() };
+}
+function daFindDate(v) {
+  const lenient = DA_OCR_DIGIT_LENIENT(v);
+  const patterns = [
+    /\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/,
+    /\d{1,2}[-\/]\d{1,2}[-\/]\d{4}/,
+    // "15-Jan-2023", "15 Jan 2023", "1st Jan 2025", "21st-Mar-2024"
+    /\d{1,2}(st|nd|rd|th)?[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\s]\d{2,4}/i,
+    // "Jan 19 2023", "Jan 19, 2023", "January 1st, 2025"
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s\d{1,2}(st|nd|rd|th)?,?\s\d{2,4}/i,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(lenient);
+    if (m) {
+      // Pull the equivalent slice from the ORIGINAL string (same offsets —
+      // the lenient copy is character-for-character the same length) so the
+      // returned value keeps its original characters rather than the
+      // digit-swapped stand-in used only for matching.
+      const match = v.slice(m.index, m.index + m[0].length);
+      const remainder = (v.slice(0, m.index) + ' ' + v.slice(m.index + m[0].length)).trim();
+      return { match, remainder };
+    }
+  }
+  return null;
+}
+function daFindAmount(v) {
+  const t = v.trim();
+  if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return { match: t, remainder: '' };
+  const m = /\$\s?\d[\d,.\s]*|\d[\d,]*\.\d+/.exec(t);
+  if (m) {
+    const match = m[0].trim();
+    const remainder = (t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length)).trim();
+    return { match, remainder };
+  }
+  const na = /\bN\/A\b/i.exec(t);
+  if (na) {
+    const remainder = (t.slice(0, na.index) + ' ' + t.slice(na.index + na[0].length)).trim();
+    return { match: na[0], remainder };
+  }
+  // Fallback: a bare, unformatted integer with no currency symbol or comma
+  // at all (e.g. "71000"). Ambiguous with ID/Age on its own, which is
+  // exactly why this only fires as a last resort — Amount is always
+  // resolved after ID/Age in header order, so by the time this runs those
+  // columns have already claimed whatever numbers were actually theirs.
+  if (/^-?\d+(\.\d+)?$/.test(DA_OCR_DIGIT_LENIENT(t))) return { match: t, remainder: '' };
+  return null;
+}
+// ID/Age/quantity-style columns are just plain integers — but plain digits
+// are ambiguous with all sorts of other things when merged into a bigger
+// string, so (unlike email/date/amount) this only matches when the ENTIRE
+// cell is nothing but a number. No partial extraction, no remainder.
+function daFindNumber(v) {
+  const t = v.trim();
+  return /^-?\d+$/.test(DA_OCR_DIGIT_LENIENT(t)) ? { match: t, remainder: '' } : null;
+}
+
+// ── Format normalization ──────────────────────────────────────────────────
+// Getting a value under the right header isn't enough if a Date column
+// still mixes "2023-01-15", "01/16/2023", and "Jan 19 2023" — that's just
+// as unreadable and unsortable as having them scattered across columns.
+// Once a value is confirmed to be a date/amount/email/number, it's rewritten
+// into one consistent shape for that whole column: dates → ISO YYYY-MM-DD,
+// amounts → $#,###.##, emails → lowercased, numbers → OCR digit-swaps fixed.
+const DA_MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+function daNormalizeDateValue(raw) {
+  const lenient = DA_OCR_DIGIT_LENIENT(raw).toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g, '$1');
+  let y, m, d, mm;
+  if ((mm = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/.exec(lenient))) {
+    y = +mm[1]; m = +mm[2]; d = +mm[3];
+  } else if ((mm = /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/.exec(lenient))) {
+    // Ambiguous MM/DD vs DD/MM — default to US MM/DD/YYYY, but swap if the
+    // first number can't possibly be a month (e.g. "25/12/2024").
+    const a = +mm[1], b = +mm[2]; y = +mm[3];
+    if (a > 12 && b <= 12) { d = a; m = b; } else { m = a; d = b; }
+  } else if ((mm = /^(\d{1,2})[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\s](\d{2,4})$/.exec(lenient))) {
+    d = +mm[1]; m = DA_MONTHS[mm[2]]; y = +mm[3];
+  } else if ((mm = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s(\d{1,2}),?\s(\d{2,4})$/.exec(lenient))) {
+    m = DA_MONTHS[mm[1]]; d = +mm[2]; y = +mm[3];
+  }
+  if (!y || !m || !d) return raw; // couldn't confidently parse — leave untouched rather than guess
+  if (y < 100) y += 2000;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function daNormalizeAmountValue(raw) {
+  const t = raw.trim();
+  if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return 'N/A';
+  const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$,\s]/g, '');
+  const num = parseFloat(cleaned);
+  if (isNaN(num)) return raw;
+  return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function daNormalizeEmailValue(raw) {
+  return raw.trim().toLowerCase();
+}
+
+function daNormalizeNumberValue(raw) {
+  const lenient = DA_OCR_DIGIT_LENIENT(raw.trim());
+  return /^-?\d+$/.test(lenient) ? lenient : raw;
+}
+
+const DA_TYPE_NORMALIZERS = {
+  date: daNormalizeDateValue,
+  amount: daNormalizeAmountValue,
+  email: daNormalizeEmailValue,
+  number: daNormalizeNumberValue,
+};
+
+const DA_TYPE_FINDERS = { email: daFindEmail, date: daFindDate, amount: daFindAmount, number: daFindNumber };
+
+const DA_HEADER_TYPE_HINTS = [
+  { type: 'email', re: /e[- ]?ma[i1]l|^em|mail/i },
+  { type: 'date', re: /date|dob|\bday\b/i },
+  { type: 'amount', re: /amount|price|salary|cost|total|revenue|\bpay\b/i },
+  { type: 'number', re: /\bid\b|\bage\b|qty|quantity|\bcount\b|no\.?$|number|\bnum\b/i },
+];
+
+function daGuessHeaderType(header) {
+  const h = String(header || '');
+  for (const hint of DA_HEADER_TYPE_HINTS) {
+    if (hint.re.test(h)) return hint.type;
+  }
+  return 'text';
+}
+
+function daSmartTypeRealign(headers, rows) {
+  const headerTypes = headers.map(daGuessHeaderType);
+  // Typed columns are walked in header order, so e.g. "ID" (usually column
+  // 1) claims a plain-number cell before "Age" goes looking for one,
+  // instead of the two competing unpredictably.
+  const typedCols = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t !== 'text');
+  if (!typedCols.length) return rows; // nothing unambiguous to correct against
+
+  return rows.map(row => {
+    const width = Math.max(headers.length, row.length);
+    let cells = Array.from({ length: width }, (_, i) => String(row[i] !== undefined ? row[i] : ''));
+    let used = new Array(width).fill(false);
+    const result = new Array(headers.length).fill('');
+
+    // Pass 1 — claim a value for each unambiguously-typed header: prefer
+    // the cell already sitting in that column if it already matches (never
+    // move data that's already correct), otherwise scan the rest of the row
+    // for the first unused cell containing that type anywhere in it. A
+    // partial match (email/date/amount) splits its leftover text back into
+    // the pool so nothing is thrown away.
+    typedCols.forEach(({ t, i }) => {
+      const finder = DA_TYPE_FINDERS[t];
+      const order = [i, ...cells.map((_, j) => j).filter(j => j !== i)];
+      for (const j of order) {
+        if (used[j] || !cells[j]) continue;
+        const found = finder(cells[j]);
+        if (!found) continue;
+        result[i] = found.match;
+        used[j] = true;
+        if (found.remainder) { cells.push(found.remainder); used.push(false); }
+        return;
+      }
+    });
+
+    // Pass 2 — remaining free-text header slots absorb whatever's left,
+    // strictly left-to-right, preserving relative order (name-like and
+    // category-like text can't be told apart by content, so order is the
+    // only signal worth trusting for these).
+    const leftover = cells.map((v, idx) => ({ v, idx })).filter(x => !used[x.idx] && x.v !== '');
+    const textColIdxs = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t === 'text').map(x => x.i);
+    let li = 0;
+    textColIdxs.forEach(i => {
+      if (li < leftover.length) { result[i] = leftover[li].v; used[leftover[li].idx] = true; li++; }
+    });
+    // Anything still left over (row had more values than there were slots
+    // for) gets folded onto the last free-text column rather than dropped;
+    // if every column was typed, it falls onto the very last column.
+    if (li < leftover.length) {
+      const target = textColIdxs.length ? textColIdxs[textColIdxs.length - 1] : headers.length - 1;
+      const extra = leftover.slice(li).map(x => x.v).join(' ');
+      result[target] = result[target] ? result[target] + ' ' + extra : extra;
+    }
+
+    // Rewrite each typed column's value into one consistent format for the
+    // whole table — this is what actually makes a Date column readable
+    // and sortable once every value is under it, instead of just moving
+    // the mess into the right place.
+    typedCols.forEach(({ t, i }) => {
+      if (result[i] && DA_TYPE_NORMALIZERS[t]) result[i] = DA_TYPE_NORMALIZERS[t](result[i]);
+    });
+
+    return result;
+  });
+}
+
 function daNormalize(aoa) {
   let rows = (aoa || []).filter(r => Array.isArray(r) && r.some(c => String(c ?? '').trim() !== ''));
   if (!rows.length) return { headers: ['Column 1'], rows: [], titleRow: null };
@@ -33110,7 +33501,14 @@ function daNormalize(aoa) {
     // header (mostly filled) or be another single-cell caption itself (a
     // "Report Title" / "Subtitle" pair stacked above the real header), so a
     // second peel of the loop can reach the actual header underneath.
-    const looksLikeSpanningTitle = r0Filled.length === 1 && (r1FilledRatio >= 0.6 || r1Filled.length === 1);
+    // Threshold lowered from 0.6 to 0.4: a group-label row spanning several
+    // sub-columns (e.g. "FY2025-26" / "FY2024-25" / "Growth" filled in only
+    // 3 of 6 cells, each label really covering 2 sub-columns underneath) is
+    // legitimately sparse and shouldn't stop a real title row above it from
+    // being peeled off. A true single-row header (no title above it) is
+    // still almost always filled well above 0.4, so this doesn't risk
+    // mistaking a real header for a title candidate's "row below".
+    const looksLikeSpanningTitle = r0Filled.length === 1 && (r1FilledRatio >= 0.4 || r1Filled.length === 1);
     if (!looksLikeSpanningTitle) break;
     titleParts.push(r0Filled.map(c => String(c).trim()).join(' '));
     rows = rows.slice(1);
@@ -33129,7 +33527,11 @@ function daNormalize(aoa) {
   if (rows.length > 3) {
     const r0 = rows[0], r1 = rows[1];
     const r0FilledCount = r0.filter(c => String(c).trim() !== '').length;
-    const r1AllFilled = r1.every(c => String(c).trim() !== '');
+    // Ratio rather than a strict "every cell" check — tolerates one stray
+    // blank sub-header (e.g. an unlabeled leading ID/leader column) without
+    // losing the grouped-header match over a single missing label.
+    const r1FilledCells = r1.filter(c => String(c).trim() !== '').length;
+    const r1AllFilled = (r1FilledCells / colCount) >= 0.8;
     const r1MostlyText = r1.filter(c => !daCellLooksNumeric(c)).length >= Math.ceil(colCount * 0.7);
     const sample = rows.slice(2, 7);
     let numericBelow = 0, totalBelow = 0;
@@ -33186,13 +33588,23 @@ function daNormalize(aoa) {
     return name;
   });
 
+  // Only worth correcting against real column names — generic "Column N"
+  // headers (useHeaderRow === false) carry no type signal to check cells
+  // against.
+  if (useHeaderRow) {
+    dataRows = daSmartTypeRealign(headers, dataRows);
+  }
+
   return { headers, rows: dataRows, titleRow };
 }
 
-function daAddDataset(name, aoa) {
-  const { headers, rows } = daNormalize(aoa);
+function daAddDataset(name, aoa, titleOverride) {
+  const { headers, rows, titleRow } = daNormalize(aoa);
   const id = 'ds' + (++daIdCounter);
-  daState.datasets.push({ id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, frozen: true, colDropdowns: {}, cellDropdowns: {} });
+  // titleOverride wins when supplied (e.g. a heading detected from pasted
+  // clipboard HTML) — otherwise fall back to whatever daNormalize found as
+  // a literal title row baked into the data itself.
+  daState.datasets.push({ id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, title: titleOverride || titleRow || null, frozen: true, colDropdowns: {}, cellDropdowns: {} });
   daState.activeId = id;
 }
 
@@ -33221,6 +33633,155 @@ function daCreateBlankTable() {
 // (pdfedParseHtmlTableClipboard), so Excel/Sheets/Word's real cell grid is
 // read exactly, not guessed from tab characters, whenever the source
 // clipboard provides it. ───
+// Splits a block of pasted plain text into rows/cells without assuming the
+// source used tabs. Real-world "raw data" people paste in (CSV exports,
+// AI-generated tables, log dumps, OCR/console output, etc.) shows up in a
+// few different shapes:
+//   - true delimited text (tab/comma/semicolon/pipe consistently between cells)
+//   - space-ALIGNED text (columns lined up with runs of 2+ spaces, no real
+//     delimiter at all — typical of OCR output, terminal dumps, monospace
+//     tables copied as plain text)
+// The naive approach of "does this line contain a comma" is fooled by stray
+// commas that are part of a *value*, not a separator — e.g. "$5,500" or
+// "62,000.00" — so numeric thousand-separator commas are ignored when
+// scoring/splitting. A delimiter is only trusted if it shows up across most
+// of the sample lines (not just one or two), otherwise we fall back to
+// splitting on runs of whitespace.
+function daSplitDelimitedText(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length);
+  if (!lines.length) return null;
+
+  const sample = lines.slice(0, Math.min(lines.length, 20));
+
+  // Comma/semicolon that sit between digits (with no space) are almost
+  // always thousands/decimal separators inside a single value, not a real
+  // column boundary — e.g. "5,500" or "1;500" (rare, but same idea). Mask
+  // those out before counting or splitting on that delimiter.
+  function maskNumericSeparators(line, delim) {
+    if (delim !== ',' && delim !== ';') return line;
+    const re = new RegExp('(\\d)' + delim + '(?=\\d)', 'g');
+    return line.replace(re, '$1\u0000');
+  }
+
+  function parseLineCsvAware(line, delim) {
+    const masked = maskNumericSeparators(line, delim);
+    const cells = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < masked.length; i++) {
+      const ch = masked[i];
+      if (ch === '"') {
+        if (inQuotes && masked[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === delim && !inQuotes) {
+        cells.push(cur); cur = '';
+      } else {
+        cur += (ch === '\u0000' ? delim : ch);
+      }
+    }
+    cells.push(cur);
+    return cells;
+  }
+
+  const candidates = ['\t', ',', ';', '|'];
+  let best = null;
+  for (const delim of candidates) {
+    // Require the delimiter to actually appear across most lines — one or
+    // two lines with a stray comma shouldn't be enough to call it "the"
+    // delimiter for the whole block.
+    const coverage = sample.filter(l => maskNumericSeparators(l, delim).includes(delim)).length / sample.length;
+    if (coverage < 0.7) continue;
+    const counts = sample.map(l => parseLineCsvAware(l, delim).length);
+    const maxCount = Math.max(...counts);
+    if (maxCount < 2) continue;
+    const modeCount = counts.sort((a, b) =>
+      counts.filter(c => c === b).length - counts.filter(c => c === a).length
+    )[0];
+    const consistency = counts.filter(c => c === modeCount).length / counts.length;
+    const score = consistency * maxCount;
+    if (!best || score > best.score) best = { delim, score, maxCount };
+  }
+
+  if (best && best.maxCount >= 2) {
+    return lines.map(l => parseLineCsvAware(l, best.delim));
+  }
+
+  // Fallback: no reliable real delimiter — try space-aligned columns
+  // (2+ consecutive spaces = a column gap). This is the common shape for
+  // OCR output, terminal/log dumps, and anything copied out of a monospace
+  // preview.
+  const spaceCounts = sample.map(l => l.trim().split(/\s{2,}/).length);
+  const maxSpaceCols = Math.max(...spaceCounts);
+  if (maxSpaceCols >= 2) {
+    const modeCount = spaceCounts.sort((a, b) =>
+      spaceCounts.filter(c => c === b).length - spaceCounts.filter(c => c === a).length
+    )[0];
+    const consistency = spaceCounts.filter(c => c === modeCount).length / spaceCounts.length;
+    // Only trust this if it's reasonably consistent — otherwise a single
+    // line with wide spacing shouldn't force a column split on everything.
+    if (consistency >= 0.4) {
+      return lines.map(l => l.trim().split(/\s{2,}/));
+    }
+  }
+
+  return null;
+}
+
+// Tries to find a human title for a pasted table by looking at the HTML
+// around the <table> element itself. A report card like "Assets Comparison"
+// almost always has that title living OUTSIDE the <table> markup (a
+// <caption>, a heading, or a plain styled line right above it) — the table
+// row/cell parser never sees it, which is why a pasted table used to always
+// land as the generic "Pasted Table N" even when it clearly had a name.
+//
+// v2: walks the ENTIRE clipboard fragment in document order (not just
+// direct previous siblings) and keeps the most recent short "label-like"
+// line of text seen before reaching the <table> node. Real-world sources
+// (chat UIs, report cards, dashboards) often put several wrapper <div>s
+// between a title and its table, so a sibling-only search missed those —
+// document-order traversal finds the title regardless of how deep the
+// nesting is, as long as it appears somewhere before the table.
+// Still best-effort only: if the title text was never actually part of
+// what got copied to the clipboard in the first place (e.g. only the table
+// rows were selected), there is nothing here to recover — callers fall
+// back to the generic name exactly as before.
+function daExtractTableTitleFromHtml(html) {
+  try {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const table = tmp.querySelector('table');
+    if (!table) return null;
+    const clean = t => (t || '').replace(/\s+/g, ' ').trim();
+    // 1. A real <caption> inside the table is the most explicit signal.
+    const caption = table.querySelector('caption');
+    if (caption && clean(caption.textContent)) return clean(caption.textContent).slice(0, 60);
+
+    // 2. Walk the whole fragment in document order, remembering the closest
+    // qualifying text-bearing "leaf" element seen before we hit the table —
+    // this is the title regardless of how many wrapper divs sit between it
+    // and the table.
+    let candidate = null;
+    const INLINE_TAGS = /^(SPAN|B|STRONG|EM|I|A|SMALL|BR|SUP|SUB)$/;
+    const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_ELEMENT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node === table) break;
+      if (node.contains(table)) continue; // ancestor wrapper of the table, not a title
+      // Only consider "leaf-ish" elements (children are inline-only, or none)
+      // so we grab the innermost heading/label rather than a whole
+      // container's concatenated text.
+      const hasBlockChild = Array.from(node.children).some(c => !INLINE_TAGS.test(c.tagName));
+      if (hasBlockChild) continue;
+      const raw = node.textContent || '';
+      const text = clean(raw);
+      if (!text || text.length > 80 || /[\t\n]/.test(raw)) continue;
+      candidate = text; // keep overwriting — the last one before the table wins
+    }
+    return candidate ? candidate.slice(0, 60) : null;
+  } catch (err) { /* best-effort only — never block the paste over this */ }
+  return null;
+}
+
 document.addEventListener('paste', function (e) {
   const daSection = document.getElementById('sec-dataarrange');
   if (!daSection || !daSection.classList.contains('active')) return;
@@ -33236,24 +33797,48 @@ document.addEventListener('paste', function (e) {
   const html = cd.getData('text/html');
   const plain = cd.getData('text/plain');
   let rowsData = null;
+  let title = null;
   if (html && /<table[\s>]/i.test(html) && typeof pdfedParseHtmlTableClipboard === 'function') {
     rowsData = pdfedParseHtmlTableClipboard(html);
-  } else if (plain && plain.includes('\t')) {
-    rowsData = plain.replace(/\r\n/g, '\n').split('\n').filter(l => l.length).map(l => l.split('\t'));
+    title = daExtractTableTitleFromHtml(html);
+  } else if (plain && plain.trim()) {
+    rowsData = daSplitDelimitedText(plain);
   }
-  if (!rowsData || !rowsData.length || !rowsData.some(r => r.length > 1)) return;
+  if (!rowsData || !rowsData.length || !rowsData.some(r => r.length > 1)) {
+    // Previously this failed completely silently. If there was plain text on
+    // the clipboard but we still couldn't find a usable table shape in it,
+    // tell the person instead of doing nothing.
+    if (plain && plain.trim()) {
+      e.preventDefault();
+      toast('Couldn\'t detect columns in the pasted text — expected tab, comma, semicolon, or pipe-separated data', 'info');
+    }
+    return;
+  }
   e.preventDefault();
-  daPasteTableFromClipboard(rowsData);
+  daPasteTableFromClipboard(rowsData, title);
 });
 
 // Builds a new Data Arrangement dataset straight from parsed clipboard rows
 // (array of arrays of cell text) — same daAddDataset/daNormalize pipeline an
 // uploaded file goes through, so header detection, formulas, and export all
 // work on a pasted table exactly like they do on an uploaded one.
-function daPasteTableFromClipboard(rowsData) {
-  const existingPastedCount = daState.datasets.filter(d => /^Pasted Table \d+$/.test(d.name)).length;
-  const name = `Pasted Table ${existingPastedCount + 1}`;
-  daAddDataset(name, rowsData);
+function daPasteTableFromClipboard(rowsData, suggestedTitle) {
+  let name;
+  if (suggestedTitle && suggestedTitle.trim()) {
+    // Use the detected title (e.g. "Assets Comparison") as the tab name,
+    // de-duplicated against any dataset already using it.
+    const base = suggestedTitle.trim().slice(0, 40);
+    name = base;
+    let n = 2;
+    while (daState.datasets.some(d => d.name === name)) {
+      name = `${base} (${n})`;
+      n++;
+    }
+  } else {
+    const existingPastedCount = daState.datasets.filter(d => /^Pasted Table \d+$/.test(d.name)).length;
+    name = `Pasted Table ${existingPastedCount + 1}`;
+  }
+  daAddDataset(name, rowsData, suggestedTitle || null);
   if (typeof daResetFormulaBar === 'function') daResetFormulaBar();
   daWorkspaceRefreshVisibility();
   daRenderTabs();
@@ -33276,27 +33861,31 @@ async function daPasteTableFromButton() {
   try {
     const items = await navigator.clipboard.read();
     let rowsData = null;
+    let title = null;
     for (const item of items) {
       if (item.types.includes('text/html')) {
         const blob = await item.getType('text/html');
         const html = await blob.text();
         if (/<table[\s>]/i.test(html) && typeof pdfedParseHtmlTableClipboard === 'function') {
           rowsData = pdfedParseHtmlTableClipboard(html);
-          if (rowsData && rowsData.length) break;
+          if (rowsData && rowsData.length) {
+            title = daExtractTableTitleFromHtml(html);
+            break;
+          }
         }
       }
     }
     if (!rowsData || !rowsData.length) {
       const plain = await navigator.clipboard.readText().catch(() => '');
-      if (plain && plain.includes('\t')) {
-        rowsData = plain.replace(/\r\n/g, '\n').split('\n').filter(l => l.length).map(l => l.split('\t'));
+      if (plain && plain.trim()) {
+        rowsData = daSplitDelimitedText(plain);
       }
     }
     if (!rowsData || !rowsData.length || !rowsData.some(r => r.length > 1)) {
-      toast('No table found on the clipboard — copy a table first, then try again', 'info');
+      toast('No table found on the clipboard — expected tab, comma, semicolon, or pipe-separated data', 'info');
       return;
     }
-    daPasteTableFromClipboard(rowsData);
+    daPasteTableFromClipboard(rowsData, title);
   } catch (err) {
     toast('Couldn\'t read the clipboard — click inside Data Arrangement and press Ctrl+V instead', 'info');
   }
@@ -33592,6 +34181,14 @@ function daParseFormula(tokens) {
 // "420,000", "$420,000", " 420,000 " all parse as the full number 420000
 // instead of parseFloat's default behaviour of stopping at the first comma
 // (which silently truncated "420,000" down to 420).
+// Trailing magnitude words/abbreviations that routinely sit right after a
+// number in financial exports — Indian accounting units (Cr/Crore, L/Lakh)
+// as well as the international Mn/Bn/K/M/Thousand family. Matched only when
+// they immediately follow a plain numeric prefix (see DA_MAGNITUDE_RE below),
+// so this can never misfire on genuine text like "UK" or "OK".
+const DA_MAGNITUDE_WORDS = 'crores?|cr|lakhs?|l|thousand|k|million|mn|m|billion|bn';
+const DA_MAGNITUDE_RE = new RegExp('^(-?\\d+(?:\\.\\d+)?)(' + DA_MAGNITUDE_WORDS + ')$', 'i');
+
 function daCleanNum(v) {
   if (typeof v !== 'string') return v;
   const trimmed = v.trim();
@@ -33601,6 +34198,16 @@ function daCleanNum(v) {
   let s = trimmed.replace(/^\(([^()]+)\)$/, '-$1');
   s = s.replace(/[$€£₹,\s]/g, '');
   s = s.replace(/%$/, '');
+  // Strip a trailing magnitude suffix like "Cr"/"Lakh"/"K"/"Mn" once the
+  // symbols/commas/spaces above are already gone (e.g. "₹420 Cr" is "420Cr"
+  // at this point). Only fires when what's left of the string is exactly
+  // <number><suffix> — never on plain text — so "420Cr" -> "420" but a real
+  // word is left untouched. This is a unit strip, not a unit conversion: all
+  // values in a column are assumed to share one magnitude (as they do in a
+  // single financial table), so relative math (SUM/AVERAGE/comparisons)
+  // within that column stays correct even though the "Cr"/"Lakh" is dropped.
+  const magMatch = s.match(DA_MAGNITUDE_RE);
+  if (magMatch) s = magMatch[1];
   return s === '' ? trimmed : s;
 }
 
@@ -34199,7 +34806,25 @@ function daRenderTable() {
   // two different SUMs) don't get recomputed cell by cell.
   ds._calcCache = new Map();
 
-  let html = `<table class="da-table${ds.frozen ? ' da-frozen' : ''}"><thead>`;
+  // Detected main heading (a report title that sat above the real header
+  // row, e.g. "Annual Financial Performance Report") rendered as its own
+  // banner, visually distinct from the sub-headers/column-header row below
+  // it — so it's obvious this is a document title, not a 7th column. Kept
+  // editable (it's exactly what gets pushed as the canvas heading) and
+  // dismissible in case detection picked up something that wasn't really
+  // a title.
+  let titleHtml = '';
+  if (ds.title) {
+    titleHtml = `<div class="da-title-banner">
+      <span class="da-title-banner-label" title="Detected from a spanning row above the table — this gets pushed to Workspace as a heading above the table">MAIN HEADING</span>
+      <div class="da-title-banner-text" contenteditable="true" spellcheck="false"
+           onblur="daRenameTitle(this.textContent)"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${daEsc(ds.title)}</div>
+      <span class="da-title-banner-del" title="Not a title? Remove it" onclick="daClearTitle()">×</span>
+    </div>`;
+  }
+
+  let html = titleHtml + `<table class="da-table${ds.frozen ? ' da-frozen' : ''}"><thead>`;
   html += `<tr class="da-collabels-row"><th class="da-rownum"></th>`;
   ds.headers.forEach((_, ci) => { html += `<th class="da-collabel">${daColToLetters(ci)}</th>`; });
   html += `</tr><tr>`;
@@ -34289,6 +34914,20 @@ function daRenameHeader(colIdx, newName) {
   const clean = newName.trim() || `Column ${colIdx + 1}`;
   ds.headers[colIdx] = clean;
   daRenderTable();
+}
+
+function daRenameTitle(newTitle) {
+  const ds = daGetActive(); if (!ds) return;
+  const clean = newTitle.trim();
+  ds.title = clean || null;
+  daRenderTable();
+}
+
+function daClearTitle() {
+  const ds = daGetActive(); if (!ds) return;
+  ds.title = null;
+  daRenderTable();
+  toast('Main heading removed — the table headers below are unaffected', 'info');
 }
 
 function daUpdateCell(rowIdx, colIdx, newVal) {
@@ -34759,6 +35398,20 @@ const DA_HEADER_FILL = {
   sales: 'rgba(255,152,0,0.14)',
   generic: 'rgba(15,23,42,0.05)',
 };
+
+// A blank cell in Data Arrangement's own grid already displays as "—" (see
+// daRenderTable) so an empty cell reads as "intentionally blank" rather than
+// "missing/broken data" — but that's purely a display trick in the grid
+// renderer; the stored value underneath stays '' so formulas/exports keep
+// treating it as truly empty. Pushing a table onto the canvas builds a
+// separate, static cells array from those raw values, so without this it
+// silently loses the placeholder and just prints nothing. Used only for the
+// canvas push — CSV/Excel export intentionally keeps true blanks so the
+// data stays clean for re-import.
+function daPushCellDisplay(v) {
+  const s = String(v ?? '').trim();
+  return s === '' ? '—' : String(v);
+}
 
 // Builds a per-cell style grid parallel to `cells` (row 0 = header). Safe to
 // call on any headers+rows table shape; returns [] for an empty table.
@@ -35785,11 +36438,27 @@ function pdfedApplySectionIcons(pages, theme, addIcons) {
       // as an editorial report, where a big tinted block reads as a UI
       // banner). Same width/x as the table below so it lines up cleanly.
       const ruleH = Math.max(2, Math.round(fontSize * 0.14));
+      // The live canvas paints these five item types into fixed, separate DOM
+      // layers in a fixed order (borders, images, texts, tables, shapes —
+      // see the layer divs around #pdfedPlacedZoomWrap), and CSS only lets a
+      // z-index win over a later-in-DOM sibling when it's STRICTLY higher —
+      // a tie is resolved by DOM order, which always favors the Tables layer
+      // over this Images-layer badge/divider. Basing this z-index off the
+      // heading alone (t.zIndex + 1) ignored the table sitting directly
+      // underneath it: whenever that table's own z-index was equal to or
+      // higher than the heading's, the table silently painted over the thin
+      // divider rule on-screen, even though export/thumbnail generation
+      // (which doesn't go through those fixed DOM layers) still composited
+      // it correctly — hence "shows in export/thumbnail but not live canvas".
+      // Anchoring off the higher of the heading's OR its associated table's
+      // z-index guarantees the divider/badge always lands strictly above
+      // both, everywhere.
+      const stackBaseZ = Math.max(t.zIndex || 0, assocTable ? (assocTable.zIndex || 0) : 0);
       pg.placedImages.push({
         id: 'sectiondivider_' + t.id + '_' + Date.now().toString(36),
         dataUrl: pdfedSectionDividerDataUrl(accent, bandW, ruleH),
         x: bandX, y: Math.round(bandBottom - ruleH), w: bandW, h: ruleH,
-        zIndex: (t.zIndex || 0) + 1, locked: true, _sectionDivider: true,
+        zIndex: stackBaseZ + 1, locked: true, _sectionDivider: true,
       });
 
       // Text is drawn at (t.x + padX) — see pdfedDrawPlacedTextsOnCtx — so
@@ -35801,7 +36470,7 @@ function pdfedApplySectionIcons(pages, theme, addIcons) {
         id: 'sectionicon_' + t.id + '_' + Date.now().toString(36),
         dataUrl: pdfedSectionIconBadgeDataUrl(key, accent, iconSize * 2),
         x: iconX, y: iconY, w: iconSize, h: iconSize,
-        zIndex: (t.zIndex || 0) + 1, locked: true, _sectionIcon: true,
+        zIndex: stackBaseZ + 1, locked: true, _sectionIcon: true,
       });
       count++;
     });
@@ -35907,6 +36576,47 @@ function pdfedFlowSize(item, kind, pageW, margin) {
 // natural header slots — left, center, right — they already read closest
 // to. Once the logo has its slot, the flow's own starting position is
 // pushed clear of it, so a heading or table can never open underneath it.
+// Clusters content images that already sit side-by-side (same visual "row")
+// into groups, so a deliberately-placed chart pair — like two bar charts
+// next to each other with one shared data table underneath — reflows as
+// ONE block instead of getting pulled apart into two separate full-width
+// stacked images. Two images belong to the same row when their vertical
+// centers are close relative to their own height (i.e. placed next to each
+// other, not one above the other). Each row is then sorted left-to-right so
+// reading order is preserved.
+function pdfedGroupImagesIntoRows(images) {
+  const sorted = images.slice().sort((a, b) => (a.y || 0) - (b.y || 0));
+  const rows = [];
+  sorted.forEach(img => {
+    const cy = (img.y || 0) + (img.h || 0) / 2;
+    const last = rows[rows.length - 1];
+    if (last) {
+      const refImg = last[0];
+      const refCy = (refImg.y || 0) + (refImg.h || 0) / 2;
+      const tolerance = Math.min(img.h || 0, refImg.h || 0) * 0.5 || 20;
+      const closeEnoughVertically = Math.abs(cy - refCy) <= tolerance;
+      // Only actually treat two images as one deliberate row if they're
+      // also a similar SHAPE — a wide bar chart and a near-square pie
+      // chart happening to sit at a similar height is coincidence, not a
+      // deliberate side-by-side pairing. Forcing them into one row
+      // normalizes them to a shared height (see pdfedSizeImageRow) and
+      // stretches the whole row edge-to-edge, which is exactly what
+      // turned a pie chart + a small bar chart into a distorted,
+      // unprofessional-looking pair. A row only ever merges shapes that
+      // were already reasonably alike to begin with.
+      const hA = img.h || 1, hB = refImg.h || 1;
+      const heightRatio = Math.max(hA, hB) / Math.min(hA, hB);
+      const aspectA = (img.w || 1) / hA, aspectB = (refImg.w || 1) / hB;
+      const aspectRatio = Math.max(aspectA, aspectB) / Math.max(0.01, Math.min(aspectA, aspectB));
+      const similarShape = heightRatio <= 1.6 && aspectRatio <= 1.8;
+      if (closeEnoughVertically && similarShape) { last.push(img); return; }
+    }
+    rows.push([img]);
+  });
+  rows.forEach(r => r.sort((a, b) => (a.x || 0) - (b.x || 0)));
+  return rows;
+}
+
 function pdfedAutoAlignContent(pg, mode) {
   const pc = document.getElementById('pdfedPageCanvas');
   const pageW = pg.width || (pc && pc.width) || 600;
@@ -35925,6 +36635,18 @@ function pdfedAutoAlignContent(pg, mode) {
   // heading belonged to which block.
   const SECTION_GAP = 24;
   const HEADING_GAP = 10;
+  // Tight gap between a chart row and the table sitting directly under it —
+  // e.g. a pair of comparison charts and the data table they visualize —
+  // same idea as HEADING_GAP: that table "belongs to" the row right above
+  // it, so it should hug it, while the NEXT chart row + table (a different
+  // section) still gets the full SECTION_GAP before it.
+  const GROUP_GAP = 14;
+  // Gap between two WRAPPED rows of the same chart cluster (see
+  // pdfedChunkImageRow above) — tighter than SECTION_GAP so a 6-chart
+  // cluster wrapped into two rows of 3 still reads as one block, but not
+  // as tight as GROUP_GAP (that's reserved for "this table belongs to the
+  // row right above it").
+  const WRAP_GAP = 18;
   const MIN_GAP = 6;
   // Never shrink content past this fraction of its original size — beyond
   // this point it's reading as broken, not "fitted", so a page this
@@ -35932,16 +36654,56 @@ function pdfedAutoAlignContent(pg, mode) {
   // still gets clamped to the page as an absolute last resort below, but
   // this is where "shrink to fit" stops being the right tool for it.
   const MIN_SHRINK = 0.55;
+  const IMG_ROW_GAP = 16; // horizontal gap between images placed in the same row
+  const maxContentW = pageW - margin * 2;
+  // A visual cluster of charts (see pdfedGroupImagesIntoRows) can be any
+  // size — 5, 6+ charts that all happen to sit at the same y all cluster
+  // together. Cramming all of them into one row would shrink every chart
+  // past the point of being readable and risk overflowing the page width
+  // outright, so a cluster wider than this many charts wraps into
+  // additional rows instead. The cap itself adapts to how wide the actual
+  // charts are (a cluster of narrow charts can fit more side-by-side than
+  // a cluster of wide ones) but never goes past 4 — beyond that it reads
+  // cramped on an A4-width page regardless of how much room the math says
+  // is technically available.
+  const MIN_CHART_W = 150;
+  function pdfedChunkImageRow(images) {
+    const avgW = images.reduce((s, im) => s + (im.w || 100), 0) / images.length;
+    let maxPerRow = Math.floor((maxContentW + IMG_ROW_GAP) / (Math.max(avgW * 0.55, MIN_CHART_W) + IMG_ROW_GAP));
+    maxPerRow = Math.max(1, Math.min(maxPerRow, 4));
+    if (images.length <= maxPerRow) return [images];
+    const chunks = [];
+    for (let i = 0; i < images.length; i += maxPerRow) chunks.push(images.slice(i, i + maxPerRow));
+    return chunks;
+  }
 
   const flow = [];
   const anchors = [];
 
   (pg.placedTables || []).forEach(item => flow.push({ item, kind: 'table' }));
   (pg.placedTexts || []).forEach(item => flow.push({ item, kind: 'text' }));
+
+  const contentImages = [];
   (pg.placedImages || []).forEach(item => {
     if (item._sectionIcon || item._sectionDivider || item._sectionBar) return; // handled separately by pdfedApplySectionIcons — never an anchor/flow item
     if (pdfedIsAnchorImage(item, pageW, pageH)) anchors.push(item);
-    else flow.push({ item, kind: 'image' });
+    else contentImages.push(item);
+  });
+  // Group side-by-side images (a deliberately placed chart cluster) into
+  // flow entries; a lone image just becomes a row of one, same as before.
+  // A cluster bigger than the row can comfortably hold wraps into several
+  // consecutive rows — all tagged with the same wrapGroup id so the gap
+  // pass below can hug them together (a WRAP_GAP, not a full SECTION_GAP)
+  // and still treat the whole cluster as one section when a table follows.
+  let wrapGroupSeq = 0;
+  pdfedGroupImagesIntoRows(contentImages).forEach(clusterImages => {
+    if (clusterImages.length === 1) { flow.push({ item: clusterImages[0], kind: 'image' }); return; }
+    const chunks = pdfedChunkImageRow(clusterImages);
+    const wrapGroup = chunks.length > 1 ? ++wrapGroupSeq : null;
+    chunks.forEach(rowImages => {
+      if (rowImages.length === 1) flow.push({ item: rowImages[0], kind: 'image', wrapGroup });
+      else flow.push({ item: rowImages[0], images: rowImages, kind: 'imageRow', wrapGroup });
+    });
   });
   // placedShapes/placedBorders are left as-is — mostly page-level decoration
   // (dividers, background panels, frame borders) rather than stackable
@@ -35956,7 +36718,7 @@ function pdfedAutoAlignContent(pg, mode) {
   });
   const anchorBottom = anchors.length ? Math.max(...anchors.map(a => a.y + (a.h || 0))) : 0;
 
-  if (!flow.length) return;
+  if (!flow.length) return [];
 
   flow.sort((a, b) => (a.item.y || 0) - (b.item.y || 0));
 
@@ -35970,24 +36732,60 @@ function pdfedAutoAlignContent(pg, mode) {
 
   // One gap value per junction between consecutive flow items — the gap
   // AFTER item i, before item i+1. A heading immediately followed by its
-  // own content gets the tight HEADING_GAP; every other junction (including
-  // the real break into a new section) gets the full SECTION_GAP.
-  let gaps = flow.slice(0, -1).map(({ item, kind }) => (kind === 'text' && pdfedTextLooksLikeHeading(item)) ? HEADING_GAP : SECTION_GAP);
+  // own content gets the tight HEADING_GAP; two rows wrapped from the same
+  // chart cluster get the tighter WRAP_GAP; a chart row (or the last wrap
+  // of one) immediately followed by a table gets the tight GROUP_GAP (that
+  // table is "for" that row/cluster); every other junction (including the
+  // real break into a new section) gets the full SECTION_GAP.
+  let gaps = flow.slice(0, -1).map(({ item, kind, wrapGroup }, i) => {
+    const next = flow[i + 1];
+    if (kind === 'text' && pdfedTextLooksLikeHeading(item)) return HEADING_GAP;
+    if ((kind === 'imageRow' || kind === 'image') && next && (next.kind === 'imageRow' || next.kind === 'image')
+        && wrapGroup != null && next.wrapGroup === wrapGroup) return WRAP_GAP;
+    if ((kind === 'imageRow' || kind === 'image') && next && next.kind === 'table') return GROUP_GAP;
+    return SECTION_GAP;
+  });
+
+  // A chart row's natural footprint: normalize every image in the row to a
+  // shared height (their average original height) so a side-by-side pair
+  // reads as one clean, evenly-matched block instead of two mismatched
+  // charts, then uniformly scale the whole row so it fills the page's
+  // content width edge-to-edge (capped so it can never blow a low-res chart
+  // up past ~1.6x its own size, and never shrunk past 0.4x). A lone image
+  // is left exactly as-is — resizing a single standalone image/chart isn't
+  // this pass's job and risks distorting it.
+  function pdfedSizeImageRow(images, maxContentW) {
+    const targetH = images.reduce((s, im) => s + (im.h || 0), 0) / images.length;
+    const naturalWidths = images.map(im => targetH * ((im.w || 1) / (im.h || 1)));
+    const naturalSumW = naturalWidths.reduce((a, b) => a + b, 0);
+    const gapW = IMG_ROW_GAP * (images.length - 1);
+    let rowScale = naturalSumW > 0 ? (maxContentW - gapW) / naturalSumW : 1;
+    rowScale = Math.max(0.4, Math.min(rowScale, 1.6));
+    const widths = naturalWidths.map(w => Math.max(20, Math.round(w * rowScale)));
+    const h = Math.max(20, Math.round(targetH * rowScale));
+    return { widths, h, w: widths.reduce((a, b) => a + b, 0) + gapW };
+  }
 
   // Measure the flow's natural footprint at the requested gaps *before*
   // placing anything, so a page that doesn't actually fit gets compressed
   // instead of quietly spilling content past the bottom edge.
-  let sizes = flow.map(({ item, kind }) => pdfedFlowSize(item, kind, pageW, margin));
+  let sizes = flow.map(({ item, kind, images }) => {
+    if (kind === 'imageRow') {
+      const r = pdfedSizeImageRow(images, maxContentW);
+      return { w: r.w, h: r.h, _rowWidths: r.widths };
+    }
+    return pdfedFlowSize(item, kind, pageW, margin);
+  });
   const naturalContentH = sizes.reduce((sum, s) => sum + s.h, 0);
   const availableH = Math.max(40, pageH - margin - startY);
   const totalGap = () => gaps.reduce((a, b) => a + b, 0);
   const naturalTotalH = naturalContentH + totalGap();
 
   if (naturalTotalH > availableH) {
-    // Step 1 — tighten the gaps first, proportionally, so a HEADING_GAP
-    // junction stays visibly tighter than a SECTION_GAP one even after
-    // compression instead of everything collapsing to the same value.
-    // Cheapest fix, and the one least likely to be visually noticeable.
+    // Step 1 — tighten the gaps first, proportionally, so a HEADING_GAP/
+    // GROUP_GAP junction stays visibly tighter than a SECTION_GAP one even
+    // after compression instead of everything collapsing to the same
+    // value. Cheapest fix, and the one least likely to be visually noticeable.
     const roomForGaps = availableH - naturalContentH;
     const tg = totalGap();
     if (tg > 0) {
@@ -36005,7 +36803,7 @@ function pdfedAutoAlignContent(pg, mode) {
     if (tightTotalH > availableH) {
       const rawScale = availableH / tightTotalH;
       const scale = Math.max(MIN_SHRINK, Math.min(1, rawScale));
-      flow.forEach(({ item, kind }) => {
+      flow.forEach(({ item, kind, images }) => {
         if (kind === 'table') {
           item.fontSize = Math.max(7, (item.fontSize || 12) * scale);
           if (Array.isArray(item.rowHeights)) item.rowHeights = item.rowHeights.map(h => Math.max(12, h * scale));
@@ -36015,16 +36813,69 @@ function pdfedAutoAlignContent(pg, mode) {
           const w = (item.w || 0) * scale, h = (item.h || 0) * scale;
           if (w > 0) item.w = w;
           if (h > 0) item.h = h;
+        } else if (kind === 'imageRow') {
+          images.forEach(im => {
+            const w = (im.w || 0) * scale, h = (im.h || 0) * scale;
+            if (w > 0) im.w = w;
+            if (h > 0) im.h = h;
+          });
         }
       });
       // Re-measure against the now-smaller items for the actual stacking
       // pass below — heights above were computed pre-shrink.
-      sizes = flow.map(({ item, kind }) => pdfedFlowSize(item, kind, pageW, margin));
+      sizes = flow.map(({ item, kind, images }) => {
+        if (kind === 'imageRow') {
+          const r = pdfedSizeImageRow(images, maxContentW);
+          return { w: r.w, h: r.h, _rowWidths: r.widths };
+        }
+        return pdfedFlowSize(item, kind, pageW, margin);
+      });
+    }
+  }
+
+  // Overflow split: even at the minimum acceptable shrink, some pages
+  // genuinely hold more charts/tables than one sheet can show cleanly —
+  // e.g. six comparison charts plus a full financial table stacked on a
+  // single canvas. Squeezing further would cross MIN_SHRINK into
+  // illegible text; letting it spill past the bottom edge is what made a
+  // heavily-loaded page look cluttered/overlapping in the first place.
+  // Instead, keep everything that fits at a clean, readable size on THIS
+  // page, in order, and hand back whatever's left so the caller can carry
+  // it onto a fresh page of its own — the same "spill onto extra pages"
+  // idea already used when a long data table is pushed into the
+  // Workspace, just applied to a full report flow instead of one table.
+  let overflowFlow = [];
+  {
+    const finalTotalH = sizes.reduce((s, sz) => s + sz.h, 0) + gaps.reduce((a, b) => a + b, 0);
+    if (finalTotalH > availableH) {
+      let acc = 0;
+      let cut = flow.length;
+      for (let i = 0; i < flow.length; i++) {
+        const gapBefore = i > 0 ? (gaps[i - 1] || 0) : 0;
+        if (acc + gapBefore + sizes[i].h > availableH) { cut = i; break; }
+        acc += gapBefore + sizes[i].h;
+      }
+      // Never strand a heading alone at the bottom of the page with
+      // whatever it introduces pushed to the next one — carry the
+      // heading forward with its content instead.
+      if (cut > 0 && cut < flow.length) {
+        const lastKept = flow[cut - 1];
+        if (lastKept.kind === 'text' && pdfedTextLooksLikeHeading(lastKept.item)) cut -= 1;
+      }
+      // Always keep at least one item on the page (a single oversized
+      // chart/table with nothing else) — there's nowhere shorter to put it.
+      cut = Math.max(1, cut);
+      if (cut < flow.length) {
+        overflowFlow = flow.slice(cut);
+        flow.length = cut;
+        sizes.length = cut;
+        gaps.length = Math.max(0, cut - 1);
+      }
     }
   }
 
   let cursorY = startY;
-  flow.forEach(({ item, kind }, i) => {
+  flow.forEach(({ item, kind, images }, i) => {
     const size = sizes[i];
     if (mode === 'center') {
       item.x = Math.round((pageW - size.w) / 2);
@@ -36033,6 +36884,9 @@ function pdfedAutoAlignContent(pg, mode) {
       // chart, or heading would distort/misjudge it, so those always just
       // left-align instead of scaling to width. Table width for 'stretch'
       // is already settled before this runs (see pdfedApplyReportRefinement).
+      // A multi-image row is the one exception: it's already been sized to
+      // fill the content width edge-to-edge above, so it left-aligns at the
+      // margin same as everything else and simply IS full width.
       item.x = margin;
     }
     // Clearance: the first item in the flow is the one that would open
@@ -36046,6 +36900,20 @@ function pdfedAutoAlignContent(pg, mode) {
       if (overlapsAnyAnchor || !size.w) cursorY = anchorBottom + SECTION_GAP;
     }
     item.y = Math.round(cursorY);
+    if (kind === 'imageRow') {
+      // Lay the row's images left-to-right inside the row's own box, each
+      // matched to the shared row height computed above, with a fixed gap
+      // between them — this is what keeps the pair reading as one row
+      // instead of the flow's single x/y only moving the first image.
+      let x = item.x;
+      images.forEach((im, k) => {
+        im.x = Math.round(x);
+        im.y = item.y;
+        im.w = size._rowWidths[k];
+        im.h = size.h;
+        x += size._rowWidths[k] + IMG_ROW_GAP;
+      });
+    }
     cursorY += size.h + (gaps[i] || 0);
   });
 
@@ -36057,14 +36925,35 @@ function pdfedAutoAlignContent(pg, mode) {
   // item above the top margin/anchor clearance it started at.
   const maxBottom = pageH - margin;
   let overflowBy = 0;
-  flow.forEach(({ item }, i) => {
+  flow.forEach(({ item, kind, images }, i) => {
     const bottom = item.y + sizes[i].h;
     if (bottom > maxBottom) overflowBy = Math.max(overflowBy, bottom - maxBottom);
   });
   if (overflowBy > 0) {
     const shiftUp = Math.min(overflowBy, startY - margin);
-    if (shiftUp > 0) flow.forEach(({ item }) => { item.y = Math.round(item.y - shiftUp); });
+    if (shiftUp > 0) {
+      flow.forEach(({ item, kind, images }) => {
+        item.y = Math.round(item.y - shiftUp);
+        if (kind === 'imageRow') images.forEach(im => { im.y = item.y; });
+      });
+    }
   }
+
+  // Pull anything that overflowed out of this page's own placed arrays —
+  // the caller (pdfedApplyReportRefinement) moves these onto a new page
+  // right after this one, so they can't stay listed here too.
+  if (overflowFlow.length) {
+    const moving = new Set();
+    overflowFlow.forEach(f => {
+      if (f.kind === 'imageRow') f.images.forEach(im => moving.add(im));
+      else moving.add(f.item);
+    });
+    if (pg.placedTables) pg.placedTables = pg.placedTables.filter(t => !moving.has(t));
+    if (pg.placedTexts) pg.placedTexts = pg.placedTexts.filter(t => !moving.has(t));
+    if (pg.placedImages) pg.placedImages = pg.placedImages.filter(im => !moving.has(im));
+  }
+
+  return overflowFlow;
 }
 
 function pdfedTableWidth(t) {
@@ -36089,10 +36978,114 @@ function pdfedFindAssociatedTable(pg, heading) {
 // The actual multi-page pass. Returns a summary used for the confirmation
 // toast. `snapshotPages`, if passed, is a deep clone of pdfed.pages taken
 // before any change, purely so the caller can wire up a single Ctrl+Z step.
-function pdfedApplyReportRefinement(opts) {
+// Builds a fresh, blank page matching a source page's exact size/density/
+// background, for content that overflowed off the bottom of that page
+// during Refine Report. Also carries forward any header logo (or other
+// small anchor image) already on the source page, so a report that spills
+// onto extra pages still reads as one consistent, branded document rather
+// than the overflow looking like a bare afterthought.
+async function pdfedMakeRefineOverflowPage(sourcePg) {
+  const pxPerMm = pdfedPageDensity(sourcePg);
+  const [mmW, mmH] = sourcePg.pageMM || [210, 297];
+  const bg = sourcePg.bgColor || '#ffffff';
+  let dataUrl;
+  try {
+    dataUrl = await pdfedRenderBlankPage('', bg, mmW, mmH);
+  } catch (e) {
+    console.error('Refine Report: could not create an overflow page', e);
+    dataUrl = sourcePg.dataUrl;
+  }
+  const width = sourcePg.width || Math.round(mmW * pxPerMm);
+  const height = sourcePg.height || Math.round(mmH * pxPerMm);
+  const pg = {
+    type: 'blank',
+    dataUrl,
+    modified: true,
+    edits: {},
+    textBlocks: [],
+    label: (sourcePg.label || 'Page') + ' (cont.)',
+    bgColor: bg,
+    pageMM: [mmW, mmH],
+    width, height,
+    _pxPerMm: pxPerMm,
+    placedTables: [],
+    placedTexts: [],
+    placedImages: [],
+  };
+  (sourcePg.placedImages || []).forEach(img => {
+    if (img._sectionIcon || img._sectionDivider || img._sectionBar) return;
+    if (!pdfedIsAnchorImage(img, width, height)) return;
+    pg.placedImages.push(Object.assign({}, img, {
+      id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
+      zIndex: pdfedNextZ(pg),
+    }));
+  });
+  return pg;
+}
+
+async function pdfedApplyReportRefinement(opts) {
   const theme = pdfedResolveRefineTheme(opts);
   const pages = pdfed.pages || [];
-  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0;
+  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0, overflowPagesAdded = 0;
+
+  // Pass 0: snapshot-and-restore each table/text/image's true original
+  // sizing before anything below touches it. Every pass after this one
+  // computes its output purely as a function of these numbers (plus the
+  // chosen theme/options) — never off whatever the PREVIOUS refine pass
+  // happened to leave behind. Without this, clicking Refine Report 2-3
+  // times compounds: e.g. the "shrink to fit" step (Pass 4 below) shrinks
+  // a table's rowHeights to stop it overflowing the page, but the very
+  // next click's autoFit (Pass 1) re-picks a font size purely off column
+  // WIDTH — with no memory of that shrink — so the font creeps back up
+  // while the rows it has to sit inside stay squeezed from last time,
+  // and it only gets worse (misaligned rows, vanished borders, overlap)
+  // the more times it's run. Capturing the baseline once, the first time
+  // an item is ever refined, and re-deriving every later pass from that
+  // same untouched baseline guarantees the exact same, correct result no
+  // matter how many times this runs — true idempotency.
+  pages.forEach(pg => {
+    (pg.placedTables || []).forEach(item => {
+      const structureMatches = item._refineBaseline
+        && item._refineBaseline.colWidths.length === (item.colWidths || []).length
+        && item._refineBaseline.rowHeights.length === (item.rowHeights || []).length;
+      if (!structureMatches) {
+        // No usable baseline yet, or the table's row/col count no longer
+        // matches one that was captured earlier (e.g. an older saved
+        // document, or a structural edit that slipped through some other
+        // path) — re-capture from the CURRENT state rather than force a
+        // mismatched-length restore, which would corrupt the table.
+        item._refineBaseline = {
+          colWidths: (item.colWidths || []).slice(),
+          rowHeights: (item.rowHeights || []).slice(),
+          fontSize: item.fontSize,
+        };
+      }
+      const b = item._refineBaseline;
+      item.colWidths = b.colWidths.slice();
+      item.rowHeights = b.rowHeights.slice();
+      item.fontSize = b.fontSize;
+    });
+    (pg.placedTexts || []).forEach(item => {
+      if (!item._refineBaseline) {
+        item._refineBaseline = { fontSize: item.fontSize, w: item.w };
+      }
+      const b = item._refineBaseline;
+      item.fontSize = b.fontSize;
+      item.w = b.w;
+    });
+    (pg.placedImages || []).forEach(item => {
+      // Section badges/dividers are fully stripped and regenerated fresh
+      // every pass (see pdfedApplySectionIcons) — they never carry drift
+      // of their own, so they're deliberately left out of this baseline.
+      if (item._sectionIcon || item._sectionDivider || item._sectionBar) return;
+      if (!item._refineBaseline) {
+        item._refineBaseline = { w: item.w, h: item.h };
+      }
+      const b = item._refineBaseline;
+      item.w = b.w;
+      item.h = b.h;
+    });
+  });
 
   // Pass 1: table styling/autofit first — headings size themselves off each
   // table's real, final font, not a guess.
@@ -36241,9 +37234,32 @@ function pdfedApplyReportRefinement(opts) {
   // Pass 4: now that every table and heading knows its final size, restack
   // the whole page — tables, headings/text, and content images — as one
   // shared flow with no overlaps, and pin any logo to its header slot.
-  pages.forEach(pg => {
-    if (opts.align) pdfedAutoAlignContent(pg, opts.align);
-  });
+  // A page loaded with more charts/tables than can read cleanly on one
+  // sheet even at the smallest acceptable size hands back its overflow;
+  // that overflow gets its own fresh page, inserted right after the one it
+  // came from, matching size/branding — and is itself re-checked in the
+  // next loop turn in case even IT needs to spill further. `pages` is the
+  // same array as `pdfed.pages`, so splicing here is what actually grows
+  // the document.
+  if (opts.align) {
+    let pageIdx = 0;
+    while (pageIdx < pages.length) {
+      const pg = pages[pageIdx];
+      const overflow = pdfedAutoAlignContent(pg, opts.align) || [];
+      if (overflow.length) {
+        const newPg = await pdfedMakeRefineOverflowPage(pg);
+        overflow.forEach(f => {
+          if (f.kind === 'table') newPg.placedTables.push(f.item);
+          else if (f.kind === 'text') newPg.placedTexts.push(f.item);
+          else if (f.kind === 'image') newPg.placedImages.push(f.item);
+          else if (f.kind === 'imageRow') newPg.placedImages.push(...f.images);
+        });
+        pages.splice(pageIdx + 1, 0, newPg);
+        overflowPagesAdded++;
+      }
+      pageIdx++;
+    }
+  }
 
   // Pass 5: re-anchor each heading's x under its associated table's now-
   // final x — stacking may have moved the table; width was already
@@ -36279,7 +37295,7 @@ function pdfedApplyReportRefinement(opts) {
     if (pageTouched) pdfedMarkModified(idx);
   });
 
-  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, pages: pages.length };
+  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, pages: pages.length };
 }
 
 async function pdfedRunRefineReportFromModal() {
@@ -36314,11 +37330,13 @@ async function pdfedRunRefineReportFromModal() {
     logoInserted = await pdfedInsertLogoIntoPages(opts.logoDataUrl);
   }
 
-  const summary = pdfedApplyReportRefinement(opts);
+  const summary = await pdfedApplyReportRefinement(opts);
 
   const activeIdx = pdfed.active;
   // A full pdfedGoto (not just re-rendering the placed layers) since the A4
-  // pass above may have replaced this page's background raster.
+  // pass above (and any overflow pages inserted just now) may have changed
+  // page count/background rasters, including possibly the active page's.
+  if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
   if (activeIdx >= 0) await pdfedGoto(activeIdx);
   if (typeof pdfedRefreshSelectionPanel === 'function') pdfedRefreshSelectionPanel();
 
@@ -36363,6 +37381,7 @@ async function pdfedRunRefineReportFromModal() {
     parts.push(`${summary.bodyFontsSynced} paragraph${summary.bodyFontsSynced !== 1 ? 's' : ''} set to ${themeLabel} body font`);
   }
   if (summary.sectionIconsApplied) parts.push(`${summary.sectionIconsApplied} section icon${summary.sectionIconsApplied !== 1 ? 's' : ''} added`);
+  if (summary.overflowPagesAdded) parts.push(`${summary.overflowPagesAdded} extra page${summary.overflowPagesAdded !== 1 ? 's' : ''} added for overflow content`);
   if (logoInserted) parts.push(`logo placed on ${logoInserted} page${logoInserted !== 1 ? 's' : ''}`);
   if (opts.useLogoColors && opts.logoAccent) parts.push('logo colors applied');
   toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
@@ -36431,10 +37450,32 @@ async function daPushToWorkflow(mode) {
       const y = pdfed.snapGrid ? pdfedSnapToGrid(baseY + (n % 6) * 16) : baseY + (n % 6) * 16;
 
       const cells = [headers.map(h => String(h ?? ''))];
-      firstChunk.forEach(r => cells.push(headers.map((_, ci) => String(r[ci] ?? ''))));
+      firstChunk.forEach(r => cells.push(headers.map((_, ci) => daPushCellDisplay(r[ci]))));
+
+      // Detected main heading rides along as its own text box, sitting
+      // right above the table it belongs to — same idea as the new-page
+      // path, just positioned relative to wherever this table landed on
+      // the already-open page instead of a freshly sized one. It's linked
+      // to the table by id in both directions so dragging the table later
+      // carries the heading along with it instead of leaving it behind.
+      const tableId = 'tbl_' + (++pdfedTableSeq);
+      let headingId = null;
+      if (ds.title) {
+        if (!pg.placedTexts) pg.placedTexts = [];
+        headingId = 'ptxt_' + (++pdfedPlacedTextSeq);
+        pg.placedTexts.push({
+          id: headingId,
+          text: ds.title,
+          x, y: Math.max(8, y - 34),
+          fontSize: 18, fontFamily: 'Inter', color: '#101820',
+          bold: true, italic: false, underline: false, align: 'left',
+          locked: false, zIndex: pdfedNextZ(pg),
+          linkedTableId: tableId
+        });
+      }
 
       pg.placedTables.push({
-        id: 'tbl_' + (++pdfedTableSeq),
+        id: tableId,
         x, y,
         rows: firstChunk.length + 1,
         cols: headers.length,
@@ -36446,6 +37487,7 @@ async function daPushToWorkflow(mode) {
         cellStyles: daBuildCellStyles(cells),
         locked: false,
         zIndex: pdfedNextZ(pg),
+        linkedTitleId: headingId
       });
       pdfedMarkModified(liveIdx);
 
@@ -36453,6 +37495,10 @@ async function daPushToWorkflow(mode) {
       // go, so it spills onto brand-new fitted page(s) appended at the end.
       const remainingChunks = chunks.slice(1);
       if (remainingChunks.length) await pdfedAppendTableFitPages(remainingChunks, headers, layout);
+      // Note: the live-page branch above already places the heading
+      // directly next to the table it just dropped onto the open page, so
+      // titleText isn't passed again here — it would otherwise duplicate
+      // the heading onto the first overflow page too.
 
       navigate('pdfeditor');
       await pdfedBuildStrip();
@@ -36472,7 +37518,7 @@ async function daPushToWorkflow(mode) {
       // never overwrites existing canvas content, and starts a brand-new
       // document automatically if the Workspace is empty. Each page is built
       // to exactly fit its own chunk's table.
-      const startIdx = await pdfedAppendTableFitPages(chunks, headers, layout);
+      const startIdx = await pdfedAppendTableFitPages(chunks, headers, layout, ds.title);
 
       navigate('pdfeditor');
       await pdfedBuildStrip();
@@ -36500,8 +37546,16 @@ async function daPushToWorkflow(mode) {
 // is already full, or because a single table is just too big to share —
 // spills onto its own fresh page(s), the same way one long table already
 // spills onto extra pages today.
-const DA_PACK_MAX_W = 1600;  // packing canvas width cap (px) — room for a few tables side by side
-const DA_PACK_MAX_H = 2200;  // packing canvas height cap (px) — a couple of tall tables stacked
+//
+// The packing bounds are capped at A4's own usable area (not some arbitrary
+// wide canvas), so 2-3 small tables that fit fine stacked in a single A4
+// column stack there instead of being laid out in one wide row and then
+// having the whole page stretched sideways to match — the page only grows
+// past A4 once stacking everything within it genuinely doesn't fit, exactly
+// the same "prefer A4, only grow if truly needed" rule the single-table
+// push already follows.
+const DA_PACK_MAX_W = Math.round(210 * DA_PUSH_PXMM) - DA_PUSH_MARGIN * 2; // A4 usable width (px)
+const DA_PACK_MAX_H = Math.round(297 * DA_PUSH_PXMM) - DA_PUSH_MARGIN * 2; // A4 usable height (px)
 const DA_PACK_GAP = 44;      // gap between tables, and margin around the page edge
 
 // Shelf-packs a list of {tableWidth, tableHeight, ...} blocks into pages.
@@ -36598,11 +37652,17 @@ async function daPushAllToWorkflow() {
       firstChunk.forEach(r => rowHeights.push(daRowHeightFor(r, layout.colWidths, layout.fontSize)));
       const tableWidth = layout.colWidths.reduce((a, b) => a + b, 0);
       const tableHeight = rowHeights.reduce((a, b) => a + b, 0);
+      // If this table has a detected main heading, reserve extra vertical
+      // room for it above the table so the shelf-packer treats "heading +
+      // table" as one block — otherwise headings would either overlap the
+      // table or get skipped entirely when pushing several tables at once.
+      const headingH = ds.title ? 34 : 0;
 
       packableBlocks.push({
-        name: ds.name, headers, rows: firstChunk,
+        name: ds.name, title: ds.title || null, headers, rows: firstChunk,
         colWidths: layout.colWidths, fontSize: layout.fontSize,
-        rowHeights, tableWidth, tableHeight,
+        rowHeights, tableWidth, headingH,
+        tableHeight: tableHeight + headingH,
       });
 
       if (chunks.length > 1) continuations.push({ headers, layout, chunks: chunks.slice(1) });
@@ -36629,9 +37689,28 @@ async function daPushAllToWorkflow() {
       pp.items.forEach(({ block, x, y }) => {
         const cells = [block.headers.map(h => String(h ?? ''))];
         block.rows.forEach(r => cells.push(block.headers.map((_, ci) => String(r[ci] ?? ''))));
+        const tableX = x + offX, tableY = y + offY + block.headingH;
+        const tableId = 'tbl_' + (++pdfedTableSeq);
+        let headingId = null;
+        // Each table's own heading rides right above it, linked by id both
+        // ways so dragging the table on the canvas afterward carries its
+        // heading along instead of leaving it behind on the page.
+        if (block.title) {
+          if (!pg.placedTexts) pg.placedTexts = [];
+          headingId = 'ptxt_' + (++pdfedPlacedTextSeq);
+          pg.placedTexts.push({
+            id: headingId,
+            text: block.title,
+            x: tableX, y: Math.max(4, tableY - block.headingH),
+            fontSize: 15, fontFamily: 'Inter', color: '#101820',
+            bold: true, italic: false, underline: false, align: 'left',
+            locked: false, zIndex: pdfedNextZ(pg),
+            linkedTableId: tableId
+          });
+        }
         pg.placedTables.push({
-          id: 'tbl_' + (++pdfedTableSeq),
-          x: x + offX, y: y + offY,
+          id: tableId,
+          x: tableX, y: tableY,
           rows: block.rows.length + 1,
           cols: block.headers.length,
           colWidths: block.colWidths.slice(),
@@ -36642,6 +37721,7 @@ async function daPushAllToWorkflow() {
           cellStyles: daBuildCellStyles(cells),
           locked: false,
           zIndex: pdfedNextZ(pg),
+          linkedTitleId: headingId
         });
       });
     });
@@ -36773,24 +37853,61 @@ function daFitTableToPage(headers, rows, layout, availW, availH) {
   return { fontSize, colWidths, rowHeights, tableWidth, tableHeight };
 }
 
-// Creates one page per chunk, each sized to exactly fit that chunk's table
-// (never smaller than a standard A4 page), and places the table on it.
-// Returns the index of the first appended page.
-async function pdfedAppendTableFitPages(chunks, headers, layout) {
+// Creates one page per chunk, each landing on a standard A4 page whenever
+// the table actually fits — never blowing the page up to some custom size
+// just because the table is a little bigger than A4 at its default font.
+// Only if the table genuinely can't be read at a reasonable size on A4 does
+// the page grow past it (same floors as the "live page" push: min 7px
+// font, min 36px column, min 0.35x overall scale) — beyond that point,
+// shrinking further would make the table unreadable, so the page grows
+// instead of the text. Returns the index of the first appended page.
+async function pdfedAppendTableFitPages(chunks, headers, layout, titleText) {
   const isNewDoc = pdfed.pages.length === 0;
   const startIdx = pdfed.pages.length;
-  const { fontSize, colWidths } = layout;
-  const tableWidth = colWidths.reduce((a, b) => a + b, 0);
+  // The detected main heading only needs to appear once, above the table on
+  // the very first generated page — later pages (overflow rows) are still
+  // the same table continuing, not a new document with its own title.
+  const headingH = titleText ? 46 : 0;
+  const headingFontSize = 22;
+
+  // Font size and column widths must stay identical across every page of
+  // the same table (so a multi-page table reads consistently), so whether
+  // to shrink is decided ONCE here, using the tallest chunk (with heading
+  // space counted against the first chunk) and the table's full width.
+  let fontSize = layout.fontSize, colWidths = layout.colWidths.slice();
+  let tableWidth = colWidths.reduce((a, b) => a + b, 0);
+  const A4_W_PX = Math.round(210 * DA_PUSH_PXMM);
+  const A4_H_PX = Math.round(297 * DA_PUSH_PXMM);
+  const availW_A4 = A4_W_PX - DA_PUSH_MARGIN * 2;
+  const availH_A4 = A4_H_PX - DA_PUSH_MARGIN * 2;
+  let worstNeededH = 0;
+  chunks.forEach((rows, i) => {
+    const rh = [daRowHeightFor(headers, colWidths, fontSize)];
+    rows.forEach(r => rh.push(daRowHeightFor(r, colWidths, fontSize)));
+    const h = rh.reduce((a, b) => a + b, 0) + (i === 0 && titleText ? headingH : 0);
+    worstNeededH = Math.max(worstNeededH, h);
+  });
+
+  if (tableWidth > availW_A4 || worstNeededH > availH_A4) {
+    const scale = Math.max(0.35, Math.min(availW_A4 / tableWidth, availH_A4 / worstNeededH));
+    fontSize = Math.max(7, Math.round(fontSize * scale));
+    colWidths = colWidths.map(w => Math.max(36, Math.round(w * scale)));
+    tableWidth = colWidths.reduce((a, b) => a + b, 0);
+  }
 
   for (let i = 0; i < chunks.length; i++) {
     const rows = chunks[i];
+    const showHeading = i === 0 && !!titleText;
     const rowHeights = [daRowHeightFor(headers, colWidths, fontSize)];
     rows.forEach(r => rowHeights.push(daRowHeightFor(r, colWidths, fontSize)));
     const tableHeight = rowHeights.reduce((a, b) => a + b, 0);
+    const extraTop = showHeading ? headingH : 0;
 
-    // Page grows to fit the table + margin on every side, floored at A4.
+    // Page grows to fit the table (+ heading, on the first page) + margin
+    // on every side, but only past A4 if the scaling pass above still
+    // couldn't make it fit — otherwise this lands exactly at A4.
     const neededWpx = tableWidth + DA_PUSH_MARGIN * 2;
-    const neededHpx = tableHeight + DA_PUSH_MARGIN * 2;
+    const neededHpx = tableHeight + extraTop + DA_PUSH_MARGIN * 2;
     const mmW = Math.max(210, Math.ceil(neededWpx / DA_PUSH_PXMM));
     const mmH = Math.max(297, Math.ceil(neededHpx / DA_PUSH_PXMM));
 
@@ -36798,17 +37915,39 @@ async function pdfedAppendTableFitPages(chunks, headers, layout) {
     const pg = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], label: 'Data Table', bgColor: '#ffffff', pageMM: [mmW, mmH], placedTables: [] };
     pdfed.pages.push(pg);
 
-    // Center the table on its page (any extra room comes from rounding up
-    // to whole millimetres, so this is a small, even breathing margin).
+    // Center the table (+ heading block above it) as one unit on the page
+    // (any extra room comes from rounding up to whole millimetres, so this
+    // is a small, even breathing margin).
     const eW = Math.round(mmW * DA_PUSH_PXMM), eH = Math.round(mmH * DA_PUSH_PXMM);
     const x = Math.max(DA_PUSH_MARGIN / 2, Math.round((eW - tableWidth) / 2));
-    const y = Math.max(DA_PUSH_MARGIN / 2, Math.round((eH - tableHeight) / 2));
+    const y = Math.max(DA_PUSH_MARGIN / 2 + extraTop, Math.round((eH - tableHeight) / 2) + extraTop / 2);
+
+    if (showHeading) {
+      if (!pg.placedTexts) pg.placedTexts = [];
+      pg.placedTexts.push({
+        id: 'ptxt_' + (++pdfedPlacedTextSeq),
+        text: titleText,
+        x, y: Math.max(DA_PUSH_MARGIN / 2, y - headingH),
+        fontSize: headingFontSize, fontFamily: 'Inter', color: '#101820',
+        bold: true, italic: false, underline: false, align: 'left',
+        locked: false, zIndex: pdfedNextZ(pg),
+        linkedTableId: null // filled in just below, once the table's own id exists
+      });
+    }
 
     const cells = [headers.map(h => String(h ?? ''))];
-    rows.forEach(r => cells.push(headers.map((_, ci) => String(r[ci] ?? ''))));
+    rows.forEach(r => cells.push(headers.map((_, ci) => daPushCellDisplay(r[ci]))));
+
+    const tableId = 'tbl_' + (++pdfedTableSeq);
+    let headingId = null;
+    if (showHeading) {
+      const heading = pg.placedTexts[pg.placedTexts.length - 1];
+      heading.linkedTableId = tableId;
+      headingId = heading.id;
+    }
 
     pg.placedTables.push({
-      id: 'tbl_' + (++pdfedTableSeq),
+      id: tableId,
       x, y,
       rows: rows.length + 1,
       cols: headers.length,
@@ -36820,6 +37959,7 @@ async function pdfedAppendTableFitPages(chunks, headers, layout) {
       cellStyles: daBuildCellStyles(cells),
       locked: false,
       zIndex: pdfedNextZ(pg),
+      linkedTitleId: headingId
     });
     pdfedMarkModified(startIdx + i);
   }
@@ -42544,7 +43684,11 @@ mfRenderFormsGrid();
 
 const DG_PALETTES = {
   vibrant:      ['#00C2FF','#7C5CFC','#FF5C7C','#FFB020','#22C55E','#F472B6','#38BDF8','#FB923C'],
-  professional: ['#1F3A5F','#33506F','#4A6580','#5E7A91','#2C4A3E','#3F6659','#5A4A42','#7A6552'],
+  // A genuinely premium business palette — deep sapphire, champagne gold, wine, emerald,
+  // slate blue, bronze, plum, and teal. Muted enough to sit together on one chart without
+  // clashing, but each hue distinct enough to tell series apart at a glance; reads like an
+  // analyst-report or annual-report chart rather than a default software palette.
+  professional: ['#1E3A5F','#C9A961','#7B3F4F','#2F6E5C','#4A6FA5','#A67C52','#5C4B63','#3E7C7C'],
   pastel:       ['#A8D8EA','#AA96DA','#FCBAD3','#FFE29A','#B5EAD7','#FFDAC1','#C7CEEA','#E2F0CB'],
   earth:        ['#8C6D46','#A47551','#6B4F3A','#B08968','#5B4636','#C9A66B','#7C5E3C','#9C7A54'],
   ocean:        ['#003F5C','#2F4B7C','#665191','#A05195','#D45087','#F95D6A','#FF7C43','#FFA600']
@@ -42564,8 +43708,9 @@ const dgState = {
   customSwatches: [],
   sameColorMode: false,
   sameColor: '#00C2FF',
-  wheelHue: 196, wheelSat: 100, wheelLight: 50, wheelHex: '#00C2FF',
-  wheelBase: null, // cached offscreen canvas for the hue/sat wheel pixels
+  // Hex currently selected in the Custom Colour picker (native <input type="color">), used
+  // by "Save Colour" (adds to Your Colours) and "Apply to All".
+  customColorHex: '#00C2FF',
   texts: [], // manual text labels placed on the chart canvas (dg-text-overlay)
   barRadius: 8, // corner radius (px) applied to bar/column charts; 0 = sharp corners
   // Which currency symbol "Currency" format should render with — auto-detected from the
@@ -43614,6 +44759,42 @@ function dg3DBuild(type) {
   else if (type === '3d-scatter') dg3DBuildScatter();
   else if (type === '3d-boxplot') dg3DBuildBoxPlot();
   if (holo) dg3DApplyHologramMaterials();
+  // The camera used to sit at one fixed position (11,9,13) regardless of what was just
+  // built, so a dataset with more bars/clusters than usual — or the series legend, which
+  // is placed further out the more series there are — could end up outside the frustum
+  // and get clipped at the edge of the view. Re-fit every rebuild instead.
+  dg3DFitCameraToScene();
+}
+
+// Reframes the camera around whatever geometry was just built. Keeps the same viewing
+// angle (a corner/overhead look, not straight-on) and only changes the distance, so the
+// familiar tilt is preserved — but the distance is now derived from the actual bounding
+// box of the scene (bars, clusters, axis labels, AND the series legend sprites) instead
+// of a fixed guess. This is what keeps the legend and outer bars from being cut off on
+// larger datasets while still framing small datasets tightly instead of leaving them
+// floating in a sea of empty space.
+function dg3DFitCameraToScene() {
+  if (!dg3D.camera || !dg3D.group || typeof THREE === 'undefined') return;
+  const box = new THREE.Box3().setFromObject(dg3D.group);
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const fovRad = (dg3D.camera.fov * Math.PI) / 180;
+  // Distance needed for the widest dimension to fit inside the vertical FOV, padded for
+  // the camera's off-axis angle (it's looking in from a corner, so the effective frame is
+  // narrower than a straight-on shot) plus a small margin so nothing sits flush on the edge.
+  const dist = Math.max(9, (maxDim / (2 * Math.tan(fovRad / 2))) * 1.65 + 3);
+  const dir = new THREE.Vector3(11, 9, 13).normalize();
+  dg3D.camera.position.set(center.x + dir.x * dist, center.y + dir.y * dist + 1, center.z + dir.z * dist);
+  dg3D.camera.near = Math.max(0.1, dist / 100);
+  dg3D.camera.far = dist * 8;
+  dg3D.camera.updateProjectionMatrix();
+  if (dg3D.controls) {
+    dg3D.controls.target.set(center.x, center.y * 0.6, center.z);
+    dg3D.controls.maxDistance = Math.max(40, dist * 2);
+    dg3D.controls.update();
+  }
 }
 
 function dg3DAnimate() {
@@ -44029,9 +45210,7 @@ function dgPersist() {
   clearTimeout(dgPersistTimer);
   dgPersistTimer = setTimeout(() => {
     try {
-      // wheelBase holds a cached offscreen canvas (not serializable) — skip it.
-      const { wheelBase, ...savable } = dgState;
-      localStorage.setItem(DG_STORAGE_KEY, JSON.stringify(savable));
+      localStorage.setItem(DG_STORAGE_KEY, JSON.stringify(dgState));
     } catch (e) { console.warn('[Diagrams] could not persist chart state', e); }
     try {
       localStorage.setItem(DG_HISTORY_STORAGE_KEY, JSON.stringify(dgChartHistory));
@@ -44043,7 +45222,7 @@ function dgRestore() {
     const raw = localStorage.getItem(DG_STORAGE_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      if (saved && typeof saved === 'object') Object.assign(dgState, saved, { wheelBase: null });
+      if (saved && typeof saved === 'object') Object.assign(dgState, saved);
     }
   } catch (e) { console.warn('[Diagrams] could not restore chart state', e); }
   try {
@@ -44129,11 +45308,17 @@ function dgRenderHistoryList() {
 function dgLoadHistoryItem(id) {
   const h = dgChartHistory.find(x => x.id === id);
   if (!h) return;
+  dgResetFormatForNewChart(); // restoring a saved chart is loading "a different chart" too — don't let a % (or currency) choice made on the chart you were just looking at leak into this one
   dgState.type = h.type;
   dgState.rows = JSON.parse(JSON.stringify(h.rows));
   dgState.groupedCategories = JSON.parse(JSON.stringify(h.groupedCategories || []));
   dgState.groupedSeries = JSON.parse(JSON.stringify(h.groupedSeries || []));
   dgState.texts = JSON.parse(JSON.stringify(h.texts || []));
+  // The title box is what smart format-detection reads its hint from (see dgGetOpts) — if
+  // it's left holding whatever title the previous chart had, restoring this chart would
+  // silently borrow that leftover title's currency/percent hint instead of its own.
+  const titleInput = document.getElementById('dgTitleInput');
+  if (titleInput) titleInput.value = h.title || '';
   dgRenderRows();
   dgRender();
   if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
@@ -44297,6 +45482,64 @@ function dgColumnStem(header) {
     .trim();
 }
 
+// ── Total/summary-row & summary-column detection ──────────────────────────────────────────
+// Uploaded tables (financial exports, especially) very often bake a trailing "Total" /
+// "Grand Total" / "Subtotal" / "Average" row right into the same sheet as the real data, or
+// carry a "Total" column alongside the components it adds up. Plotted as just another bar,
+// that row/column is many times bigger than every real data point and visually crushes the
+// actual comparison the chart exists to show — so it's treated as a summary, not a data
+// point, and left out of charts by default (never silently: every place this fires also
+// says so in the toast, and it's never removed from the underlying table/data-arrangement
+// view — only from what gets auto-plotted).
+const DG_AGGREGATE_LABEL_RE = /^(grand\s+)?(sub[\s-]?)?totals?\s*:?$|^(overall|combined|aggregate|net)\s*totals?$|^sum(mary)?\s*:?$|^averages?\s*:?$|^means?\s*:?$|^overall$|^grand\s+sum$/i;
+
+function dgIsAggregateLabel(label) {
+  const l = String(label ?? '').trim().toLowerCase().replace(/[:*]+$/, '').trim();
+  if (!l) return false;
+  return DG_AGGREGATE_LABEL_RE.test(l);
+}
+
+// Same idea for a whole COLUMN — a header literally called "Total" (or "Total ($)",
+// "Grand Total 2026") sitting next to its own component columns is a computed sum, not an
+// independent measure, so it shouldn't be auto-clustered with the columns it adds up or
+// picked as the default single value column.
+function dgIsAggregateHeader(header) {
+  const h = String(header ?? '').trim().toLowerCase()
+    .replace(/\([^)]*\)\s*$/, '')      // strip trailing unit, e.g. "Total ($)"
+    .replace(/\b(19|20)\d{2}\b/g, '')  // strip trailing year, e.g. "Total 2026"
+    .trim();
+  return dgIsAggregateLabel(h);
+}
+
+// Label-agnostic safety net: even when a summary row isn't spelled with any of the words
+// above (a different language, an unusual header like "TOTAL 2026", etc.), a row whose
+// value is essentially the SUM of every other row's value in the same column is
+// mathematically a total, not its own data point. Only the single strongest match is
+// flagged (with a tolerance for rounding) to avoid false positives on small datasets where
+// two real values coincidentally add up.
+function dgFindMathematicalTotalIdx(values) {
+  if (values.length < 3) return -1; // too few rows for "total of the rest" to be meaningful
+  const sum = values.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < values.length; i++) {
+    const rest = sum - values[i];
+    if (Math.abs(rest) > 0 && Math.abs(values[i] - rest) <= Math.abs(rest) * 0.02) return i;
+  }
+  return -1;
+}
+
+// Given parallel label/value arrays for one chart's worth of rows, returns the set of row
+// indices that look like summary rows (by label text OR, failing that, by being the
+// arithmetic sum of the rest) so callers can leave them out of the actual chart.
+function dgFindAggregateRowIdxs(labels, values) {
+  const idxs = new Set();
+  labels.forEach((label, i) => { if (dgIsAggregateLabel(label)) idxs.add(i); });
+  if (!idxs.size) {
+    const mathIdx = dgFindMathematicalTotalIdx(values);
+    if (mathIdx !== -1) idxs.add(mathIdx);
+  }
+  return idxs;
+}
+
 function dgColumnMagnitude(rows, colIdx) {
   const vals = rows.map(r => Math.abs(dgParseNumericCell(r[colIdx]))).filter(v => !isNaN(v) && v > 0);
   if (!vals.length) return null;
@@ -44308,7 +45551,14 @@ function dgColumnMagnitude(rows, colIdx) {
 // Groups numeric column indices into clusters of columns worth showing on one shared axis.
 // Returns an array of arrays of column indices, in first-seen order.
 function dgGroupNumericColumns(headers, numericIdxs, rows) {
-  const meta = numericIdxs.map(idx => ({
+  // A column literally named "Total"/"Grand Total"/etc is a computed sum of its siblings,
+  // not another measure of the same thing — clustering it alongside its own components
+  // would put a bar 3-4x taller than the rest in the same group. Pull those out first and
+  // give each its own standalone group; only genuinely comparable measure columns go
+  // through the stem/magnitude clustering below.
+  const normalIdxs = numericIdxs.filter(idx => !dgIsAggregateHeader(headers[idx]));
+  const aggregateIdxs = numericIdxs.filter(idx => dgIsAggregateHeader(headers[idx]));
+  const meta = normalIdxs.map(idx => ({
     idx,
     unit: dgColumnUnit(headers[idx]),
     stem: dgColumnStem(headers[idx]),
@@ -44341,6 +45591,7 @@ function dgGroupNumericColumns(headers, numericIdxs, rows) {
     if (target) target.push(col);
     else groups.push([col]);
   });
+  aggregateIdxs.forEach(idx => groups.push([{ idx }])); // each Total-like column stands alone
   return groups.map(g => g.map(c => c.idx));
 }
 
@@ -44364,11 +45615,16 @@ function dgBuildSmartGroupedCharts() {
   const MAX_CATEGORIES = 30;
   const groups = dgGroupNumericColumns(info.headers, info.numericIdxs, info.rows);
 
+  // Leave summary rows (a trailing "Total"/"Grand Total"/"Average" row baked into the
+  // sheet) out of every group's categories — otherwise every clustered chart gets one
+  // category whose bars dwarf all the real ones.
   const categories = [];
   const rowsUsed = [];
+  let excludedTotalRows = 0;
   for (let i = 0; i < info.rows.length && categories.length < MAX_CATEGORIES; i++) {
     const r = info.rows[i];
     const label = String(r[info.labelIdx] ?? '').trim() || `Item ${categories.length + 1}`;
+    if (dgIsAggregateLabel(label)) { excludedTotalRows++; continue; }
     categories.push(label);
     rowsUsed.push(r);
   }
@@ -44402,9 +45658,10 @@ function dgBuildSmartGroupedCharts() {
   dgMultiCharts = specs;
   dgRenderMultiChartGallery();
   const groupedCount = groups.filter(g => g.length >= 2).length;
-  toast(groupedCount
+  const totalNote = excludedTotalRows ? ` (left out ${excludedTotalRows} summary row${excludedTotalRows === 1 ? '' : 's'} like Total/Average)` : '';
+  toast((groupedCount
     ? `Built ${groupedCount} grouped bar chart${groupedCount === 1 ? '' : 's'}\u2014 comparable columns clustered together automatically`
-    : `Built ${specs.length} charts`, 'success');
+    : `Built ${specs.length} charts`) + totalNote, 'success');
   // Building the gallery alone doesn't populate dgState.groupedCategories/groupedSeries —
   // that only happens when a card is clicked (dgLoadMultiChart). Without this, switching
   // straight to 3D Grouped Bar or Hologram right after building finds empty series data and
@@ -44505,6 +45762,7 @@ function dgBuildMultiChartsPerColumn() {
   const scheme = dgCurrentScheme();
   const MAX_POINTS = 40;
   const type = dgState.type;
+  let excludedTotalRows = 0;
   dgMultiCharts = info.numericIdxs.map(valueIdx => {
     const built = [];
     for (let i = 0; i < info.rows.length && built.length < MAX_POINTS; i++) {
@@ -44512,13 +45770,17 @@ function dgBuildMultiChartsPerColumn() {
       const value = dgParseNumericCell(r[valueIdx]);
       if (isNaN(value)) continue;
       const label = String(r[info.labelIdx] ?? '').trim() || `Item ${built.length + 1}`;
+      // Skip summary rows ("Total"/"Grand Total"/"Average"...) — a bar many times the
+      // size of the real data points isn't a data point, it's the sum of them.
+      if (dgIsAggregateLabel(label)) { excludedTotalRows++; continue; }
       built.push({ label, value, color: scheme[built.length % scheme.length] });
     }
     return { title: String(info.headers[valueIdx] || ('Column ' + (valueIdx + 1))), type, rows: built };
   }).filter(c => c.rows.length);
   if (!dgMultiCharts.length) { toast('Could not find usable numeric data in those columns', 'error'); return; }
   dgRenderMultiChartGallery();
-  toast(`Built ${dgMultiCharts.length} charts \u2014 one per numeric column`, 'success');
+  const totalNote = excludedTotalRows ? ` (left out summary rows like Total/Average)` : '';
+  toast(`Built ${dgMultiCharts.length} charts \u2014 one per numeric column${totalNote}`, 'success');
 }
 
 // Metric labels like "Processing Time" or "Support Response" are lower-is-better — a smaller
@@ -44562,11 +45824,15 @@ function dgBuildComparisonCharts() {
   const entityColors = entityNames.map((_, si) => scheme[si % scheme.length]);
 
   const metrics = [];
+  let excludedTotalRows = 0;
   for (let i = 0; i < info.rows.length && metrics.length < MAX_METRICS; i++) {
     const r = info.rows[i];
     const parsed = info.numericIdxs.map(idx => dgParseNumericCell(r[idx]));
     if (parsed.every(v => isNaN(v))) continue;
     const label = String(r[info.labelIdx] ?? '').trim() || `Metric ${metrics.length + 1}`;
+    // A "Total"/"Grand Total" row here is a summary metric, not a real point of
+    // comparison between entities — skip it the same way as any other chart shape.
+    if (dgIsAggregateLabel(label)) { excludedTotalRows++; continue; }
     metrics.push({ label, values: parsed.map(v => isNaN(v) ? 0 : v), lowerBetter: dgIsLowerBetterMetric(label) });
   }
   if (!metrics.length) { toast('Could not find rows with comparable numeric values across those columns', 'error'); return; }
@@ -44600,9 +45866,10 @@ function dgBuildComparisonCharts() {
 
   dgMultiCharts = [radarSpec, ...perMetricSpecs];
   dgRenderMultiChartGallery();
-  toast(anyInverted
+  const totalNote = excludedTotalRows ? ` (left out ${excludedTotalRows} summary row${excludedTotalRows === 1 ? '' : 's'} like Total/Average)` : '';
+  toast((anyInverted
     ? `Built a normalized radar overview (lower-is-better axes inverted) + ${perMetricSpecs.length} per-metric comparison charts`
-    : `Built a normalized radar overview + ${perMetricSpecs.length} per-metric comparison charts`, 'success');
+    : `Built a normalized radar overview + ${perMetricSpecs.length} per-metric comparison charts`) + totalNote, 'success');
 }
 
 function dgCloseMultiGallery() {
@@ -44633,6 +45900,23 @@ function dgRenderMultiChartGallery() {
 
 // Loads one gallery chart into the main live-preview editor so it can be tweaked, recoloured,
 // or exported like any other chart, without disturbing the other charts still sitting in the gallery.
+// A manual Number Format pick (the person clicking "%" or "Currency" in the dropdown)
+// is a decision about THAT chart, not a standing preference — so every place that swaps
+// in a different chart's data (gallery cards, History) must call this first. Without it,
+// dgState.formatUserSet stays stuck true from whichever chart was open when the person
+// last touched the dropdown, which blocks auto-detection from ever running again — so
+// picking "%" on chart A silently forces every chart loaded afterwards onto "%" too, even
+// ones with plain numbers or a totally different currency. Resetting both the flag and the
+// dropdown itself (back to 'plain') before the new chart's title/data get applied lets
+// dgGetOpts's per-render detection read that chart's OWN hint fresh, the same way it does
+// right after a brand-new upload.
+function dgResetFormatForNewChart() {
+  if (typeof dgState !== 'undefined') dgState.formatUserSet = false;
+  const select = document.getElementById('dgFormatSelect');
+  if (select) select.value = 'plain';
+  if (typeof dgSyncFormatUI === 'function') dgSyncFormatUI();
+}
+
 function dgLoadMultiChart(idx) {
   const spec = dgMultiCharts[idx];
   if (!spec) return;
@@ -44644,6 +45928,7 @@ function dgLoadMultiChart(idx) {
     toast('This radar overview compares every metric at once — push it as-is, or open the per-metric cards to edit colours', 'info');
     return;
   }
+  dgResetFormatForNewChart();
   if (spec.type === 'grouped' || spec.type === 'hstacked' || spec.type === 'tornado') {
     dgState.groupedCategories = spec.categories.slice();
     dgState.groupedSeries = spec.series.map(s => ({ ...s, values: s.values.slice() }));
@@ -44736,6 +46021,61 @@ function dgRenderSpecFullCanvas(spec) {
 // Bakes a chart image directly onto a page's placedImages array — the same end state the
 // interactive "drag, resize, then Stamp" flow produces, but done in code so many charts can
 // be placed in one go without a manual drop for each one.
+// Turns a chart spec's own underlying data into plain table cells (a header
+// row plus one row per data point) — the exact figures behind that chart,
+// so they can be placed right alongside it. Handles both spec shapes used
+// across the module: rows: [{label,value}] for a single-series chart, and
+// categories/series for grouped/radar/tornado-style charts.
+function dgSpecToTableCells(spec) {
+  const fmt = v => { try { return dgFormatNumber(v, spec.format || 'auto'); } catch (e) { return String(v); } };
+  if (Array.isArray(spec.categories) && Array.isArray(spec.series) && spec.series.length) {
+    const headers = ['Category', ...spec.series.map(s => s.name || 'Series')];
+    const rows = spec.categories.map((cat, i) => [String(cat ?? ''), ...spec.series.map(s => fmt((s.values || [])[i]))]);
+    return { headers, rows };
+  }
+  const rows = (spec.rows || []).map(r => [String(r.label ?? ''), fmt(r.value)]);
+  return { headers: ['Label', 'Value'], rows };
+}
+
+// Builds a compact placedTable — sized/fitted to availW x availH — straight
+// from a chart spec's own data. This is the table that "belongs to" that
+// chart: pushing a chart to the Workspace now always brings its numbers
+// along, placed directly under it, so a report reads chart-then-its-table,
+// next chart-then-its-table, without Refine Report having to guess which
+// table (if any) goes with which chart.
+function dgBuildTableForSpec(spec, x, y, availW, availH) {
+  const { headers, rows } = dgSpecToTableCells(spec);
+  if (!rows.length) return null;
+  const MAX_ROWS = 15; // a paired mini-table is meant to be read at a glance, not scanned like a full dataset
+  let displayRows = rows, truncated = 0;
+  if (rows.length > MAX_ROWS) {
+    truncated = rows.length - MAX_ROWS;
+    displayRows = rows.slice(0, MAX_ROWS);
+  }
+  const layout = daComputeTableLayout(headers, displayRows);
+  const fitted = daFitTableToPage(headers, displayRows, layout, availW, availH);
+  const cells = [headers, ...displayRows];
+  if (truncated > 0) {
+    const note = new Array(headers.length).fill('');
+    note[0] = `+ ${truncated} more row${truncated === 1 ? '' : 's'}`;
+    cells.push(note);
+    fitted.rowHeights.push(fitted.rowHeights[fitted.rowHeights.length - 1] || 20);
+  }
+  return {
+    id: 'tbl_' + (++pdfedTableSeq),
+    x, y,
+    rows: cells.length,
+    cols: headers.length,
+    colWidths: fitted.colWidths.slice(),
+    rowHeights: fitted.rowHeights,
+    fontSize: fitted.fontSize,
+    headerRow: true,
+    cells,
+    cellStyles: daBuildCellStyles(cells),
+    locked: false,
+  };
+}
+
 function dgBakePlacedImage(pg, dataUrl, x, y, w, h) {
   if (!pg.placedImages) pg.placedImages = [];
   pg.placedImages.push({
@@ -44790,12 +46130,28 @@ async function dgPushAllMultiCharts(mode) {
         const bctx = bg.getContext('2d');
         bctx.fillStyle = '#ffffff';
         bctx.fillRect(0, 0, eW, eH);
-        const pg = { type: 'blank', dataUrl: bg.toDataURL('image/png'), modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], label: 'Diagram', bgColor: '#ffffff', pageMM: [210, 297] };
+        const pg = { type: 'blank', dataUrl: bg.toDataURL('image/png'), modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedTables: [], label: 'Diagram', bgColor: '#ffffff', pageMM: [210, 297] };
         const margin = Math.round(eW * 0.08);
         const w = eW - margin * 2;
-        const h = Math.round(w * (canvas.height / canvas.width));
-        const y = Math.max(margin, Math.round((eH - h) / 2));
-        dgBakePlacedImage(pg, dataUrl, margin, y, w, h);
+        const availH = eH - margin * 2;
+        // Chart takes the top ~62% of the content area; its own data table
+        // (built from this same spec) fills the rest below it, so the two
+        // travel together as one paired unit instead of the chart alone
+        // getting centered on an otherwise-empty page.
+        const chartH = Math.min(Math.round(w * (canvas.height / canvas.width)), Math.round(availH * 0.62));
+        const chartW = Math.round(chartH * (canvas.width / canvas.height));
+        const chartX = Math.max(margin, Math.round((eW - chartW) / 2));
+        const chartY = margin;
+        dgBakePlacedImage(pg, dataUrl, chartX, chartY, chartW, chartH);
+        const tableY = chartY + chartH + Math.round(margin * 0.5);
+        const tableAvailH = eH - margin - tableY;
+        const table = dgBuildTableForSpec(spec, margin, tableY, w, tableAvailH);
+        if (table) {
+          const tblW = table.colWidths.reduce((a, b) => a + b, 0);
+          table.x = Math.max(margin, Math.round((eW - tblW) / 2));
+          table.zIndex = pdfedNextZ(pg);
+          pg.placedTables.push(table);
+        }
         pdfed.pages.push(pg);
         if (firstNewIdx === -1) firstNewIdx = pdfed.pages.length - 1;
         if (state && state.stats) state.stats.pages++;
@@ -44805,7 +46161,7 @@ async function dgPushAllMultiCharts(mode) {
       if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
       if (typeof pdfedGoto === 'function') await pdfedGoto(firstNewIdx);
       setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
-      toast(`Added ${dgMultiCharts.length} charts as new Workspace pages`, 'success');
+      toast(`Added ${dgMultiCharts.length} charts (each with its own data table) as new Workspace pages`, 'success');
     } else {
       // All charts tiled onto the page currently open, sized to fit without overlapping.
       let idx = pdfed.active;
@@ -44818,18 +46174,30 @@ async function dgPushAllMultiCharts(mode) {
       const margin = Math.round(pageW * 0.04);
       const cellW = (pageW - margin * (cols + 1)) / cols;
       const cellH = (pageH - margin * (rows + 1)) / rows;
+      if (!pg.placedTables) pg.placedTables = [];
       dgMultiCharts.forEach((spec, i) => {
         const canvas = dgRenderSpecFullCanvas(spec);
         const dataUrl = canvas.toDataURL('image/png');
         const aspect = canvas.height / canvas.width;
-        let w = cellW, h = w * aspect;
-        if (h > cellH) { h = cellH; w = h / aspect; }
         const col = i % cols, row = Math.floor(i / cols);
         const cellX = margin + col * (cellW + margin);
         const cellY = margin + row * (cellH + margin);
+        // Each cell splits vertically: chart on top, its own data table
+        // underneath — same paired idea as the "new page per chart"
+        // destination above, just scaled down to fit inside one tile.
+        const chartCellH = cellH * 0.62;
+        let w = cellW, h = w * aspect;
+        if (h > chartCellH) { h = chartCellH; w = h / aspect; }
         const x = cellX + (cellW - w) / 2;
-        const y = cellY + (cellH - h) / 2;
+        const y = cellY + (chartCellH - h) / 2;
         dgBakePlacedImage(pg, dataUrl, x, y, w, h);
+        const tableY = cellY + chartCellH + Math.round(cellH * 0.03);
+        const tableAvailH = cellH - chartCellH - Math.round(cellH * 0.03);
+        const table = dgBuildTableForSpec(spec, cellX, tableY, cellW, tableAvailH);
+        if (table) {
+          table.zIndex = pdfedNextZ(pg);
+          pg.placedTables.push(table);
+        }
       });
       pdfedMarkModified(idx);
       navigate('pdfeditor');
@@ -44837,8 +46205,9 @@ async function dgPushAllMultiCharts(mode) {
       if (typeof pdfedGoto === 'function') await pdfedGoto(idx);
       pdfedRenderPlacedImages(idx);
       pdfedRenderPlacedTexts(idx);
+      if (typeof pdfedRenderPlacedTables === 'function') pdfedRenderPlacedTables(idx);
       setTimeout(() => { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 120);
-      toast(`Added ${dgMultiCharts.length} charts to the live Workspace page`, 'success');
+      toast(`Added ${dgMultiCharts.length} charts (with their data tables) to the live Workspace page`, 'success');
     }
   } catch (err) {
     console.error(err);
@@ -44936,23 +46305,54 @@ function dgParseNumericCell(v) {
 // falling back to plain numbers or a hardcoded $.
 const DG_CURRENCY_SIGNS = ['₹', '$', '€', '£', '¥', '₩', '₽', '₺', '₦', '₫', 'R$', 'CHF'];
 
-function dgDetectValueSign(rawCells) {
+function dgDetectValueSign(rawCells, headerHint) {
   const samples = (rawCells || []).map(v => String(v ?? '').trim()).filter(Boolean).slice(0, 60);
-  if (samples.length < 3) return null; // too few samples to trust a majority read
+  const hint = String(headerHint || '');
+  // The column header / chart title is a deliberate, human-typed label — e.g. "Growth %"
+  // or "Revenue ($)" — and is a more reliable signal than the data cells themselves,
+  // which are often bare numbers (13, 21, ...) with no sign attached at all. Check it
+  // first so a plainly-numeric "Growth %" column doesn't fall through to whatever
+  // currency symbol happened to be active from a previous, unrelated chart.
+  const hintIsPercent = /%/.test(hint);
+  let hintCurrencySym = null;
+  for (const sym of DG_CURRENCY_SIGNS) { if (hint.includes(sym)) { hintCurrencySym = sym; break; } }
+
+  if (samples.length < 3) {
+    // Too few cells to trust a majority read from the data itself — fall back to the
+    // header/title hint alone, if it says anything.
+    if (hintIsPercent) return { format: 'percent', symbol: null };
+    if (hintCurrencySym) return { format: 'currency', symbol: hintCurrencySym };
+    return null;
+  }
+
   let percentCount = 0;
   const currencyCounts = {};
+  let anyCurrencyCount = 0; // total cells carrying ANY currency sign, regardless of which one
   samples.forEach(s => {
     if (/%\s*$/.test(s)) percentCount++;
     for (const sym of DG_CURRENCY_SIGNS) {
-      if (s.includes(sym)) { currencyCounts[sym] = (currencyCounts[sym] || 0) + 1; break; }
+      if (s.includes(sym)) { currencyCounts[sym] = (currencyCounts[sym] || 0) + 1; anyCurrencyCount++; break; }
     }
   });
   const n = samples.length;
   const CONFIDENCE = 0.6; // require a clear majority, not just a stray cell or two
   if (percentCount / n >= CONFIDENCE) return { format: 'percent', symbol: null };
+
+  // Multiple-currency-sign handling: real-world data pasted from mixed sources can carry
+  // more than one symbol (e.g. some rows in $ and some in ₹, or a stray € typo). Judging
+  // "is this currency data?" against a single winning symbol's share would miss that —
+  // two symbols at 35%/30% clearly read as currency together even though neither alone
+  // crosses CONFIDENCE. So the majority check is against ALL currency-tagged cells
+  // combined; only the *symbol choice* (which one to render with) is per-symbol.
   let bestSym = null, bestCount = 0;
   Object.entries(currencyCounts).forEach(([sym, c]) => { if (c > bestCount) { bestCount = c; bestSym = sym; } });
-  if (bestSym && bestCount / n >= CONFIDENCE) return { format: 'currency', symbol: bestSym };
+  if (bestSym && anyCurrencyCount / n >= CONFIDENCE) return { format: 'currency', symbol: bestSym };
+
+  // No clear majority in the cells themselves — defer to the header/title hint rather
+  // than silently returning null and leaving a stale format (e.g. ₹) from an earlier,
+  // unrelated chart in place.
+  if (hintIsPercent) return { format: 'percent', symbol: null };
+  if (hintCurrencySym) return { format: 'currency', symbol: hintCurrencySym };
   return null;
 }
 
@@ -45008,7 +46408,12 @@ function dgPopulateUploadSelectors() {
   const optionsHtml = headers.map((h, i) => `<option value="${i}">${daEsc(h)}</option>`).join('');
   labelSel.innerHTML = optionsHtml;
   const firstLabelIdx = numericFlags.findIndex(n => !n);
-  const firstNumericIdx = numericFlags.findIndex(n => n);
+  // Prefer a genuine measure column over a "Total"/"Grand Total" column as the default
+  // value column — if someone uploads Product | Q1 | Q2 | Q3 | Total, the default chart
+  // should plot Q1 (a real, comparable number), not a column that's the sum of the other
+  // three. Only falls back to the Total column if it's the ONLY numeric column present.
+  const firstNonAggregateNumericIdx = numericFlags.findIndex((n, i) => n && !dgIsAggregateHeader(headers[i]));
+  const firstNumericIdx = firstNonAggregateNumericIdx >= 0 ? firstNonAggregateNumericIdx : numericFlags.findIndex(n => n);
   labelSel.value = firstLabelIdx >= 0 ? firstLabelIdx : 0;
   let valueIdx = firstNumericIdx >= 0 ? firstNumericIdx : (headers.length > 1 ? 1 : 0);
   if (valueIdx === parseInt(labelSel.value, 10) && headers.length > 1) {
@@ -45115,15 +46520,24 @@ function dgGenerateChartFromUpload(topGrouped) {
     const MAX_CATEGORIES = 30;
     const categories = [];
     const rowsUsed = [];
+    let excludedTotalRows = 0;
     for (let i = 0; i < rawRows.length && categories.length < MAX_CATEGORIES; i++) {
       const r = rawRows[i];
-      categories.push(String(r[labelIdx] ?? '').trim() || `Item ${categories.length + 1}`);
+      const label = String(r[labelIdx] ?? '').trim() || `Item ${categories.length + 1}`;
+      // A "Total"/"Grand Total"/"Average" row baked into the sheet isn't its own category
+      // — it's the sum of the others, and would dwarf every real bar in the group.
+      if (dgIsAggregateLabel(label)) { excludedTotalRows++; continue; }
+      categories.push(label);
       rowsUsed.push(r);
     }
     if (!categories.length) { toast('Could not find any rows to chart', 'error'); return; }
     // Sniff the first ticked column's raw cells for a currency/percent sign — grouped
     // series are plotted on one shared axis, so one shared format is what matters here.
-    dgApplyDetectedSign(dgDetectValueSign(rowsUsed.map(r => r[valueIdxs[0]])));
+    // Also pass the column header + current chart title as a hint (e.g. a "Growth %"
+    // column of bare numbers should read as percent even though no individual cell
+    // carries a % sign).
+    const signHint1 = [dgUploadParsed.headers[valueIdxs[0]], document.getElementById('dgTitleInput')?.value].filter(Boolean).join(' ');
+    dgApplyDetectedSign(dgDetectValueSign(rowsUsed.map(r => r[valueIdxs[0]]), signHint1));
     const series = valueIdxs.map((colIdx, si) => ({
       name: String(dgUploadParsed.headers[colIdx] || ('Column ' + (colIdx + 1))),
       color: scheme[si % scheme.length],
@@ -45145,21 +46559,32 @@ function dgGenerateChartFromUpload(topGrouped) {
     else if (dgIs3DType(dgState.type)) nextType = '3d-grouped-bar';
     else nextType = 'grouped';
     if (nextType !== dgState.type) dgSetType(nextType); else dgRender();
-    toast(`Comparing ${series.length} columns side-by-side \u2014 ${series.map(s => s.name).join(', ')}`, 'success');
+    const totalNote = excludedTotalRows ? ` (left out ${excludedTotalRows} summary row${excludedTotalRows === 1 ? '' : 's'} like Total/Average)` : '';
+    toast(`Comparing ${series.length} columns side-by-side \u2014 ${series.map(s => s.name).join(', ')}` + totalNote, 'success');
     return;
   }
 
   // Exactly one value column ticked \u2014 original single-series behaviour.
   const valueIdx = valueIdxs[0];
-  dgApplyDetectedSign(dgDetectValueSign(rawRows.map(r => r[valueIdx])));
-  const parsed = [];
+  const signHint2 = [dgUploadParsed.headers[valueIdx], document.getElementById('dgTitleInput')?.value].filter(Boolean).join(' ');
+  dgApplyDetectedSign(dgDetectValueSign(rawRows.map(r => r[valueIdx]), signHint2));
+  const rawParsed = [];
   for (let i = 0; i < rawRows.length; i++) {
     const r = rawRows[i];
     const value = dgParseNumericCell(r[valueIdx]);
     if (isNaN(value)) continue;
-    const label = String(r[labelIdx] ?? '').trim() || `Item ${parsed.length + 1}`;
-    parsed.push({ label, value });
+    const label = String(r[labelIdx] ?? '').trim() || `Item ${rawParsed.length + 1}`;
+    rawParsed.push({ label, value });
   }
+  if (!rawParsed.length) { toast('Could not find numeric values in that column — try a different Value column', 'error'); return; }
+
+  // Leave summary rows out of the actual chart — by label ("Total", "Grand Total",
+  // "Average"...) first, and if none are spelled that way, fall back to catching a row
+  // that's mathematically the sum of every other row (the same signal without needing
+  // the word "total" to be present at all).
+  const aggIdxs = dgFindAggregateRowIdxs(rawParsed.map(p => p.label), rawParsed.map(p => p.value));
+  const excludedRows = rawParsed.filter((_, i) => aggIdxs.has(i));
+  const parsed = aggIdxs.size ? rawParsed.filter((_, i) => !aggIdxs.has(i)) : rawParsed;
   if (!parsed.length) { toast('Could not find numeric values in that column — try a different Value column', 'error'); return; }
 
   let built, infoMsg;
@@ -45186,8 +46611,11 @@ function dgGenerateChartFromUpload(topGrouped) {
   dgState.rows = built;
   dgRenderRows();
   dgRender();
-  if (infoMsg) toast(infoMsg, 'info');
-  else toast('Chart generated from your uploaded data', 'success');
+  const totalNote = excludedRows.length
+    ? ` \u2014 left out ${excludedRows.length === 1 ? `"${excludedRows[0].label}"` : excludedRows.length + ' summary rows'} (looked like a total/average, not a real data point)`
+    : '';
+  if (infoMsg) toast(infoMsg + totalNote, 'info');
+  else toast('Chart generated from your uploaded data' + totalNote, totalNote ? 'info' : 'success');
 }
 
 function dgRemoveRow(idx) {
@@ -45242,7 +46670,7 @@ function dgRenderCustomSwatches() {
   const wrap = document.getElementById('dgCustomSwatchRow');
   if (!wrap) return;
   if (!dgState.customSwatches.length) {
-    wrap.innerHTML = '<span class="dg-empty-swatch-hint">Pick a colour on the wheel and hit "Save Colour"</span>';
+    wrap.innerHTML = '<span class="dg-empty-swatch-hint">Pick a colour above and hit "Save Colour"</span>';
     return;
   }
   wrap.innerHTML = dgState.customSwatches.map((c, i) => `
@@ -45290,7 +46718,7 @@ function dgApplyCustomSwatchFrom(startIdx) {
 }
 
 function dgAddCustomSwatch() {
-  const hex = dgState.wheelHex;
+  const hex = dgState.customColorHex;
   if (dgState.customSwatches.includes(hex)) { toast('Already saved', 'info'); return; }
   dgState.customSwatches.push(hex);
   if (dgState.customSwatches.length > 16) dgState.customSwatches.shift();
@@ -45326,7 +46754,7 @@ function dgOnSameColorInput(val) {
 }
 
 function dgApplyWheelToAll() {
-  const hex = dgState.wheelHex;
+  const hex = dgState.customColorHex;
   dgState.sameColorMode = true;
   dgState.sameColor = hex;
   const toggle = document.getElementById('dgSameColorToggle');
@@ -45356,7 +46784,6 @@ function dgToggleColoursPanel(e) {
     body.style.left = left + 'px';
     dgRenderPalette();
     dgRenderCustomSwatches();
-    dgDrawWheelIndicator();
   }
 }
 // Outside-click closing for the Colour panel is now handled by the shared
@@ -45761,12 +47188,20 @@ function dgBuildSmartAnalysisText(stats, rows, opts) {
   if (stats.growthPct === null && (type === 'line' || type === 'area' || type === 'bar')) {
     improvementIdeas.push('adding a zero-baseline check on the first value — growth % couldn\'t be calculated because it starts at zero');
   }
+  if (stats.growthPct !== null && !opts.growthMode && (type === 'line' || type === 'area' || type === 'bar')) {
+    improvementIdeas.push('switching on the "Growth %" toggle above the chart to replot this as percentage change instead of raw values — clearer than absolute numbers when the direction and pace of change matter more than the totals');
+  }
   if (!improvementIdeas.length) {
     improvementIdeas.push(stats.trend === 'flat'
       ? 'adding a comparison period (e.g. last year vs. this year) since the current data alone reads as fairly stable'
       : 'adding a short annotation on the highest or lowest point to make the headline number impossible to miss');
   }
-  const improvement = `To make it stronger, consider ${improvementIdeas[0]}.`;
+  // Surface up to two ideas rather than just the first — a single suggestion reads as an
+  // afterthought; a short, prioritized list reads as the system actually knowing what would
+  // make this specific chart better, not just filling in a template sentence.
+  const improvement = improvementIdeas.length > 1
+    ? `To make it stronger, consider ${improvementIdeas[0]}. Beyond that, ${improvementIdeas[1]}.`
+    : `To make it stronger, consider ${improvementIdeas[0]}.`;
 
   // 5. Business read — the domain-specific sentence that says what the
   // numbers would mean to someone actually running sales, budget, funnel, etc.
@@ -45983,136 +47418,54 @@ function dgApplyTemplate(key) {
 }
 
 function dgPickFixedColor(hex) {
-  dgState.wheelHue = 0;
-  dgState.wheelSat = 0;
-  dgState.wheelLight = hex === '#000000' ? 0 : 100;
-  dgState.wheelHex = hex;
-  const slider = document.getElementById('dgWheelLightness');
-  if (slider) slider.value = dgState.wheelLight;
-  dgDrawWheelIndicator();
-  dgUpdateWheelPreview();
+  dgState.customColorHex = hex;
+  const input = document.getElementById('dgCustomColorInput');
+  const hexLabel = document.getElementById('dgCustomColorHex');
+  if (input) input.value = hex;
+  if (hexLabel) hexLabel.textContent = hex.toUpperCase();
 }
 
-// ── Custom colour wheel (hue = angle, saturation = distance from centre) ──
-function dgHslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const k = n => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
-  return '#' + toHex(f(0)) + toHex(f(8)) + toHex(f(4));
-}
-
-function dgBuildWheelBase() {
-  const size = 150, cx = 75, cy = 75, radius = 72;
-  const base = document.createElement('canvas');
-  base.width = size; base.height = size;
-  const bctx = base.getContext('2d');
-  const imgData = bctx.createImageData(size, size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = x - cx, dy = y - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const idx = (y * size + x) * 4;
-      if (dist <= radius) {
-        let hue = Math.atan2(dy, dx) * 180 / Math.PI;
-        if (hue < 0) hue += 360;
-        const sat = Math.min(1, dist / radius) * 100;
-        const hex = dgHslToHex(hue, sat, 50);
-        imgData.data[idx] = parseInt(hex.substr(1, 2), 16);
-        imgData.data[idx + 1] = parseInt(hex.substr(3, 2), 16);
-        imgData.data[idx + 2] = parseInt(hex.substr(5, 2), 16);
-        imgData.data[idx + 3] = 255;
-      } else {
-        imgData.data[idx + 3] = 0;
-      }
-    }
-  }
-  bctx.putImageData(imgData, 0, 0);
-  dgState.wheelBase = base;
-}
-
-function dgDrawWheelIndicator() {
-  const canvas = document.getElementById('dgWheelCanvas');
-  if (!canvas || !dgState.wheelBase) return;
-  const ctx = canvas.getContext('2d');
-  const cx = 75, cy = 75, radius = 72;
-  ctx.clearRect(0, 0, 150, 150);
-  ctx.drawImage(dgState.wheelBase, 0, 0);
-
-  const rad = dgState.wheelHue * Math.PI / 180;
-  const dist = (dgState.wheelSat / 100) * radius;
-  const px = cx + Math.cos(rad) * dist;
-  const py = cy + Math.sin(rad) * dist;
-
-  ctx.beginPath();
-  ctx.arc(px, py, 7, 0, Math.PI * 2);
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(px, py, 7, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-}
-
-function dgUpdateWheelPreview() {
-  dgState.wheelHex = dgHslToHex(dgState.wheelHue, dgState.wheelSat, dgState.wheelLight);
-  const prev = document.getElementById('dgWheelPreview');
-  const hexLabel = document.getElementById('dgWheelHex');
-  if (prev) prev.style.background = dgState.wheelHex;
-  if (hexLabel) hexLabel.textContent = dgState.wheelHex.toUpperCase();
-}
-
-function dgOnWheelLightness(val) {
-  dgState.wheelLight = parseFloat(val);
-  dgUpdateWheelPreview();
-}
-
-function dgPickWheelAt(clientX, clientY) {
-  const canvas = document.getElementById('dgWheelCanvas');
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = (clientX - rect.left) * (150 / rect.width);
-  const y = (clientY - rect.top) * (150 / rect.height);
-  const cx = 75, cy = 75, radius = 72;
-  const dx = x - cx, dy = y - cy;
-  const dist = Math.min(radius, Math.sqrt(dx * dx + dy * dy));
-  let hue = Math.atan2(dy, dx) * 180 / Math.PI;
-  if (hue < 0) hue += 360;
-  dgState.wheelHue = hue;
-  dgState.wheelSat = (dist / radius) * 100;
-  dgDrawWheelIndicator();
-  dgUpdateWheelPreview();
-}
-
-function dgInitWheel() {
-  const canvas = document.getElementById('dgWheelCanvas');
-  if (!canvas || canvas.dataset.bound) return;
-  canvas.dataset.bound = '1';
-  dgBuildWheelBase();
-  dgDrawWheelIndicator();
-  dgUpdateWheelPreview();
-
-  let dragging = false;
-  canvas.addEventListener('mousedown', e => { dragging = true; dgPickWheelAt(e.clientX, e.clientY); e.preventDefault(); });
-  window.addEventListener('mousemove', e => { if (dragging) dgPickWheelAt(e.clientX, e.clientY); });
-  window.addEventListener('mouseup', () => { dragging = false; });
-  canvas.addEventListener('touchstart', e => { dragging = true; const t = e.touches[0]; dgPickWheelAt(t.clientX, t.clientY); }, { passive: true });
-  canvas.addEventListener('touchmove', e => { if (dragging) { const t = e.touches[0]; dgPickWheelAt(t.clientX, t.clientY); } }, { passive: true });
-  canvas.addEventListener('touchend', () => { dragging = false; });
+// ── Custom colour (plain native colour picker — no bespoke wheel to maintain) ──
+function dgOnCustomColorInput(val) {
+  dgState.customColorHex = val;
+  const hexLabel = document.getElementById('dgCustomColorHex');
+  if (hexLabel) hexLabel.textContent = val.toUpperCase();
 }
 
 function dgGetOpts() {
+  const title = (document.getElementById('dgTitleInput') || {}).value || '';
+  const xAxisTitle = (document.getElementById('dgXAxisTitleInput') || {}).value || '';
+  const yAxisTitle = (document.getElementById('dgYAxisTitleInput') || {}).value || '';
+  let numberFormat = (document.getElementById('dgFormatSelect') || {}).value || 'plain';
+  // Smart symbol detection, generalized to run on EVERY render — not just right after a
+  // file upload. dgApplyDetectedSign (used by the upload path) reads the raw data cells;
+  // that signal doesn't exist for manually-typed rows (the value inputs are type="number",
+  // so a person can't type "$" or "%" into them). But the chart/axis TITLE is free text
+  // either way, so "Revenue ($)" or "Growth %" typed straight into the title fields is
+  // still a reliable hint. Re-checking it on every render means manual-entry charts get
+  // the right currency/percent symbol on their bars and axis automatically, the same way
+  // uploaded ones already do — without the person having to remember the Number Format
+  // dropdown. Only kicks in when the person hasn't deliberately chosen a format themselves
+  // (dgState.formatUserSet), so it never fights a real manual choice.
+  if (!(typeof dgState !== 'undefined' && dgState.formatUserSet)) {
+    const hint = [title, yAxisTitle, xAxisTitle].filter(Boolean).join(' ');
+    const detected = (typeof dgDetectValueSign === 'function') ? dgDetectValueSign([], hint) : null;
+    if (detected) {
+      numberFormat = detected.format;
+      if (detected.format === 'currency' && detected.symbol && typeof dgState !== 'undefined') dgState.currencySymbol = detected.symbol;
+      const select = document.getElementById('dgFormatSelect');
+      if (select) select.value = numberFormat;
+    }
+  }
   return {
-    title: (document.getElementById('dgTitleInput') || {}).value || '',
-    xAxisTitle: (document.getElementById('dgXAxisTitleInput') || {}).value || '',
-    yAxisTitle: (document.getElementById('dgYAxisTitleInput') || {}).value || '',
+    title,
+    xAxisTitle,
+    yAxisTitle,
     legend: !!(document.getElementById('dgLegendToggle') || {}).checked,
     values: !!(document.getElementById('dgValuesToggle') || {}).checked,
-    numberFormat: (document.getElementById('dgFormatSelect') || {}).value || 'plain',
+    numberFormat,
     trendline: !!(document.getElementById('dgTrendlineToggle') || {}).checked,
+    growthMode: !!(document.getElementById('dgGrowthToggle') || {}).checked,
     hologram: dgHologramOn(),
     barRadius: dgState.barRadius != null ? dgState.barRadius : 8
   };
@@ -46203,11 +47556,28 @@ function dgDrawChart() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const opts = dgGetOpts();
-  const rows = dgState.rows;
+  let rows = dgState.rows;
   const type = dgState.type;
   const isGrouped = type === 'grouped' || type === 'hstacked' || type === 'tornado';
   const gcats = dgState.groupedCategories || [];
   const gseries = dgState.groupedSeries || [];
+  // Growth % mode: single-series bar/line/area charts get replotted as percentage change
+  // from the first data point instead of raw values — the clearest way to answer "how much
+  // did this grow", and the only sane read when comparing series on very different scales
+  // (e.g. revenue vs. headcount) that raw numbers can't be directly compared on. Values,
+  // axis ticks, and tooltips all switch to the 'percent' number format automatically since
+  // they're formatted through opts.numberFormat.
+  const growthEligible = !isGrouped && ['bar', 'line', 'area'].includes(type);
+  if (opts.growthMode && growthEligible && rows.length > 1 && rows[0] && rows[0].value !== 0) {
+    const base = rows[0].value;
+    rows = rows.map(r => ({ ...r, value: ((r.value - base) / Math.abs(base)) * 100 }));
+    opts.numberFormat = 'percent';
+    if (!opts.yAxisTitle) opts.yAxisTitle = `% change vs. ${rows[0].label || 'first value'}`;
+  } else if (opts.growthMode && growthEligible && rows.length > 1 && rows[0] && rows[0].value === 0 && typeof toast === 'function') {
+    // Asked for growth mode but it can't be computed (zero baseline) — fall back to plain
+    // values rather than silently ignoring the toggle, and say why.
+    toast('Growth % needs a non-zero first value — showing raw values instead', 'info');
+  }
   // Grouped charts always show their series legend — that's the only thing that tells
   // "Profit 2025" bars apart from "Profit 2026" bars — regardless of the global legend toggle.
   // Diverging stacked and tornado charts are built from the same multi-series data and need
@@ -47322,7 +48692,6 @@ function dgRender() {
   if (!document.getElementById('dgRows').childElementCount) dgRenderRows();
   if (!document.getElementById('dgPaletteRow').childElementCount) dgRenderPalette();
   dgRenderCustomSwatches();
-  dgInitWheel();
   if (dgIs3DType(dgState.type)) {
     dgActivate3D(dgState.type);
     if (!dg3D.renderer) { dgState.type = (dgState.type === '3d-grouped-bar') ? 'grouped' : 'bar'; dgDeactivate3D(); dgDrawChart(); } // 3D engine unavailable, fall back
@@ -48522,8 +49891,30 @@ function dgOpenVideoExportModal() {
   const status = document.getElementById('dgVideoStatus');
   if (status) status.textContent = '';
   if (modal) { modal.style.display = 'flex'; }
+  dgVideoOnQualityChange();
   dgVideoDrawPreviewFrame();
 }
+
+// 4K software VP9 encoding at 60fps is more than most devices/browsers can
+// reliably sustain in real time — when the encoder falls behind it tends to
+// produce a truncated/broken .webm rather than gracefully catching up. So
+// 4K locks itself to 30fps for a file that actually opens; 1080p/1440p keep
+// the 60fps "butter smooth" option since they're light enough for that.
+function dgVideoOnQualityChange() {
+  const q = (document.getElementById('dgVideoQualitySelect') || {}).value;
+  const fpsSel = document.getElementById('dgVideoFpsSelect');
+  const note = document.getElementById('dgVideoQualityNote');
+  if (!fpsSel) return;
+  if (q === '2160') {
+    fpsSel.value = '30';
+    fpsSel.disabled = true;
+    if (note) note.textContent = '4K locks to 30fps so the export encodes reliably instead of overloading and producing a broken file.';
+  } else {
+    fpsSel.disabled = false;
+    if (note) note.textContent = '';
+  }
+}
+window.dgVideoOnQualityChange = dgVideoOnQualityChange;
 
 function dgCloseVideoExportModal() {
   if (dgVideo.recording) return; // don't let the modal close mid-recording
@@ -48552,16 +49943,17 @@ function dgVideoDrawPreviewFrame() {
   }
 }
 
-function dgVideoDrawNotes(ctx, canvas, chartH) {
+function dgVideoDrawNotes(ctx, canvas, chartH, scale) {
+  scale = scale || 1;
   const notes = (document.getElementById('dgVideoNotesInput') || {}).value || '';
   ctx.fillStyle = '#141B2D';
   ctx.fillRect(0, chartH, canvas.width, canvas.height - chartH);
   if (!notes.trim()) return;
   ctx.fillStyle = '#E8F4FF';
-  ctx.font = '15px Inter';
+  ctx.font = Math.round(15 * scale) + 'px Inter';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  dgVideoWrapText(ctx, notes, 20, chartH + 14, canvas.width - 40, 20, 5);
+  dgVideoWrapText(ctx, notes, 20 * scale, chartH + 14 * scale, canvas.width - 40 * scale, 20 * scale, 5);
 }
 
 function dgVideoWrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
@@ -48580,6 +49972,17 @@ function dgVideoWrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
   lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
 }
 
+// Quality presets: chartW is the rendered 3D viewport width in the exported
+// video (in real pixels, not CSS px). chartH is derived from the chart's
+// native aspect ratio so nothing gets stretched/squished. Bitrates are set
+// to what software VP9 can realistically sustain at each resolution/fps —
+// overshooting this is what caused 4K exports to choke and come out broken.
+const DG_VIDEO_QUALITY_PRESETS = {
+  '1080': { chartW: 1920, bitrate: 16_000_000 },
+  '1440': { chartW: 2560, bitrate: 24_000_000 },
+  '2160': { chartW: 3840, bitrate: 30_000_000 } // paired with a 30fps lock, see dgVideoOnQualityChange
+};
+
 function dgStartVideoRecording() {
   if (dgVideo.recording) return;
   if (!(dgIs3DType(dgState.type) && dg3D.renderer)) {
@@ -48592,61 +49995,144 @@ function dgStartVideoRecording() {
   }
 
   const durationSec = parseFloat((document.getElementById('dgVideoDurationSelect') || {}).value || '8');
-  const canvas = document.getElementById('dgVideoPreviewCanvas');
-  const ctx = canvas.getContext('2d');
-  const chartH = Math.round(canvas.height * 0.78);
+  const qualityKey = (document.getElementById('dgVideoQualitySelect') || {}).value || '2160';
+  const fps = qualityKey === '2160' ? 30 : parseInt((document.getElementById('dgVideoFpsSelect') || {}).value || '60', 10);
+  const preset = DG_VIDEO_QUALITY_PRESETS[qualityKey] || DG_VIDEO_QUALITY_PRESETS['2160'];
+
   const btn = document.getElementById('dgVideoRecordBtn');
   const status = document.getElementById('dgVideoStatus');
 
+  // Base (CSS-pixel) size of the 3D canvas as first initialized — used only
+  // to work out the chart's native aspect ratio, never touched/resized.
+  const baseW = dg3D.baseW || dg3D.renderer.domElement.width;
+  const baseH = dg3D.baseH || dg3D.renderer.domElement.height;
+
+  const chartW = preset.chartW;
+  const chartH = Math.round(chartW * (baseH / baseW));
+  const totalH = Math.round(chartH / 0.78); // notes strip below, same proportion as the on-screen preview
+  const totalW = chartW;
+  const uiScale = totalW / 640; // scale captions relative to the original 640px-wide design
+
+  // Offscreen recording canvas — this is what MediaRecorder actually
+  // captures, sized at the full export resolution.
+  const recCanvas = document.createElement('canvas');
+  recCanvas.width = totalW;
+  recCanvas.height = totalH;
+  const ctx = recCanvas.getContext('2d', { alpha: false });
+
+  // IMPORTANT: render the rotation on its OWN hidden renderer instead of
+  // resizing the live interactive chart's renderer. The live chart has its
+  // own continuous animate loop (dg3DAnimate) — if we blow up dg3D.renderer
+  // to 4K, that loop keeps rendering 4K frames too, which is what made the
+  // whole page (including the live preview) lag during export. Antialiasing
+  // is also switched off here: it's the single biggest GPU cost at high
+  // resolution and isn't necessary for a compressed, moving video.
+  let capRenderer;
+  try {
+    const capCanvas = document.createElement('canvas');
+    capRenderer = new THREE.WebGLRenderer({ canvas: capCanvas, antialias: false, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+    capRenderer.setPixelRatio(1);
+    capRenderer.setSize(chartW, chartH, false);
+    capRenderer.setClearColor(0xffffff, 1);
+  } catch (e) {
+    toast('Could not set up the recording renderer: ' + (e && e.message ? e.message : e), 'error');
+    return;
+  }
+
   // Pause orbit controls and remember the starting rotation so we can spin
   // the chart ourselves at a steady rate for a clean, predictable loop.
+  // (This still moves the shared dg3D.group, so the live chart behind the
+  // modal will visibly spin too — same as before — but rendering itself
+  // stays cheap because dg3D.renderer's own resolution is never touched.)
   const hadControls = !!dg3D.controls;
   if (hadControls) dg3D.controls.enabled = false;
   const startRotY = dg3D.group ? dg3D.group.rotation.y : 0;
 
-  const stream = canvas.captureStream(30);
+  function disposeCapRenderer() {
+    try {
+      capRenderer.dispose();
+      const gl = capRenderer.getContext();
+      const ext = gl && gl.getExtension('WEBGL_lose_context');
+      if (ext) ext.loseContext();
+    } catch (e) { /* best-effort cleanup */ }
+  }
+
+  function cleanup() {
+    if (hadControls) dg3D.controls.enabled = true;
+    disposeCapRenderer();
+  }
+
+  function finishUI() {
+    dgVideo.recording = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Record & Download'; btn.style.opacity = '1'; }
+    if (status) status.textContent = '';
+  }
+
+  const stream = recCanvas.captureStream(fps);
   let recorder;
   try {
     const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
-    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: preset.bitrate });
   } catch (e) {
-    toast('Could not start the video recorder: ' + e.message, 'error');
-    if (hadControls) dg3D.controls.enabled = true;
+    toast('Could not start the video recorder: ' + (e && e.message ? e.message : e), 'error');
+    cleanup();
     return;
   }
 
   const chunks = [];
   recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onerror = () => {
+    toast('Recording hit an error — try a lower quality.', 'error');
+    if (dgVideo.raf) cancelAnimationFrame(dgVideo.raf);
+    finishUI();
+    cleanup();
+  };
   recorder.onstop = () => {
+    cleanup();
+    finishUI();
+    // A stalled/overloaded encoder can come back with only a few bytes —
+    // that's the "downloaded file won't open" failure mode. Catch it here
+    // instead of handing the user a broken .webm.
+    const totalBytes = chunks.reduce((n, c) => n + c.size, 0);
+    if (totalBytes < 2000) {
+      toast('Recording didn\'t produce a usable video — try a lower quality or shorter duration.', 'error');
+      return;
+    }
     const blob = new Blob(chunks, { type: 'video/webm' });
     pdfedDownloadBlob(blob, dgExportFilename('webm'));
     toast('Rotating video downloaded', 'success');
-    dgVideo.recording = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Record & Download'; btn.style.opacity = '1'; }
-    if (status) status.textContent = '';
-    if (hadControls) dg3D.controls.enabled = true;
     dgCloseVideoExportModal();
   };
 
   dgVideo.recording = true;
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
   const startTime = performance.now();
-  recorder.start();
+  recorder.start(250); // periodic chunks rather than one at the very end, so an interrupted recording still yields whatever was captured
 
-  function frame() {
+  const frameInterval = 1000 / fps;
+  let lastFrameTime = 0;
+
+  function frame(now) {
+    // Pace draws to the chosen export fps rather than raw rAF cadence.
+    if (now - lastFrameTime < frameInterval - 1) {
+      dgVideo.raf = requestAnimationFrame(frame);
+      return;
+    }
+    lastFrameTime = now;
+
     const elapsed = (performance.now() - startTime) / 1000;
     const progress = Math.min(elapsed / durationSec, 1);
     if (dg3D.group) dg3D.group.rotation.y = startRotY + progress * Math.PI * 2;
     if (dgHologramOn() && dg3D.group) dg3DHologramFlicker();
-    dg3D.renderer.render(dg3D.scene, dg3D.camera);
+    capRenderer.render(dg3D.scene, dg3D.camera);
 
     ctx.fillStyle = '#0A0F1E';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(dg3D.renderer.domElement, 0, 0, canvas.width, chartH);
-    dgVideoDrawNotes(ctx, canvas, chartH);
+    ctx.fillRect(0, 0, totalW, totalH);
+    ctx.drawImage(capRenderer.domElement, 0, 0, chartW, chartH);
+    dgVideoDrawNotes(ctx, recCanvas, chartH, uiScale);
 
     if (btn) btn.textContent = 'Recording… ' + Math.ceil(durationSec - elapsed) + 's';
-    if (status) status.textContent = Math.round(progress * 100) + '%';
+    if (status) status.textContent = Math.round(progress * 100) + '% · ' + (qualityKey === '2160' ? '4K' : qualityKey + 'p') + ' · ' + fps + 'fps';
 
     if (progress < 1) {
       dgVideo.raf = requestAnimationFrame(frame);
@@ -48654,7 +50140,7 @@ function dgStartVideoRecording() {
       recorder.stop();
     }
   }
-  frame();
+  dgVideo.raf = requestAnimationFrame(frame);
 }
 
 window.dgOpenVideoExportModal = dgOpenVideoExportModal;
@@ -48676,7 +50162,7 @@ window.dgRemoveCustomSwatch = dgRemoveCustomSwatch;
 window.dgToggleSameColor = dgToggleSameColor;
 window.dgOnSameColorInput = dgOnSameColorInput;
 window.dgApplyWheelToAll = dgApplyWheelToAll;
-window.dgOnWheelLightness = dgOnWheelLightness;
+window.dgOnCustomColorInput = dgOnCustomColorInput;
 window.dgToggleColoursPanel = dgToggleColoursPanel;
 window.dgToggleInsightsPanel = dgToggleInsightsPanel;
 window.dgToggleWrittenAnalysis = dgToggleWrittenAnalysis;
@@ -48783,6 +50269,15 @@ window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
   }
 
   document.addEventListener('wheel', function (e) {
+    // An open ribbon dropdown (Chart Type, Colours, Columns, History, ...) is rendered
+    // position:fixed so it can float outside the ribbon's own horizontal strip — but in
+    // the DOM it's still nested INSIDE the ribbon bar element it launched from. Without
+    // this check, e.target.closest(RIBBON_SELECTOR) below would match that ribbon
+    // ancestor and hijack the scroll to pan the ribbon sideways, even though the person
+    // is actually trying to scroll the dropdown's own vertical list (e.g. the Chart Type
+    // grid, which is taller than its panel). Any wheel event over an open dropdown panel
+    // is the panel's own business, not the ribbon's, so bail out before taking over.
+    if (e.target.closest('.dg-dropdown-panel.open')) return;
     const ribbon = e.target.closest(RIBBON_SELECTOR);
     if (!ribbon) return;
     // Only take over when there's actually something to scroll horizontally,
