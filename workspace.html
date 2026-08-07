@@ -6330,6 +6330,7 @@ button.dg-show-chip.active { background:var(--blue); }
 .dg-mapx-body { flex:1; min-height:0; border-radius:12px; overflow:hidden; border:1px solid var(--border); position:relative; }
 #dgLeafletMap { width:100%; height:100%; background:#0A0F1E; }
 .dg-mapx-note { font-size:11px; color:var(--text2); opacity:0.8; }
+.dg-mapx-beta-badge { display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#f59e0b; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.35); border-radius:4px; padding:2px 6px; margin-left:8px; vertical-align:middle; cursor:default; }
 .dg-mapx-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; font-size:12.5px; color:var(--text2); background:rgba(10,15,30,0.85); z-index:500; }
 /* Leaflet's default popup/marker chrome, restyled to match the app's dark surfaces */
 .dg-mapx-body .leaflet-popup-content-wrapper { background:var(--bg2); color:var(--text); border-radius:10px; }
@@ -9805,6 +9806,7 @@ button.dg-show-chip.active { background:var(--blue); }
                         <h3>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                           Explore Map
+                          <span class="dg-mapx-beta-badge" title="This feature is still in active development — boundary data and country/state name matching may occasionally be incomplete or off.">BETA</span>
                         </h3>
                         <div class="dg-mapx-head-spacer"></div>
                         <button type="button" class="dg-mapx-btn active" id="dgMapxBasemapDark" onclick="dgMapExplorerSetBasemap('dark')" title="Dark basemap (CARTO, free)">Dark</button>
@@ -9822,6 +9824,8 @@ button.dg-show-chip.active { background:var(--blue); }
                         </button>
                         <select id="dgMapxCountrySelect" class="dg-upload-select" style="width:200px;font-size:11.5px;padding:5px 8px;" onchange="dgMapxOnCountryChange()" disabled></select>
                         <span id="dgMapxStatesStatus" class="dg-mapx-note" style="margin-left:2px;"></span>
+                        <div class="dg-mapx-head-spacer"></div>
+                        <button type="button" class="btn-primary dg-rbn-btn-push" id="dgMapxPushBtn" style="padding:6px 14px;font-size:11.5px;display:none;" onclick="dgMapxOpenPushChoiceModal()" title="Insert this states/provinces map into Workspace as an image">Push to Workspace</button>
                       </div>
                       <div class="dg-mapx-body">
                         <div id="dgLeafletMap"></div>
@@ -45023,7 +45027,7 @@ function dgMapExplorerSetBasemap(which) {
   if (streetsBtn) streetsBtn.classList.toggle('active', dgMapx.basemap === 'streets');
   if (!dgMapx.map || typeof L === 'undefined') return;
   if (dgMapx.basemapLayer) dgMapx.map.removeLayer(dgMapx.basemapLayer);
-  dgMapx.basemapLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, subdomains: cfg.subdomains, maxZoom: cfg.maxZoom }).addTo(dgMapx.map);
+  dgMapx.basemapLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, subdomains: cfg.subdomains, maxZoom: cfg.maxZoom, crossOrigin: 'anonymous' }).addTo(dgMapx.map);
 }
 
 // Pulls the same matched/coloured rows the choropleth legend uses (dgAssignWorldMapColors),
@@ -45139,6 +45143,7 @@ function dgMapxToggleStates() {
   const btn = document.getElementById('dgMapxStatesToggle');
   const select = document.getElementById('dgMapxCountrySelect');
   const statusEl = document.getElementById('dgMapxStatesStatus');
+  const emptyState = document.getElementById('dgMapxEmptyState');
   dgMapx.statesOn = !dgMapx.statesOn;
   if (btn) btn.classList.toggle('active', dgMapx.statesOn);
   if (select) select.disabled = !dgMapx.statesOn;
@@ -45149,11 +45154,19 @@ function dgMapxToggleStates() {
     else if (!dgMapx.map.hasLayer(dgMapx.markerLayer)) dgMapx.map.addLayer(dgMapx.markerLayer);
   }
   if (dgMapx.statesOn) {
+    // The "no country matched" message belongs to the dot-marker view — states/provinces data
+    // is expected not to match country names, so that message is stale noise here. Hide it;
+    // dgMapxRenderStatesLayer/dgMapxLoadStates own the status line for this mode instead.
+    if (emptyState) emptyState.style.display = 'none';
     dgMapxPopulateCountrySelect();
     if (select && select.value) dgMapxLoadStates(select.value);
   } else {
     if (dgMapx.statesLayer && dgMapx.map) { dgMapx.map.removeLayer(dgMapx.statesLayer); dgMapx.statesLayer = null; }
     if (statusEl) statusEl.textContent = '';
+    const pushBtn = document.getElementById('dgMapxPushBtn');
+    if (pushBtn) pushBtn.style.display = 'none';
+    // Back to dot-marker mode — let it recompute whether the empty-state message applies.
+    dgRefreshMapExplorerMarkers();
     dgMapExplorerFitAll();
   }
 }
@@ -45163,18 +45176,67 @@ function dgMapxOnCountryChange() {
   if (dgMapx.statesOn && select && select.value) dgMapxLoadStates(select.value);
 }
 
+// geoBoundaries' metadata sometimes points at a "github.com/.../raw/..." URL rather than
+// the raw.githubusercontent.com host. github.com's own /raw/ redirect endpoint answers with
+// an empty Access-Control-Allow-Origin header, which browsers treat as an invalid CORS
+// response and block outright — even though the file itself is public. Rewriting to the
+// actual raw-content host (which sends a proper "*" CORS header) fixes the fetch without
+// changing what file is loaded.
+function dgGithubRawUrl(url) {
+  if (!url) return url;
+  const m = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/raw\/(.+)$/.exec(url);
+  if (m) return 'https://raw.githubusercontent.com/' + m[1] + '/' + m[2] + '/' + m[3];
+  return url;
+}
+
+// raw.githubusercontent.com serves the correct CORS headers, but for files GitHub stores via
+// Git LFS (some of geoBoundaries' larger ADM1 files) it can hand back the LFS *pointer* stub —
+// a few lines of plain text starting with "version https://git-lfs.github.com/spec/v1" — instead
+// of the actual GeoJSON. media.githubusercontent.com is GitHub's LFS-smudge host and serves the
+// real file content for the same repo path, so on that specific failure we retry there once.
+function dgIsLfsPointerText(text) {
+  return typeof text === 'string' && text.slice(0, 40).indexOf('version https://git-lfs') === 0;
+}
+function dgGithubMediaUrl(rawUrl) {
+  const m = /^https?:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/(.+)$/.exec(rawUrl);
+  if (!m) return null;
+  return 'https://media.githubusercontent.com/media/' + m[1] + '/' + m[2] + '/' + m[3];
+}
+
+function dgFetchBoundaryJson(url) {
+  return fetch(url)
+    .then(function(r) { if (!r.ok) throw new Error('download failed (' + r.status + ')'); return r.text(); })
+    .then(function(text) {
+      if (dgIsLfsPointerText(text)) {
+        const mediaUrl = dgGithubMediaUrl(url);
+        if (!mediaUrl) throw new Error('file is stored via Git LFS and could not be resolved');
+        return fetch(mediaUrl).then(function(r) {
+          if (!r.ok) throw new Error('download failed (' + r.status + ')');
+          return r.text();
+        }).then(function(mediaText) {
+          if (dgIsLfsPointerText(mediaText)) throw new Error('file is stored via Git LFS and could not be resolved');
+          return JSON.parse(mediaText);
+        });
+      }
+      return JSON.parse(text);
+    });
+}
+
 function dgMapxLoadStates(countryName) {
   const iso3 = dgCountryIso3(countryName);
   const statusEl = document.getElementById('dgMapxStatesStatus');
+  const pushBtn = document.getElementById('dgMapxPushBtn');
+  if (pushBtn) pushBtn.style.display = 'none';
   if (!iso3) { if (statusEl) statusEl.textContent = "No boundary code for " + countryName + "."; return; }
   if (dgMapx.statesCache[iso3]) { dgMapxRenderStatesLayer(dgMapx.statesCache[iso3], countryName); return; }
   if (statusEl) statusEl.textContent = 'Loading ' + countryName + ' states/provinces…';
   fetch('https://www.geoboundaries.org/api/current/gbOpen/' + iso3 + '/ADM1/')
     .then(function(r) { if (!r.ok) throw new Error('lookup failed (' + r.status + ')'); return r.json(); })
     .then(function(meta) {
-      const url = (meta && (meta.simplifiedGeometryGeoJSON || meta.gjDownloadURL)) || null;
+      let url = (meta && (meta.simplifiedGeometryGeoJSON || meta.gjDownloadURL)) || null;
       if (!url) throw new Error('no boundary file for this country');
-      return fetch(url).then(function(r) { if (!r.ok) throw new Error('download failed (' + r.status + ')'); return r.json(); });
+      url = dgGithubRawUrl(url);
+      return dgFetchBoundaryJson(url);
     })
     .then(function(geojson) {
       dgMapx.statesCache[iso3] = geojson;
@@ -45185,25 +45247,74 @@ function dgMapxLoadStates(countryName) {
     });
 }
 
+// Boundary datasets and user spreadsheets rarely agree on the exact label for a state — official
+// GIS sources often carry formal prefixes ("NCT of Delhi") or older names (Orissa, Pondicherry,
+// Uttaranchal, Mysore) that a plain lowercase-equality match will never line up with what
+// someone actually typed. Strip common prefixes/punctuation and run through a small alias table
+// before comparing, so both sides land on the same canonical spelling.
+const DG_STATE_NAME_ALIASES = {
+  'orissa': 'odisha',
+  'pondicherry': 'puducherry',
+  'uttaranchal': 'uttarakhand',
+  'mysore': 'karnataka',
+  'madras': 'tamil nadu',
+  'travancore-cochin': 'kerala',
+  'united provinces': 'uttar pradesh',
+  'jammu and kashmir and ladakh': 'jammu and kashmir'
+};
+function dgNormalizeStateName(name) {
+  let s = String(name || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[.,]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  s = s.replace(/^(nct of|state of|union territory of|ut of)\s+/, '').trim();
+  if (DG_STATE_NAME_ALIASES[s]) s = DG_STATE_NAME_ALIASES[s];
+  return s;
+}
+// Matches a boundary feature's shapeName against the uploaded rows: exact match on the
+// normalized/aliased name first, then (since prefix-stripping alone won't catch every formatting
+// difference) a same-key containment check — e.g. a row normalized to "delhi" still matches a
+// feature normalized to "delhi ncr" or vice versa — so near-miss labels aren't silently dropped.
+function dgMatchStateRow(rowMap, normalizedKeys, shapeName) {
+  const norm = dgNormalizeStateName(shapeName);
+  if (rowMap[norm]) return rowMap[norm];
+  if (!norm) return null;
+  const normPadded = ' ' + norm + ' ';
+  for (let i = 0; i < normalizedKeys.length; i++) {
+    const key = normalizedKeys[i];
+    if (!key) continue;
+    const keyPadded = ' ' + key + ' ';
+    if (normPadded.indexOf(keyPadded) !== -1 || keyPadded.indexOf(normPadded) !== -1) return rowMap[key];
+  }
+  return null;
+}
+
 function dgMapxRenderStatesLayer(geojson, countryName) {
   if (!dgMapx.map || typeof L === 'undefined') return;
+  const emptyState = document.getElementById('dgMapxEmptyState');
+  if (emptyState) emptyState.style.display = 'none';
+  const pushBtn = document.getElementById('dgMapxPushBtn');
+  if (pushBtn) pushBtn.style.display = '';
   if (dgMapx.statesLayer) { dgMapx.map.removeLayer(dgMapx.statesLayer); dgMapx.statesLayer = null; }
   const rows = (dgState && Array.isArray(dgState.rows)) ? dgState.rows : [];
   const rowMap = {};
-  rows.forEach(function(r) { rowMap[String(r.label || '').trim().toLowerCase()] = r; });
+  rows.forEach(function(r) { rowMap[dgNormalizeStateName(r.label)] = r; });
+  const normalizedKeys = Object.keys(rowMap);
   const features = (geojson && geojson.features) || [];
   const matchedVals = [];
+  const matchedKeys = {};
   features.forEach(function(f) {
-    const name = ((f.properties && f.properties.shapeName) || '').trim().toLowerCase();
-    if (rowMap[name]) matchedVals.push(rowMap[name].value);
+    const row = dgMatchStateRow(rowMap, normalizedKeys, (f.properties && f.properties.shapeName) || '');
+    if (row) { matchedVals.push(row.value); matchedKeys[dgNormalizeStateName(row.label)] = true; }
   });
   const minV = matchedVals.length ? Math.min.apply(null, matchedVals) : 0;
   const maxV = matchedVals.length ? Math.max.apply(null, matchedVals) : 0;
   const numberFormat = (typeof dgGetOpts === 'function') ? (dgGetOpts().numberFormat || 'plain') : 'plain';
   dgMapx.statesLayer = L.geoJSON(geojson, {
     style: function(feature) {
-      const name = ((feature.properties && feature.properties.shapeName) || '').trim().toLowerCase();
-      const row = rowMap[name];
+      const row = dgMatchStateRow(rowMap, normalizedKeys, (feature.properties && feature.properties.shapeName) || '');
       if (row) {
         const t = maxV > minV ? (row.value - minV) / (maxV - minV) : 1;
         return { color: '#0A0F1E', weight: 1, fillColor: dgWorldMapColor(t), fillOpacity: 0.82 };
@@ -45212,7 +45323,7 @@ function dgMapxRenderStatesLayer(geojson, countryName) {
     },
     onEachFeature: function(feature, layer) {
       const shapeName = (feature.properties && feature.properties.shapeName) || 'Unknown';
-      const row = rowMap[shapeName.trim().toLowerCase()];
+      const row = dgMatchStateRow(rowMap, normalizedKeys, shapeName);
       const valueStr = row ? ((typeof dgFormatNumber === 'function') ? dgFormatNumber(row.value, numberFormat) : String(row.value)) : 'No matching data';
       layer.bindPopup('<div class="dg-mapx-popup-title">' + shapeName + '</div><div class="dg-mapx-popup-value">' + valueStr + '</div>');
     }
@@ -45220,7 +45331,11 @@ function dgMapxRenderStatesLayer(geojson, countryName) {
   dgMapx.map.fitBounds(dgMapx.statesLayer.getBounds(), { padding: [30, 30] });
   const statusEl = document.getElementById('dgMapxStatesStatus');
   if (statusEl) {
-    statusEl.textContent = matchedVals.length + ' of ' + features.length + ' ' + countryName + ' states matched · boundaries via geoBoundaries (CC-BY 4.0)';
+    statusEl.textContent = matchedVals.length + ' of ' + features.length + ' ' + countryName + ' states matched · boundaries via geoBoundaries (CC-BY 4.0) · name matching still improving';
+    const unmatchedLabels = rows
+      .filter(function(r) { return !matchedKeys[dgNormalizeStateName(r.label)]; })
+      .map(function(r) { return r.label; });
+    statusEl.title = unmatchedLabels.length ? ('Not matched: ' + unmatchedLabels.join(', ')) : '';
   }
 }
 
@@ -45302,68 +45417,80 @@ function dgDrawWorldMap(ctx, matchResult, area, opts) {
   const offX = mapArea.x + (mapArea.w - drawW) / 2;
   const offY = mapArea.y + (mapArea.h - drawH) / 2;
 
-  // "Ocean" backdrop: a soft rounded panel behind the landmasses so the map always
-  // reads as a distinct, deliberate chart region — even against a plain white PDF
-  // page after Push to Workspace, and even when NO row has matched a country yet
-  // (previously the unmatched fill was so close to white that a no-match map looked
-  // completely blank once pushed onto white paper). This bakes into every export
-  // path (PNG/JPEG/PDF/DOCX/Push) since it's drawn straight onto the shared canvas.
-  const panelPad = 10;
-  dgRoundRectPath(ctx, mapArea.x - panelPad, mapArea.y - panelPad, mapArea.w + panelPad * 2, mapArea.h + panelPad * 2, 12);
-  ctx.fillStyle = '#f3f6fb';
+  // "Ocean" backdrop: a genuinely flat, premium card behind the landmasses — pure
+  // solid fill, a crisp 1px hairline border, and NO shadow/elevation, so nothing
+  // on the panel reads as curved or dimensional. It still keeps the map reading
+  // as a distinct, deliberate chart region — even on a plain white PDF page after
+  // Push to Workspace, and even when NO row has matched a country yet. This bakes
+  // into every export path (PNG/JPEG/PDF/DOCX/Push) since it's drawn straight
+  // onto the shared canvas.
+  const panelPad = 12;
+  dgRoundRectPath(ctx, mapArea.x - panelPad, mapArea.y - panelPad, mapArea.w + panelPad * 2, mapArea.h + panelPad * 2, 8);
+  ctx.fillStyle = '#ffffff';
   ctx.fill();
-  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeStyle = '#dde3ea';
   ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.save();
   ctx.translate(offX, offY);
   ctx.scale(scale, scale);
-  ctx.lineWidth = 0.6 / scale;
+  // Flat cartography: fills carry all the information, so borders are kept to a
+  // thin hairline matching the panel background — countries read as clean,
+  // separate cut-out shapes (the premium "vector map" look) rather than a
+  // hand-inked atlas with heavy dark outlines.
+  ctx.lineWidth = 0.5 / scale;
   DG_WORLD_COUNTRIES.forEach(([name, d]) => {
     const row = valueByCountry.get(name);
     const p = new Path2D(d);
-    // Unmatched countries get a clearly visible slate fill/stroke (not near-white)
+    // Unmatched countries get a clearly visible, neutral slate fill (not near-white)
     // so the whole landmass is always legible on its own, independent of whether
     // any row happened to match — this is what keeps a freshly-built map from
     // looking "blank" the moment it's dropped onto a white Workspace page.
-    ctx.fillStyle = row ? row.color : '#dbe3ec';
+    ctx.fillStyle = row ? row.color : '#cbd5e1';
     ctx.fill(p);
-    ctx.strokeStyle = row ? 'rgba(15,23,42,0.4)' : '#aab4c2';
+    ctx.strokeStyle = '#ffffff';
     ctx.stroke(p);
   });
   ctx.restore();
 
   // Gradient legend bar (min → max), only drawn once there is real matched data —
   // an unresolved-data state shows guidance text instead of an empty 0→0 scale.
+  // Styled as a flat pill (rounded ends, thin border, no glow) for a clean,
+  // dashboard-grade legend rather than a raw canvas gradient strip.
   const barY = mapArea.y + mapArea.h + 14;
-  const barW = Math.min(260, area.w * 0.45), barH = 10;
+  const barW = Math.min(260, area.w * 0.45), barH = 8;
   const barX = area.x + area.w / 2 - barW / 2;
   if (matched.length) {
     const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
     grad.addColorStop(0, dgWorldMapColor(0));
     grad.addColorStop(1, dgWorldMapColor(1));
     ctx.fillStyle = grad;
-    dgRoundRectPath(ctx, barX, barY, barW, barH, 5);
+    dgRoundRectPath(ctx, barX, barY, barW, barH, barH / 2);
     ctx.fill();
-    ctx.fillStyle = "#4b5563";
+    ctx.strokeStyle = 'rgba(15,23,42,0.08)';
+    ctx.lineWidth = 1;
+    dgRoundRectPath(ctx, barX, barY, barW, barH, barH / 2);
+    ctx.stroke();
+    ctx.fillStyle = "#475569";
     ctx.font = "600 11px Inter, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText(dgFormatNumber(min, opts.numberFormat), barX - 8, barY + 9);
+    ctx.fillText(dgFormatNumber(min, opts.numberFormat), barX - 8, barY + 8);
     ctx.textAlign = "left";
-    ctx.fillText(dgFormatNumber(max, opts.numberFormat), barX + barW + 8, barY + 9);
+    ctx.fillText(dgFormatNumber(max, opts.numberFormat), barX + barW + 8, barY + 8);
     if (unmatched.length) {
       ctx.textAlign = "center";
       ctx.font = "500 10.5px Inter, sans-serif";
-      ctx.fillStyle = "#9aa4b2";
-      ctx.fillText(unmatched.length + (unmatched.length === 1 ? " row didn't match a country name" : " rows didn't match a country name"), area.x + area.w / 2, barY + 28);
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillText(unmatched.length + (unmatched.length === 1 ? " row didn't match a country name" : " rows didn't match a country name"), area.x + area.w / 2, barY + 26);
     }
   } else {
-    ctx.fillStyle = "#b8c0cc";
+    ctx.fillStyle = "#94a3b8";
     ctx.font = "600 13px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("None of these labels matched a country", area.x + area.w / 2, barY + 4);
     ctx.font = "400 11.5px Inter, sans-serif";
+    ctx.fillStyle = "#b0b9c6";
     ctx.fillText("Use country names as row labels — e.g. India, United States, Germany, Brazil", area.x + area.w / 2, barY + 22);
   }
 }
@@ -45419,23 +45546,37 @@ function dgDrawCountryZoom(ctx, target, area, opts) {
   const vbX = bbox.minX - padX, vbY = bbox.minY - padY;
   const vbW = bw + padX * 2, vbH = bh + padY * 2;
 
-  const valueH = 34;
-  const mapArea = { x: area.x, y: area.y, w: area.w, h: Math.max(60, area.h - valueH) };
+  // A small header strip for the country name keeps this reading as a proper,
+  // titled chart card rather than a bare floating shape, and a value chip
+  // (instead of plain baseline text) gives the number the same flat, pill-style
+  // treatment as the legend on the combined world map — one consistent visual
+  // language across both views.
+  const titleH = target && target.country ? 26 : 0;
+  const valueH = target && target.value != null ? 34 : 12;
+  const mapArea = { x: area.x, y: area.y + titleH, w: area.w, h: Math.max(60, area.h - valueH - titleH) };
   const scale = Math.min(mapArea.w / vbW, mapArea.h / vbH);
   const drawW = vbW * scale, drawH = vbH * scale;
   const offX = mapArea.x + (mapArea.w - drawW) / 2 - vbX * scale;
   const offY = mapArea.y + (mapArea.h - drawH) / 2 - vbY * scale;
 
-  // Same soft backdrop panel the combined world map uses, so a single-country
-  // card also stays clearly visible (not just a shape floating on bare white)
-  // once it's pushed onto a plain Workspace page.
-  const panelPad = 10;
-  dgRoundRectPath(ctx, mapArea.x - panelPad, mapArea.y - panelPad, mapArea.w + panelPad * 2, mapArea.h + panelPad * 2, 12);
-  ctx.fillStyle = '#f3f6fb';
+  // Same genuinely flat card the combined world map uses — solid white fill,
+  // crisp hairline border, no shadow/elevation — so a single-country card reads
+  // as part of the same premium, flat design system rather than a shape
+  // floating on bare white once it's pushed onto a plain Workspace page.
+  const panelPad = 12;
+  dgRoundRectPath(ctx, mapArea.x - panelPad, mapArea.y - panelPad, mapArea.w + panelPad * 2, mapArea.h + panelPad * 2, 8);
+  ctx.fillStyle = '#ffffff';
   ctx.fill();
-  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeStyle = '#dde3ea';
   ctx.lineWidth = 1;
   ctx.stroke();
+
+  if (titleH) {
+    ctx.fillStyle = '#334155';
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(target.country, area.x + area.w / 2, area.y + 15);
+  }
 
   ctx.save();
   ctx.translate(offX, offY);
@@ -45444,19 +45585,29 @@ function dgDrawCountryZoom(ctx, target, area, opts) {
   // A single country has no min/max range to shade against, so it's filled with
   // the deepest tone of the current theme colour — same scale the combined
   // world map uses, so it reads as part of the same product/theme instead of
-  // an arbitrary fixed colour.
+  // an arbitrary fixed colour. Border matches the flat white hairline used on
+  // the combined map instead of a heavy dark outline.
   ctx.fillStyle = dgWorldMapColor(1);
   ctx.fill(p);
-  ctx.lineWidth = Math.max(0.8, 1.2 / scale);
-  ctx.strokeStyle = 'rgba(15,23,42,0.45)';
+  ctx.lineWidth = Math.max(0.6, 0.5 / scale);
+  ctx.strokeStyle = '#ffffff';
   ctx.stroke(p);
   ctx.restore();
 
   if (target && target.value != null) {
-    ctx.fillStyle = '#101820';
-    ctx.font = '700 15px Inter, sans-serif';
+    const label = dgFormatNumber(target.value, opts.numberFormat);
+    const chipY = mapArea.y + mapArea.h + panelPad + 16;
+    ctx.font = '700 13px Inter, sans-serif';
+    const chipW = ctx.measureText(label).width + 24, chipH = 24;
+    const chipX = area.x + area.w / 2 - chipW / 2;
+    dgRoundRectPath(ctx, chipX, chipY - chipH / 2, chipW, chipH, chipH / 2);
+    ctx.fillStyle = dgWorldMapColor(1);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
-    ctx.fillText(dgFormatNumber(target.value, opts.numberFormat), mapArea.x + mapArea.w / 2, mapArea.y + mapArea.h + 24);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, area.x + area.w / 2, chipY + 1);
+    ctx.textBaseline = 'alphabetic';
   }
 }
 
@@ -50811,6 +50962,12 @@ async function dgExportDOCX() {
 // ── Push-to-Workspace: destination choice modal ──
 // Before pushing a chart, ask the user whether it should become a brand-new
 // page in the Workspace, or be dropped onto the page currently open there.
+// dgPendingPushImage lets this same choice modal serve a source OTHER than the flat
+// chart canvas — set it (and clear it after use) to redirect dgConfirmPushChoice
+// toward an already-captured image instead of dgGetExportCanvas(). Used by the
+// Explore Map states/provinces view, which is a real DOM/Leaflet panel with no
+// equivalent on #dgCanvas.
+let dgPendingPushImage = null; // { dataUrl, pushKind } | null
 function dgOpenPushChoiceModal() {
   const canvas = dgGetExportCanvas();
   if (!canvas) { toast((dgActiveMode === 'flow' ? 'Write or pick a diagram' : 'Build a chart') + ' first before pushing to Workspace', 'error'); return; }
@@ -50824,6 +50981,7 @@ function dgOpenPushChoiceModal() {
       toast('No row labels matched a country name yet — the map will push with outlines only. Try full country names (e.g. India, United States, Germany).', 'info');
     }
   }
+  dgPendingPushImage = null; // ensure this goes through the normal chart-canvas path
   const overlay = document.getElementById('dgPushChoiceOverlay');
   if (overlay) overlay.classList.add('open');
 }
@@ -50833,19 +50991,198 @@ function dgClosePushChoice() {
 }
 function dgConfirmPushChoice(mode) {
   dgClosePushChoice();
-  dgInsertIntoWorkspace(mode);
+  if (dgPendingPushImage) {
+    const pending = dgPendingPushImage;
+    dgPendingPushImage = null;
+    dgInsertImageIntoWorkspace(pending.dataUrl, pending.pushKind, mode);
+  } else {
+    dgInsertIntoWorkspace(mode);
+  }
+}
+
+// ── GeoJSON → canvas renderer for the states/provinces push ────────────────────
+// Plain equirectangular projection (with a cos(latitude) correction so shapes near
+// the poles/equator aren't badly stretched) fit to the country's own bounding box.
+// Walks every coordinate in every feature to find the bbox — depth is 2 for a
+// Polygon's [ring][point] nesting, 3 for a MultiPolygon's [poly][ring][point].
+function dgComputeGeoBBox(geojson) {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  function visit(coords, depth) {
+    if (depth === 0) {
+      const lng = coords[0], lat = coords[1];
+      if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+    } else {
+      coords.forEach(c => visit(c, depth - 1));
+    }
+  }
+  (geojson.features || []).forEach(f => {
+    const g = f.geometry; if (!g) return;
+    if (g.type === 'Polygon') visit(g.coordinates, 2);
+    else if (g.type === 'MultiPolygon') visit(g.coordinates, 3);
+  });
+  if (!isFinite(minLng)) return null;
+  return { minLng, minLat, maxLng, maxLat };
+}
+// Returns a project(lng,lat) -> [x,y] function that fits `bbox` into the canvas
+// rect (boxX,boxY,boxW,boxH) with a small internal margin, cosLat-corrected so
+// e.g. Russia or Canada don't come out squashed.
+function dgBuildLngLatProjection(bbox, boxX, boxY, boxW, boxH) {
+  const pad = Math.min(boxW, boxH) * 0.06;
+  const midLatRad = ((bbox.minLat + bbox.maxLat) / 2) * Math.PI / 180;
+  const cosLat = Math.max(0.15, Math.cos(midLatRad));
+  const geoW = (bbox.maxLng - bbox.minLng) * cosLat || 1;
+  const geoH = (bbox.maxLat - bbox.minLat) || 1;
+  const availW = boxW - pad * 2, availH = boxH - pad * 2;
+  const scale = Math.min(availW / geoW, availH / geoH);
+  const drawW = geoW * scale, drawH = geoH * scale;
+  const offX = boxX + pad + (availW - drawW) / 2;
+  const offY = boxY + pad + (availH - drawH) / 2;
+  return function project(lng, lat) {
+    return [offX + (lng - bbox.minLng) * cosLat * scale, offY + (bbox.maxLat - lat) * scale];
+  };
+}
+function dgFeatureToPath2D(feature, project) {
+  const g = feature.geometry; if (!g) return null;
+  const path = new Path2D();
+  function addRing(ring) {
+    ring.forEach((pt, i) => {
+      const [x, y] = project(pt[0], pt[1]);
+      if (i === 0) path.moveTo(x, y); else path.lineTo(x, y);
+    });
+    path.closePath();
+  }
+  if (g.type === 'Polygon') g.coordinates.forEach(addRing);
+  else if (g.type === 'MultiPolygon') g.coordinates.forEach(poly => poly.forEach(addRing));
+  return path;
+}
+
+// Renders the ADM1 GeoJSON straight onto an offscreen canvas — no DOM screenshot,
+// no map tiles, nothing cross-origin — using the same flat card + hairline-border
+// + pill-legend language as the world map and per-country zoom cards, so all three
+// map views share one visual language and one export path.
+function dgRenderStatesToCanvas(geojson, countryName) {
+  const bbox = dgComputeGeoBBox(geojson);
+  if (!bbox) return null;
+  const rows = (dgState && Array.isArray(dgState.rows)) ? dgState.rows : [];
+  const rowMap = {};
+  rows.forEach(r => { rowMap[dgNormalizeStateName(r.label)] = r; });
+  const normalizedKeys = Object.keys(rowMap);
+  const features = (geojson && geojson.features) || [];
+  const matchedVals = [];
+  features.forEach(f => {
+    const row = dgMatchStateRow(rowMap, normalizedKeys, (f.properties && f.properties.shapeName) || '');
+    if (row) matchedVals.push(row.value);
+  });
+  const minV = matchedVals.length ? Math.min.apply(null, matchedVals) : 0;
+  const maxV = matchedVals.length ? Math.max.apply(null, matchedVals) : 0;
+  const numberFormat = (typeof dgGetOpts === 'function') ? (dgGetOpts().numberFormat || 'plain') : 'plain';
+
+  const CW = 1100, CH = 760;
+  const canvas = document.createElement('canvas');
+  canvas.width = CW; canvas.height = CH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, CW, CH);
+
+  ctx.fillStyle = '#334155';
+  ctx.font = '700 20px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(countryName, CW / 2, 34);
+
+  const legendH = 50, panelPad = 14;
+  const panelX = panelPad, panelY = 54, panelW = CW - panelPad * 2, panelH = CH - 54 - legendH - panelPad;
+  // Genuinely flat panel — solid white, crisp hairline border, no shadow — matching
+  // the world map and per-country zoom card so all three map views share one
+  // premium, dimensionless visual language.
+  dgRoundRectPath(ctx, panelX, panelY, panelW, panelH, 8);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#dde3ea';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const project = dgBuildLngLatProjection(bbox, panelX + 10, panelY + 10, panelW - 20, panelH - 20);
+  ctx.lineWidth = 0.6;
+  features.forEach(f => {
+    const path = dgFeatureToPath2D(f, project);
+    if (!path) return;
+    const row = dgMatchStateRow(rowMap, normalizedKeys, (f.properties && f.properties.shapeName) || '');
+    if (row) {
+      const t = maxV > minV ? (row.value - minV) / (maxV - minV) : 1;
+      ctx.fillStyle = dgWorldMapColor(t);
+    } else {
+      ctx.fillStyle = '#cbd5e1';
+    }
+    ctx.fill(path);
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke(path);
+  });
+
+  const barY = panelY + panelH + 22, barW = Math.min(280, CW * 0.4), barH = 8;
+  const barX = CW / 2 - barW / 2;
+  if (matchedVals.length) {
+    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    grad.addColorStop(0, dgWorldMapColor(0));
+    grad.addColorStop(1, dgWorldMapColor(1));
+    ctx.fillStyle = grad;
+    dgRoundRectPath(ctx, barX, barY, barW, barH, barH / 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,23,42,0.08)';
+    ctx.lineWidth = 1;
+    dgRoundRectPath(ctx, barX, barY, barW, barH, barH / 2);
+    ctx.stroke();
+    ctx.fillStyle = '#475569';
+    ctx.font = '600 12px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(dgFormatNumber(minV, numberFormat), barX - 8, barY + 8);
+    ctx.textAlign = 'left';
+    ctx.fillText(dgFormatNumber(maxV, numberFormat), barX + barW + 8, barY + 8);
+  } else {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No state/province rows matched this country yet', CW / 2, barY + 12);
+  }
+  return canvas;
+}
+
+// ── Push the Explore Map states/provinces view to Workspace ────────────────────
+// Previously this rasterized the live Leaflet panel with html2canvas, but the
+// cross-origin basemap tiles (CARTO/OSM) reliably taint that canvas even with
+// useCORS set — the same class of silent SecurityError already hit once on the
+// Refine Report "Adjust to A4" canvas reads. Rendering straight from the cached
+// GeoJSON (dgRenderStatesToCanvas above) sidesteps tile images entirely, so
+// there's nothing left to taint the canvas.
+async function dgMapxOpenPushChoiceModal() {
+  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+  if (!dgMapx.map || !dgMapx.statesOn || !dgMapx.statesLayer) { toast('Turn on States/Provinces and pick a country first', 'error'); return; }
+  const select = document.getElementById('dgMapxCountrySelect');
+  const countryName = select ? select.value : null;
+  const iso3 = countryName ? dgCountryIso3(countryName) : null;
+  const geojson = iso3 ? dgMapx.statesCache[iso3] : null;
+  if (!geojson) { toast('Boundary data for this country is not loaded yet', 'error'); return; }
+  const btn = document.getElementById('dgMapxPushBtn');
+  const originalLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Rendering…'; }
+  try {
+    const canvas = dgRenderStatesToCanvas(geojson, countryName);
+    if (!canvas) { toast('Could not render this map', 'error'); return; }
+    const dataUrl = canvas.toDataURL('image/png');
+    dgPendingPushImage = { dataUrl, pushKind: 'map' };
+    const overlay = document.getElementById('dgPushChoiceOverlay');
+    if (overlay) overlay.classList.add('open');
+  } catch (e) {
+    console.error(e);
+    toast('Could not prepare the map: ' + (e && e.message ? e.message : 'unknown error'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+  }
 }
 
 async function dgInsertIntoWorkspace(mode) {
   const canvas = dgGetExportCanvas();
   if (!canvas) return;
-  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
-
-  // Tags what's being pushed so Refine Report can later single maps out for
-  // the passport-photo grid layout instead of treating them like a logo or
-  // an ordinary dropped-in picture.
-  const pushKind = dgActiveMode === 'map' ? 'map' : (dgActiveMode === 'flow' ? 'diagram' : 'chart');
-
   let dataUrl;
   try {
     dataUrl = canvas.toDataURL('image/png');
@@ -50854,6 +51191,21 @@ async function dgInsertIntoWorkspace(mode) {
     toast('Could not prepare this for Workspace: ' + e.message, 'error');
     return;
   }
+  // Tags what's being pushed so Refine Report can later single maps out for
+  // the passport-photo grid layout instead of treating them like a logo or
+  // an ordinary dropped-in picture.
+  const pushKind = dgActiveMode === 'map' ? 'map' : (dgActiveMode === 'flow' ? 'diagram' : 'chart');
+  await dgInsertImageIntoWorkspace(dataUrl, pushKind, mode);
+}
+
+// Shared by every "Push to Workspace" entry point — the flat chart/world-map canvas
+// (dgInsertIntoWorkspace above) and the Explore Map states/provinces view
+// (dgMapxInsertIntoWorkspace below), which captures a real DOM/Leaflet panel via
+// html2canvas rather than reading dgCanvas. Both just need to hand this a finished
+// PNG data URL; everything past that — new page vs. live page vs. no-workspace-yet — is
+// identical regardless of what produced the image.
+async function dgInsertImageIntoWorkspace(dataUrl, pushKind, mode) {
+  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
   const noWorkspaceYet = !pdfed.pages || pdfed.pages.length === 0;
 
   try {
@@ -52723,6 +53075,151 @@ if (document.readyState === 'loading') {
 } else {
   wsCheckIncomingImport();
 }
+</script>
+
+<!-- ─── Eye-rest reminder: friendly premium reminder box, top-right, every 30 min ─── -->
+<style>
+#eyeRestReminder {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 300px;
+  max-width: 360px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, var(--bg3), var(--bg2));
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: var(--glow-blue), 0 12px 32px rgba(0,0,0,0.45);
+  opacity: 0;
+  transform: translateY(-14px) scale(0.97);
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+#eyeRestReminder.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+#eyeRestReminder .eyeRest-icon {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,194,255,0.10);
+  color: var(--blue);
+  position: relative;
+  overflow: visible;
+}
+#eyeRestReminder .eyeRest-icon svg { position: relative; z-index: 1; }
+#eyeRestReminder .eyeRest-icon .eyeRest-sparkle {
+  position: absolute;
+  animation: eyeRestTwinkle 1.8s ease-in-out infinite;
+}
+#eyeRestReminder .eyeRest-icon .eyeRest-sparkle.s1 { top: -3px; right: -3px; animation-delay: 0s; }
+#eyeRestReminder .eyeRest-icon .eyeRest-sparkle.s2 { bottom: -2px; left: -4px; animation-delay: 0.6s; }
+@keyframes eyeRestTwinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.7); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@keyframes eyeRestBlink {
+  0%, 88%, 100% { transform: scaleY(1); }
+  92% { transform: scaleY(0.1); }
+}
+#eyeRestReminder .eyeRest-pupil { transform-origin: center; animation: eyeRestBlink 4s ease-in-out infinite; }
+#eyeRestReminder .eyeRest-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#eyeRestReminder .eyeRest-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  margin-bottom: 3px;
+}
+#eyeRestReminder .eyeRest-msg {
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text2);
+}
+#eyeRestReminder .eyeRest-close {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text2);
+  cursor: pointer;
+  pointer-events: auto;
+  background: transparent;
+  border: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+#eyeRestReminder .eyeRest-close:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text);
+}
+</style>
+<div id="eyeRestReminder" role="status" aria-live="polite">
+  <span class="eyeRest-icon">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <defs>
+        <linearGradient id="eyeRestGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#00E5FF"/>
+          <stop offset="100%" stop-color="#0073E6"/>
+        </linearGradient>
+      </defs>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" stroke="url(#eyeRestGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <g class="eyeRest-pupil">
+        <circle cx="12" cy="12" r="3.4" fill="url(#eyeRestGrad)"/>
+        <circle cx="10.9" cy="10.9" r="0.9" fill="#fff" opacity="0.85"/>
+      </g>
+    </svg>
+    <svg class="eyeRest-sparkle s1" width="9" height="9" viewBox="0 0 24 24" fill="#00E5FF"><path d="M12 0 L14 10 L24 12 L14 14 L12 24 L10 14 L0 12 L10 10 Z"/></svg>
+    <svg class="eyeRest-sparkle s2" width="6" height="6" viewBox="0 0 24 24" fill="#00C2FF"><path d="M12 0 L14 10 L24 12 L14 14 L12 24 L10 14 L0 12 L10 10 Z"/></svg>
+  </span>
+  <span class="eyeRest-body">
+    <span class="eyeRest-title">Time for a quick eye break</span>
+    <span class="eyeRest-msg">You've been working for 30 minutes — look at something 20 feet away for 20 seconds to rest your eyes.</span>
+  </span>
+  <button class="eyeRest-close" aria-label="Dismiss" onclick="eyeRestHide()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+</div>
+<script>
+(function () {
+  var EYE_REST_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+  var EYE_REST_VISIBLE_MS = 5 * 1000;         // visible for 5 seconds
+  var hideTimer = null;
+
+  window.eyeRestHide = function () {
+    var el = document.getElementById('eyeRestReminder');
+    if (!el) return;
+    el.classList.remove('show');
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  };
+
+  function eyeRestShow() {
+    var el = document.getElementById('eyeRestReminder');
+    if (!el) return;
+    el.classList.add('show');
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(eyeRestHide, EYE_REST_VISIBLE_MS);
+  }
+
+  setInterval(eyeRestShow, EYE_REST_INTERVAL_MS);
+})();
 </script>
 </body>
 </html>
