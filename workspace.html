@@ -6330,27 +6330,6 @@ button.dg-show-chip.active { background:var(--blue); }
 .dg-mapx-body { flex:1; min-height:0; border-radius:12px; overflow:hidden; border:1px solid var(--border); position:relative; }
 #dgLeafletMap { width:100%; height:100%; background:#0A0F1E; }
 .dg-mapx-note { font-size:11px; color:var(--text2); opacity:0.8; }
-
-/* ── State/Province auto-detect banner: sits above the live canvas in Map mode
-   whenever the uploaded data's row labels don't match any country name (a strong
-   signal the labels are actually states/provinces). Lets the person pick which
-   country those regions belong to, then the canvas itself switches to a
-   state-level choropleth for that one country — no separate modal needed. ── */
-.dg-statedetect-banner {
-  display: none;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 14px;
-  margin: 0 0 10px 0;
-  border-radius: 10px;
-  border: 1px solid var(--border2);
-  background: var(--pdfed-accent-bg, var(--surface2));
-}
-.dg-statedetect-msg { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color: var(--text); flex: 1 1 240px; min-width: 200px; }
-.dg-statedetect-msg svg { flex-shrink:0; color: var(--pdfed-accent, var(--blue)); }
-.dg-statedetect-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.dg-statedetect-controls .btn-primary { padding: 6px 14px; font-size: 12px; }
 .dg-mapx-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; font-size:12.5px; color:var(--text2); background:rgba(10,15,30,0.85); z-index:500; }
 /* Leaflet's default popup/marker chrome, restyled to match the app's dark surfaces */
 .dg-mapx-body .leaflet-popup-content-wrapper { background:var(--bg2); color:var(--text); border-radius:10px; }
@@ -9753,22 +9732,6 @@ button.dg-show-chip.active { background:var(--blue); }
                   </button>
                 </div>
               </div>
-              <!-- State/Province auto-detect banner (Map mode only): shown when the current
-                   data's row labels match zero countries, which usually means the upload is
-                   state/province-level data. Selecting a country here fetches that country's
-                   ADM1 boundaries and switches the live canvas straight to a state choropleth. -->
-              <div id="dgStateDetectBanner" class="dg-statedetect-banner">
-                <div class="dg-statedetect-msg">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
-                  <span id="dgStateDetectMsg">These labels don't match any country — is this state/province data? Pick the country it belongs to:</span>
-                </div>
-                <div class="dg-statedetect-controls">
-                  <select id="dgStateDetectSelect" class="dg-upload-select" style="width:200px;font-size:11.5px;padding:5px 8px;"></select>
-                  <button type="button" class="btn-primary" id="dgStateDetectApplyBtn" onclick="dgStateDetectApply()">Show state map</button>
-                  <button type="button" class="dg-mapx-btn" id="dgStateDetectBackBtn" onclick="dgStateDetectReset()" style="display:none;">← Back to world map</button>
-                  <span id="dgStateDetectStatus" class="dg-mapx-note"></span>
-                </div>
-              </div>
               <div class="dg-canvas-holder" id="dgCanvasHolder">
                 <div class="dg-canvas-zoom-wrap" id="dgCanvasZoomWrap">
                   <canvas id="dgCanvas" width="1200" height="675"></canvas>
@@ -9780,32 +9743,6 @@ button.dg-show-chip.active { background:var(--blue); }
                   <div id="dg3DTooltip" class="dg-3d-tooltip" style="display:none"></div>
                   <div id="dgTextOverlay" class="dg-text-overlay"></div>
 
-                  <div id="dgSnapGuides" class="dg-snap-guides"></div>
-                  <div id="dgPtxtToolbar" class="pdfed-ptxt-toolbar" style="display:none; position:absolute; z-index:20;">
-                    <button type="button" id="dgPtxtFontBtn" class="pdfed-ptxt-tb-select" title="Font family" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); sarvarcOpenFontPicker(this, dgPtxtToolbarItem ? (dgPtxtToolbarItem.fontFamily || 'Inter') : 'Inter', dgPtxtSetFont)" style="cursor:pointer;text-align:left;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Inter</button>
-                    <div class="pdfed-ptxt-tb-sep"></div>
-                    <button type="button" id="dgPtxtBoldBtn" class="pdfed-ptxt-tb-btn" title="Bold" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('bold')"><b>B</b></button>
-                    <button type="button" id="dgPtxtItalicBtn" class="pdfed-ptxt-tb-btn" title="Italic" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('italic')"><i>I</i></button>
-                    <button type="button" id="dgPtxtUnderlineBtn" class="pdfed-ptxt-tb-btn" title="Underline" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('underline')"><u>U</u></button>
-                    <div class="pdfed-ptxt-tb-sep"></div>
-                    <button type="button" id="dgPtxtAlignLeftBtn" class="pdfed-ptxt-tb-btn" title="Align left" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtSetAlign('left')">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
-                    </button>
-                    <button type="button" id="dgPtxtAlignCenterBtn" class="pdfed-ptxt-tb-btn" title="Align center" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtSetAlign('center')">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4.5" y1="18" x2="19.5" y2="18"/></svg>
-                    </button>
-                    <button type="button" id="dgPtxtAlignRightBtn" class="pdfed-ptxt-tb-btn" title="Align right" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtSetAlign('right')">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>
-                    </button>
-                  </div>
-                </div>
-
-                  <!-- Moved out of .dg-canvas-zoom-wrap: that element gets a CSS transform
-                       (chart zoom), and any transformed ancestor becomes the containing block
-                       for position:fixed descendants — which broke these full-screen modals
-                       (they rendered clipped inside the tiny chart preview instead of over the
-                       whole page). Kept as siblings inside .dg-canvas-holder instead, which has
-                       no transform, so position:fixed works normally again. -->
                   <!-- Rotating Video export modal -->
                   <div id="dgVideoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
                     <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:22px;max-width:460px;width:92%;display:flex;flex-direction:column;gap:14px;">
@@ -9893,6 +9830,25 @@ button.dg-show-chip.active { background:var(--blue); }
                       <div class="dg-mapx-note" id="dgMapxFooterNote">Live OpenStreetMap tiles (© OpenStreetMap contributors) — scroll or pinch to zoom, drag to pan, click a marker for its value. Needs an internet connection; the chart itself still works fully offline.</div>
                     </div>
                   </div>
+                  <div id="dgSnapGuides" class="dg-snap-guides"></div>
+                  <div id="dgPtxtToolbar" class="pdfed-ptxt-toolbar" style="display:none; position:absolute; z-index:20;">
+                    <button type="button" id="dgPtxtFontBtn" class="pdfed-ptxt-tb-select" title="Font family" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); sarvarcOpenFontPicker(this, dgPtxtToolbarItem ? (dgPtxtToolbarItem.fontFamily || 'Inter') : 'Inter', dgPtxtSetFont)" style="cursor:pointer;text-align:left;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Inter</button>
+                    <div class="pdfed-ptxt-tb-sep"></div>
+                    <button type="button" id="dgPtxtBoldBtn" class="pdfed-ptxt-tb-btn" title="Bold" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('bold')"><b>B</b></button>
+                    <button type="button" id="dgPtxtItalicBtn" class="pdfed-ptxt-tb-btn" title="Italic" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('italic')"><i>I</i></button>
+                    <button type="button" id="dgPtxtUnderlineBtn" class="pdfed-ptxt-tb-btn" title="Underline" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtToggleStyle('underline')"><u>U</u></button>
+                    <div class="pdfed-ptxt-tb-sep"></div>
+                    <button type="button" id="dgPtxtAlignLeftBtn" class="pdfed-ptxt-tb-btn" title="Align left" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtSetAlign('left')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
+                    </button>
+                    <button type="button" id="dgPtxtAlignCenterBtn" class="pdfed-ptxt-tb-btn" title="Align center" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtSetAlign('center')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4.5" y1="18" x2="19.5" y2="18"/></svg>
+                    </button>
+                    <button type="button" id="dgPtxtAlignRightBtn" class="pdfed-ptxt-tb-btn" title="Align right" onmousedown="event.preventDefault();event.stopPropagation()" onclick="dgPtxtSetAlign('right')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="dg-analysis-panel" id="dgAnalysisPanel">
                 <div class="dg-analysis-panel-head">
@@ -30017,7 +29973,7 @@ async function pdfedOpenImageAsPage(dataUrl, file) {
   toast('Image opened at its original size', 'success');
 }
 
-function pdfedActivateImgGhost(dataUrl) {
+function pdfedActivateImgGhost(dataUrl, kind) {
   const pc = document.getElementById('pdfedPageCanvas');
   const ghost = document.getElementById('pdfedImgGhost');
   const ghostImg = document.getElementById('pdfedImgGhostImg');
@@ -30069,7 +30025,11 @@ function pdfedActivateImgGhost(dataUrl) {
   };
 
   pdfedAnnotState.imgInsertActive = true;
-  pdfedAnnotState.imgInsert = { dataUrl, x: startX, y: startY, w: defaultW, h: defaultH };
+  // `kind` (e.g. 'map', 'chart', 'logo') rides along on the in-progress ghost
+  // so pdfedBakeImage can stamp it onto the placedImage record once dropped —
+  // that's what lets Refine Report tell a pushed map apart from a logo or an
+  // ordinary photo later on.
+  pdfedAnnotState.imgInsert = { dataUrl, x: startX, y: startY, w: defaultW, h: defaultH, kind };
 
   const probe = new Image();
   probe.onload = () => {
@@ -30167,7 +30127,8 @@ async function pdfedBakeImage() {
     dataUrl: ghostImg.src,
     x, y, w, h,
     locked: false,
-    zIndex: pdfedNextZ(pg)
+    zIndex: pdfedNextZ(pg),
+    kind: it.kind || 'image'
   });
   pdfedMarkModified(idx);
   pdfedRenderPlacedImages(idx);
@@ -36348,6 +36309,7 @@ function pdfedInsertLogoIntoPages(dataUrl) {
           id: 'logo_' + idx + '_' + Date.now().toString(36),
           dataUrl, x: pageW - margin - targetW, y: Math.round(margin * 0.6),
           w: targetW, h: targetH, zIndex: 999, locked: false,
+          kind: 'logo',
         });
         inserted++;
       });
@@ -37447,10 +37409,124 @@ async function pdfedMakeRefineOverflowPage(sourcePg) {
   return pg;
 }
 
+// ── Map Grid Layout (Refine Report) ───────────────────────────────────────
+// A map pushed in from Diagrams & Graphs (tagged kind:'map' — see
+// dgInsertIntoWorkspace/pdfedBakeImage) is content, not decoration, so it
+// gets a different treatment than a logo or a random dropped-in photo:
+// every map on the document is pulled out of wherever it landed and
+// re-laid out as a uniform grid of passport-photo-sized thumbnails, up to
+// PDFED_MAP_GRID_PER_PAGE (6) to a page. More than that spills onto
+// additional dedicated map pages, appended at the end of the document —
+// the same "make another page rather than crush everything onto one"
+// principle Refine Report already uses for overflowing tables/text.
+const PDFED_MAP_GRID_COLS = 3;
+const PDFED_MAP_GRID_ROWS = 2;
+const PDFED_MAP_GRID_PER_PAGE = PDFED_MAP_GRID_COLS * PDFED_MAP_GRID_ROWS; // 6
+const PDFED_MAP_PASSPORT_MM = [35, 45]; // standard portrait ID/passport-photo size
+
+// Loads a data: URL just far enough to read its true pixel dimensions —
+// used so each map is aspect-fit against its own real bitmap, not against
+// whatever w/h it happened to be dragged to when it was first placed
+// (which may have been stretched off its native ratio).
+function pdfedProbeImageSize(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+    img.onerror = () => resolve({ w: 1, h: 1 });
+    img.src = dataUrl;
+  });
+}
+
+// Pulls every map-tagged image off of every page (fully relocating it, not
+// duplicating it), then rebuilds it as one or more dedicated grid pages.
+// Returns a summary used by the Refine Report toast.
+async function pdfedApplyMapGridLayout(pages) {
+  const maps = [];
+  pages.forEach(pg => {
+    if (!pg.placedImages || !pg.placedImages.length) return;
+    const keep = [];
+    pg.placedImages.forEach(img => {
+      if (img.kind === 'map' && !img._sectionIcon && !img._sectionDivider && !img._sectionBar) {
+        maps.push(img);
+      } else {
+        keep.push(img);
+      }
+    });
+    pg.placedImages = keep;
+  });
+  if (!maps.length) return { mapsLaidOut: 0, mapPagesAdded: 0 };
+
+  // Match the size/density/background of the last real page in the report
+  // so the map pages read as part of the same document, not a bare insert.
+  const templatePg = pages[pages.length - 1];
+
+  const naturalSizes = await Promise.all(maps.map(m => pdfedProbeImageSize(m.dataUrl)));
+
+  const chunks = [];
+  for (let i = 0; i < maps.length; i += PDFED_MAP_GRID_PER_PAGE) {
+    chunks.push(maps.slice(i, i + PDFED_MAP_GRID_PER_PAGE).map((m, j) => ({ img: m, natural: naturalSizes[i + j] })));
+  }
+
+  let mapPagesAdded = 0;
+  for (const chunk of chunks) {
+    const mapPg = await pdfedMakeRefineOverflowPage(templatePg);
+    mapPg.label = 'Maps';
+    // pdfedMakeRefineOverflowPage already carries the header logo (if any)
+    // forward onto this page, same as any other overflow page.
+
+    const pxPerMm = mapPg._pxPerMm || pdfedPageDensity(mapPg);
+    const pageW = mapPg.width, pageH = mapPg.height;
+    const boxW = Math.max(20, Math.round(PDFED_MAP_PASSPORT_MM[0] * pxPerMm));
+    const boxH = Math.max(20, Math.round(PDFED_MAP_PASSPORT_MM[1] * pxPerMm));
+    const gap = Math.round(10 * pxPerMm);
+    const cols = PDFED_MAP_GRID_COLS, rows = PDFED_MAP_GRID_ROWS;
+    const gridW = cols * boxW + (cols - 1) * gap;
+    const gridH = rows * boxH + (rows - 1) * gap;
+    const startX = Math.max(0, Math.round((pageW - gridW) / 2));
+    const startY = Math.max(0, Math.round((pageH - gridH) / 2));
+
+    mapPg.placedImages = mapPg.placedImages || [];
+    chunk.forEach((entry, idx) => {
+      const col = idx % cols, row = Math.floor(idx / cols);
+      const cellX = startX + col * (boxW + gap);
+      const cellY = startY + row * (boxH + gap);
+      // Aspect-fit (contain) the map's own bitmap inside the passport-size
+      // box — resized, never stretched or cropped — then center it in the box.
+      const ratio = entry.natural.w / entry.natural.h || 1;
+      const boxRatio = boxW / boxH;
+      let fitW = boxW, fitH = boxH;
+      if (ratio > boxRatio) { fitW = boxW; fitH = Math.round(boxW / ratio); }
+      else { fitH = boxH; fitW = Math.round(boxH * ratio); }
+      const x = cellX + Math.round((boxW - fitW) / 2);
+      const y = cellY + Math.round((boxH - fitH) / 2);
+      mapPg.placedImages.push(Object.assign({}, entry.img, {
+        id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
+        x, y, w: fitW, h: fitH,
+        zIndex: pdfedNextZ(mapPg),
+        _refineBaseline: null, // fresh element on a fresh page, nothing to restore from
+      }));
+    });
+
+    pages.push(mapPg);
+    mapPagesAdded++;
+  }
+
+  return { mapsLaidOut: maps.length, mapPagesAdded };
+}
+
 async function pdfedApplyReportRefinement(opts) {
   const theme = pdfedResolveRefineTheme(opts);
   const pages = pdfed.pages || [];
   let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0, overflowPagesAdded = 0;
+
+  // Maps get pulled out and re-laid out into their own grid page(s) FIRST,
+  // before any other pass ever sees them — so the baseline-snapshot pass
+  // just below, the auto-align pass, and the overflow-flow pass all treat
+  // a map the same as "not here" rather than as a logo/photo to preserve
+  // in place.
+  const mapGridResult = await pdfedApplyMapGridLayout(pages);
+  const mapsLaidOut = mapGridResult.mapsLaidOut;
+  const mapPagesAdded = mapGridResult.mapPagesAdded;
 
   // Pass 0: snapshot-and-restore each table/text/image's true original
   // sizing before anything below touches it. Every pass after this one
@@ -37719,7 +37795,7 @@ async function pdfedApplyReportRefinement(opts) {
     if (pageTouched) pdfedMarkModified(idx);
   });
 
-  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, pages: pages.length };
+  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, mapsLaidOut, mapPagesAdded, pages: pages.length };
 }
 
 async function pdfedRunRefineReportFromModal() {
@@ -37806,6 +37882,7 @@ async function pdfedRunRefineReportFromModal() {
   }
   if (summary.sectionIconsApplied) parts.push(`${summary.sectionIconsApplied} section icon${summary.sectionIconsApplied !== 1 ? 's' : ''} added`);
   if (summary.overflowPagesAdded) parts.push(`${summary.overflowPagesAdded} extra page${summary.overflowPagesAdded !== 1 ? 's' : ''} added for overflow content`);
+  if (summary.mapsLaidOut) parts.push(`${summary.mapsLaidOut} map${summary.mapsLaidOut !== 1 ? 's' : ''} arranged on ${summary.mapPagesAdded} page${summary.mapPagesAdded !== 1 ? 's' : ''}`);
   if (logoInserted) parts.push(`logo placed on ${logoInserted} page${logoInserted !== 1 ? 's' : ''}`);
   if (opts.useLogoColors && opts.logoAccent) parts.push('logo colors applied');
   toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
@@ -44832,287 +44909,86 @@ function dgAssignWorldMapColors(rows) {
   return { rows: matched.concat(unmatched), matched, unmatched, min, max };
 }
 
-// ── State/Province auto-detect (main canvas) ───────────────────────────────────────────────
-// If someone uploads state/province-level data (e.g. Uttar Pradesh, Texas, Ontario) into the
-// World Map builder, none of those labels resolve against DG_WORLD_COUNTRIES, so the choropleth
-// would just render as one flat "no matches" shape. Rather than leaving that as a dead end, the
-// live canvas offers a banner: pick which country those regions belong to, and the same
-// geoBoundaries ADM1 lookup the Explore Map modal uses fetches that country's state/province
-// boundaries and the MAIN canvas itself (not just the Leaflet modal) switches to a state-level
-// choropleth, matched against the uploaded rows by name — same offline-first, on-demand-fetch
-// design as the Explore Map States layer, just surfaced directly where the data was dropped in.
-const dgStateDetect = { active: false, country: null, geojson: null, cache: {}, selectPopulated: false, loading: false };
-
-// A "looks like state data" signal is deliberately simple and conservative: at least a couple
-// of rows, and NONE of them matched a country. Any match at all (even 1 of 20) means this is
-// genuinely country-level data with some typos/unsupported names, not a state-level upload —
-// so the banner stays out of the way rather than second-guessing a mostly-working map.
-function dgLooksLikeStateData(matchResult, rawRows) {
-  if (!rawRows || rawRows.length < 2 || !matchResult) return false;
-  return matchResult.matched.length === 0;
-}
-
-function dgStateDetectPopulateSelect() {
-  const select = document.getElementById('dgStateDetectSelect');
-  if (!select) return;
-  if (!dgStateDetect.selectPopulated) {
-    select.innerHTML = DG_COUNTRY_ISO3.map(function(e) {
-      return '<option value="' + e[0].replace(/"/g, '&quot;') + '">' + e[0] + '</option>';
-    }).join('');
-    dgStateDetect.selectPopulated = true;
-  }
-  if (dgStateDetect.country) select.value = dgStateDetect.country;
-}
-
-// Called every non-export redraw while Map mode's chart type is 'worldmap' — shows/hides the
-// banner and keeps its copy in sync with whether a state map is currently active, without ever
-// touching dgState itself (purely a UI + fetch-cache concern layered on top of the chart data).
-function dgStateDetectSync(matchResult, rawRows) {
-  const banner = document.getElementById('dgStateDetectBanner');
-  if (!banner) return;
-  const msg = document.getElementById('dgStateDetectMsg');
-  const backBtn = document.getElementById('dgStateDetectBackBtn');
-  const applyBtn = document.getElementById('dgStateDetectApplyBtn');
-  const select = document.getElementById('dgStateDetectSelect');
-
-  if (dgStateDetect.active && dgStateDetect.geojson) {
-    banner.style.display = 'flex';
-    dgStateDetectPopulateSelect();
-    if (msg) msg.textContent = 'Showing the ' + dgStateDetect.country + ' state/province map for this data.';
-    if (backBtn) backBtn.style.display = '';
-    if (applyBtn) applyBtn.textContent = 'Switch country';
-    if (select) select.disabled = false;
-    return;
-  }
-
-  const looksLikeStates = dgLooksLikeStateData(matchResult, rawRows);
-  banner.style.display = looksLikeStates ? 'flex' : 'none';
-  if (!looksLikeStates) return;
-  dgStateDetectPopulateSelect();
-  if (msg) msg.textContent = "These labels don't match any country — is this state/province data? Pick the country it belongs to:";
-  if (backBtn) backBtn.style.display = 'none';
-  if (applyBtn) applyBtn.textContent = 'Show state map';
-  if (select) select.disabled = false;
-}
-
-// Fetches (or reuses the cached) ADM1 boundaries for the chosen country, same free
-// geoBoundaries API + response shape the Explore Map States layer already relies on, then
-// switches the main canvas over to the state choropleth once the boundaries are in hand.
-// geoBoundaries' gjDownloadURL/simplifiedGeometryGeoJSON point at github.com/.../raw/...
-// URLs. Those files are Git-LFS tracked, so github.com 302-redirects to
-// media.githubusercontent.com — and that redirect response has no
-// Access-Control-Allow-Origin header, so the browser blocks it as a CORS
-// violation before .then() ever runs (fetch() rejects with a generic
-// "Failed to fetch" TypeError, no useful detail). Try the direct URL first;
-// if it's blocked, retry once through a public CORS proxy so the request
-// happens server-side on the proxy's end instead of the browser's.
-function dgFetchGeoJSONWithCorsFallback(url) {
-  return fetch(url)
-    .then(function(r) { if (!r.ok) throw new Error('download failed (' + r.status + ')'); return r.json(); })
-    .catch(function(err) {
-      const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-      return fetch(proxied).then(function(r) {
-        if (!r.ok) throw new Error('download failed (' + r.status + '), proxy also failed');
-        return r.json();
-      });
-    });
-}
-
-function dgStateDetectApply() {
-  const select = document.getElementById('dgStateDetectSelect');
-  const statusEl = document.getElementById('dgStateDetectStatus');
-  if (!select || !select.value) return;
-  const countryName = select.value;
-  const iso3 = dgCountryIso3(countryName);
-  if (!iso3) { if (statusEl) statusEl.textContent = 'No boundary code for ' + countryName + '.'; return; }
-
-  if (dgStateDetect.cache[iso3]) {
-    dgStateDetectActivate(countryName, dgStateDetect.cache[iso3]);
-    return;
-  }
-  dgStateDetect.loading = true;
-  if (statusEl) statusEl.textContent = 'Loading ' + countryName + ' states/provinces…';
-  fetch('https://www.geoboundaries.org/api/current/gbOpen/' + iso3 + '/ADM1/')
-    .then(function(r) { if (!r.ok) throw new Error('lookup failed (' + r.status + ')'); return r.json(); })
-    .then(function(meta) {
-      const url = (meta && (meta.simplifiedGeometryGeoJSON || meta.gjDownloadURL)) || null;
-      if (!url) throw new Error('no boundary file for this country');
-      return dgFetchGeoJSONWithCorsFallback(url);
-    })
-    .then(function(geojson) {
-      dgStateDetect.cache[iso3] = geojson;
-      dgStateDetect.loading = false;
-      dgStateDetectActivate(countryName, geojson);
-    })
-    .catch(function(err) {
-      dgStateDetect.loading = false;
-      if (statusEl) statusEl.textContent = "Couldn't load " + countryName + " boundaries (" + (err && err.message ? err.message : 'network error') + ').';
-    });
-}
-
-function dgStateDetectActivate(countryName, geojson) {
-  dgStateDetect.active = true;
-  dgStateDetect.country = countryName;
-  dgStateDetect.geojson = geojson;
-  const statusEl = document.getElementById('dgStateDetectStatus');
-  if (statusEl) statusEl.textContent = '';
-  dgRender();
-}
-
-// Drops back to the normal world choropleth. Keeps the fetched geojson cached (dgStateDetect.cache)
-// so flipping back to the same country again is instant with no re-fetch.
-function dgStateDetectReset() {
-  dgStateDetect.active = false;
-  dgStateDetect.country = null;
-  dgStateDetect.geojson = null;
-  const statusEl = document.getElementById('dgStateDetectStatus');
-  if (statusEl) statusEl.textContent = '';
-  dgRender();
-}
-
-// Silent variant for internal call sites (new upload, Clear All, leaving Map mode/worldmap type)
-// that are about to trigger their own dgRender() right after — avoids a redundant extra redraw.
-function dgStateDetectResetSilent() {
-  dgStateDetect.active = false;
-  dgStateDetect.country = null;
-  dgStateDetect.geojson = null;
-  const banner = document.getElementById('dgStateDetectBanner');
-  if (banner) banner.style.display = 'none';
-  const statusEl = document.getElementById('dgStateDetectStatus');
-  if (statusEl) statusEl.textContent = '';
-}
-
-// Walks every coordinate in a Polygon/MultiPolygon geometry — the only two geometry types
-// geoBoundaries ADM1 files use — so bounding-box and matching code doesn't need to special-case
-// single vs. multi polygons more than once.
-function dgGeoEachCoord(geometry, cb) {
-  if (!geometry) return;
-  const type = geometry.type, coords = geometry.coordinates;
-  if (type === 'Polygon') {
-    (coords || []).forEach(function(ring) { (ring || []).forEach(function(pt) { cb(pt[0], pt[1]); }); });
-  } else if (type === 'MultiPolygon') {
-    (coords || []).forEach(function(poly) { (poly || []).forEach(function(ring) { (ring || []).forEach(function(pt) { cb(pt[0], pt[1]); }); }); });
-  }
-}
-
-function dgGeoJsonBBox(geojson) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  (geojson && geojson.features || []).forEach(function(f) {
-    dgGeoEachCoord(f.geometry, function(x, y) {
-      if (x < minX) minX = x; if (x > maxX) maxX = x;
-      if (y < minY) minY = y; if (y > maxY) maxY = y;
-    });
+// ── State/province → country auto-detection ───────────────────────────────────────────────
+// Someone uploading a table of e.g. "Maharashtra, Gujarat, Punjab, Kerala…" with values has
+// state/province names, not country names, so dgResolveCountry finds nothing and Map mode would
+// otherwise just render an all-grey, nothing-matched world map. This dictionary lets us recognise
+// the state/province names of a handful of common countries and infer which single country the
+// whole sheet belongs to, so we can jump straight to that country's state-level map instead.
+// Kept intentionally short-list (not exhaustive of every country's admin-1 divisions) — it only
+// needs to catch the common cases; anything it doesn't recognise just falls back to the existing
+// "no country matched" behaviour, unchanged.
+const DG_STATE_COUNTRY_GROUPS = [
+  ["India", [
+    "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana",
+    "Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur",
+    "Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
+    "Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Andaman and Nicobar Islands","Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu","Delhi","NCT of Delhi","Jammu and Kashmir","Ladakh",
+    "Lakshadweep","Puducherry"
+  ]],
+  ["United States of America", [
+    "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware",
+    "Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana",
+    "Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana",
+    "Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina",
+    "North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina",
+    "South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia",
+    "Wisconsin","Wyoming","District of Columbia"
+  ]],
+  ["Canada", [
+    "Alberta","British Columbia","Manitoba","New Brunswick","Newfoundland and Labrador",
+    "Nova Scotia","Ontario","Prince Edward Island","Quebec","Saskatchewan",
+    "Northwest Territories","Nunavut","Yukon"
+  ]],
+  ["Australia", [
+    "New South Wales","Victoria","Queensland","Western Australia","South Australia","Tasmania",
+    "Australian Capital Territory","Northern Territory"
+  ]],
+  ["Pakistan", [
+    "Punjab","Sindh","Khyber Pakhtunkhwa","Balochistan","Gilgit-Baltistan","Azad Kashmir",
+    "Islamabad Capital Territory"
+  ]],
+  ["United Kingdom", ["England","Scotland","Wales","Northern Ireland"]]
+];
+// Flattened lookup: normalised state/province name → list of countries it could belong to (almost
+// always just one; a few names like "Punjab" legitimately exist in more than one, so
+// dgDetectStatesCountry below resolves those by which country the REST of the sheet points to).
+const DG_STATE_COUNTRY_INDEX = {};
+DG_STATE_COUNTRY_GROUPS.forEach(function(group) {
+  const country = group[0];
+  group[1].forEach(function(state) {
+    const key = state.trim().toLowerCase();
+    if (!DG_STATE_COUNTRY_INDEX[key]) DG_STATE_COUNTRY_INDEX[key] = [];
+    DG_STATE_COUNTRY_INDEX[key].push(country);
   });
-  if (!isFinite(minX)) return null;
-  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, w: maxX - minX, h: maxY - minY };
-}
+});
 
-// Draws a single-country state/province choropleth straight onto the shared chart canvas —
-// same Canvas2D surface dgDrawWorldMap uses, so PNG/JPEG/PDF/DOCX export and "Push to Workspace"
-// all keep working unmodified. Longitude/latitude are projected into the chart area with a
-// simple equirectangular fit (good enough at single-country scale, and consistent with how the
-// offline world choropleth above is itself just a flat projection, not a globe).
-function dgDrawStateChoropleth(ctx, geojson, rawRows, area, opts, countryName) {
-  const rowMap = {};
-  (rawRows || []).forEach(function(r) { rowMap[String(r.label || '').trim().toLowerCase()] = r; });
-  const features = (geojson && geojson.features) || [];
-
-  const legendH = 46;
-  const mapArea = { x: area.x, y: area.y, w: area.w, h: Math.max(80, area.h - legendH) };
-  const bbox = dgGeoJsonBBox(geojson);
-
-  const panelPad = 10;
-  dgRoundRectPath(ctx, mapArea.x - panelPad, mapArea.y - panelPad, mapArea.w + panelPad * 2, mapArea.h + panelPad * 2, 12);
-  ctx.fillStyle = '#f3f6fb';
-  ctx.fill();
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  if (!bbox || !features.length) {
-    ctx.fillStyle = '#b8c0cc';
-    ctx.font = '600 13px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Could not load ' + countryName + ' boundaries', area.x + area.w / 2, mapArea.y + mapArea.h / 2);
-    return;
-  }
-
-  const matchedVals = [];
-  let matchedCount = 0;
-  features.forEach(function(f) {
-    const name = ((f.properties && f.properties.shapeName) || '').trim().toLowerCase();
-    if (rowMap[name]) { matchedVals.push(rowMap[name].value); matchedCount++; }
+// Given the same {label, value} rows Map mode already works with, guesses which single country
+// the data's state/province names belong to. Returns null when too few rows are recognisable
+// state names, or when no one country clearly dominates the matches (e.g. a genuinely mixed or
+// ambiguous sheet) — callers should silently fall back to ordinary "no match" handling in that case.
+function dgDetectStatesCountry(rows) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const tally = {};
+  let consideredRows = 0;
+  rows.forEach(function(r) {
+    const key = String((r && r.label) || '').trim().toLowerCase();
+    const countries = DG_STATE_COUNTRY_INDEX[key];
+    if (!countries || !countries.length) return;
+    consideredRows++;
+    countries.forEach(function(c) { tally[c] = (tally[c] || 0) + 1; });
   });
-  const minV = matchedVals.length ? Math.min.apply(null, matchedVals) : 0;
-  const maxV = matchedVals.length ? Math.max.apply(null, matchedVals) : 0;
-
-  const PAD = 0.06;
-  const bw = bbox.w || 1, bh = bbox.h || 1;
-  const vbX = bbox.minX - bw * PAD, vbY = bbox.minY - bh * PAD;
-  const vbW = bw * (1 + PAD * 2), vbH = bh * (1 + PAD * 2);
-  const scale = Math.min(mapArea.w / vbW, mapArea.h / vbH);
-  const drawW = vbW * scale, drawH = vbH * scale;
-  const offX = mapArea.x + (mapArea.w - drawW) / 2;
-  const offY = mapArea.y + (mapArea.h - drawH) / 2;
-  // Latitude increases northward but canvas y increases downward, so flip the y axis.
-  const project = function(lon, lat) { return [offX + (lon - vbX) * scale, offY + (vbH - (lat - vbY)) * scale]; };
-
-  ctx.save();
-  dgRoundRectPath(ctx, mapArea.x, mapArea.y, mapArea.w, mapArea.h, 8);
-  ctx.clip();
-  features.forEach(function(f) {
-    const name = ((f.properties && f.properties.shapeName) || '').trim().toLowerCase();
-    const row = rowMap[name];
-    const t = row ? (maxV > minV ? (row.value - minV) / (maxV - minV) : 1) : 0;
-    ctx.fillStyle = row ? dgWorldMapColor(t) : '#dbe3ec';
-    ctx.strokeStyle = row ? 'rgba(15,23,42,0.4)' : '#aab4c2';
-    ctx.lineWidth = 0.8;
-    const geom = f.geometry;
-    if (!geom) return;
-    const polys = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
-    polys.forEach(function(poly) {
-      const path = new Path2D();
-      (poly || []).forEach(function(ring) {
-        (ring || []).forEach(function(pt, i) {
-          const xy = project(pt[0], pt[1]);
-          if (i === 0) path.moveTo(xy[0], xy[1]); else path.lineTo(xy[0], xy[1]);
-        });
-        path.closePath();
-      });
-      ctx.fill(path);
-      ctx.stroke(path);
-    });
-  });
-  ctx.restore();
-
-  const barY = mapArea.y + mapArea.h + 14;
-  const barW = Math.min(260, area.w * 0.45), barH = 10;
-  const barX = area.x + area.w / 2 - barW / 2;
-  ctx.textAlign = 'center';
-  ctx.font = '600 11.5px Inter, sans-serif';
-  ctx.fillStyle = '#374151';
-  ctx.fillText(countryName + ' — ' + matchedCount + ' of ' + features.length + ' matched', area.x + area.w / 2, mapArea.y - 10 >= area.y ? mapArea.y - 10 : barY - 34);
-  if (matchedVals.length) {
-    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    grad.addColorStop(0, dgWorldMapColor(0));
-    grad.addColorStop(1, dgWorldMapColor(1));
-    ctx.fillStyle = grad;
-    dgRoundRectPath(ctx, barX, barY, barW, barH, 5);
-    ctx.fill();
-    ctx.fillStyle = '#4b5563';
-    ctx.font = '600 11px Inter, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(dgFormatNumber(minV, opts.numberFormat), barX - 8, barY + 9);
-    ctx.textAlign = 'left';
-    ctx.fillText(dgFormatNumber(maxV, opts.numberFormat), barX + barW + 8, barY + 9);
-  } else {
-    ctx.fillStyle = '#b8c0cc';
-    ctx.font = '600 13px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('None of these labels matched a ' + countryName + ' state/province', area.x + area.w / 2, barY + 4);
-    ctx.font = '400 11.5px Inter, sans-serif';
-    ctx.fillText('Use the official state/province names as row labels', area.x + area.w / 2, barY + 22);
-  }
+  if (!consideredRows) return null;
+  let best = null, bestCount = 0;
+  Object.keys(tally).forEach(function(c) { if (tally[c] > bestCount) { bestCount = tally[c]; best = c; } });
+  if (!best) return null;
+  // Require a clear majority of the recognised rows to point at this one country — guards
+  // against a handful of ambiguous names (shared across countries) tipping the guess the wrong
+  // way. A single recognised row is accepted on its own since there's nothing to disagree with it.
+  const threshold = consideredRows <= 1 ? 1 : Math.ceil(consideredRows * 0.5);
+  if (bestCount < threshold) return null;
+  return { country: best, matched: bestCount, consideredRows: consideredRows, totalRows: rows.length };
 }
 
 // ── Map Explorer: real, zoomable OpenStreetMap view of the current Map-mode data ──────────
@@ -45249,6 +45125,12 @@ function dgMapxPopulateCountrySelect() {
     const result = dgAssignWorldMapColors(rows);
     if (result.matched.length) preferred = result.matched[0].canonical;
   }
+  // No country-level match (e.g. the data is state/province names, not country names) —
+  // guess the country from the state names themselves before falling back to the US default.
+  if (!preferred && rows.length) {
+    const guess = dgDetectStatesCountry(rows);
+    if (guess) preferred = guess.country;
+  }
   select.value = preferred || 'United States of America';
   if (!select.value) select.selectedIndex = 0;
 }
@@ -45292,7 +45174,7 @@ function dgMapxLoadStates(countryName) {
     .then(function(meta) {
       const url = (meta && (meta.simplifiedGeometryGeoJSON || meta.gjDownloadURL)) || null;
       if (!url) throw new Error('no boundary file for this country');
-      return dgFetchGeoJSONWithCorsFallback(url);
+      return fetch(url).then(function(r) { if (!r.ok) throw new Error('download failed (' + r.status + ')'); return r.json(); });
     })
     .then(function(geojson) {
       dgMapx.statesCache[iso3] = geojson;
@@ -45340,6 +45222,26 @@ function dgMapxRenderStatesLayer(geojson, countryName) {
   if (statusEl) {
     statusEl.textContent = matchedVals.length + ' of ' + features.length + ' ' + countryName + ' states matched · boundaries via geoBoundaries (CC-BY 4.0)';
   }
+}
+
+// Auto-opens Map Explorer with the States/Provinces layer switched straight on for the given
+// country, skipping the manual "open Explore Map → click States → pick the country" steps —
+// used right after a state/province-only upload gets auto-detected (see dgDetectStatesCountry)
+// so the person lands directly on their big, zoomed-in country map with every state coloured in
+// at its precise real-world location, instead of the flat "nothing matched" world choropleth.
+function dgAutoShowStateMap(countryName) {
+  if (dgActiveMode !== 'map' || !countryName) return;
+  dgOpenMapExplorer();
+  dgMapxPopulateCountrySelect();
+  const btn = document.getElementById('dgMapxStatesToggle');
+  const select = document.getElementById('dgMapxCountrySelect');
+  dgMapx.statesOn = true;
+  if (btn) btn.classList.add('active');
+  if (select) { select.disabled = false; select.value = countryName; }
+  if (dgMapx.map && dgMapx.markerLayer && dgMapx.map.hasLayer(dgMapx.markerLayer)) {
+    dgMapx.map.removeLayer(dgMapx.markerLayer);
+  }
+  dgMapxLoadStates(countryName);
 }
 
 // ── Map mode: per-country maps ──────────────────────────────────────────────
@@ -45852,7 +45754,6 @@ function dgSetDgMode(mode) {
   const exploreChip = document.getElementById('dgExploreMapChip');
   if (exploreChip) exploreChip.style.display = isMap ? '' : 'none';
   if (!isMap) dgCloseMapExplorer();
-  if (!isMap) dgStateDetectResetSilent();
 
   const chartTab = document.getElementById('dgModeChartTab');
   const flowTab = document.getElementById('dgModeFlowTab');
@@ -46774,9 +46675,6 @@ function dgSetType(type) {
   const wasGrouped = ['grouped', 'hstacked', 'tornado', '3d-grouped-bar'].includes(dgState.type);
   const willBeGrouped = ['grouped', 'hstacked', 'tornado', '3d-grouped-bar'].includes(type);
   if (wasGrouped && !willBeGrouped) dgSyncRowsFromGroupedData();
-  // Switching away from World Map means any active state/province view no longer applies —
-  // clear it so coming back to World Map later starts from the plain country choropleth.
-  if (dgState.type === 'worldmap' && type !== 'worldmap') dgStateDetectResetSilent();
   dgState.type = type;
   document.querySelectorAll('#dgTypeGrid .dg-type-tile').forEach(t => {
     const active = t.dataset.type === type;
@@ -47046,7 +46944,6 @@ function dgSyncBarRadiusUI() {
 function dgClearAll() {
   if (!confirm("Clear everything on this chart — all data, text labels, and titles? This can't be undone.")) return;
 
-  dgStateDetectResetSilent();
   dgState.rows = [];
   // Also clear the grouped/comparison data model — otherwise switching chart type right
   // after a Clear All would resurrect the old grouped data via dgSyncRowsFromGroupedData().
@@ -48021,13 +47918,17 @@ function dgBuildTableForSpec(spec, x, y, availW, availH) {
   };
 }
 
-function dgBakePlacedImage(pg, dataUrl, x, y, w, h) {
+function dgBakePlacedImage(pg, dataUrl, x, y, w, h, kind) {
   if (!pg.placedImages) pg.placedImages = [];
   pg.placedImages.push({
     id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
     dataUrl, x, y, w, h,
     locked: false,
-    zIndex: pdfedNextZ(pg)
+    zIndex: pdfedNextZ(pg),
+    // Tags this as a chart/map/etc so Refine Report can treat it differently
+    // from a logo or a random dropped-in photo. Multi-chart gallery pushes
+    // are always charts (maps are pushed one at a time via dgInsertIntoWorkspace).
+    kind: kind || 'chart'
   });
 }
 
@@ -48634,21 +48535,33 @@ function dgGenerateChartFromUpload(topGrouped) {
   dgState.sameColorMode = false;
   const sameToggle = document.getElementById('dgSameColorToggle');
   if (sameToggle) sameToggle.checked = false;
-  // A fresh upload replaces the data entirely, so any state/province map from a previous
-  // upload is no longer relevant — drop back to the plain country choropleth (or country
-  // banner prompt, if this new upload also looks state-level) rather than leaving a stale
-  // country's boundaries drawn against brand-new rows.
-  dgStateDetectResetSilent();
   dgState.rows = built;
   dgRenderRows();
   dgRender();
   dgSyncPerCountryGallery(built);
   if (dgMapx.map && document.getElementById('dgMapExplorerModal').classList.contains('open')) dgRefreshMapExplorerMarkers();
+
+  // Map mode, nothing matched a country name — before falling back to the plain "no match"
+  // toast, check whether the labels are actually state/province names of ONE recognisable
+  // country (e.g. a sheet of Indian states, or US states) and, if so, jump straight to that
+  // country's big zoomed-in state-level map instead of leaving a flat, all-grey world map.
+  let stateAutoNote = '';
+  if (dgActiveMode === 'map' && dgState.type === 'worldmap') {
+    const anyCountryMatched = built.some(r => dgResolveCountry(r.label));
+    if (!anyCountryMatched) {
+      const stateGuess = dgDetectStatesCountry(built);
+      if (stateGuess) {
+        dgAutoShowStateMap(stateGuess.country);
+        stateAutoNote = ` \u2014 recognised ${stateGuess.matched} ${stateGuess.country} state${stateGuess.matched === 1 ? '' : 's'}, opened the ${stateGuess.country} map`;
+      }
+    }
+  }
+
   const totalNote = excludedRows.length
     ? ` \u2014 left out ${excludedRows.length === 1 ? `"${excludedRows[0].label}"` : excludedRows.length + ' summary rows'} (looked like a total/average, not a real data point)`
     : '';
-  if (infoMsg) toast(infoMsg + totalNote, 'info');
-  else toast('Chart generated from your uploaded data' + totalNote, totalNote ? 'info' : 'success');
+  if (infoMsg) toast(infoMsg + totalNote + stateAutoNote, 'info');
+  else toast('Chart generated from your uploaded data' + totalNote + stateAutoNote, (totalNote || stateAutoNote) ? 'info' : 'success');
 }
 
 function dgRemoveRow(idx) {
@@ -49632,14 +49545,7 @@ function dgDrawChart(exportCanvas, exportScale) {
   if (type === 'worldmap') {
     dgWorldMapMatch = dgAssignWorldMapColors(rows);
     rows = dgWorldMapMatch.rows;
-    // While a state/province map is active, its own legend/scale bar (drawn by
-    // dgDrawStateChoropleth) replaces the normal country legend, which would otherwise
-    // just show every row as the grey "unmatched country" colour and confuse the picture.
-    opts.legend = !(dgStateDetect.active && dgStateDetect.geojson);
-    if (!isExport) dgStateDetectSync(dgWorldMapMatch, dgState.rows);
-  } else if (!isExport) {
-    const banner = document.getElementById('dgStateDetectBanner');
-    if (banner && banner.style.display !== 'none') banner.style.display = 'none';
+    opts.legend = true;
   }
 
   // Per-country zoom (gallery card loaded into the live editor): resolve the single
@@ -49796,11 +49702,7 @@ function dgDrawChart(exportCanvas, exportScale) {
   } else if (type === 'funnel') {
     dgDrawFunnel(ctx, rows, chartArea, opts);
   } else if (type === 'worldmap') {
-    if (dgStateDetect.active && dgStateDetect.geojson) {
-      dgDrawStateChoropleth(ctx, dgStateDetect.geojson, dgState.rows, chartArea, opts, dgStateDetect.country);
-    } else {
-      dgDrawWorldMap(ctx, dgWorldMapMatch, chartArea, opts);
-    }
+    dgDrawWorldMap(ctx, dgWorldMapMatch, chartArea, opts);
   } else if (type === 'countryzoom') {
     dgDrawCountryZoom(ctx, dgCountryZoomTarget, chartArea, opts);
   }
@@ -50916,7 +50818,7 @@ function dgOpenPushChoiceModal() {
   // Map mode, zero matched countries: the map itself still renders (ocean panel +
   // outlines), but every country is the neutral "unmatched" tone, so it's worth a
   // heads-up before pushing rather than letting it look like the push silently failed.
-  if (dgActiveMode === 'map' && dgState.type === 'worldmap' && !dgStateDetect.active && Array.isArray(dgState.rows) && dgState.rows.length) {
+  if (dgActiveMode === 'map' && dgState.type === 'worldmap' && Array.isArray(dgState.rows) && dgState.rows.length) {
     const anyMatched = dgState.rows.some(r => dgResolveCountry(r.label));
     if (!anyMatched) {
       toast('No row labels matched a country name yet — the map will push with outlines only. Try full country names (e.g. India, United States, Germany).', 'info');
@@ -50938,6 +50840,11 @@ async function dgInsertIntoWorkspace(mode) {
   const canvas = dgGetExportCanvas();
   if (!canvas) return;
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+
+  // Tags what's being pushed so Refine Report can later single maps out for
+  // the passport-photo grid layout instead of treating them like a logo or
+  // an ordinary dropped-in picture.
+  const pushKind = dgActiveMode === 'map' ? 'map' : (dgActiveMode === 'flow' ? 'diagram' : 'chart');
 
   let dataUrl;
   try {
@@ -50987,7 +50894,7 @@ async function dgInsertIntoWorkspace(mode) {
       if (typeof pdfedGoto === 'function') await pdfedGoto(0);
       setTimeout(() => {
         if (typeof pdfedZoomFit === 'function') pdfedZoomFit();
-        if (typeof pdfedActivateImgGhost === 'function') pdfedActivateImgGhost(dataUrl);
+        if (typeof pdfedActivateImgGhost === 'function') pdfedActivateImgGhost(dataUrl, pushKind);
       }, 120);
     } else if (mode === 'new') {
       // Append a brand-new blank page to the existing Workspace document and drop the chart onto it.
@@ -51013,14 +50920,14 @@ async function dgInsertIntoWorkspace(mode) {
       if (typeof pdfedGoto === 'function') await pdfedGoto(newIdx);
       setTimeout(() => {
         if (typeof pdfedZoomFit === 'function') pdfedZoomFit();
-        if (typeof pdfedActivateImgGhost === 'function') pdfedActivateImgGhost(dataUrl);
+        if (typeof pdfedActivateImgGhost === 'function') pdfedActivateImgGhost(dataUrl, pushKind);
         toast('New page added — drag to position, then click to drop your chart', 'info');
       }, 120);
     } else {
       // Add to the live page currently open in the Workspace.
       navigate('pdfeditor');
       setTimeout(() => {
-        if (typeof pdfedActivateImgGhost === 'function') pdfedActivateImgGhost(dataUrl);
+        if (typeof pdfedActivateImgGhost === 'function') pdfedActivateImgGhost(dataUrl, pushKind);
         toast('Drag to position, then click to drop your chart onto the page', 'info');
       }, 60);
     }
@@ -52372,6 +52279,12 @@ window.dgCloseMultiGallery = dgCloseMultiGallery;
 window.dgLoadMultiChart = dgLoadMultiChart;
 window.dgPushAllMultiCharts = dgPushAllMultiCharts;
 window.dgSetDgMode = dgSetDgMode;
+window.dgOpenMapExplorer = dgOpenMapExplorer;
+window.dgCloseMapExplorer = dgCloseMapExplorer;
+window.dgMapExplorerSetBasemap = dgMapExplorerSetBasemap;
+window.dgMapExplorerFitAll = dgMapExplorerFitAll;
+window.dgMapxToggleStates = dgMapxToggleStates;
+window.dgMapxOnCountryChange = dgMapxOnCountryChange;
 window.dgFlowRender = dgFlowRender;
 window.dgFlowDebouncedRender = dgFlowDebouncedRender;
 window.dgFlowInsertTemplate = dgFlowInsertTemplate;
