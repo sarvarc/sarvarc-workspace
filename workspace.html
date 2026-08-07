@@ -1647,7 +1647,14 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 /* ─── TOAST ─── */
 .toast-container {
   position: fixed; bottom: 24px; right: 24px;
-  display: flex; flex-direction: column; gap: 8px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px;
+  /* Must always render above every modal in the app, including ones opened
+     later in the DOM (e.g. Map Explorer, which gets re-parented to <body> on
+     open — see dgOpenMapExplorer). At the old z-index:9999, a toast fired
+     while such a modal was open could tie on z-index and lose to it by DOM
+     order, making error/info toasts silently invisible right when they
+     matter most (e.g. a failed map push). */
+  z-index: 2000000;
 }
 .toast {
   background: var(--bg2); border: 1px solid var(--border);
@@ -3695,7 +3702,13 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 /* ─── Diagrams & Graphs: Push-to-Workspace destination choice modal ─── */
 .dg-push-choice-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-  z-index: 750; display: none; align-items: center; justify-content: center;
+  /* Must outrank every modal it can be opened on top of — notably the Map
+     Explorer (.dg-mapx-modal, z-index:9999), which is still open when a
+     fetched states/provinces map gets pushed. At the old z-index:750 this
+     dialog rendered fully behind the Map Explorer's own dark backdrop, so
+     choosing "New Page"/"Live Page" looked like it did nothing — the click
+     had nowhere visible to land, which read as "the map isn't pushing". */
+  z-index: 10050; display: none; align-items: center; justify-content: center;
   backdrop-filter: blur(10px);
 }
 .dg-push-choice-overlay.open { display: flex; }
@@ -44917,11 +44930,10 @@ function dgAssignWorldMapColors(rows) {
 // Someone uploading a table of e.g. "Maharashtra, Gujarat, Punjab, Kerala…" with values has
 // state/province names, not country names, so dgResolveCountry finds nothing and Map mode would
 // otherwise just render an all-grey, nothing-matched world map. This dictionary lets us recognise
-// the state/province names of a handful of common countries and infer which single country the
+// the state/province names of a broad set of common countries and infer which single country the
 // whole sheet belongs to, so we can jump straight to that country's state-level map instead.
-// Kept intentionally short-list (not exhaustive of every country's admin-1 divisions) — it only
-// needs to catch the common cases; anything it doesn't recognise just falls back to the existing
-// "no country matched" behaviour, unchanged.
+// Not exhaustive of every country's admin-1 divisions worldwide — anything it doesn't recognise
+// just falls back to the existing "no country matched" behaviour, unchanged.
 const DG_STATE_COUNTRY_GROUPS = [
   ["India", [
     "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana",
@@ -44953,7 +44965,111 @@ const DG_STATE_COUNTRY_GROUPS = [
     "Punjab","Sindh","Khyber Pakhtunkhwa","Balochistan","Gilgit-Baltistan","Azad Kashmir",
     "Islamabad Capital Territory"
   ]],
-  ["United Kingdom", ["England","Scotland","Wales","Northern Ireland"]]
+  ["United Kingdom", ["England","Scotland","Wales","Northern Ireland"]],
+  ["China", [
+    "Anhui","Beijing","Chongqing","Fujian","Gansu","Guangdong","Guangxi","Guizhou","Hainan","Hebei",
+    "Heilongjiang","Henan","Hubei","Hunan","Inner Mongolia","Jiangsu","Jiangxi","Jilin","Liaoning",
+    "Ningxia","Qinghai","Shaanxi","Shandong","Shanghai","Shanxi","Sichuan","Tianjin","Tibet",
+    "Xinjiang","Yunnan","Zhejiang","Hong Kong","Macau","Macao"
+  ]],
+  ["Japan", [
+    "Aichi","Akita","Aomori","Chiba","Ehime","Fukui","Fukuoka","Fukushima","Gifu","Gunma",
+    "Hiroshima","Hokkaido","Hyogo","Ibaraki","Ishikawa","Iwate","Kagawa","Kagoshima","Kanagawa",
+    "Kochi","Kumamoto","Kyoto","Mie","Miyagi","Miyazaki","Nagano","Nagasaki","Nara","Niigata",
+    "Oita","Okayama","Okinawa","Osaka","Saga","Saitama","Shiga","Shimane","Shizuoka","Tochigi",
+    "Tokushima","Tokyo","Tottori","Toyama","Wakayama","Yamagata","Yamaguchi","Yamanashi"
+  ]],
+  ["Egypt", [
+    "Alexandria","Aswan","Asyut","Beheira","Beni Suef","Cairo","Dakahlia","Damietta","Faiyum",
+    "Gharbia","Giza","Ismailia","Kafr el-Sheikh","Luxor","Matrouh","Minya","Monufia","New Valley",
+    "North Sinai","Port Said","Qalyubia","Qena","Red Sea","Sharqia","Sohag","South Sinai","Suez"
+  ]],
+  ["Germany", [
+    "Baden-Württemberg","Bavaria","Berlin","Brandenburg","Bremen","Hamburg","Hesse",
+    "Lower Saxony","Mecklenburg-Vorpommern","North Rhine-Westphalia","Rhineland-Palatinate",
+    "Saarland","Saxony","Saxony-Anhalt","Schleswig-Holstein","Thuringia"
+  ]],
+  ["France", [
+    "Auvergne-Rhône-Alpes","Bourgogne-Franche-Comté","Brittany","Centre-Val de Loire","Corsica",
+    "Grand Est","Hauts-de-France","Île-de-France","Normandy","Nouvelle-Aquitaine","Occitanie",
+    "Pays de la Loire","Provence-Alpes-Côte d'Azur"
+  ]],
+  ["Italy", [
+    "Abruzzo","Aosta Valley","Apulia","Basilicata","Calabria","Campania","Emilia-Romagna",
+    "Friuli Venezia Giulia","Lazio","Liguria","Lombardy","Marche","Molise","Piedmont","Sardinia",
+    "Sicily","Trentino-Alto Adige","Tuscany","Umbria","Veneto"
+  ]],
+  ["Spain", [
+    "Andalusia","Aragon","Asturias","Balearic Islands","Basque Country","Canary Islands",
+    "Cantabria","Castile and León","Castilla-La Mancha","Catalonia","Extremadura","Galicia",
+    "La Rioja","Madrid","Murcia","Navarre","Valencia"
+  ]],
+  ["Brazil", [
+    "Acre","Alagoas","Amapá","Amazonas","Bahia","Ceará","Distrito Federal","Espírito Santo",
+    "Goiás","Maranhão","Mato Grosso","Mato Grosso do Sul","Minas Gerais","Pará","Paraíba",
+    "Paraná","Pernambuco","Piauí","Rio de Janeiro","Rio Grande do Norte","Rio Grande do Sul",
+    "Rondônia","Roraima","Santa Catarina","São Paulo","Sergipe","Tocantins"
+  ]],
+  ["Mexico", [
+    "Aguascalientes","Baja California","Baja California Sur","Campeche","Chiapas","Chihuahua",
+    "Coahuila","Colima","Durango","Guanajuato","Guerrero","Hidalgo","Jalisco","Mexico City",
+    "Michoacán","Morelos","Nayarit","Nuevo León","Oaxaca","Puebla","Querétaro","Quintana Roo",
+    "San Luis Potosí","Sinaloa","Sonora","Tabasco","Tamaulipas","Tlaxcala","Veracruz","Yucatán",
+    "Zacatecas"
+  ]],
+  ["Nigeria", [
+    "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno","Cross River",
+    "Delta","Ebonyi","Edo","Ekiti","Enugu","Gombe","Imo","Jigawa","Kaduna","Kano","Katsina",
+    "Kebbi","Kogi","Kwara","Lagos","Nasarawa","Niger","Ogun","Ondo","Osun","Oyo","Plateau",
+    "Rivers","Sokoto","Taraba","Yobe","Zamfara","Federal Capital Territory"
+  ]],
+  ["South Africa", [
+    "Eastern Cape","Free State","Gauteng","KwaZulu-Natal","Limpopo","Mpumalanga",
+    "Northern Cape","North West","Western Cape"
+  ]],
+  ["Indonesia", [
+    "Aceh","Bali","Banten","Bengkulu","Central Java","Central Kalimantan","Central Sulawesi",
+    "East Java","East Kalimantan","East Nusa Tenggara","Gorontalo","Jakarta","Jambi","Lampung",
+    "Maluku","North Kalimantan","North Maluku","North Sulawesi","North Sumatra","Papua",
+    "Riau","Riau Islands","South Kalimantan","South Sulawesi","South Sumatra",
+    "Southeast Sulawesi","West Java","West Kalimantan","West Nusa Tenggara","West Papua",
+    "West Sulawesi","West Sumatra","Yogyakarta"
+  ]],
+  ["Saudi Arabia", [
+    "Al Bahah","Al Jawf","Al Madinah","Al-Qassim","Asir","Eastern Province","Hail","Jazan",
+    "Makkah","Najran","Northern Borders","Riyadh","Tabuk"
+  ]],
+  ["Russia", [
+    "Moscow","Saint Petersburg","Krasnodar Krai","Sverdlovsk Oblast","Novosibirsk Oblast",
+    "Tatarstan","Bashkortostan","Chechnya","Dagestan","Rostov Oblast","Chelyabinsk Oblast",
+    "Krasnoyarsk Krai","Nizhny Novgorod Oblast","Samara Oblast","Primorsky Krai"
+  ]],
+  ["South Korea", [
+    "Seoul","Busan","Daegu","Incheon","Gwangju","Daejeon","Ulsan","Sejong","Gyeonggi",
+    "Gangwon","North Chungcheong","South Chungcheong","North Jeolla","South Jeolla",
+    "North Gyeongsang","South Gyeongsang","Jeju"
+  ]],
+  ["Turkey", [
+    "Istanbul","Ankara","Izmir","Bursa","Antalya","Adana","Konya","Gaziantep","Mersin",
+    "Diyarbakır","Kayseri","Eskişehir","Samsun","Denizli","Şanlıurfa","Malatya","Trabzon"
+  ]],
+  ["Argentina", [
+    "Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa",
+    "Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan",
+    "San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"
+  ]],
+  ["Vietnam", [
+    "Hanoi","Ho Chi Minh City","Da Nang","Hai Phong","Can Tho","An Giang","Bac Giang","Binh Duong",
+    "Dong Nai","Khanh Hoa","Lam Dong","Nghe An","Quang Ninh","Thanh Hoa"
+  ]],
+  ["Philippines", [
+    "Metro Manila","Cebu","Davao","Rizal","Cavite","Laguna","Bulacan","Batangas","Pampanga",
+    "Iloilo","Negros Occidental","Pangasinan","Zamboanga del Sur"
+  ]],
+  ["Thailand", [
+    "Bangkok","Chiang Mai","Chiang Rai","Chonburi","Khon Kaen","Nakhon Ratchasima","Nonthaburi",
+    "Phuket","Rayong","Songkhla","Surat Thani","Udon Thani"
+  ]]
 ];
 // Flattened lookup: normalised state/province name → list of countries it could belong to (almost
 // always just one; a few names like "Punjab" legitimately exist in more than one, so
@@ -45086,6 +45202,18 @@ function dgOpenMapExplorer() {
   if (dgActiveMode !== 'map') { toast('Switch to the Map tab first', 'error'); return; }
   const modal = document.getElementById('dgMapExplorerModal');
   if (!modal) return;
+  // Root cause of "push to Workspace does nothing": this modal is `position:fixed`,
+  // but it lives in the DOM inside #dgCanvasZoomWrap, and dgApplyZoom() sets that
+  // wrap's `transform: scale(...)` the moment the Diagrams page loads (even at
+  // 100% zoom). Per the CSS spec, ANY transform on an ancestor turns it into the
+  // containing block for `position:fixed` descendants — so instead of covering the
+  // real viewport, this modal (and its Push-to-Workspace button) was being sized
+  // and positioned relative to the small, scaled chart canvas, not the screen.
+  // That's what made the button unreachable/inert. Re-parenting to <body> (which
+  // has no transform) the first time this opens permanently fixes it — appendChild
+  // moves the existing node (Leaflet instance, listeners, and all), it doesn't
+  // recreate it, so nothing else about the panel changes.
+  if (modal.parentElement !== document.body) document.body.appendChild(modal);
   modal.classList.add('open');
   dgMapExplorerEnsureMap();
   dgRefreshMapExplorerMarkers();
@@ -45120,20 +45248,22 @@ function dgMapxPopulateCountrySelect() {
     }).join('');
     dgMapxSelectPopulated = true;
   }
-  // Preselect whichever country the current data already matches best at country level (the
-  // top row of the existing choropleth), so switching on States usually lands somewhere useful
-  // on the very first click instead of always defaulting to the same country.
+  // Preselect whichever country the current data already matches best. A few state/province
+  // names double as the name of a sovereign country (e.g. "Georgia" is both a US state and a
+  // country), so a naive "any country-level match wins" check can misfire on a full 50-row
+  // US-states sheet that happens to include that one row. Compare both signals and trust
+  // whichever one actually explains a bigger share of the sheet.
   const rows = (dgState && Array.isArray(dgState.rows)) ? dgState.rows : [];
   let preferred = null;
+  let countryMatchedCount = 0;
   if (rows.length) {
     const result = dgAssignWorldMapColors(rows);
-    if (result.matched.length) preferred = result.matched[0].canonical;
+    countryMatchedCount = result.matched.length;
+    if (countryMatchedCount) preferred = result.matched[0].canonical;
   }
-  // No country-level match (e.g. the data is state/province names, not country names) —
-  // guess the country from the state names themselves before falling back to the US default.
-  if (!preferred && rows.length) {
+  if (rows.length) {
     const guess = dgDetectStatesCountry(rows);
-    if (guess) preferred = guess.country;
+    if (guess && guess.matched > countryMatchedCount) preferred = guess.country;
   }
   select.value = preferred || 'United States of America';
   if (!select.value) select.selectedIndex = 0;
@@ -48692,19 +48822,27 @@ function dgGenerateChartFromUpload(topGrouped) {
   dgSyncPerCountryGallery(built);
   if (dgMapx.map && document.getElementById('dgMapExplorerModal').classList.contains('open')) dgRefreshMapExplorerMarkers();
 
-  // Map mode, nothing matched a country name — before falling back to the plain "no match"
-  // toast, check whether the labels are actually state/province names of ONE recognisable
-  // country (e.g. a sheet of Indian states, or US states) and, if so, jump straight to that
-  // country's big zoomed-in state-level map instead of leaving a flat, all-grey world map.
+  // Map mode — before falling back to the plain "no match" toast, check whether the labels
+  // are actually state/province names of ONE recognisable country (e.g. a sheet of Indian
+  // states, or US states) and, if so, jump straight to that country's big zoomed-in
+  // state-level map instead of leaving a flat, mostly-grey world map.
+  //
+  // IMPORTANT: we can't gate this on "zero rows matched a country name", because a handful of
+  // state/province names are ALSO the name of a sovereign country — most notably "Georgia"
+  // (a US state AND a country). A 50-row US-states upload will almost always contain that one
+  // row, which used to make the whole sheet look "partially country-matched" and silently
+  // block this fallback for every other US state in the sheet. Instead, count both signals and
+  // trust whichever one a clear majority of the sheet actually agrees with.
   let stateAutoNote = '';
   if (dgActiveMode === 'map' && dgState.type === 'worldmap') {
-    const anyCountryMatched = built.some(r => dgResolveCountry(r.label));
-    if (!anyCountryMatched) {
-      const stateGuess = dgDetectStatesCountry(built);
-      if (stateGuess) {
-        dgAutoShowStateMap(stateGuess.country);
-        stateAutoNote = ` \u2014 recognised ${stateGuess.matched} ${stateGuess.country} state${stateGuess.matched === 1 ? '' : 's'}, opened the ${stateGuess.country} map`;
-      }
+    const countryMatchedCount = built.filter(r => dgResolveCountry(r.label)).length;
+    const stateGuess = dgDetectStatesCountry(built);
+    // A state-name guess only counts as "the real signal" once it's backed by a clear majority
+    // of the sheet (dgDetectStatesCountry already enforces that internally) AND it explains more
+    // of the sheet than the handful of incidental country-name lookalikes did.
+    if (stateGuess && stateGuess.matched > countryMatchedCount) {
+      dgAutoShowStateMap(stateGuess.country);
+      stateAutoNote = ` \u2014 recognised ${stateGuess.matched} ${stateGuess.country} state${stateGuess.matched === 1 ? '' : 's'}, opened the ${stateGuess.country} map`;
     }
   }
 
@@ -51155,28 +51293,48 @@ function dgRenderStatesToCanvas(geojson, countryName) {
 // GeoJSON (dgRenderStatesToCanvas above) sidesteps tile images entirely, so
 // there's nothing left to taint the canvas.
 async function dgMapxOpenPushChoiceModal() {
-  if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
-  if (!dgMapx.map || !dgMapx.statesOn || !dgMapx.statesLayer) { toast('Turn on States/Provinces and pick a country first', 'error'); return; }
-  const select = document.getElementById('dgMapxCountrySelect');
-  const countryName = select ? select.value : null;
-  const iso3 = countryName ? dgCountryIso3(countryName) : null;
-  const geojson = iso3 ? dgMapx.statesCache[iso3] : null;
-  if (!geojson) { toast('Boundary data for this country is not loaded yet', 'error'); return; }
-  const btn = document.getElementById('dgMapxPushBtn');
-  const originalLabel = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Rendering…'; }
+  // TEMPORARY DIAGNOSTIC — will be removed once we confirm the click is
+  // reaching this function. Fires unconditionally, before any guard check,
+  // so we can see for certain whether the handler runs at all and what
+  // state the map/layer are in at the moment of the click.
+  alert('DEBUG push clicked\nmap=' + !!dgMapx.map + '\nstatesOn=' + dgMapx.statesOn + '\nstatesLayer=' + !!dgMapx.statesLayer + '\npdfed=' + (typeof pdfed) + '\nnavigate=' + (typeof navigate));
+  // Whole function wrapped in try/catch (not just the render step) so literally
+  // no failure mode here — including a guard-clause reference throwing, or
+  // dgCountryIso3/getElementById returning something unexpected — can ever fail
+  // silently. Every exit path now either shows a toast or logs to console.
   try {
-    const canvas = dgRenderStatesToCanvas(geojson, countryName);
-    if (!canvas) { toast('Could not render this map', 'error'); return; }
-    const dataUrl = canvas.toDataURL('image/png');
-    dgPendingPushImage = { dataUrl, pushKind: 'map' };
-    const overlay = document.getElementById('dgPushChoiceOverlay');
-    if (overlay) overlay.classList.add('open');
-  } catch (e) {
-    console.error(e);
-    toast('Could not prepare the map: ' + (e && e.message ? e.message : 'unknown error'), 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+    if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+    if (!dgMapx.map || !dgMapx.statesOn || !dgMapx.statesLayer) { toast('Turn on States/Provinces and pick a country first', 'error'); return; }
+    const select = document.getElementById('dgMapxCountrySelect');
+    const countryName = select ? select.value : null;
+    const iso3 = countryName ? dgCountryIso3(countryName) : null;
+    const geojson = iso3 ? dgMapx.statesCache[iso3] : null;
+    if (!geojson) { toast('Boundary data for this country is not loaded yet', 'error'); return; }
+    const btn = document.getElementById('dgMapxPushBtn');
+    const originalLabel = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Rendering…'; }
+    try {
+      const canvas = dgRenderStatesToCanvas(geojson, countryName);
+      if (!canvas) { toast('Could not render this map', 'error'); return; }
+      const dataUrl = canvas.toDataURL('image/png');
+      dgPendingPushImage = { dataUrl, pushKind: 'map' };
+      // Belt-and-suspenders on top of the z-index fix above: also close the Map
+      // Explorer itself before showing the destination choice, so there's no
+      // way for a future overlay/z-index change to re-hide this dialog behind
+      // it again — the choice modal always opens onto a clear backdrop.
+      const mapxModal = document.getElementById('dgMapExplorerModal');
+      if (mapxModal) mapxModal.classList.remove('open');
+      const overlay = document.getElementById('dgPushChoiceOverlay');
+      if (overlay) overlay.classList.add('open');
+    } catch (e) {
+      console.error(e);
+      toast('Could not prepare the map: ' + (e && e.message ? e.message : 'unknown error'), 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+    }
+  } catch (outerErr) {
+    console.error('dgMapxOpenPushChoiceModal failed before rendering:', outerErr);
+    toast('Could not start the push: ' + (outerErr && outerErr.message ? outerErr.message : 'unknown error'), 'error');
   }
 }
 
@@ -52300,6 +52458,11 @@ function dgOpenVideoExportModal() {
   if (btn) btn.style.opacity = is3D ? '1' : '0.5';
   const status = document.getElementById('dgVideoStatus');
   if (status) status.textContent = '';
+  // Same containing-block fix as dgOpenMapExplorer: this modal is position:fixed
+  // but lives inside #dgCanvasZoomWrap, whose CSS transform (from dgApplyZoom)
+  // makes it the containing block instead of the viewport, mispositioning/clipping
+  // the modal. Escape it to <body> once, same as the Map Explorer.
+  if (modal && modal.parentElement !== document.body) document.body.appendChild(modal);
   if (modal) { modal.style.display = 'flex'; }
   dgVideoOnQualityChange();
   dgVideoDrawPreviewFrame();
