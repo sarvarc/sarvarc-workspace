@@ -7192,6 +7192,15 @@ button.dg-show-chip.active { background:var(--blue); }
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
     </button>
     <a href="https://sarvarc.com" class="topnav-alltools-link" style="font-size:13px;color:var(--text2);text-decoration:none;font-weight:500;margin-right:4px;margin-left:14px;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text2)'">All Tools</a>
+    <!-- AUTH: logged-out state shows "Log In"; logged-in state shows the user's email
+         and opens a small logout menu. sarvarcAuthUpdateNavUI() toggles between them. -->
+    <button class="new-project-btn" id="sarvarcAuthNavBtn" onclick="sarvarcAuthNavClick()" style="margin-left:10px" title="Log in or sign up">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span id="sarvarcAuthNavLabel">Log In</span>
+    </button>
+    <div id="sarvarcAuthMenu" style="display:none;position:absolute;top:44px;right:16px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,0.5);padding:6px;z-index:800;min-width:160px;">
+      <button class="btn-secondary" onclick="sarvarcAuthLogOut()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Log Out</button>
+    </div>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
   </nav>
 
@@ -11282,6 +11291,39 @@ button.dg-show-chip.active { background:var(--blue); }
       <button class="btn-secondary" onclick="sarvarcUnlockPromptCancel()" style="padding:9px 18px;font-size:12px">Cancel</button>
       <button class="pdfed-export-download-btn" onclick="sarvarcUnlockPromptConfirm()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="3" y="11" width="18" height="11" rx="2"/></svg> Unlock
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH MODAL: Sign Up / Log In, styled to match sarvarc-pw-modal (the
+     existing small-form modal used for PDF password prompts) so it looks
+     native to the app rather than a bolted-on generic form. -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcAuthOverlay" onmousedown="if(event.target===this)sarvarcAuthCloseModal()">
+  <div class="sarvarc-pw-modal">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span id="sarvarcAuthTitle">Log In</span></h3>
+        <div class="pdfed-export-sub" id="sarvarcAuthSub">Access your SARVARC Workspace account</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="sarvarcAuthCloseModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+      <div style="display:flex;gap:6px;background:var(--surface2);padding:3px;border-radius:8px;">
+        <button type="button" id="sarvarcAuthTabLogin" onclick="sarvarcAuthSwitchTab('login')" style="flex:1;padding:7px 0;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:var(--bg2);color:var(--text);">Log In</button>
+        <button type="button" id="sarvarcAuthTabSignup" onclick="sarvarcAuthSwitchTab('signup')" style="flex:1;padding:7px 0;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text2);">Sign Up</button>
+      </div>
+      <input type="email" id="sarvarcAuthEmail" class="pdfed-export-range-input" placeholder="Email" autocomplete="email" style="margin-top:0" onkeydown="if(event.key==='Enter'){document.getElementById('sarvarcAuthPassword').focus();}">
+      <input type="password" id="sarvarcAuthPassword" class="pdfed-export-range-input" placeholder="Password" autocomplete="current-password" style="margin-top:0" onkeydown="if(event.key==='Enter'){event.preventDefault();sarvarcAuthSubmit();}">
+      <div id="sarvarcAuthError" style="font-size:10px;color:#ef4444;display:none"></div>
+      <div id="sarvarcAuthNote" style="font-size:10.5px;color:var(--text3)">Your document content always stays in your browser — signing in only stores your email and plan, never your files.</div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="sarvarcAuthCloseModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" id="sarvarcAuthSubmitBtn" onclick="sarvarcAuthSubmit()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Log In
       </button>
     </div>
   </div>
@@ -53383,6 +53425,156 @@ if (document.readyState === 'loading') {
 
   setInterval(eyeRestShow, EYE_REST_INTERVAL_MS);
 })();
+</script>
+<!-- ============================================================
+     SUPABASE AUTH — email/password sign up, log in, log out,
+     persistent session, and logged-in-state UI in the top nav.
+     Deliberately scoped to auth only: no billing, no Pro/Free
+     gating here. The `entitlements` row created by the DB trigger
+     on signup is left untouched for a future step.
+     ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SARVARC_SUPABASE_URL = 'https://ndysvofxjuonfrgfeswj.supabase.co';
+  const SARVARC_SUPABASE_ANON_KEY = 'sb_publishable_wuiOlGoSu1E3_N7m8r8frg_eA6MKlTa';
+  const sarvarcSupabase = window.supabase.createClient(SARVARC_SUPABASE_URL, SARVARC_SUPABASE_ANON_KEY);
+
+  let sarvarcAuthMode = 'login'; // 'login' | 'signup'
+  let sarvarcAuthBusy = false;
+
+  // ---- Nav button: click behavior depends on logged-in state ----
+  async function sarvarcAuthNavClick() {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    if (user) {
+      const menu = document.getElementById('sarvarcAuthMenu');
+      menu.style.display = (menu.style.display === 'none') ? 'block' : 'none';
+    } else {
+      sarvarcAuthOpenModal('login');
+    }
+  }
+
+  // Close the logout dropdown when clicking elsewhere on the page
+  document.addEventListener('click', function(e) {
+    const btn = document.getElementById('sarvarcAuthNavBtn');
+    const menu = document.getElementById('sarvarcAuthMenu');
+    if (!menu || !btn) return;
+    if (menu.style.display === 'block' && !menu.contains(e.target) && !btn.contains(e.target)) {
+      menu.style.display = 'none';
+    }
+  });
+
+  // ---- Modal open/close/tabs ----
+  function sarvarcAuthOpenModal(mode) {
+    document.getElementById('sarvarcAuthMenu').style.display = 'none';
+    sarvarcAuthSwitchTab(mode || 'login');
+    document.getElementById('sarvarcAuthEmail').value = '';
+    document.getElementById('sarvarcAuthPassword').value = '';
+    sarvarcAuthShowError('');
+    document.getElementById('sarvarcAuthOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('sarvarcAuthEmail').focus(), 50);
+  }
+
+  function sarvarcAuthCloseModal() {
+    document.getElementById('sarvarcAuthOverlay').classList.remove('open');
+  }
+
+  function sarvarcAuthSwitchTab(mode) {
+    sarvarcAuthMode = mode;
+    sarvarcAuthShowError('');
+    const loginTab = document.getElementById('sarvarcAuthTabLogin');
+    const signupTab = document.getElementById('sarvarcAuthTabSignup');
+    const title = document.getElementById('sarvarcAuthTitle');
+    const sub = document.getElementById('sarvarcAuthSub');
+    const submitBtn = document.getElementById('sarvarcAuthSubmitBtn');
+    if (mode === 'login') {
+      loginTab.style.background = 'var(--bg2)'; loginTab.style.color = 'var(--text)';
+      signupTab.style.background = 'transparent'; signupTab.style.color = 'var(--text2)';
+      title.textContent = 'Log In';
+      sub.textContent = 'Access your SARVARC Workspace account';
+      submitBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Log In';
+    } else {
+      signupTab.style.background = 'var(--bg2)'; signupTab.style.color = 'var(--text)';
+      loginTab.style.background = 'transparent'; loginTab.style.color = 'var(--text2)';
+      title.textContent = 'Sign Up';
+      sub.textContent = 'Create your SARVARC Workspace account';
+      submitBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg> Sign Up';
+    }
+  }
+
+  function sarvarcAuthShowError(msg) {
+    const el = document.getElementById('sarvarcAuthError');
+    if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = 'block'; el.textContent = msg;
+  }
+
+  // ---- Submit: sign up or log in depending on active tab ----
+  async function sarvarcAuthSubmit() {
+    if (sarvarcAuthBusy) return;
+    const email = document.getElementById('sarvarcAuthEmail').value.trim();
+    const password = document.getElementById('sarvarcAuthPassword').value;
+    if (!email || !password) { sarvarcAuthShowError('Enter an email and password.'); return; }
+    if (password.length < 6) { sarvarcAuthShowError('Password must be at least 6 characters.'); return; }
+
+    sarvarcAuthBusy = true;
+    sarvarcAuthShowError('');
+    const submitBtn = document.getElementById('sarvarcAuthSubmitBtn');
+    submitBtn.disabled = true;
+
+    try {
+      if (sarvarcAuthMode === 'signup') {
+        const { data, error } = await sarvarcSupabase.auth.signUp({ email, password });
+        if (error) throw error;
+        if (data.user && !data.session) {
+          // Email confirmation is required before a session exists
+          sarvarcAuthShowError('');
+          document.getElementById('sarvarcAuthNote').textContent = 'Account created! Check your email to confirm, then log in.';
+          sarvarcAuthSwitchTab('login');
+        } else {
+          sarvarcAuthCloseModal();
+          await sarvarcAuthUpdateNavUI();
+        }
+      } else {
+        const { data, error } = await sarvarcSupabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        sarvarcAuthCloseModal();
+        await sarvarcAuthUpdateNavUI();
+      }
+    } catch (err) {
+      sarvarcAuthShowError(err.message || 'Something went wrong. Try again.');
+    } finally {
+      sarvarcAuthBusy = false;
+      submitBtn.disabled = false;
+    }
+  }
+
+  // ---- Log out ----
+  async function sarvarcAuthLogOut() {
+    document.getElementById('sarvarcAuthMenu').style.display = 'none';
+    await sarvarcSupabase.auth.signOut();
+    await sarvarcAuthUpdateNavUI();
+  }
+
+  // ---- Reflect logged-in/out state in the nav button ----
+  async function sarvarcAuthUpdateNavUI() {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    const label = document.getElementById('sarvarcAuthNavLabel');
+    const btn = document.getElementById('sarvarcAuthNavBtn');
+    if (user) {
+      label.textContent = user.email;
+      btn.title = 'Logged in as ' + user.email + ' — click to log out';
+    } else {
+      label.textContent = 'Log In';
+      btn.title = 'Log in or sign up';
+      document.getElementById('sarvarcAuthMenu').style.display = 'none';
+    }
+  }
+
+  // ---- On load: restore session if one exists, and keep UI in sync
+  //      with any future sign-in/out events (e.g. other tabs). ----
+  sarvarcAuthUpdateNavUI();
+  sarvarcSupabase.auth.onAuthStateChange((_event, _session) => {
+    sarvarcAuthUpdateNavUI();
+  });
 </script>
 </body>
 </html>
