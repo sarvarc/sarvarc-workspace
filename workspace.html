@@ -5917,9 +5917,13 @@ tr:hover .da-row-del-btn { opacity:1; }
   color:var(--blue); background:var(--bg3);
   letter-spacing:0.2px; white-space:nowrap;
   min-width:110px; max-width:320px;
-  outline:none; overflow:hidden; text-overflow:ellipsis;
+  outline:none; overflow:hidden;
 }
-.da-th-cell:focus { background:rgba(0,194,255,0.1); text-overflow:clip; overflow:visible; }
+.da-th-name {
+  outline:none; overflow:hidden; text-overflow:ellipsis;
+  min-width:0; flex:1;
+}
+.da-th-name:focus { background:rgba(0,194,255,0.1); text-overflow:clip; overflow:visible; }
 .da-th-type {
   font-size:8.5px; font-weight:700; text-transform:uppercase;
   color:var(--text3); background:var(--surface2);
@@ -5974,6 +5978,21 @@ th:hover .da-th-del { opacity:1; }
 .da-td-cell.da-cell-formula:focus { background:rgba(0,194,255,0.08); box-shadow:0 0 0 1px var(--border2) inset; }
 .da-td-cell.da-cell-error { color:#ef4444; font-weight:700; box-shadow:2px 0 0 #ef4444 inset; background:rgba(239,68,68,0.08); }
 .da-table tbody tr:nth-child(even) .da-td-cell.da-cell-error { background:rgba(239,68,68,0.1); }
+
+/* Excel-style smart fill: a small drag handle sits at the bottom-right
+   corner of the active cell (or the bottom of a shift-selected seed range).
+   Dragging it down the column extends a detected pattern — dates advance
+   day by day, numbers step by their delta, weekday/month names cycle, and
+   "Item 1"-style text increments its trailing number — falling back to a
+   plain copy when no pattern is recognized, same as Excel/Sheets. */
+.da-fill-seedcell { box-shadow:0 0 0 1.5px var(--blue, #00c2ff) inset !important; }
+.da-fill-handle {
+  position:absolute; right:-4px; bottom:-4px; width:8px; height:8px;
+  background:var(--blue, #00c2ff); border:1.5px solid var(--bg2); border-radius:2px;
+  cursor:crosshair; z-index:6;
+}
+.da-fill-handle:hover { transform:scale(1.35); }
+.da-fill-preview { box-shadow:0 0 0 1.5px var(--blue, #00c2ff) inset !important; background:rgba(0,194,255,0.14) !important; }
 
 /* Column-letter ruler row, sits above the real header row so cell refs
    used in formulas (A1, B2…) map to something visible on screen, same as
@@ -7199,6 +7218,7 @@ button.dg-show-chip.active { background:var(--blue); }
       <span id="sarvarcAuthNavLabel">Log In</span>
     </button>
     <div id="sarvarcAuthMenu" style="display:none;position:absolute;top:44px;right:16px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,0.5);padding:6px;z-index:800;min-width:160px;">
+      <button class="btn-secondary" onclick="sarvarcSettingsOpenModal()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Settings</button>
       <button class="btn-secondary" onclick="sarvarcAuthLogOut()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Log Out</button>
     </div>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
@@ -7642,7 +7662,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div style="font-size:12px;color:var(--text2)">Ready to export</div>
               <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-top:2px" id="exportCount">0 images</div>
             </div>
-            <button class="btn-primary" onclick="runExport()" style="padding:12px 28px;font-size:14px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Now</span></button>
+            <button class="btn-primary" onclick="sarvarcGateExport(runExport)" style="padding:12px 28px;font-size:14px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Now</span></button>
           </div>
         </div>
       </div>
@@ -7699,7 +7719,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
               <button class="btn-pill" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
-              <button class="btn-primary" onclick="mfExportPDF()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
+              <button class="btn-primary" onclick="sarvarcGateExport(mfExportPDF)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
             </div>
           </div>
 
@@ -7795,8 +7815,8 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="mf-resp-empty" id="mfRespEmpty">No saved responses yet. Fill the form on the right and click "Save Response", or generate a batch from a Data Arrangement table.</div>
               <div class="mf-resp-sep"></div>
               <div class="mf-resp-actions-row">
-                <button class="btn-secondary" onclick="mfExportResponsesToDA()" title="Send every saved response into Data Arrangement as a spreadsheet table">Export to Data Arrangement</button>
-                <button class="btn-secondary" onclick="mfExportAllResponsesPDF()" title="One combined PDF, every saved response on its own page">Export All as PDF</button>
+                <button class="btn-secondary" onclick="sarvarcGateExport(mfExportResponsesToDA)" title="Send every saved response into Data Arrangement as a spreadsheet table">Export to Data Arrangement</button>
+                <button class="btn-secondary" onclick="sarvarcGateExport(mfExportAllResponsesPDF)" title="One combined PDF, every saved response on its own page">Export All as PDF</button>
               </div>
             </div>
 
@@ -7839,7 +7859,7 @@ button.dg-show-chip.active { background:var(--blue); }
               
               <button class="btn-secondary" onclick="mfcPrint()">Print</button>
               <button class="btn-pill" id="mfcPushBtn" onclick="mfcOpenPushChoiceModal()" title="Send this canvas form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
-              <button class="btn-primary" onclick="mfcExportPDF()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
+              <button class="btn-primary" onclick="sarvarcGateExport(mfcExportPDF)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
             </div>
           </div>
 
@@ -9644,7 +9664,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="dg-dropdown-panel dg-export-dropdown" id="dgExportDropdown">
                 <div class="dg-panel-title" style="margin-bottom:8px">Export Chart As</div>
 
-                <div class="pdfed-export-menu-item" onclick="dgExportChart('pdf')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){dgExportChart('pdf')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">PDF Document</div>
@@ -9652,7 +9672,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   </span>
                 </div>
 
-                <div class="pdfed-export-menu-item" onclick="dgExportChart('docx')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){dgExportChart('docx')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">Word Document</div>
@@ -9660,7 +9680,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   </span>
                 </div>
 
-                <div class="pdfed-export-menu-item" onclick="dgExportChart('jpeg')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){dgExportChart('jpeg')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(249,115,22,0.15);color:#F97316"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">JPEG Image</div>
@@ -9668,7 +9688,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   </span>
                 </div>
 
-                <div class="pdfed-export-menu-item" onclick="dgExportChart('png')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){dgExportChart('png')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(34,197,94,0.15);color:#22C55E"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">PNG Image</div>
@@ -9816,7 +9836,7 @@ button.dg-show-chip.active { background:var(--blue); }
 
                       <div style="display:flex;gap:10px;margin-top:4px;">
                         <button class="btn-secondary" onclick="dgCloseVideoExportModal()" style="flex:1;padding:9px;">Cancel</button>
-                        <button class="btn-primary" id="dgVideoRecordBtn" onclick="dgStartVideoRecording()" style="flex:1;padding:9px;">Record &amp; Download</button>
+                        <button class="btn-primary" id="dgVideoRecordBtn" onclick="sarvarcGateExport(dgStartVideoRecording)" style="flex:1;padding:9px;">Record &amp; Download</button>
                       </div>
                     </div>
                   </div>
@@ -10136,28 +10156,28 @@ button.dg-show-chip.active { background:var(--blue); }
               </button>
               <div class="dg-dropdown-panel rdx-export-dropdown" id="rdxExportDropdown">
                 <div class="dg-panel-title" style="margin-bottom:8px">Export Redacted As</div>
-                <div class="pdfed-export-menu-item" onclick="rdxExportAs('pdf')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){rdxExportAs('pdf')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">PDF Document</div>
                     <div class="pdfed-export-menu-desc">Rebuilt from the redacted pages</div>
                   </span>
                 </div>
-                <div class="pdfed-export-menu-item" onclick="rdxExportAs('docx')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){rdxExportAs('docx')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">Word Document</div>
                     <div class="pdfed-export-menu-desc">Each redacted page embedded as a picture</div>
                   </span>
                 </div>
-                <div class="pdfed-export-menu-item" onclick="rdxExportAs('xlsx')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){rdxExportAs('xlsx')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(34,197,94,0.15);color:#22C55E"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="12" y1="13" x2="12" y2="20"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">Excel Spreadsheet</div>
                     <div class="pdfed-export-menu-desc">Redaction log — page, category &amp; mask style, never the sensitive text itself</div>
                   </span>
                 </div>
-                <div class="pdfed-export-menu-item" onclick="rdxExportAs('image')">
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){rdxExportAs('image')})">
                   <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
                   <span class="pdfed-export-menu-body">
                     <div class="pdfed-export-menu-title">Image (PNG)</div>
@@ -10893,7 +10913,7 @@ button.dg-show-chip.active { background:var(--blue); }
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       </button>
       <button class="btn-secondary" onclick="pdfedCloseExportModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
-      <button class="pdfed-export-download-btn" id="pdfedExportConfirmBtn" onclick="pdfedRunExportFromModal()">
+      <button class="pdfed-export-download-btn" id="pdfedExportConfirmBtn" onclick="sarvarcGateExport(pdfedRunExportFromModal)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export
       </button>
     </div>
@@ -11067,7 +11087,7 @@ button.dg-show-chip.active { background:var(--blue); }
 
     <div class="pdfed-export-footer">
       <button class="btn-secondary" onclick="daCloseExportModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
-      <button class="pdfed-export-download-btn" id="daExportConfirmBtn" onclick="daRunExportFromModal()">
+      <button class="pdfed-export-download-btn" id="daExportConfirmBtn" onclick="sarvarcGateExport(daRunExportFromModal)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export
       </button>
     </div>
@@ -11317,6 +11337,9 @@ button.dg-show-chip.active { background:var(--blue); }
       </div>
       <input type="email" id="sarvarcAuthEmail" class="pdfed-export-range-input" placeholder="Email" autocomplete="email" style="margin-top:0" onkeydown="if(event.key==='Enter'){document.getElementById('sarvarcAuthPassword').focus();}">
       <input type="password" id="sarvarcAuthPassword" class="pdfed-export-range-input" placeholder="Password" autocomplete="current-password" style="margin-top:0" onkeydown="if(event.key==='Enter'){event.preventDefault();sarvarcAuthSubmit();}">
+      <div id="sarvarcAuthForgotWrap" style="text-align:right;margin-top:-6px;">
+        <span onclick="sarvarcForgotPassword()" style="font-size:11px;color:var(--blue);cursor:pointer;font-weight:600">Forgot password?</span>
+      </div>
       <div id="sarvarcAuthError" style="font-size:10px;color:#ef4444;display:none"></div>
       <div id="sarvarcAuthNote" style="font-size:10.5px;color:var(--text3)">Your document content always stays in your browser — signing in only stores your email and plan, never your files.</div>
     </div>
@@ -11325,6 +11348,68 @@ button.dg-show-chip.active { background:var(--blue); }
       <button class="pdfed-export-download-btn" id="sarvarcAuthSubmitBtn" onclick="sarvarcAuthSubmit()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Log In
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL: Profile (name / business name) + Change Password.
+     Reuses the same overlay/card styling as the login modal. -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcSettingsOverlay" onmousedown="if(event.target===this)sarvarcSettingsCloseModal()">
+  <div class="sarvarc-pw-modal">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</h3>
+        <div class="pdfed-export-sub">Your profile and account security</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="sarvarcSettingsCloseModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+      <div style="display:flex;gap:6px;background:var(--surface2);padding:3px;border-radius:8px;">
+        <button type="button" id="sarvarcSettingsTabProfile" onclick="sarvarcSettingsSwitchTab('profile')" style="flex:1;padding:7px 0;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:var(--bg2);color:var(--text);">Profile</button>
+        <button type="button" id="sarvarcSettingsTabPassword" onclick="sarvarcSettingsSwitchTab('password')" style="flex:1;padding:7px 0;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--text2);">Password</button>
+      </div>
+
+      <!-- Profile pane -->
+      <div id="sarvarcSettingsProfilePane">
+        <div style="font-size:10.5px;color:var(--text3);margin-bottom:10px">Shown in place of your email at the top of the app.</div>
+        <input type="text" id="sarvarcSettingsFullName" class="pdfed-export-range-input" placeholder="Your name" style="margin-top:0">
+        <input type="text" id="sarvarcSettingsBusinessName" class="pdfed-export-range-input" placeholder="Business name (optional)" style="margin-top:10px">
+        <div id="sarvarcSettingsProfileError" style="font-size:10px;color:#ef4444;display:none;margin-top:8px"></div>
+      </div>
+
+      <!-- Password pane -->
+      <div id="sarvarcSettingsPasswordPane" style="display:none">
+        <input type="password" id="sarvarcSettingsCurrentPw" class="pdfed-export-range-input" placeholder="Current password" autocomplete="current-password" style="margin-top:0">
+        <input type="password" id="sarvarcSettingsNewPw" class="pdfed-export-range-input" placeholder="New password (min 6 characters)" autocomplete="new-password" style="margin-top:10px">
+        <div id="sarvarcSettingsPasswordError" style="font-size:10px;color:#ef4444;display:none;margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="sarvarcSettingsCloseModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" id="sarvarcSettingsSaveBtn" onclick="sarvarcSettingsSaveProfile()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SET NEW PASSWORD MODAL: opens automatically when the user arrives via a
+     "Forgot password" email link (Supabase fires a PASSWORD_RECOVERY auth
+     event once the recovery token in the URL is exchanged for a session). -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcRecoveryOverlay">
+  <div class="sarvarc-pw-modal">
+    <div class="pdfed-export-head">
+      <div>
+        <h3>Set a new password</h3>
+        <div class="pdfed-export-sub">You're verified via your email link — choose a new password to finish.</div>
+      </div>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+      <input type="password" id="sarvarcRecoveryNewPw" class="pdfed-export-range-input" placeholder="New password (min 6 characters)" autocomplete="new-password" style="margin-top:0" onkeydown="if(event.key==='Enter'){event.preventDefault();sarvarcRecoverySubmit();}">
+      <div id="sarvarcRecoveryError" style="font-size:10px;color:#ef4444;display:none"></div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="pdfed-export-download-btn" id="sarvarcRecoverySubmitBtn" onclick="sarvarcRecoverySubmit()">Set Password</button>
     </div>
   </div>
 </div>
@@ -34983,6 +35068,319 @@ async function sarvarcTranslateText(text, targetLang) {
 // ─── Formula bar + fx picker + AutoSum ──────────────────────────────────
 let daActiveCell = null; // { row, col } into the active dataset, or null
 
+// ─── Smart fill (Excel-style drag handle) ────────────────────────────────
+// daFillSeedRange: { col, r1, r2 } — set by shift+click to extend the
+// "seed" used for pattern detection to more than one cell in a column.
+// daFillDrag: { col, seedR1, seedR2, hoverRow } — live state while the
+// handle itself is being dragged.
+let daFillSeedRange = null;
+let daFillDrag = null;
+
+function daCellMouseDown(e, ri, ci) {
+  if (e.shiftKey && daActiveCell && daActiveCell.col === ci) {
+    daFillSeedRange = { col: ci, r1: Math.min(daActiveCell.row, ri), r2: Math.max(daActiveCell.row, ri) };
+    e.preventDefault();
+    daFillPlaceHandle();
+    return;
+  }
+  if (daFillSeedRange && !(daFillSeedRange.col === ci && ri >= daFillSeedRange.r1 && ri <= daFillSeedRange.r2)) {
+    daFillSeedRange = null;
+  }
+}
+
+// Redraws the seed-range outline and (re)places the single fill-handle DOM
+// node at the bottom-right corner of the relevant cell. Cheap enough to
+// call on every focus change since it only touches a handful of nodes,
+// not the whole table.
+function daFillPlaceHandle() {
+  const gridWrap = document.getElementById('daGridWrap');
+  if (!gridWrap) return;
+  gridWrap.querySelectorAll('.da-fill-handle').forEach(el => el.remove());
+  gridWrap.querySelectorAll('.da-fill-seedcell').forEach(el => el.classList.remove('da-fill-seedcell'));
+  const ds = daGetActive();
+  if (!ds) return;
+  let col, r1, r2;
+  if (daFillSeedRange) { col = daFillSeedRange.col; r1 = daFillSeedRange.r1; r2 = daFillSeedRange.r2; }
+  else if (daActiveCell) { col = daActiveCell.col; r1 = r2 = daActiveCell.row; }
+  else return;
+  if (r1 < 0 || r2 < 0 || r2 >= ds.rows.length) return;
+  for (let r = r1; r <= r2; r++) {
+    const td = gridWrap.querySelector(`td[data-r="${r}"][data-c="${col}"]`);
+    if (td) td.classList.add('da-fill-seedcell');
+  }
+  const handleTd = gridWrap.querySelector(`td[data-r="${r2}"][data-c="${col}"]`);
+  if (!handleTd || handleTd.querySelector('select')) return; // dropdown cells aren't fillable
+  const handle = document.createElement('div');
+  handle.className = 'da-fill-handle';
+  handle.title = 'Drag down to fill a sequence';
+  handle.addEventListener('mousedown', (ev) => daFillHandleMouseDown(ev, col, r1, r2));
+  handleTd.appendChild(handle);
+}
+
+function daFillHandleMouseDown(e, col, r1, r2) {
+  e.preventDefault();
+  e.stopPropagation();
+  const ds = daGetActive(); if (!ds) return;
+  // Commit whatever's currently being typed into the seed cell (if any)
+  // before we read ds.rows for it during the drag.
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  daFillDrag = { col, seedR1: r1, seedR2: r2, hoverRow: r2 };
+  document.addEventListener('mousemove', daFillHandleMouseMove);
+  document.addEventListener('mouseup', daFillHandleMouseUp);
+}
+
+function daFillHandleMouseMove(e) {
+  if (!daFillDrag) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const td = el && el.closest && el.closest('td[data-r]');
+  if (!td) return;
+  const ds = daGetActive(); if (!ds) return;
+  const r = +td.dataset.r, c = +td.dataset.c;
+  if (c !== daFillDrag.col) return; // only vertical (down-the-column) fill is supported
+  const clamped = Math.max(daFillDrag.seedR2, Math.min(r, ds.rows.length - 1));
+  if (clamped === daFillDrag.hoverRow) return;
+  daFillDrag.hoverRow = clamped;
+  daFillUpdatePreview();
+}
+
+function daFillUpdatePreview() {
+  document.querySelectorAll('#daGridWrap .da-fill-preview').forEach(td => td.classList.remove('da-fill-preview'));
+  if (!daFillDrag) return;
+  const { col, seedR2, hoverRow } = daFillDrag;
+  for (let r = seedR2 + 1; r <= hoverRow; r++) {
+    const td = document.querySelector(`#daGridWrap td[data-r="${r}"][data-c="${col}"]`);
+    if (td) td.classList.add('da-fill-preview');
+  }
+}
+
+function daFillHandleMouseUp() {
+  document.removeEventListener('mousemove', daFillHandleMouseMove);
+  document.removeEventListener('mouseup', daFillHandleMouseUp);
+  const drag = daFillDrag;
+  daFillDrag = null;
+  document.querySelectorAll('#daGridWrap .da-fill-preview').forEach(td => td.classList.remove('da-fill-preview'));
+  if (!drag) return;
+  const { col, seedR1, seedR2, hoverRow } = drag;
+  if (hoverRow <= seedR2) return; // no real drag happened
+  const ds = daGetActive(); if (!ds) return;
+  const seedVals = [];
+  for (let r = seedR1; r <= seedR2; r++) seedVals.push(ds.rows[r][col]);
+  const count = hoverRow - seedR2;
+  const filled = daFillGenerateSeries(seedVals, count);
+  for (let i = 0; i < count; i++) ds.rows[seedR2 + 1 + i][col] = filled[i];
+  daFillSeedRange = { col, r1: seedR1, r2: hoverRow }; // lets the user keep dragging further
+  daRecalcColumnOps(ds);
+  daRenderTable();
+  toast(`Filled ${count} cell${count === 1 ? '' : 's'} down the column`, 'success');
+}
+
+// ── Series detection (Excel/Sheets-style autofill) ────────────────────────
+const DA_FILL_DOW_FULL = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const DA_FILL_DOW_ABBR = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DA_FILL_MON_FULL = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const DA_FILL_MON_ABBR = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+function daFillCaseStyleOf(txt) {
+  if (txt === txt.toUpperCase() && txt !== txt.toLowerCase()) return 'upper';
+  if (txt === txt.toLowerCase()) return 'lower';
+  return 'cap'; // Title-case / Capitalized, e.g. "Monday", "Jan"
+}
+function daFillApplyCase(name, style) {
+  if (style === 'upper') return name.toUpperCase();
+  if (style === 'lower') return name.toLowerCase();
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+function daFillMatchNameIndex(txt, listFull, listAbbr) {
+  const lower = txt.trim().toLowerCase();
+  let idx = listFull.indexOf(lower);
+  if (idx >= 0) return idx;
+  if (lower.length === 3) { idx = listAbbr.indexOf(lower); if (idx >= 0) return idx; }
+  return -1;
+}
+
+function daFillMonthIdx(txt) {
+  return daFillMatchNameIndex(txt, DA_FILL_MON_FULL, DA_FILL_MON_ABBR);
+}
+
+// Parses a single date-like cell value into { y, mo, d, fmt } where fmt
+// captures enough about the original layout (separator, digit padding,
+// 2 vs 4-digit year, month-as-number vs month-name) to regenerate more
+// dates that look like the one the user actually typed.
+function daFillParseDate(raw) {
+  const s = String(raw || '').trim();
+  let m;
+  // YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+  if ((m = /^(\d{4})([-\/.])(\d{1,2})\2(\d{1,2})$/.exec(s))) {
+    return { y: +m[1], mo: +m[3], d: +m[4], fmt: { type: 'ymd', sep: m[2], moPad: m[3].length === 2, dPad: m[4].length === 2 } };
+  }
+  // DD-MM-YYYY or MM-DD-YYYY (4-digit year) — defaults to day-first when ambiguous
+  if ((m = /^(\d{1,2})([-\/.])(\d{1,2})\2(\d{4})$/.exec(s))) {
+    const a = +m[1], b = +m[3], y = +m[4];
+    let dayFirst = true;
+    if (a > 12 && b <= 12) dayFirst = true;
+    else if (b > 12 && a <= 12) dayFirst = false;
+    const d = dayFirst ? a : b, mo = dayFirst ? b : a;
+    return { y, mo, d, fmt: { type: 'dmy_num', sep: m[2], dayFirst, aPad: m[1].length === 2, bPad: m[3].length === 2, yLen: 4 } };
+  }
+  // Same but a 2-digit year
+  if ((m = /^(\d{1,2})([-\/.])(\d{1,2})\2(\d{2})$/.exec(s))) {
+    const a = +m[1], b = +m[3], yy = +m[4];
+    const y = yy + (yy < 70 ? 2000 : 1900);
+    let dayFirst = true;
+    if (a > 12 && b <= 12) dayFirst = true;
+    else if (b > 12 && a <= 12) dayFirst = false;
+    const d = dayFirst ? a : b, mo = dayFirst ? b : a;
+    return { y, mo, d, fmt: { type: 'dmy_num', sep: m[2], dayFirst, aPad: m[1].length === 2, bPad: m[3].length === 2, yLen: 2 } };
+  }
+  // "15-Jan-2023", "15 Jan 2023", "1st Jan 2025"
+  if ((m = /^(\d{1,2})(?:st|nd|rd|th)?([-\s])([A-Za-z]{3,9})[-\s.,]+(\d{2,4})$/.exec(s))) {
+    const idx = daFillMonthIdx(m[3]);
+    if (idx >= 0) {
+      const yRaw = m[4], y = yRaw.length <= 2 ? (+yRaw + (+yRaw < 70 ? 2000 : 1900)) : +yRaw;
+      return { y, mo: idx + 1, d: +m[1], fmt: { type: 'dmon_y', sep: m[2], monLen: m[3].length <= 3 ? 3 : 'full', monCase: daFillCaseStyleOf(m[3]), yLen: yRaw.length, dPad: m[1].length === 2 } };
+    }
+  }
+  // "Jan 15, 2023", "January 15 2023"
+  if ((m = /^([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{2,4})$/.exec(s))) {
+    const idx = daFillMonthIdx(m[1]);
+    if (idx >= 0) {
+      const yRaw = m[3], y = yRaw.length <= 2 ? (+yRaw + (+yRaw < 70 ? 2000 : 1900)) : +yRaw;
+      return { y, mo: idx + 1, d: +m[2], fmt: { type: 'mon_d_y', monLen: m[1].length <= 3 ? 3 : 'full', monCase: daFillCaseStyleOf(m[1]), yLen: yRaw.length, dPad: m[2].length === 2 } };
+    }
+  }
+  return null;
+}
+
+function daFillFormatDate(y, mo, d, fmt) {
+  const pad2 = n => String(n).padStart(2, '0');
+  const yStr = fmt.yLen === 2 ? String(((y % 100) + 100) % 100).padStart(2, '0') : String(y);
+  const dStr = fmt.dPad === false ? String(d) : pad2(d);
+  const monName = () => {
+    let name = fmt.monLen === 'full' ? DA_FILL_MON_FULL[mo - 1] : DA_FILL_MON_ABBR[mo - 1];
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+    return daFillApplyCase(name, fmt.monCase);
+  };
+  switch (fmt.type) {
+    case 'ymd': return `${yStr}${fmt.sep}${fmt.moPad === false ? String(mo) : pad2(mo)}${fmt.sep}${dStr}`;
+    case 'dmy_num': return fmt.dayFirst
+      ? `${dStr}${fmt.sep}${fmt.bPad === false ? String(mo) : pad2(mo)}${fmt.sep}${yStr}`
+      : `${fmt.aPad === false ? String(mo) : pad2(mo)}${fmt.sep}${dStr}${fmt.sep}${yStr}`;
+    case 'dmon_y': return `${dStr}${fmt.sep}${monName()}${fmt.sep}${yStr}`;
+    case 'mon_d_y': return `${monName()} ${dStr}, ${yStr}`;
+    default: return `${yStr}-${pad2(mo)}-${dStr}`;
+  }
+}
+
+function daFillDaysBetween(a, b) {
+  return Math.round((Date.UTC(b.y, b.mo - 1, b.d) - Date.UTC(a.y, a.mo - 1, a.d)) / 86400000);
+}
+
+// Given the seed cell value(s) (one cell, or several from a shift-selected
+// range) and how many more cells need filling, returns the next `count`
+// values — mirroring Excel/Sheets' click-and-drag autofill: dates advance
+// by the day-delta between seeds (default 1 day), plain numbers and
+// "Item 3"-style text step by their numeric delta (default 1, padding
+// preserved), weekday/month names cycle, and anything unrecognized either
+// continues the given pattern or is simply repeated.
+function daFillGenerateSeries(seedVals, count) {
+  const vals = seedVals.map(v => String(v ?? '').trim());
+  const n = vals.length;
+  const out = [];
+
+  // Weekday names
+  {
+    const idxs = vals.map(v => daFillMatchNameIndex(v, DA_FILL_DOW_FULL, DA_FILL_DOW_ABBR));
+    if (idxs.every(i => i >= 0)) {
+      const isAbbr = vals[n - 1].length === 3;
+      const caseStyle = daFillCaseStyleOf(vals[n - 1]);
+      let step = 1;
+      if (n >= 2) step = (((idxs[n - 1] - idxs[n - 2]) % 7) + 7) % 7 || 1;
+      let cur = idxs[n - 1];
+      for (let i = 0; i < count; i++) { cur = ((cur + step) % 7 + 7) % 7; out.push(daFillApplyCase(isAbbr ? DA_FILL_DOW_ABBR[cur] : DA_FILL_DOW_FULL[cur], caseStyle)); }
+      return out;
+    }
+  }
+  // Month names
+  {
+    const idxs = vals.map(v => daFillMonthIdx(v));
+    if (idxs.every(i => i >= 0)) {
+      const isAbbr = vals[n - 1].length === 3;
+      const caseStyle = daFillCaseStyleOf(vals[n - 1]);
+      let step = 1;
+      if (n >= 2) step = (((idxs[n - 1] - idxs[n - 2]) % 12) + 12) % 12 || 1;
+      let cur = idxs[n - 1];
+      for (let i = 0; i < count; i++) { cur = ((cur + step) % 12 + 12) % 12; out.push(daFillApplyCase(isAbbr ? DA_FILL_MON_ABBR[cur] : DA_FILL_MON_FULL[cur], caseStyle)); }
+      return out;
+    }
+  }
+  // Dates (this covers "09-09-2002" -> 10, 11, 12, 13...)
+  {
+    const parsed = vals.map(daFillParseDate);
+    if (parsed.every(Boolean)) {
+      let step = 1;
+      if (n >= 2) step = daFillDaysBetween(parsed[n - 2], parsed[n - 1]) || 1;
+      const fmt = parsed[n - 1].fmt;
+      let y = parsed[n - 1].y, mo = parsed[n - 1].mo, d = parsed[n - 1].d;
+      for (let i = 0; i < count; i++) {
+        const dt = new Date(Date.UTC(y, mo - 1, d));
+        dt.setUTCDate(dt.getUTCDate() + step);
+        y = dt.getUTCFullYear(); mo = dt.getUTCMonth() + 1; d = dt.getUTCDate();
+        out.push(daFillFormatDate(y, mo, d, fmt));
+      }
+      return out;
+    }
+  }
+  // Decimal numbers
+  if (vals.every(v => /^-?\d+\.\d+$/.test(v))) {
+    const nums = vals.map(Number);
+    const decimals = (vals[n - 1].split('.')[1] || '').length;
+    let step = 1;
+    if (n >= 2) step = nums[n - 1] - nums[n - 2];
+    let cur = nums[n - 1];
+    for (let i = 0; i < count; i++) { cur += step; out.push(cur.toFixed(decimals)); }
+    return out;
+  }
+  // Plain integers (zero-padding preserved, e.g. "007" -> "008")
+  if (vals.every(v => /^-?\d+$/.test(v))) {
+    const nums = vals.map(Number);
+    const last = vals[n - 1];
+    const padLen = (/^0/.test(last) && last.replace('-', '').length > 1) ? last.replace('-', '').length : 0;
+    let step = 1;
+    if (n >= 2) step = nums[n - 1] - nums[n - 2];
+    let cur = nums[n - 1];
+    for (let i = 0; i < count; i++) {
+      cur += step;
+      out.push(padLen ? (cur < 0 ? '-' : '') + String(Math.abs(cur)).padStart(padLen, '0') : String(cur));
+    }
+    return out;
+  }
+  // Text with a trailing number, e.g. "Item 1", "Q1", "Row-007"
+  {
+    const lastM = /^(.*?)(\d+)([^\d]*)$/.exec(vals[n - 1]);
+    if (lastM) {
+      let step = 1;
+      if (n >= 2) {
+        const prevM = /^(.*?)(\d+)([^\d]*)$/.exec(vals[n - 2]);
+        if (prevM && prevM[1] === lastM[1] && prevM[3] === lastM[3]) step = (+lastM[2]) - (+prevM[2]);
+      }
+      const padLen = (/^0/.test(lastM[2]) && lastM[2].length > 1) ? lastM[2].length : 0;
+      let cur = +lastM[2];
+      for (let i = 0; i < count; i++) {
+        cur += step;
+        const numStr = padLen ? String(Math.max(cur, 0)).padStart(padLen, '0') : String(cur);
+        out.push(lastM[1] + numStr + lastM[3]);
+      }
+      return out;
+    }
+  }
+  // No recognizable pattern: cycle the given values (Excel's behavior for a
+  // multi-cell seed), or just repeat the single seed value.
+  for (let i = 0; i < count; i++) out.push(vals[n > 1 ? (i % n) : 0]);
+  return out;
+}
+
 function daPlaceCaretEnd(el) {
   if (typeof window.getSelection === 'undefined' || typeof document.createRange === 'undefined') return;
   const range = document.createRange();
@@ -35005,6 +35403,7 @@ function daCellFocus(el, ri, ci) {
     daPlaceCaretEnd(el);
   }
   daUpdateFormulaBar(ri, ci, raw);
+  daFillPlaceHandle();
 }
 
 function daUpdateFormulaBar(ri, ci, raw) {
@@ -35016,10 +35415,12 @@ function daUpdateFormulaBar(ri, ci, raw) {
 
 function daResetFormulaBar() {
   daActiveCell = null;
+  daFillSeedRange = null;
   const refEl = document.getElementById('daFormulaBarRef');
   const inputEl = document.getElementById('daFormulaBarInput');
   if (refEl) refEl.textContent = '–';
   if (inputEl) { inputEl.value = ''; inputEl.disabled = true; }
+  daFillPlaceHandle();
 }
 
 function daFormulaBarInputChanged() {
@@ -35208,6 +35609,15 @@ function daRenderTable() {
   const gridWrap = document.getElementById('daGridWrap');
   const meta = document.getElementById('daMeta');
   if (!gridWrap) return;
+  // Rebuilding the grid's innerHTML while one of its cells is still
+  // mid-edit (contenteditable focused) makes the browser fire that cell's
+  // blur handler *during* the removal — which calls daUpdateCell ->
+  // daRenderTable() again, and the outer removal can then throw
+  // "node to be removed is no longer a child of this node". Committing the
+  // edit first (a normal blur, outside of any DOM removal) avoids that.
+  if (gridWrap.contains(document.activeElement) && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   const ds = daGetActive();
   if (!ds) { gridWrap.innerHTML = ''; if (meta) meta.textContent = ''; return; }
 
@@ -35253,10 +35663,13 @@ function daRenderTable() {
   html += `<th class="da-rownum">#</th>`;
   ds.headers.forEach((h, ci) => {
     html += `<th oncontextmenu="daCellContextMenu(event, -1, ${ci});return false;">
-      <div class="da-th-cell" contenteditable="true" spellcheck="false"
-           onblur="daRenameHeader(${ci}, this.textContent)"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-           title="Right-click for a column-wide dropdown list">${daEsc(h)}<span class="da-th-type">${colTypes[ci]}</span><span class="da-th-del" title="Delete column" onclick="daDeleteColumn(${ci})">×</span></div>
+      <div class="da-th-cell" title="Right-click for a column-wide dropdown list">
+        <span class="da-th-name" contenteditable="true" spellcheck="false"
+             onblur="daRenameHeader(${ci}, this.textContent)"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${daEsc(h)}</span>
+        <span class="da-th-type">${colTypes[ci]}</span>
+        <span class="da-th-del" title="Delete column" onmousedown="event.preventDefault();event.stopPropagation();" onclick="daDeleteColumn(${ci})">×</span>
+      </div>
       ${colTypes[ci] === 'NUM' ? `<div class="da-th-ops">
         <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '+' ? ' da-th-opbtn-active' : ''}" title="Sum this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '+')">+</button>
         <button type="button" class="da-th-opbtn${ds.colOps && ds.colOps[ci] === '-' ? ' da-th-opbtn-active' : ''}" title="Subtract down this column, auto-updates as rows change" onclick="daColumnOp(${ci}, '-')">−</button>
@@ -35304,13 +35717,14 @@ function daRenderTable() {
           if (!matched) {
             optsHtml = `<option value="${daEsc(val)}" selected>${val === '' ? '—' : daEsc(val)}</option>` + optsHtml;
           }
-          html += `<td><select class="da-td-select" data-da-dropdown="1"
+          html += `<td data-r="${ri}" data-c="${ci}"><select class="da-td-select" data-da-dropdown="1"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onchange="daUpdateCell(${ri}, ${ci}, this.value)"
                oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
                title="Dropdown list, right-click to edit choices">${optsHtml}</select></td>`;
         } else {
-          html += `<td><div class="da-td-cell${cls ? ' ' + cls : ''}" contenteditable="true" spellcheck="false"
+          html += `<td data-r="${ri}" data-c="${ci}"><div class="da-td-cell${cls ? ' ' + cls : ''}" contenteditable="true" spellcheck="false"
+               onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
                onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
@@ -35323,6 +35737,7 @@ function daRenderTable() {
   }
   html += `</tbody></table>`;
   gridWrap.innerHTML = html;
+  daFillPlaceHandle();
 }
 
 function daHighlight(val, query) {
@@ -43228,7 +43643,7 @@ function mfRenderResponsesList() {
       <div class="mf-resp-item-meta">${new Date(r.updatedAt).toLocaleString()}</div>
       <div class="mf-resp-item-btns">
         <button onclick="event.stopPropagation();mfLoadResponse('${r.id}')">Edit</button>
-        <button onclick="mfExportSingleResponsePDF('${r.id}', event)">PDF</button>
+        <button onclick="sarvarcGateExport(function(){mfExportSingleResponsePDF('${r.id}', event)})">PDF</button>
         <button class="mf-danger" onclick="mfDeleteResponse('${r.id}', event)">Delete</button>
       </div>
     </div>
@@ -53442,6 +53857,39 @@ if (document.readyState === 'loading') {
   let sarvarcAuthMode = 'login'; // 'login' | 'signup'
   let sarvarcAuthBusy = false;
 
+  // ---- EXPORT GATE ----
+  // Every real "download the finished file" button in the app (PDF/DOCX/XLSX/
+  // image/video/chart exports across Workspace, Data Arrangement, Make Forms,
+  // Diagrams & Graphs, Redact PII) is routed through this one function instead
+  // of duplicating an auth check in each export handler. Saving a .sw project
+  // file and "Save Your Workflow" are deliberately NOT gated — those are local
+  // project saves, not finished deliverables, and stay free exactly as today.
+  //
+  // If logged in: runs the export immediately, no behavior change.
+  // If logged out: the export never runs — nothing is generated or touched —
+  // the sign-up modal opens instead, and the SAME export automatically fires
+  // the moment sign-up/login succeeds, so the user never has to click twice.
+  let sarvarcPendingExportAction = null;
+
+  async function sarvarcGateExport(actionFn) {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    if (user) {
+      actionFn();
+      return;
+    }
+    sarvarcPendingExportAction = actionFn;
+    sarvarcAuthOpenModal('signup');
+    document.getElementById('sarvarcAuthNote').textContent =
+      'Sign up free to export — your document stays in your browser, we never see it.';
+  }
+
+  function sarvarcRunPendingExportIfAny() {
+    if (!sarvarcPendingExportAction) return;
+    const fn = sarvarcPendingExportAction;
+    sarvarcPendingExportAction = null;
+    fn();
+  }
+
   // ---- Nav button: click behavior depends on logged-in state ----
   async function sarvarcAuthNavClick() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
@@ -53486,18 +53934,168 @@ if (document.readyState === 'loading') {
     const title = document.getElementById('sarvarcAuthTitle');
     const sub = document.getElementById('sarvarcAuthSub');
     const submitBtn = document.getElementById('sarvarcAuthSubmitBtn');
+    const forgotWrap = document.getElementById('sarvarcAuthForgotWrap');
     if (mode === 'login') {
       loginTab.style.background = 'var(--bg2)'; loginTab.style.color = 'var(--text)';
       signupTab.style.background = 'transparent'; signupTab.style.color = 'var(--text2)';
       title.textContent = 'Log In';
       sub.textContent = 'Access your SARVARC Workspace account';
       submitBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Log In';
+      if (forgotWrap) forgotWrap.style.display = 'block';
     } else {
       signupTab.style.background = 'var(--bg2)'; signupTab.style.color = 'var(--text)';
       loginTab.style.background = 'transparent'; loginTab.style.color = 'var(--text2)';
       title.textContent = 'Sign Up';
       sub.textContent = 'Create your SARVARC Workspace account';
       submitBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg> Sign Up';
+      if (forgotWrap) forgotWrap.style.display = 'none';
+    }
+  }
+
+  // ---- Forgot password (logged out): emails a recovery link. Supabase
+  // redirects back to this same page with a recovery token in the URL;
+  // onAuthStateChange below catches the PASSWORD_RECOVERY event and opens
+  // the "set new password" modal automatically. ----
+  async function sarvarcForgotPassword() {
+    const email = document.getElementById('sarvarcAuthEmail').value.trim();
+    if (!email) { sarvarcAuthShowError('Enter your email above first, then click "Forgot password?".'); return; }
+    sarvarcAuthShowError('');
+    try {
+      const { error } = await sarvarcSupabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + window.location.pathname
+      });
+      if (error) throw error;
+      document.getElementById('sarvarcAuthNote').textContent = 'Reset link sent to ' + email + ' — check your inbox.';
+    } catch (err) {
+      sarvarcAuthShowError(err.message || 'Could not send reset email. Try again.');
+    }
+  }
+
+  // ---- Set-new-password modal shown after clicking the emailed link ----
+  function sarvarcRecoveryShowError(msg) {
+    const el = document.getElementById('sarvarcRecoveryError');
+    if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = 'block'; el.textContent = msg;
+  }
+
+  async function sarvarcRecoverySubmit() {
+    const pw = document.getElementById('sarvarcRecoveryNewPw').value;
+    if (!pw || pw.length < 6) { sarvarcRecoveryShowError('Password must be at least 6 characters.'); return; }
+    const btn = document.getElementById('sarvarcRecoverySubmitBtn');
+    btn.disabled = true;
+    try {
+      const { error } = await sarvarcSupabase.auth.updateUser({ password: pw });
+      if (error) throw error;
+      document.getElementById('sarvarcRecoveryOverlay').classList.remove('open');
+      await sarvarcAuthUpdateNavUI();
+      toast('Password updated — you\'re logged in.', 'success');
+    } catch (err) {
+      sarvarcRecoveryShowError(err.message || 'Could not update password. Try again.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---- SETTINGS MODAL: Profile (name/business name) + Change Password ----
+  let sarvarcSettingsMode = 'profile';
+
+  async function sarvarcSettingsOpenModal() {
+    document.getElementById('sarvarcAuthMenu').style.display = 'none';
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    if (!user) { sarvarcAuthOpenModal('login'); return; }
+    sarvarcSettingsSwitchTab('profile');
+    document.getElementById('sarvarcSettingsCurrentPw').value = '';
+    document.getElementById('sarvarcSettingsNewPw').value = '';
+    document.getElementById('sarvarcSettingsProfileError').style.display = 'none';
+    document.getElementById('sarvarcSettingsPasswordError').style.display = 'none';
+    // Pre-fill from the profiles table if a row already exists
+    try {
+      const { data: profile } = await sarvarcSupabase.from('profiles')
+        .select('full_name, business_name').eq('id', user.id).maybeSingle();
+      document.getElementById('sarvarcSettingsFullName').value = (profile && profile.full_name) || '';
+      document.getElementById('sarvarcSettingsBusinessName').value = (profile && profile.business_name) || '';
+    } catch (e) {
+      document.getElementById('sarvarcSettingsFullName').value = '';
+      document.getElementById('sarvarcSettingsBusinessName').value = '';
+    }
+    document.getElementById('sarvarcSettingsOverlay').classList.add('open');
+  }
+
+  function sarvarcSettingsCloseModal() {
+    document.getElementById('sarvarcSettingsOverlay').classList.remove('open');
+  }
+
+  function sarvarcSettingsSwitchTab(mode) {
+    sarvarcSettingsMode = mode;
+    const profileTab = document.getElementById('sarvarcSettingsTabProfile');
+    const passwordTab = document.getElementById('sarvarcSettingsTabPassword');
+    const profilePane = document.getElementById('sarvarcSettingsProfilePane');
+    const passwordPane = document.getElementById('sarvarcSettingsPasswordPane');
+    const saveBtn = document.getElementById('sarvarcSettingsSaveBtn');
+    if (mode === 'profile') {
+      profileTab.style.background = 'var(--bg2)'; profileTab.style.color = 'var(--text)';
+      passwordTab.style.background = 'transparent'; passwordTab.style.color = 'var(--text2)';
+      profilePane.style.display = 'block'; passwordPane.style.display = 'none';
+      saveBtn.textContent = 'Save'; saveBtn.setAttribute('onclick', 'sarvarcSettingsSaveProfile()');
+    } else {
+      passwordTab.style.background = 'var(--bg2)'; passwordTab.style.color = 'var(--text)';
+      profileTab.style.background = 'transparent'; profileTab.style.color = 'var(--text2)';
+      passwordPane.style.display = 'block'; profilePane.style.display = 'none';
+      saveBtn.textContent = 'Update Password'; saveBtn.setAttribute('onclick', 'sarvarcSettingsChangePassword()');
+    }
+  }
+
+  async function sarvarcSettingsSaveProfile() {
+    const errEl = document.getElementById('sarvarcSettingsProfileError');
+    errEl.style.display = 'none';
+    const fullName = document.getElementById('sarvarcSettingsFullName').value.trim();
+    const businessName = document.getElementById('sarvarcSettingsBusinessName').value.trim();
+    const btn = document.getElementById('sarvarcSettingsSaveBtn');
+    btn.disabled = true;
+    try {
+      const { data: { user } } = await sarvarcSupabase.auth.getUser();
+      if (!user) throw new Error('Not logged in.');
+      const { error } = await sarvarcSupabase.from('profiles').upsert({
+        id: user.id, full_name: fullName || null, business_name: businessName || null, updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+      sarvarcSettingsCloseModal();
+      await sarvarcAuthUpdateNavUI();
+      toast('Profile saved', 'success');
+    } catch (err) {
+      errEl.textContent = err.message || 'Could not save profile. Try again.';
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Change password while logged in: re-confirms identity with the current
+  // password (via signInWithPassword) before allowing the update, same
+  // safeguard a normal "change password" screen uses.
+  async function sarvarcSettingsChangePassword() {
+    const errEl = document.getElementById('sarvarcSettingsPasswordError');
+    errEl.style.display = 'none';
+    const currentPw = document.getElementById('sarvarcSettingsCurrentPw').value;
+    const newPw = document.getElementById('sarvarcSettingsNewPw').value;
+    if (!currentPw) { errEl.textContent = 'Enter your current password.'; errEl.style.display = 'block'; return; }
+    if (!newPw || newPw.length < 6) { errEl.textContent = 'New password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+    const btn = document.getElementById('sarvarcSettingsSaveBtn');
+    btn.disabled = true;
+    try {
+      const { data: { user } } = await sarvarcSupabase.auth.getUser();
+      if (!user) throw new Error('Not logged in.');
+      const { error: reauthErr } = await sarvarcSupabase.auth.signInWithPassword({ email: user.email, password: currentPw });
+      if (reauthErr) throw new Error('Current password is incorrect.');
+      const { error } = await sarvarcSupabase.auth.updateUser({ password: newPw });
+      if (error) throw error;
+      sarvarcSettingsCloseModal();
+      toast('Password updated', 'success');
+    } catch (err) {
+      errEl.textContent = err.message || 'Could not update password. Try again.';
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -53532,12 +54130,14 @@ if (document.readyState === 'loading') {
         } else {
           sarvarcAuthCloseModal();
           await sarvarcAuthUpdateNavUI();
+          sarvarcRunPendingExportIfAny();
         }
       } else {
         const { data, error } = await sarvarcSupabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         sarvarcAuthCloseModal();
         await sarvarcAuthUpdateNavUI();
+        sarvarcRunPendingExportIfAny();
       }
     } catch (err) {
       sarvarcAuthShowError(err.message || 'Something went wrong. Try again.');
@@ -53554,14 +54154,24 @@ if (document.readyState === 'loading') {
     await sarvarcAuthUpdateNavUI();
   }
 
-  // ---- Reflect logged-in/out state in the nav button ----
+  // ---- Reflect logged-in/out state in the nav button. Once a profile row
+  // exists (set via Settings), its name/business name is shown instead of
+  // the raw email — falls back to email until the user fills that in. ----
   async function sarvarcAuthUpdateNavUI() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
     const label = document.getElementById('sarvarcAuthNavLabel');
     const btn = document.getElementById('sarvarcAuthNavBtn');
     if (user) {
-      label.textContent = user.email;
-      btn.title = 'Logged in as ' + user.email + ' — click to log out';
+      let displayName = user.email;
+      try {
+        const { data: profile } = await sarvarcSupabase.from('profiles')
+          .select('full_name, business_name').eq('id', user.id).maybeSingle();
+        if (profile && (profile.full_name || profile.business_name)) {
+          displayName = profile.full_name || profile.business_name;
+        }
+      } catch (e) { /* profiles table not reachable — fall back to email silently */ }
+      label.textContent = displayName;
+      btn.title = 'Logged in as ' + user.email + ' — click for settings or to log out';
     } else {
       label.textContent = 'Log In';
       btn.title = 'Log in or sign up';
@@ -53570,10 +54180,17 @@ if (document.readyState === 'loading') {
   }
 
   // ---- On load: restore session if one exists, and keep UI in sync
-  //      with any future sign-in/out events (e.g. other tabs). ----
+  //      with any future sign-in/out events (e.g. other tabs). Also catches
+  //      PASSWORD_RECOVERY — fired once Supabase exchanges the token from a
+  //      "Forgot password" email link for a session — and opens the
+  //      set-new-password modal automatically. ----
   sarvarcAuthUpdateNavUI();
-  sarvarcSupabase.auth.onAuthStateChange((_event, _session) => {
+  sarvarcSupabase.auth.onAuthStateChange((event, _session) => {
     sarvarcAuthUpdateNavUI();
+    if (event === 'PASSWORD_RECOVERY') {
+      document.getElementById('sarvarcRecoveryOverlay').classList.add('open');
+      setTimeout(() => document.getElementById('sarvarcRecoveryNewPw').focus(), 50);
+    }
   });
 </script>
 </body>
