@@ -45506,10 +45506,178 @@ async function mfRasterizeFormPageCanvases() {
   }
 }
 
+// ─── EDITABLE WORD FIELDS (shared by field-based Make Forms + Canvas Form) ───
+// Word .docx exports used to bake the whole form into one flat picture, so
+// nothing in the downloaded file could actually be typed into. These build
+// real, natively-editable Word text boxes instead — the classic <w:pict>/
+// <v:shape> "legacy" textbox format Word itself has always used for
+// absolutely-positioned text, so it opens with no repair prompt in any
+// version of Word (unlike the newer DrawingML wps:wsp shape, which needs an
+// mc:AlternateContent wrapper to be safe across versions). Positioned in
+// points, relative to the physical page, so a box lands exactly where the
+// field sits in the live preview/canvas.
+function mfXmlEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+let mfDocxShapeIdCounter = 1;
+function mfDocxTextboxXml(opts) {
+  const id = mfDocxShapeIdCounter++;
+  const leftPt = Math.round(opts.xMm * 2.83465 * 100) / 100;
+  const topPt = Math.round(opts.yMm * 2.83465 * 100) / 100;
+  const wPt = Math.round(Math.max(opts.wMm, 4) * 2.83465 * 100) / 100;
+  const hPt = Math.round(Math.max(opts.hMm, 3) * 2.83465 * 100) / 100;
+  const halfPt = Math.max(2, Math.round((opts.fontSizePt || 11) * 2));
+  const color = (opts.color || '#1A1A2E').replace('#', '').toUpperCase();
+  const align = { left: 'left', center: 'center', right: 'right', justify: 'both' }[opts.align] || 'left';
+  const rPr = `<w:rFonts w:ascii="${mfXmlEsc(opts.fontFamily || 'Calibri')}" w:hAnsi="${mfXmlEsc(opts.fontFamily || 'Calibri')}"/><w:sz w:val="${halfPt}"/><w:szCs w:val="${halfPt}"/><w:color w:val="${color}"/>` +
+    (opts.bold ? '<w:b/>' : '') + (opts.italic ? '<w:i/>' : '') + (opts.underline ? '<w:u w:val="single"/>' : '');
+  const lines = String(opts.text || '').split('\n');
+  const bodyPs = (lines.length ? lines : ['']).map(line =>
+    `<w:p><w:pPr><w:spacing w:after="0"/><w:jc w:val="${align}"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${mfXmlEsc(line)}</w:t></w:r></w:p>`
+  ).join('');
+  const fillAttr = (opts.background && opts.background !== 'transparent') ? `filled="t" fillcolor="#${opts.background.replace('#', '').toUpperCase()}"` : 'filled="f"';
+  const strokeAttr = opts.border ? 'stroked="t" strokecolor="#8C8C8C" strokeweight=".5pt"' : 'stroked="f"';
+  return `<w:p><w:r><w:pict><v:shape id="mfShape${id}" o:spt="202" type="#_x0000_t202" ` +
+    `style="position:absolute;left:${leftPt}pt;top:${topPt}pt;width:${wPt}pt;height:${hPt}pt;mso-position-horizontal-relative:page;mso-position-vertical-relative:page;z-index:${id}" ` +
+    `${fillAttr} ${strokeAttr}>` +
+    `<v:textbox inset="1pt,0.5pt,1pt,0.5pt"><w:txbxContent>${bodyPs}</w:txbxContent></v:textbox>` +
+    `</v:shape></w:pict></w:r></w:p>`;
+}
+// Root namespaces for any docx body that embeds mfDocxTextboxXml() shapes —
+// adds xmlns:v/xmlns:o (VML + Office) on top of the standard w/r/wp set.
+const MF_DOCX_ROOT_NAMESPACES = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
+  `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
+  `xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ` +
+  `xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"`;
+
+// Same rasterization mfRasterizeFormPageCanvases() does, but also captures
+// every fillable target's position/size (the same targets Push to Workspace
+// collects) and maps each one into its page slice's own mm coordinates, so
+// the Word export can lay a real, empty, natively-editable text box exactly
+// on top of each blank input/textarea/checkbox/MCQ bubble/signature line in
+// the flattened background image.
+async function mfRasterizeFormPageCanvasesWithFields() {
+  const f = mfGetCurrentForm();
+  const page = document.getElementById('mfPreviewPage');
+  if (!f || !page) { toast('Open a form first', 'error'); return null; }
+  if (mfFormLangBusy) { toast('Still translating — wait for it to finish so the exported file matches', 'info'); return null; }
+  if (typeof html2canvas === 'undefined') { toast('Export is unavailable right now', 'error'); return null; }
+  const A4_W_MM = 210, A4_H_MM = 297, PXMM = 3.7795, CAPTURE_SCALE = 2;
+  const trueWidthPx = Math.round(A4_W_MM * PXMM);
+  const stack = page.parentElement;
+  const prev = { width: page.style.width, maxWidth: page.style.maxWidth, height: page.style.height, overflowY: page.style.overflowY, aspectRatio: page.style.aspectRatio };
+  const prevStack = stack ? { maxWidth: stack.style.maxWidth, flex: stack.style.flex, flexShrink: stack.style.flexShrink } : null;
+  page.style.width = trueWidthPx + 'px'; page.style.maxWidth = 'none';
+  page.style.height = 'auto'; page.style.overflowY = 'visible'; page.style.aspectRatio = 'auto';
+  if (stack) { stack.style.maxWidth = 'none'; stack.style.flex = 'none'; stack.style.flexShrink = '0'; }
+  mfStripPreviewSpacers(page);
+  try {
+    const pageRect = page.getBoundingClientRect();
+    const cssPxPerMm = pageRect.width / A4_W_MM;
+
+    const targets = [];
+    page.querySelectorAll('.mf-pv-field').forEach(fieldEl => {
+      const mcqOpts = fieldEl.querySelectorAll('.mf-pv-mcq-opt input');
+      if (mcqOpts.length) {
+        const cs = window.getComputedStyle(fieldEl);
+        const fontSize = parseFloat(cs.fontSize) || 12;
+        mcqOpts.forEach(opt => {
+          const r = opt.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          targets.push({ x: r.left - pageRect.left, y: r.top - pageRect.top - 1, w: Math.max(16, r.width + 4), h: Math.max(14, r.height + 2), fontSize });
+        });
+        return;
+      }
+      const checkInput = fieldEl.classList.contains('mf-pv-check') ? fieldEl.querySelector('input[type="checkbox"]') : null;
+      if (checkInput) {
+        const r = checkInput.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const cs = window.getComputedStyle(fieldEl);
+        targets.push({ x: r.left - pageRect.left, y: r.top - pageRect.top - 1, w: Math.max(16, r.width + 4), h: Math.max(14, r.height + 2), fontSize: parseFloat(cs.fontSize) || 12 });
+        return;
+      }
+      const input = fieldEl.querySelector('.mf-pv-input, .mf-pv-textarea, .mf-pv-select-real');
+      const sig = fieldEl.querySelector('.mf-pv-sig');
+      const target = input || sig;
+      if (!target) return;
+      const r = target.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const cs = window.getComputedStyle(input || fieldEl);
+      targets.push({
+        x: r.left - pageRect.left + 6,
+        y: r.top - pageRect.top + (sig ? -18 : 4),
+        w: Math.max(20, r.width - 12),
+        h: Math.max(14, sig ? r.height + 14 : r.height - 6),
+        fontSize: parseFloat(cs.fontSize) || 12
+      });
+    });
+
+    const canvas = await html2canvas(page, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true });
+    const pxPerMm = canvas.width / A4_W_MM;
+    const pageHeightPx = Math.round(A4_H_MM * pxPerMm);
+    const topMarginPx = Math.round(MF_PAGE_TOP_MARGIN_MM * pxPerMm);
+    const bottomMarginPx = Math.round(MF_PAGE_BOTTOM_MARGIN_MM * pxPerMm);
+    const scale = canvas.width / pageRect.width;
+    const blocks = mfCollectUnbreakableBlocks(page, pageRect, scale);
+    const breaks = mfComputeSmartBreaks(canvas.height, pageHeightPx - bottomMarginPx, pageHeightPx - topMarginPx - bottomMarginPx, blocks);
+    const totalPages = breaks.length - 1;
+    let wmImg = null, wmOpacity = 0;
+    if (f.logoDataUrl && f.watermarkOn !== false) {
+      wmOpacity = Math.min(10, Math.max(5, f.watermarkOpacity == null ? 8 : f.watermarkOpacity)) / 100;
+      try { wmImg = await mfLoadImageEl(f.logoDataUrl); } catch (e) { wmImg = null; }
+    }
+
+    const perPageFields = Array.from({ length: totalPages }, () => []);
+    targets.forEach(t => {
+      const yFull = t.y * scale;
+      let pageIdx = breaks.findIndex((b, idx) => idx < totalPages && yFull >= b && yFull < breaks[idx + 1]);
+      if (pageIdx === -1) pageIdx = totalPages - 1;
+      const destY = pageIdx === 0 ? 0 : topMarginPx;
+      const yLocalPx = (yFull - breaks[pageIdx]) + destY;
+      perPageFields[pageIdx].push({
+        xMm: t.x / cssPxPerMm,
+        yMm: yLocalPx / pxPerMm,
+        wMm: t.w / cssPxPerMm,
+        hMm: t.h / cssPxPerMm,
+        fontSizePt: Math.max(8, (t.fontSize / cssPxPerMm) * 2.83465)
+      });
+    });
+
+    const slices = [];
+    for (let i = 0; i < totalPages; i++) {
+      const sliceTop = breaks[i], sliceBottom = breaks[i + 1];
+      const sliceH = sliceBottom - sliceTop;
+      const destY = i === 0 ? 0 : topMarginPx;
+      const slice = document.createElement('canvas');
+      slice.width = canvas.width; slice.height = pageHeightPx;
+      const sctx = slice.getContext('2d');
+      sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, slice.width, slice.height);
+      sctx.drawImage(canvas, 0, sliceTop, canvas.width, sliceH, 0, destY, canvas.width, sliceH);
+      if (wmImg) mfDrawWatermarkOnSlice(sctx, wmImg, slice.width, slice.height, wmOpacity);
+      if (totalPages > 1) {
+        sctx.font = `${Math.round(8 * 0.3528 * pxPerMm)}px Inter, Arial, sans-serif`;
+        sctx.fillStyle = '#96a0b1';
+        sctx.textAlign = 'right';
+        sctx.fillText(`Page ${i + 1} of ${totalPages}`, slice.width - Math.round(12 * pxPerMm), slice.height - Math.round(8 * pxPerMm));
+      }
+      slices.push(slice);
+    }
+    return { slices, mmW: A4_W_MM, mmH: A4_H_MM, perPageFields };
+  } finally {
+    Object.assign(page.style, prev);
+    if (stack && prevStack) Object.assign(stack.style, prevStack);
+    mfUpdatePreviewPagination();
+  }
+}
+
 // Embeds every rasterized page as a picture in a .docx — same OOXML
 // plumbing (pdfedAddImageRun + the docx zip skeleton) Redaction's Word
-// export already uses, appropriate here since the form's layout is baked
-// into pixels rather than reconstructed as live text.
+// export already uses for labels/headings/logo, since those stay baked
+// into pixels — but every fillable input, textarea, dropdown, checkbox,
+// MCQ bubble, and signature line gets a real, empty, natively-editable
+// Word text box laid on top of it (mfDocxTextboxXml), so recipients can
+// open the .docx in Word and click straight into a field to type an
+// answer, same as Push to Workspace already lets them do in the PDF editor.
 // Guards + progress UI mirror the rest of the app (Workspace, Redaction):
 // mfExportBusy blocks a second export from starting mid-flight — same
 // double-click guard mfPushToWorkspace uses — and showExportOverlay/
@@ -45524,26 +45692,32 @@ async function mfExportDOCX() {
   mfExportBusy = true;
   showExportOverlay('Exporting Word…', 'Rendering pages…');
   try {
-    const result = await mfRasterizeFormPageCanvases();
+    const result = await mfRasterizeFormPageCanvasesWithFields();
     if (!result) { hideExportOverlay(); return; }
-    const { slices, mmW, mmH } = result;
+    const { slices, mmW, mmH, perPageFields } = result;
     const PAGE_W_TWIPS = 11906, PAGE_H_TWIPS = 16838, MARGIN_TWIPS = 720;
     const contentWidthEmu = (PAGE_W_TWIPS - MARGIN_TWIPS * 2) * 635;
     const images = { list: [] };
     let bodyXml = '';
+    let fieldCount = 0;
     slices.forEach((slice, i) => {
       updateExportProgress((i / slices.length) * 80, `Embedding page ${i + 1} of ${slices.length}…`);
       if (i > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
       const dataUrl = slice.toDataURL('image/png');
       const wPt = mmW * 2.83465, hPt = mmH * 2.83465;
       bodyXml += pdfedAddImageRun(images, dataUrl, wPt, hPt, contentWidthEmu);
+      (perPageFields[i] || []).forEach(field => {
+        fieldCount++;
+        bodyXml += mfDocxTextboxXml({
+          xMm: field.xMm, yMm: field.yMm, wMm: field.wMm, hMm: field.hMm,
+          fontSizePt: field.fontSizePt, fontFamily: 'Calibri', color: '#1A1A2E',
+          align: 'left', text: '', border: false, background: 'transparent'
+        });
+      });
     });
     updateExportProgress(88, 'Building document…');
-    const rootNamespaces = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
-      `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
-      `xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"`;
     const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-      `<w:document ${rootNamespaces}><w:body>${bodyXml}` +
+      `<w:document ${MF_DOCX_ROOT_NAMESPACES}><w:body>${bodyXml}` +
       `<w:sectPr><w:pgSz w:w="${PAGE_W_TWIPS}" w:h="${PAGE_H_TWIPS}"/>` +
       `<w:pgMar w:top="${MARGIN_TWIPS}" w:right="${MARGIN_TWIPS}" w:bottom="${MARGIN_TWIPS}" w:left="${MARGIN_TWIPS}"/></w:sectPr></w:body></w:document>`;
     const imageDefaults = images.list.length ? `<Default Extension="png" ContentType="image/png"/>` : '';
@@ -45574,7 +45748,7 @@ async function mfExportDOCX() {
     pdfedDownloadBlob(blob, sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     completeExportOverlay('Word document exported');
-    toast('Form exported as Word document', 'success');
+    toast(fieldCount ? `Form exported as Word document — ${fieldCount} field${fieldCount === 1 ? '' : 's'} ready to fill in` : 'Form exported as Word document', 'success');
   } catch (e) {
     console.error(e);
     hideExportOverlay();
@@ -46440,70 +46614,69 @@ function mfcExportAs(fmt) {
   else if (fmt === 'image') mfcExportImages();
 }
 
-// Embeds every rasterized canvas page as a picture in a .docx — same OOXML
-// plumbing Redaction's and the field-based Make Forms' Word export use.
-// Same double-click guard + full-screen progress overlay as the field-based
-// Make Forms exports above (and the rest of the app), for consistency.
+// Canvas Form pages are nothing but placed text boxes (no logo/background/
+// baked layout like the field-based form has), so instead of flattening
+// the page into one picture and losing all of it, this builds the .docx
+// straight from each box's x/y/w/h/font/color/border/text — every box
+// becomes a real, natively-editable Word text box (mfDocxTextboxXml) sitting
+// at the exact same position and styling it has on the canvas. No
+// rasterization, no image relationships needed: the whole export is vector,
+// so text stays sharp at any zoom and every box is directly typeable.
 let mfcExportBusy = false;
 async function mfcExportDOCX() {
   const f = mfcGetForm(); if (!f) { toast('Open a form first', 'error'); return; }
   if (mfCanvasLangBusy) { toast('Still translating — wait for it to finish so the exported file matches', 'info'); return; }
-  if (typeof html2canvas === 'undefined') { toast('Export is unavailable right now', 'error'); return; }
   if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
   if (mfcExportBusy) return; // guard against double-clicks starting two exports at once
   mfcExportBusy = true;
-  showExportOverlay('Exporting Word…', 'Rendering pages…');
+  showExportOverlay('Exporting Word…', 'Placing text boxes…');
   try {
     const [mmW, mmH] = mfcPageDims(f);
-    const shots = await mfcRasterizePages(f);
-    if (!shots.length) { hideExportOverlay(); toast('Nothing to export yet', 'info'); return; }
-    const PAGE_W_TWIPS = Math.round(mmW * 56.6929), PAGE_H_TWIPS = Math.round(mmH * 56.6929), MARGIN_TWIPS = 720;
-    const contentWidthEmu = (PAGE_W_TWIPS - MARGIN_TWIPS * 2) * 635;
-    const images = { list: [] };
+    const pages = f.pages || [];
+    if (!pages.length || !pages.some(pg => (pg.boxes || []).length)) { hideExportOverlay(); toast('Nothing to export yet', 'info'); return; }
+    const tr = (f.activeLang && f.activeLang !== 'original' && f.translations) ? f.translations[f.activeLang] : null;
+    const PAGE_W_TWIPS = Math.round(mmW * 56.6929), PAGE_H_TWIPS = Math.round(mmH * 56.6929), MARGIN_TWIPS = 0;
     let bodyXml = '';
-    shots.forEach((dataUrl, i) => {
-      updateExportProgress((i / shots.length) * 80, `Embedding page ${i + 1} of ${shots.length}…`);
+    let boxCount = 0;
+    pages.forEach((pg, i) => {
+      updateExportProgress((i / pages.length) * 90, `Placing page ${i + 1} of ${pages.length}…`);
       if (i > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
-      const wPt = mmW * 2.83465, hPt = mmH * 2.83465;
-      bodyXml += pdfedAddImageRun(images, dataUrl, wPt, hPt, contentWidthEmu);
+      (pg.boxes || []).forEach(b => {
+        boxCount++;
+        const text = tr ? (tr[b.id] != null ? tr[b.id] : (b.text || '')) : (b.text || '');
+        bodyXml += mfDocxTextboxXml({
+          xMm: b.x, yMm: b.y, wMm: b.w, hMm: b.h,
+          fontSizePt: b.fontSize || 12, fontFamily: b.fontFamily || 'Calibri',
+          color: b.color || '#1a1a1a', align: b.align || 'left',
+          bold: !!b.bold, italic: !!b.italic, underline: !!b.underline,
+          border: !!b.border, background: b.background,
+          text
+        });
+      });
     });
-    updateExportProgress(88, 'Building document…');
-    const rootNamespaces = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
-      `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
-      `xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"`;
+    updateExportProgress(92, 'Building document…');
     const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-      `<w:document ${rootNamespaces}><w:body>${bodyXml}` +
+      `<w:document ${MF_DOCX_ROOT_NAMESPACES}><w:body>${bodyXml}` +
       `<w:sectPr><w:pgSz w:w="${PAGE_W_TWIPS}" w:h="${PAGE_H_TWIPS}"/>` +
       `<w:pgMar w:top="${MARGIN_TWIPS}" w:right="${MARGIN_TWIPS}" w:bottom="${MARGIN_TWIPS}" w:left="${MARGIN_TWIPS}"/></w:sectPr></w:body></w:document>`;
-    const imageDefaults = images.list.length ? `<Default Extension="png" ContentType="image/png"/>` : '';
     const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
       `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
       `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
-      `<Default Extension="xml" ContentType="application/xml"/>${imageDefaults}` +
+      `<Default Extension="xml" ContentType="application/xml"/>` +
       `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
     const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
       `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
-    const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-      images.list.map(img => `<Relationship Id="${img.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${img.rId}.${img.ext}"/>`).join('') +
-      `</Relationships>`;
     const zip = new JSZip();
     zip.file('[Content_Types].xml', contentTypes);
     zip.folder('_rels').file('.rels', rootRels);
-    const wordFolder = zip.folder('word');
-    wordFolder.file('document.xml', documentXml);
-    if (images.list.length) {
-      wordFolder.folder('_rels').file('document.xml.rels', docRels);
-      const media = wordFolder.folder('media');
-      images.list.forEach(img => media.file(`${img.rId}.${img.ext}`, img.base64, { base64: true }));
-    }
+    zip.folder('word').file('document.xml', documentXml);
     const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.docx';
     pdfedDownloadBlob(blob, sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     completeExportOverlay('Word document exported');
-    toast('Form exported as Word document', 'success');
+    toast(`Form exported as Word document — ${boxCount} box${boxCount === 1 ? '' : 'es'} ready to edit`, 'success');
   } catch (e) {
     console.error(e);
     hideExportOverlay();
