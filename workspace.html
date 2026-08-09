@@ -5426,6 +5426,11 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   border-top-color: var(--blue); border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
+.mf-btn-spinner {
+  display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.35);
+  border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite;
+  vertical-align:-2px; margin-right:6px;
+}
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Hidden file input */
@@ -5532,10 +5537,24 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 20px; margin-bottom: 26px;
 }
-.mf-templates-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.mf-templates-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
 .mf-templates-head h3 { font-family:'Inter',sans-serif; font-size:14px; font-weight:700; }
-.mf-tpl-sub { font-size:11px; color:var(--text3); }
-.mf-template-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:12px; }
+.mf-tpl-sub { font-size:11px; color:var(--text3); max-width:520px; line-height:1.5; }
+.mf-tpl-filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+.mf-tpl-filter-pill {
+  background:var(--bg3); border:1px solid var(--border); color:var(--text2);
+  font-family:'Inter',sans-serif; font-size:11px; font-weight:600;
+  padding:6px 13px; border-radius:999px; cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.mf-tpl-filter-pill:hover { border-color:var(--border2); color:var(--text); }
+.mf-tpl-filter-pill.active { background:var(--blue); border-color:var(--blue); color:#fff; }
+.mf-template-grid { display:flex; flex-direction:column; gap:22px; }
+.mf-tpl-category-label {
+  font-size:10.5px; font-weight:700; color:var(--cyan); text-transform:uppercase;
+  letter-spacing:0.7px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border);
+}
+.mf-tpl-category-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:12px; }
+.mf-tpl-empty { font-size:12px; color:var(--text3); padding:20px 4px; text-align:center; }
 .mf-template-card {
   background: var(--bg3); border:1px solid var(--border); border-radius:12px;
   padding:16px; cursor:pointer; transition:all .2s; text-align:left; min-width:0;
@@ -5588,11 +5607,18 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-editor-actions { display:flex; gap:10px; flex-shrink:0; }
 .mf-editor-actions button { padding:9px 16px; font-size:12px; }
 
-.mf-editor-body { display:grid; grid-template-columns: 1fr; gap:20px; align-items:start; }
+.mf-editor-body { display:grid; grid-template-columns: 1fr 380px; gap:28px; align-items:start; }
+@media (max-width: 980px) { .mf-editor-body { grid-template-columns: 1fr; gap:20px; } }
+.mf-design-preview-col { display:flex; flex-direction:column; gap:12px; position:sticky; top:0; }
+.mf-design-preview-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 2px; }
+.mf-design-preview-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; }
+.mf-design-preview-size { font-size:10.5px; font-weight:600; color:var(--text3); background:var(--surface2); border:1px solid var(--border); padding:3px 9px; border-radius:999px; letter-spacing:0.2px; }
+.mf-design-preview-col .mf-preview-scroll { max-height:78vh; }
+@media (max-width: 980px) { .mf-design-preview-col { position:static; } }
 
 .mf-fields-panel {
   background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
-  padding:18px; display:flex; flex-direction:column; gap:14px;
+  padding:26px; display:flex; flex-direction:column; gap:20px;
 }
 .mf-desc-row { display:flex; flex-direction:column; gap:5px; }
 .mf-desc-row label { font-size:11px; color:var(--text2); }
@@ -5653,23 +5679,85 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-field-row2 label { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:4px; }
 .mf-field-options-hint { font-size:10px; color:var(--text3); }
 
-/* Live preview panel: no longer shown alongside the field builder (which
-   now uses the full editor width instead). The node stays in the DOM,
-   fully rendered, just parked off-screen — Print, Export PDF, and Push to
-   Workspace all still read #mfPreviewPage directly (html2canvas + window.
-   print), so it can't be display:none or those would capture blank/broken
-   output. @media print overrides this back to fixed/on-page. */
-.mf-preview-panel { position:fixed; top:0; left:-99999px; }
-.mf-preview-scroll { max-height:82vh; overflow-y:auto; display:flex; justify-content:center; padding:4px; }
-.mf-preview-page {
-  background:#ffffff; color:#1a1a1a; width:100%; max-width:420px;
-  border-radius:6px; padding:32px 28px; box-shadow:0 12px 40px rgba(0,0,0,0.45);
-  font-family:'Inter',sans-serif; min-height:400px;
-  --mf-accent: #0073E6;
-  position:relative; overflow:hidden;
+.mf-add-field-row { display:flex; flex-direction:column; gap:10px; padding-top:18px; border-top:1px solid var(--border); }
+.mf-add-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; }
+.mf-add-btns { display:flex; flex-wrap:wrap; gap:8px; }
+.mf-add-btns button {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text2);
+  font-family:'Inter',sans-serif; font-size:11.5px; font-weight:600;
+  padding:8px 14px; border-radius:999px; cursor:pointer; transition:all .15s;
 }
-.mf-pv-watermark {
+.mf-add-btns button:hover { border-color:var(--cyan); color:var(--cyan); background:rgba(0,194,255,0.08); }
+
+/* Live preview panel: shown alongside the field builder in Design mode and
+   alongside the responses list in Fill mode (mfSwitchMode moves the single
+   #mfPreviewPanel node between mfDesignPreviewSlot / mfFillPreviewSlot /
+   mfPreviewOffscreenHolder). Default position is off-screen so Print,
+   Export PDF, and Push to Workspace can still read #mfPreviewPage directly
+   (html2canvas + window.print) even before a slot claims it — it can't be
+   display:none or those would capture blank/broken output. @media print
+   overrides this back to fixed/on-page. */
+.mf-preview-panel { position:fixed; top:0; left:-99999px; }
+.mf-preview-scroll {
+  max-height:82vh; overflow-y:auto; display:flex; justify-content:center; padding:22px;
+  background:
+    linear-gradient(var(--bg3), var(--bg3)),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 24px);
+  border:1px solid var(--border); border-radius:var(--radius);
+}
+/* Strict A4 (210mm × 297mm, i.e. 1:1.4142 ratio) page box, WYSIWYG-accurate
+   to what Export PDF / Push to Workspace / Print actually produce.
+   IMPORTANT: this box must NEVER clip or internally scroll its own content
+   (that used to hide real overflow behind a fixed-height, fixed-aspect-ratio
+   box with overflow-y:auto — so a form with lots of fields looked like it
+   fit on one page while designing, then silently exported as 2+ real A4
+   pages). aspect-ratio here is only a *floor* (one full sheet's worth of
+   minimum height); overflow is visible so the box naturally grows past that
+   floor exactly the way the true export capture does, and .mf-pv-pagebreaks
+   below draws page-break lines at the same 210:297 intervals the exporters
+   slice on, so what's on screen always matches what gets produced. The
+   outer .mf-preview-scroll still scrolls the whole multi-page stack. */
+.mf-preview-page-stack { position:relative; width:100%; max-width:420px; }
+.mf-preview-page {
+  background:#ffffff; color:#1a1a1a; width:100%;
+  aspect-ratio: 210 / 297; overflow-y:visible; overflow-x:hidden;
+  border-radius:2px; padding:10% 9%; box-shadow:0 2px 8px rgba(0,0,0,0.15), 0 18px 46px rgba(0,0,0,0.5);
+  border:1px solid rgba(0,0,0,0.08);
+  font-family:'Inter',sans-serif;
+  --mf-accent: #0073E6;
+  position:relative;
+}
+/* Overlay only — never captured by html2canvas (exporters target
+   #mfPreviewPage directly, not this sibling), so it's purely a visual guide
+   showing exactly where each real A4 sheet ends and the next begins. */
+.mf-pv-pagebreaks { position:absolute; inset:0; pointer-events:none; z-index:3; }
+.mf-pv-pagebreak { position:absolute; left:-1px; right:-1px; height:0; border-top:1px dashed rgba(15,18,25,0.18); }
+/* Real, in-flow blank space inserted between pages (see mfUpdatePreviewPagination)
+   so the field/heading after it visually starts at the top of the next A4
+   sheet — not just a dashed line drawn over one continuous scroll. The seam
+   in the middle marks exactly where sheet N ends and N+1 begins. */
+.mf-pv-pagespacer { position:relative; width:100%; }
+.mf-pv-pagespacer-seam {
+  position:absolute; left:-9%; right:-9%; top:50%; height:0;
+  border-top:1.5px dashed rgba(15,18,25,0.28);
+}
+.mf-pv-pagespacer-seam::before {
+  content:''; position:absolute; left:0; right:0; bottom:0; height:14px;
+  background:linear-gradient(to top, rgba(0,0,0,0.10), transparent);
+}
+.mf-pv-pagespacer-seam::after {
+  content:''; position:absolute; left:0; right:0; top:0; height:14px;
+  background:linear-gradient(to bottom, rgba(0,0,0,0.10), transparent);
+}
+.mf-pv-pagespacer-label {
   position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(18,20,26,0.85); color:#fff; font-size:9px; font-weight:700;
+  letter-spacing:.4px; text-transform:uppercase; padding:3px 9px; border-radius:999px;
+  white-space:nowrap; z-index:1;
+}
+.mf-pv-watermarks { position:absolute; inset:0; z-index:0; pointer-events:none; }
+.mf-pv-watermark {
+  position:absolute; left:50%; transform:translate(-50%,-50%);
   max-width:58%; max-height:58%; object-fit:contain;
   opacity:0.08; z-index:0; pointer-events:none; user-select:none;
 }
@@ -5678,37 +5766,59 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-watermark-row label { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2); cursor:pointer; white-space:nowrap; }
 .mf-watermark-row input[type="range"] { width:90px; accent-color:var(--blue); }
 .mf-watermark-row .mf-wm-val { font-size:11px; color:var(--text3); min-width:26px; }
-.mf-pv-header { display:flex; align-items:center; gap:14px; margin-bottom:16px; padding-bottom:16px; border-bottom:3px solid var(--mf-accent); }
-.mf-pv-logo { max-height:52px; max-width:120px; object-fit:contain; flex-shrink:0; }
+.mf-lang-row { margin-bottom:16px; }
+.mf-lang-row > label { display:block; font-size:11.5px; font-weight:600; color:var(--text2); margin-bottom:7px; }
+.mf-lang-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.mf-lang-controls select {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  font-family:'Inter',sans-serif; font-size:11.5px; padding:7px 10px; border-radius:7px; cursor:pointer;
+}
+.mf-lang-controls button { padding:7px 12px; font-size:11px; }
+.mf-lang-status { font-size:10.5px; color:var(--text3); }
+.mf-lang-status.mf-lang-busy { color:var(--blue); }
+.mf-lang-status.mf-lang-error { color:#ef4444; }
+.mf-preview-panel.mf-lang-flash .mf-preview-page { animation: mfLangFlash 0.9s ease; }
+@keyframes mfLangFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(0,194,255,0.55); }
+  35%  { box-shadow: 0 0 0 6px rgba(0,194,255,0.28); }
+  100% { box-shadow: 0 0 0 0 rgba(0,194,255,0); }
+}
+.mf-pv-header { display:flex; align-items:center; gap:18px; margin-bottom:24px; padding-bottom:20px; border-bottom:2.5px solid var(--mf-accent); }
+.mf-pv-logo { height:56px; width:auto; max-width:150px; min-width:56px; object-fit:contain; flex-shrink:0; }
 .mf-pv-header-text { flex:1; min-width:0; }
-.mf-preview-page h1 { font-size:19px; font-weight:800; margin-bottom:4px; color:#111; }
-.mf-preview-page .mf-pv-desc { font-size:11px; color:#555; margin-bottom:18px; line-height:1.5; }
-.mf-pv-header + .mf-pv-desc { margin-top:-4px; }
-.mf-pv-field { margin-bottom:14px; }
-.mf-pv-field label { display:block; font-size:11px; font-weight:600; color:#222; margin-bottom:5px; }
+.mf-preview-page h1 { font-size:25px; font-weight:800; letter-spacing:-0.015em; margin-bottom:6px; color:#111; line-height:1.2; }
+.mf-preview-page .mf-pv-desc { font-size:11.5px; color:#5a6472; margin-bottom:24px; line-height:1.6; }
+.mf-pv-header + .mf-pv-desc { margin-top:-6px; }
+.mf-pv-field { margin-bottom:20px; }
+.mf-pv-field label { display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:#3a4250; margin-bottom:7px; }
 .mf-pv-field .mf-pv-req { color:#e11d48; margin-left:2px; }
 .mf-pv-input, .mf-pv-textarea, .mf-pv-select-real {
-  width:100%; box-sizing:border-box; border:1px solid #bbb; border-radius:4px;
-  padding:7px 9px; font-size:12px; font-family:'Inter',sans-serif; color:#1a1a1a;
-  background:#fff; outline:none;
+  width:100%; box-sizing:border-box; border:1px solid #d3d8e0; border-radius:6px;
+  padding:9px 11px; font-size:12.5px; font-family:'Inter',sans-serif; color:#1a1a1a;
+  background:#fbfbfc; outline:none; transition:border-color .15s, box-shadow .15s;
 }
-.mf-pv-input:focus, .mf-pv-textarea:focus, .mf-pv-select-real:focus { border-color:var(--mf-accent); }
+.mf-pv-input:focus, .mf-pv-textarea:focus, .mf-pv-select-real:focus { border-color:var(--mf-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--mf-accent) 14%, transparent); background:#fff; }
 .mf-pv-textarea { resize:vertical; }
-.mf-pv-check { display:flex; align-items:center; gap:8px; }
-.mf-pv-check input { width:14px; height:14px; flex-shrink:0; }
-.mf-pv-check label { margin-bottom:0 !important; }
-.mf-pv-heading { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--mf-accent); border-bottom:2px solid var(--mf-accent); padding-bottom:5px; margin:20px 0 12px; }
+.mf-pv-check { display:flex; align-items:center; gap:9px; }
+.mf-pv-check input { width:14px; height:14px; flex-shrink:0; accent-color:var(--mf-accent); }
+.mf-pv-check label { margin-bottom:0 !important; text-transform:none; font-weight:600; letter-spacing:0; color:#222; }
+.mf-pv-mcq-opts { display:flex; flex-direction:column; gap:8px; }
+.mf-pv-mcq-opt { display:flex; align-items:center; gap:9px; cursor:pointer; }
+.mf-pv-mcq-opt input { width:14px; height:14px; flex-shrink:0; accent-color:var(--mf-accent); }
+.mf-pv-mcq-opt span { font-size:12.5px; font-weight:600; letter-spacing:0; color:#222; }
+.mf-pv-heading { font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:var(--mf-accent); border-bottom:2px solid var(--mf-accent); padding-bottom:6px; margin:26px 0 16px; }
 .mf-pv-heading:first-child { margin-top:0; }
-.mf-pv-sig { border-bottom:1px solid #444; height:36px; }
-.mf-pv-sig-label { font-size:9px; color:#888; margin-top:3px; }
+.mf-pv-sig { border-bottom:1.5px solid #444; height:38px; }
+.mf-pv-sig-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:#8a92a0; margin-top:5px; }
 
 @media print {
+  @page { size: A4; margin: 0; }
   body * { visibility: hidden; }
   .mf-preview-page, .mf-preview-page * { visibility: visible; }
   .mf-preview-panel { position:fixed; top:0; left:0; }
   .mf-preview-page {
-    position:fixed; inset:0; margin:0; max-width:none; width:100%; height:auto;
-    box-shadow:none; border-radius:0; padding:24px 32px;
+    position:fixed; inset:0; margin:0; max-width:none; width:210mm; aspect-ratio:auto; height:auto;
+    overflow:visible; box-shadow:none; border:none; border-radius:0; padding:20mm 18mm;
   }
 }
 
@@ -7886,8 +7996,9 @@ button.dg-show-chip.active { background:var(--blue); }
           <div id="mfTemplatePicker" class="mf-templates" style="display:none">
             <div class="mf-templates-head">
               <h3>Or start from a template</h3>
-              <span class="mf-tpl-sub">Optional, every template is fully editable, add, remove, or rename any field afterward.</span>
+              <span class="mf-tpl-sub">Ready-made, professionally structured templates for CA &amp; Finance, HR, Hospitals, and Recruitment — every field, and which ones are required, is fully editable afterward.</span>
             </div>
+            <div class="mf-tpl-filters" id="mfTemplateFilters"></div>
             <div class="mf-template-grid" id="mfTemplateGrid"></div>
           </div>
 
@@ -7913,9 +8024,33 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="btn-secondary" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
               <button class="btn-secondary" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
               <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
-              <button class="btn-pill" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
+              <button class="btn-pill" id="mfPushBtn" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
-              <button class="btn-primary" onclick="sarvarcGateExport(mfExportPDF)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
+              <button class="btn-primary" id="mfExportBtn" onclick="mfToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+              <div class="dg-dropdown-panel rdx-export-dropdown" id="mfExportDropdown">
+                <div class="dg-panel-title" style="margin-bottom:8px">Export Form As</div>
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('pdf')})">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">PDF Document</div>
+                    <div class="pdfed-export-menu-desc">Print-ready, real A4 pages</div>
+                  </span>
+                </div>
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('docx')})">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">Word Document</div>
+                    <div class="pdfed-export-menu-desc">Each page embedded as a picture</div>
+                  </span>
+                </div>
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('image')})">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">Image (PNG)</div>
+                    <div class="pdfed-export-menu-desc">One PNG per page, zipped if more than one</div>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -7975,22 +8110,37 @@ button.dg-show-chip.active { background:var(--blue); }
                   <button onclick="mfAddField('number')">+ Number</button>
                   <button onclick="mfAddField('date')">+ Date</button>
                   <button onclick="mfAddField('checkbox')">+ Checkbox</button>
+                  <button onclick="mfAddField('mcq')">+ MCQ</button>
                   <button onclick="mfAddField('select')">+ Dropdown</button>
                   <button onclick="mfAddField('heading')">+ Section</button>
                   <button onclick="mfAddField('signature')">+ Signature</button>
                 </div>
               </div>
             </div>
+
+            <!-- Live preview while designing: updates on every field/branding
+                 change via mfRenderPreview(). mfSwitchMode() moves the shared
+                 .mf-preview-panel node here when Design mode is active. -->
+            <div class="mf-design-preview-col" id="mfDesignPreviewSlot">
+              <div class="mf-design-preview-head">
+                <span class="mf-design-preview-label">Live Preview</span>
+                <span class="mf-design-preview-size" id="mfDesignPreviewSize">A4 · 210 × 297 mm</span>
+              </div>
+            </div>
           </div>
 
-          <!-- Off-screen home for the preview panel while in Design mode: kept
-               laid-out (not display:none) so Print/Export PDF/Push still work
-               no matter which mode tab is active; mfSwitchMode() relocates the
-               actual .mf-preview-panel node between here and mfFillPreviewSlot. -->
+          <!-- Off-screen home for the preview panel: only used transiently
+               (e.g. before a form is loaded). Kept laid-out (not display:none)
+               so Print/Export PDF/Push still work no matter which mode tab is
+               active; mfSwitchMode() relocates the actual .mf-preview-panel
+               node between here, mfDesignPreviewSlot, and mfFillPreviewSlot. -->
           <div id="mfPreviewOffscreenHolder" style="position:fixed;top:0;left:-99999px;width:1px;height:1px;overflow:hidden">
             <div class="mf-preview-panel" id="mfPreviewPanel">
               <div class="mf-preview-scroll">
-                <div class="mf-preview-page" id="mfPreviewPage"></div>
+                <div class="mf-preview-page-stack" id="mfPreviewPageStack">
+                  <div class="mf-preview-page" id="mfPreviewPage"></div>
+                  <div class="mf-pv-pagebreaks" id="mfPreviewPageBreaks"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -8055,7 +8205,67 @@ button.dg-show-chip.active { background:var(--blue); }
               
               <button class="btn-secondary" onclick="mfcPrint()">Print</button>
               <button class="btn-pill" id="mfcPushBtn" onclick="mfcOpenPushChoiceModal()" title="Send this canvas form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
-              <button class="btn-primary" onclick="sarvarcGateExport(mfcExportPDF)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export PDF</span></button>
+              <button class="btn-primary" id="mfcExportBtn" onclick="mfcToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+              <div class="dg-dropdown-panel rdx-export-dropdown" id="mfcExportDropdown">
+                <div class="dg-panel-title" style="margin-bottom:8px">Export Form As</div>
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('pdf')})">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">PDF Document</div>
+                    <div class="pdfed-export-menu-desc">Print-ready, one page per canvas sheet</div>
+                  </span>
+                </div>
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('docx')})">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">Word Document</div>
+                    <div class="pdfed-export-menu-desc">Each page embedded as a picture</div>
+                  </span>
+                </div>
+                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('image')})">
+                  <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                  <span class="pdfed-export-menu-body">
+                    <div class="pdfed-export-menu-title">Image (PNG)</div>
+                    <div class="pdfed-export-menu-desc">One PNG per page, zipped if more than one</div>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Canvas Form language / translate row — translates every text box's
+               content before Export PDF, Print, or Push to Workspace, all of which
+               rasterize this same #mfcPages DOM, so whatever language is showing
+               here is exactly what lands in the canvas / PDF / workspace page.
+               Translation only runs when the "Translate" button is pressed
+               (not just on dropdown selection) so it's never accidentally skipped
+               right before a push. -->
+          <div class="mf-lang-row" id="mfcLangRow">
+            <label>Language <span style="color:var(--text3);font-weight:400">(translate every text box on this canvas form)</span></label>
+            <div class="mf-lang-controls">
+              <select id="mfcLangSelect" onchange="mfcLangSelectChanged(this.value)">
+                <option value="original">Original (as written)</option>
+                <option value="hi">Hindi</option>
+                <option value="gu">Gujarati</option>
+                <option value="mr">Marathi</option>
+                <option value="ta">Tamil</option>
+                <option value="te">Telugu</option>
+                <option value="bn">Bengali</option>
+                <option value="kn">Kannada</option>
+                <option value="ml">Malayalam</option>
+                <option value="pa">Punjabi</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="pt">Portuguese</option>
+                <option value="ar">Arabic</option>
+                <option value="zh">Chinese</option>
+                <option value="ja">Japanese</option>
+              </select>
+              <button class="btn-secondary" id="mfcTranslateBtn" onclick="mfcTranslateClick()">Translate</button>
+              <button class="btn-secondary" id="mfcRetranslateBtn" style="display:none" onclick="mfcSwitchLanguage(document.getElementById('mfcLangSelect').value, true)">Re-translate</button>
+              <button class="btn-secondary" id="mfcSaveNewBtn" style="display:none" onclick="mfcSaveTranslationAsNewForm()">Save as New Form</button>
+              <span class="mf-lang-status" id="mfcLangStatus"></span>
             </div>
           </div>
 
@@ -11477,6 +11687,31 @@ button.dg-show-chip.active { background:var(--blue); }
       <button class="pdfed-export-download-btn" onclick="sarvarcPwPromptConfirm()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Make Forms: translate-language confirm modal — a real in-app modal
+     instead of window.confirm(), which some embedded/preview browser
+     contexts silently block or auto-dismiss without ever showing anything
+     to the user (that silent failure is exactly what made language
+     switching look like it "did nothing"). -->
+<div class="pdfed-insert-modal-overlay" id="mfLangConfirmOverlay" onmousedown="if(event.target===this)mfLangConfirmCancel()">
+  <div class="sarvarc-pw-modal">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Translate Form</h3>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="mfLangConfirmCancel()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+      <div id="mfLangConfirmMsg" style="font-size:12px;color:var(--text2);line-height:1.6"></div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="mfLangConfirmCancel()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" onclick="mfLangConfirmOk()">Translate</button>
     </div>
   </div>
 </div>
@@ -35312,12 +35547,46 @@ function daUpdateRatesLabel(text) {
 // free, no signup, no API key required.
 const SARVARC_LANG_HINTS = 'hi = Hindi, gu = Gujarati, mr = Marathi, ta = Tamil, te = Telugu, bn = Bengali, es = Spanish, fr = French, de = German, ar = Arabic, zh = Chinese, ja = Japanese';
 async function sarvarcTranslateText(text, targetLang) {
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 490))}&langpair=en|${encodeURIComponent(targetLang)}`;
-  const res = await fetch(url);
+  const q = (text || '').trim();
+  if (!q) return text;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q.slice(0, 490))}&langpair=en|${encodeURIComponent(targetLang)}`;
+  // A hung request (blocked domain, dropped connection, slow DNS) used to
+  // leave the caller's loop stuck on this one string forever — the
+  // "Translating…" status would never clear and Push/Export/Print stayed
+  // blocked indefinitely with no error ever shown. Cap every request at 12s
+  // so a single bad string can't freeze the whole translation.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  let res;
+  try {
+    res = await fetch(url, { signal: controller.signal });
+  } catch (e) {
+    console.error('sarvarcTranslateText fetch failed for "' + q.slice(0, 60) + '":', e);
+    throw new Error(e && e.name === 'AbortError' ? 'Translation request timed out' : 'Translation request failed: ' + (e && e.message ? e.message : e));
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!res.ok) throw new Error('Translation request failed: ' + res.status);
   const json = await res.json();
+  // MyMemory's free tier returns HTTP 200 even when it actually fails —
+  // daily quota exhausted, bad language pair, etc. — it just stuffs a
+  // warning message (or the untouched source text) into
+  // responseData.translatedText instead of a real HTTP error. Left
+  // unchecked, that warning/no-op text gets treated as a successful
+  // translation and silently baked straight into the form, which is what
+  // made translated output look completely untouched with no error
+  // anywhere. responseStatus (a field INSIDE the JSON body, separate from
+  // the HTTP status) is the real signal to check.
+  const status = json && json.responseStatus;
+  if (status != null && Number(status) !== 200) {
+    console.error('sarvarcTranslateText: MyMemory responseStatus', status, 'for "' + q.slice(0, 60) + '"');
+    throw new Error('Translation service returned status ' + status);
+  }
   const translated = json && json.responseData && json.responseData.translatedText;
-  if (!translated) throw new Error('No translation returned');
+  if (!translated || /MYMEMORY WARNING/i.test(translated)) {
+    console.error('sarvarcTranslateText: no usable translation for "' + q.slice(0, 60) + '"', json);
+    throw new Error('No usable translation returned');
+  }
   return translated;
 }
 
@@ -43201,43 +43470,158 @@ function mfNewField(type) {
     case 'number':    return { ...base, label: 'Number' };
     case 'date':      return { ...base, label: 'Date' };
     case 'checkbox':  return { ...base, label: 'Checkbox option' };
+    case 'mcq':       return { ...base, label: 'Multiple Choice Question', options: ['Option 1', 'Option 2', 'Option 3'] };
     case 'select':    return { ...base, label: 'Dropdown', options: ['Option 1', 'Option 2'] };
     case 'heading':   return { ...base, label: 'Section Heading' };
     case 'signature': return { ...base, label: 'Signature' };
     default:          return { ...base, label: 'Field' };
   }
 }
-const MF_TYPE_NAMES = { text:'Text', paragraph:'Paragraph', number:'Number', date:'Date', checkbox:'Checkbox', select:'Dropdown', heading:'Section', signature:'Signature' };
+const MF_TYPE_NAMES = { text:'Text', paragraph:'Paragraph', number:'Number', date:'Date', checkbox:'Checkbox', mcq:'MCQ', select:'Dropdown', heading:'Section', signature:'Signature' };
 const MF_ACCENT_PRESETS = ['#0073E6', '#00C2FF', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#1a1a1a'];
 const MF_LOGO_MAX_DIM = 240; // px, longest side after resize
 
 // ─── TEMPLATES ───
+// Every template below carries a `category` used to group the picker, and
+// every field's `required` flag reflects what that document genuinely can't
+// be processed without in real practice (e.g. a GSTIN on a tax invoice, a
+// discharge diagnosis, an interviewer's recommendation) — not just the
+// first few fields marked required by default. Optional context fields are
+// deliberately left unrequired so the form stays fast to fill.
+const MF_ICONS = {
+  blank:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  invoice:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>',
+  receipt:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>',
+  wallet:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-4a2 2 0 0 1 0-4h4Z"/></svg>',
+  card:      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+  userCheck: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>',
+  userPlus:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+  calendar:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  logOut:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
+  trending:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+  heart:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+  clipCheck: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><polyline points="9 14 11 16 15 12"/></svg>',
+  shield:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>',
+  clock:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>',
+  briefcase: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  clipList:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>',
+  phoneCall: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',
+  checkCirc: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  smile:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+  users:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+};
+const MF_CATEGORIES = {
+  general: 'General',
+  finance: "CA / Finance & Billing",
+  hr: 'Human Resources',
+  health: 'Hospitals & Healthcare',
+  recruit: 'Recruitment & Hiring',
+};
 const MF_TEMPLATES = {
   blank: {
     name: 'Blank Form', desc: 'An open canvas with logo, description, and details ready to fill in.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    category: 'general', icon: MF_ICONS.blank,
     build: () => ({ title: 'Untitled Form', desc: '', fields: [
       { ...mfNewField('paragraph'), label: 'Details' },
     ]})
   },
-  invoice: {
-    name: 'Invoice', desc: 'Bill clients with itemized amounts and payment details.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>',
-    build: () => ({ title: 'Invoice', desc: 'Please review and settle the amount below by the due date.', fields: [
+
+  // ── CA / FINANCE & BILLING ──────────────────────────────────────────
+  gstInvoice: {
+    name: 'GST Tax Invoice', desc: 'Fully itemized, GST-compliant invoice with GSTIN, HSN/SAC, and tax breakup.',
+    category: 'finance', icon: MF_ICONS.invoice,
+    build: () => ({ title: 'Tax Invoice', desc: 'This is a computer-generated tax invoice issued under GST rules.', fields: [
       { ...mfNewField('text'), label: 'Invoice Number', required: true },
       { ...mfNewField('date'), label: 'Invoice Date', required: true },
-      { ...mfNewField('paragraph'), label: 'Bill To' },
-      { ...mfNewField('paragraph'), label: 'Item Description' },
-      { ...mfNewField('number'), label: 'Amount', required: true },
+      { ...mfNewField('date'), label: 'Due Date' },
+      { ...mfNewField('heading'), label: 'Seller Details' },
+      { ...mfNewField('text'), label: 'Company / Firm Name', required: true },
+      { ...mfNewField('text'), label: 'GSTIN', required: true },
+      { ...mfNewField('paragraph'), label: 'Registered Address', required: true },
+      { ...mfNewField('heading'), label: 'Buyer Details' },
+      { ...mfNewField('text'), label: 'Client / Company Name', required: true },
+      { ...mfNewField('text'), label: 'Client GSTIN' },
+      { ...mfNewField('paragraph'), label: 'Billing Address', required: true },
+      { ...mfNewField('heading'), label: 'Item / Service Details' },
+      { ...mfNewField('paragraph'), label: 'Description of Goods / Services', required: true },
+      { ...mfNewField('text'), label: 'HSN / SAC Code' },
+      { ...mfNewField('number'), label: 'Quantity' },
+      { ...mfNewField('number'), label: 'Rate per Unit' },
+      { ...mfNewField('number'), label: 'Taxable Value', required: true },
+      { ...mfNewField('select'), label: 'GST Rate', options: ['0%','5%','12%','18%','28%'] },
+      { ...mfNewField('number'), label: 'CGST Amount' },
+      { ...mfNewField('number'), label: 'SGST Amount' },
+      { ...mfNewField('number'), label: 'IGST Amount' },
+      { ...mfNewField('number'), label: 'Total Invoice Amount', required: true },
       { ...mfNewField('heading'), label: 'Payment' },
-      { ...mfNewField('select'), label: 'Payment Method', options: ['Cash','Card','Bank Transfer','UPI'] },
-      { ...mfNewField('number'), label: 'Total Due', required: true },
-      { ...mfNewField('signature'), label: 'Authorized Signature' },
+      { ...mfNewField('select'), label: 'Payment Terms', options: ['Due on Receipt','Net 7','Net 15','Net 30','Net 45'] },
+      { ...mfNewField('text'), label: 'Bank Account / IFSC for Payment' },
+      { ...mfNewField('signature'), label: 'Authorized Signatory' },
+    ]})
+  },
+  expenseClaim: {
+    name: 'Expense Reimbursement Claim', desc: 'Employee expense claim with category, amount, and multi-level approval.',
+    category: 'finance', icon: MF_ICONS.card,
+    build: () => ({ title: 'Expense Reimbursement Claim', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Employee Name', required: true },
+      { ...mfNewField('text'), label: 'Employee ID', required: true },
+      { ...mfNewField('text'), label: 'Department' },
+      { ...mfNewField('date'), label: 'Claim Period From', required: true },
+      { ...mfNewField('date'), label: 'Claim Period To', required: true },
+      { ...mfNewField('heading'), label: 'Expense Details' },
+      { ...mfNewField('select'), label: 'Expense Category', options: ['Travel','Food & Entertainment','Accommodation','Office Supplies','Client Expense','Other'] },
+      { ...mfNewField('paragraph'), label: 'Description of Expense', required: true },
+      { ...mfNewField('number'), label: 'Amount Claimed', required: true },
+      { ...mfNewField('checkbox'), label: 'Original bill / receipt attached', required: true },
+      { ...mfNewField('heading'), label: 'Approval' },
+      { ...mfNewField('signature'), label: 'Employee Signature', required: true },
+      { ...mfNewField('signature'), label: 'Manager Approval' },
+      { ...mfNewField('signature'), label: 'Finance / Accounts Approval' },
+    ]})
+  },
+  kycOnboarding: {
+    name: 'Client Onboarding / KYC Form', desc: 'PAN, GSTIN, and bank-detail collection for new client onboarding.',
+    category: 'finance', icon: MF_ICONS.userCheck,
+    build: () => ({ title: 'Client Onboarding & KYC Form', desc: 'Please provide accurate details, this information will be used for invoicing and compliance records.', fields: [
+      { ...mfNewField('heading'), label: 'Client Information' },
+      { ...mfNewField('text'), label: 'Full Name / Company Name', required: true },
+      { ...mfNewField('text'), label: 'PAN Number', required: true },
+      { ...mfNewField('text'), label: 'GSTIN (if applicable)' },
+      { ...mfNewField('paragraph'), label: 'Registered Address', required: true },
+      { ...mfNewField('text'), label: 'Contact Person', required: true },
+      { ...mfNewField('text'), label: 'Email', required: true },
+      { ...mfNewField('text'), label: 'Phone', required: true },
+      { ...mfNewField('heading'), label: 'Business Details' },
+      { ...mfNewField('text'), label: 'Nature of Business' },
+      { ...mfNewField('select'), label: 'Annual Turnover (approx.)', options: ['Below ₹20L','₹20L – ₹1Cr','₹1Cr – ₹5Cr','Above ₹5Cr'] },
+      { ...mfNewField('text'), label: 'Bank Name' },
+      { ...mfNewField('text'), label: 'Account Number' },
+      { ...mfNewField('text'), label: 'IFSC Code' },
+      { ...mfNewField('heading'), label: 'Declaration' },
+      { ...mfNewField('checkbox'), label: 'I declare the information provided above is true and accurate', required: true },
+      { ...mfNewField('signature'), label: 'Signature', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
+    ]})
+  },
+  paymentVoucher: {
+    name: 'Payment Voucher', desc: 'Internal record for any outgoing payment, with approval and receipt sign-off.',
+    category: 'finance', icon: MF_ICONS.wallet,
+    build: () => ({ title: 'Payment Voucher', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Voucher No.', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
+      { ...mfNewField('text'), label: 'Paid To', required: true },
+      { ...mfNewField('number'), label: 'Amount (₹)', required: true },
+      { ...mfNewField('text'), label: 'Amount in Words' },
+      { ...mfNewField('select'), label: 'Payment Mode', options: ['Cash','Cheque','Bank Transfer','UPI'] },
+      { ...mfNewField('text'), label: 'Cheque / Transaction Reference No.' },
+      { ...mfNewField('paragraph'), label: 'Purpose of Payment', required: true },
+      { ...mfNewField('signature'), label: 'Approved By', required: true },
+      { ...mfNewField('signature'), label: 'Received By' },
     ]})
   },
   receipt: {
-    name: 'Receipt', desc: 'Acknowledge a payment received from a customer.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>',
+    name: 'Payment Receipt', desc: 'Acknowledge a payment received from a customer.',
+    category: 'finance', icon: MF_ICONS.receipt,
     build: () => ({ title: 'Payment Receipt', desc: '', fields: [
       { ...mfNewField('text'), label: 'Receipt No.', required: true },
       { ...mfNewField('date'), label: 'Date', required: true },
@@ -43245,27 +43629,180 @@ const MF_TEMPLATES = {
       { ...mfNewField('number'), label: 'Amount Received', required: true },
       { ...mfNewField('paragraph'), label: 'Payment For' },
       { ...mfNewField('select'), label: 'Payment Mode', options: ['Cash','Card','Bank Transfer','UPI','Cheque'] },
-      { ...mfNewField('signature'), label: 'Received By' },
+      { ...mfNewField('signature'), label: 'Received By', required: true },
+    ]})
+  },
+
+  // ── HUMAN RESOURCES ──────────────────────────────────────────────────
+  onboarding: {
+    name: 'Employee Onboarding Form', desc: 'New-hire personal, employment, and statutory details in one place.',
+    category: 'hr', icon: MF_ICONS.userPlus,
+    build: () => ({ title: 'Employee Onboarding Form', desc: '', fields: [
+      { ...mfNewField('heading'), label: 'Personal Details' },
+      { ...mfNewField('text'), label: 'Full Name', required: true },
+      { ...mfNewField('date'), label: 'Date of Birth', required: true },
+      { ...mfNewField('select'), label: 'Gender', options: ['Male','Female','Other','Prefer not to say'] },
+      { ...mfNewField('text'), label: 'Personal Email', required: true },
+      { ...mfNewField('text'), label: 'Phone', required: true },
+      { ...mfNewField('text'), label: 'Emergency Contact Name', required: true },
+      { ...mfNewField('text'), label: 'Emergency Contact Phone', required: true },
+      { ...mfNewField('heading'), label: 'Employment Details' },
+      { ...mfNewField('text'), label: 'Employee ID' },
+      { ...mfNewField('text'), label: 'Designation', required: true },
+      { ...mfNewField('text'), label: 'Department', required: true },
+      { ...mfNewField('text'), label: 'Reporting Manager', required: true },
+      { ...mfNewField('date'), label: 'Date of Joining', required: true },
+      { ...mfNewField('select'), label: 'Employment Type', options: ['Full-time','Part-time','Contract','Intern'] },
+      { ...mfNewField('heading'), label: 'Bank & Statutory Details' },
+      { ...mfNewField('text'), label: 'Bank Account Number' },
+      { ...mfNewField('text'), label: 'IFSC Code' },
+      { ...mfNewField('text'), label: 'PAN Number', required: true },
+      { ...mfNewField('text'), label: 'Aadhaar Number' },
+      { ...mfNewField('heading'), label: 'Acknowledgement' },
+      { ...mfNewField('checkbox'), label: 'I have received and reviewed the employee handbook', required: true },
+      { ...mfNewField('signature'), label: 'Employee Signature', required: true },
     ]})
   },
   leave: {
     name: 'Leave Application', desc: 'Employee time-off request with approval line.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    category: 'hr', icon: MF_ICONS.calendar,
     build: () => ({ title: 'Leave Application', desc: '', fields: [
       { ...mfNewField('text'), label: 'Employee Name', required: true },
-      { ...mfNewField('text'), label: 'Employee ID' },
-      { ...mfNewField('text'), label: 'Department' },
+      { ...mfNewField('text'), label: 'Employee ID', required: true },
+      { ...mfNewField('text'), label: 'Department', required: true },
       { ...mfNewField('select'), label: 'Leave Type', options: ['Sick Leave','Casual Leave','Earned Leave','Unpaid Leave'] },
       { ...mfNewField('date'), label: 'From Date', required: true },
       { ...mfNewField('date'), label: 'To Date', required: true },
-      { ...mfNewField('paragraph'), label: 'Reason' },
-      { ...mfNewField('signature'), label: 'Employee Signature' },
+      { ...mfNewField('paragraph'), label: 'Reason', required: true },
+      { ...mfNewField('signature'), label: 'Employee Signature', required: true },
       { ...mfNewField('signature'), label: 'Approved By' },
     ]})
   },
+  exitInterview: {
+    name: 'Exit Interview / Resignation Form', desc: 'Separation details, asset return, and offboarding checklist.',
+    category: 'hr', icon: MF_ICONS.logOut,
+    build: () => ({ title: 'Exit Interview & Resignation Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Employee Name', required: true },
+      { ...mfNewField('text'), label: 'Employee ID', required: true },
+      { ...mfNewField('text'), label: 'Department' },
+      { ...mfNewField('text'), label: 'Designation' },
+      { ...mfNewField('date'), label: 'Date of Joining' },
+      { ...mfNewField('date'), label: 'Last Working Day', required: true },
+      { ...mfNewField('select'), label: 'Reason for Leaving', options: ['Better Opportunity','Higher Studies','Relocation','Personal Reasons','Compensation','Other'] },
+      { ...mfNewField('paragraph'), label: 'Additional Comments' },
+      { ...mfNewField('checkbox'), label: 'All company assets have been returned', required: true },
+      { ...mfNewField('checkbox'), label: 'Knowledge transfer / handover completed', required: true },
+      { ...mfNewField('paragraph'), label: 'Feedback on Your Experience' },
+      { ...mfNewField('signature'), label: 'Employee Signature', required: true },
+      { ...mfNewField('signature'), label: 'HR Signature' },
+    ]})
+  },
+  appraisal: {
+    name: 'Performance Appraisal Form', desc: 'Structured rating scale, strengths, goals, and manager sign-off.',
+    category: 'hr', icon: MF_ICONS.trending,
+    build: () => ({ title: 'Performance Appraisal Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Employee Name', required: true },
+      { ...mfNewField('text'), label: 'Employee ID' },
+      { ...mfNewField('text'), label: 'Department' },
+      { ...mfNewField('text'), label: 'Designation' },
+      { ...mfNewField('text'), label: 'Appraisal Period', required: true },
+      { ...mfNewField('text'), label: 'Reviewer / Manager Name', required: true },
+      { ...mfNewField('heading'), label: 'Ratings' },
+      { ...mfNewField('select'), label: 'Job Knowledge', options: ['Excellent','Good','Average','Needs Improvement'] },
+      { ...mfNewField('select'), label: 'Quality of Work', options: ['Excellent','Good','Average','Needs Improvement'] },
+      { ...mfNewField('select'), label: 'Communication Skills', options: ['Excellent','Good','Average','Needs Improvement'] },
+      { ...mfNewField('select'), label: 'Teamwork & Collaboration', options: ['Excellent','Good','Average','Needs Improvement'] },
+      { ...mfNewField('heading'), label: 'Comments' },
+      { ...mfNewField('paragraph'), label: 'Key Strengths' },
+      { ...mfNewField('paragraph'), label: 'Areas for Improvement' },
+      { ...mfNewField('paragraph'), label: 'Goals for Next Period' },
+      { ...mfNewField('signature'), label: 'Employee Signature' },
+      { ...mfNewField('signature'), label: 'Manager Signature', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
+    ]})
+  },
+
+  // ── HOSPITALS & HEALTHCARE ───────────────────────────────────────────
+  intake: {
+    name: 'Patient Intake', desc: 'New-patient details, medical history, and treatment consent.',
+    category: 'health', icon: MF_ICONS.heart,
+    build: () => ({ title: 'Patient Intake Form', desc: '', fields: [
+      { ...mfNewField('heading'), label: 'Patient Information' },
+      { ...mfNewField('text'), label: 'Full Name', required: true },
+      { ...mfNewField('date'), label: 'Date of Birth', required: true },
+      { ...mfNewField('select'), label: 'Gender', options: ['Male','Female','Other'] },
+      { ...mfNewField('text'), label: 'Phone', required: true },
+      { ...mfNewField('paragraph'), label: 'Address' },
+      { ...mfNewField('heading'), label: 'Medical History' },
+      { ...mfNewField('paragraph'), label: 'Known Allergies' },
+      { ...mfNewField('paragraph'), label: 'Current Medications' },
+      { ...mfNewField('paragraph'), label: 'Existing Conditions' },
+      { ...mfNewField('checkbox'), label: 'I consent to treatment', required: true },
+      { ...mfNewField('signature'), label: 'Patient / Guardian Signature', required: true },
+    ]})
+  },
+  dischargeSummary: {
+    name: 'Patient Discharge Summary', desc: 'Diagnosis, treatment given, and follow-up instructions on release.',
+    category: 'health', icon: MF_ICONS.clipCheck,
+    build: () => ({ title: 'Patient Discharge Summary', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Patient Name', required: true },
+      { ...mfNewField('text'), label: 'Patient ID / MRN', required: true },
+      { ...mfNewField('number'), label: 'Age' },
+      { ...mfNewField('select'), label: 'Gender', options: ['Male','Female','Other'] },
+      { ...mfNewField('date'), label: 'Admission Date', required: true },
+      { ...mfNewField('date'), label: 'Discharge Date', required: true },
+      { ...mfNewField('text'), label: 'Attending Doctor', required: true },
+      { ...mfNewField('heading'), label: 'Diagnosis' },
+      { ...mfNewField('text'), label: 'Primary Diagnosis', required: true },
+      { ...mfNewField('paragraph'), label: 'Secondary Diagnosis' },
+      { ...mfNewField('heading'), label: 'Treatment Summary' },
+      { ...mfNewField('paragraph'), label: 'Treatment Given', required: true },
+      { ...mfNewField('paragraph'), label: 'Medications Prescribed', required: true },
+      { ...mfNewField('paragraph'), label: 'Follow-up Instructions', required: true },
+      { ...mfNewField('date'), label: 'Next Appointment Date' },
+      { ...mfNewField('signature'), label: "Doctor's Signature", required: true },
+    ]})
+  },
+  medicalConsent: {
+    name: 'Medical History & Consent Form', desc: 'Full history intake plus treatment and records-sharing consent.',
+    category: 'health', icon: MF_ICONS.shield,
+    build: () => ({ title: 'Medical History & Consent Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Patient Name', required: true },
+      { ...mfNewField('date'), label: 'Date of Birth', required: true },
+      { ...mfNewField('heading'), label: 'Medical History' },
+      { ...mfNewField('paragraph'), label: 'Known Allergies' },
+      { ...mfNewField('paragraph'), label: 'Current Medications' },
+      { ...mfNewField('paragraph'), label: 'Past Surgeries' },
+      { ...mfNewField('paragraph'), label: 'Chronic Conditions' },
+      { ...mfNewField('paragraph'), label: 'Family Medical History' },
+      { ...mfNewField('heading'), label: 'Consent' },
+      { ...mfNewField('checkbox'), label: 'I consent to examination and treatment', required: true },
+      { ...mfNewField('checkbox'), label: 'I consent to share records with my insurance provider' },
+      { ...mfNewField('signature'), label: 'Patient / Guardian Signature', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
+    ]})
+  },
+  appointmentRequest: {
+    name: 'Appointment Request Form', desc: 'Patient-facing form to request a visit with preferred date and doctor.',
+    category: 'health', icon: MF_ICONS.clock,
+    build: () => ({ title: 'Appointment Request Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Patient Name', required: true },
+      { ...mfNewField('text'), label: 'Phone', required: true },
+      { ...mfNewField('text'), label: 'Email' },
+      { ...mfNewField('date'), label: 'Date of Birth' },
+      { ...mfNewField('text'), label: 'Preferred Doctor / Department' },
+      { ...mfNewField('date'), label: 'Preferred Date', required: true },
+      { ...mfNewField('select'), label: 'Preferred Time', options: ['Morning','Afternoon','Evening'] },
+      { ...mfNewField('paragraph'), label: 'Reason for Visit', required: true },
+      { ...mfNewField('text'), label: 'Insurance Provider' },
+      { ...mfNewField('text'), label: 'Policy Number' },
+    ]})
+  },
+
+  // ── RECRUITMENT & HIRING ─────────────────────────────────────────────
   jobapp: {
     name: 'Job Application', desc: 'Collect candidate info, role, and experience.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>',
+    category: 'recruit', icon: MF_ICONS.briefcase,
     build: () => ({ title: 'Job Application Form', desc: '', fields: [
       { ...mfNewField('heading'), label: 'Personal Information' },
       { ...mfNewField('text'), label: 'Full Name', required: true },
@@ -43280,30 +43817,70 @@ const MF_TEMPLATES = {
       { ...mfNewField('text'), label: 'Previous Employer' },
       { ...mfNewField('number'), label: 'Years of Experience' },
       { ...mfNewField('paragraph'), label: 'Relevant Skills' },
-      { ...mfNewField('signature'), label: 'Applicant Signature' },
+      { ...mfNewField('signature'), label: 'Applicant Signature', required: true },
     ]})
   },
-  intake: {
-    name: 'Patient Intake', desc: 'New-patient details and medical history.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
-    build: () => ({ title: 'Patient Intake Form', desc: '', fields: [
-      { ...mfNewField('heading'), label: 'Patient Information' },
-      { ...mfNewField('text'), label: 'Full Name', required: true },
-      { ...mfNewField('date'), label: 'Date of Birth', required: true },
-      { ...mfNewField('select'), label: 'Gender', options: ['Male','Female','Other'] },
-      { ...mfNewField('text'), label: 'Phone', required: true },
-      { ...mfNewField('paragraph'), label: 'Address' },
-      { ...mfNewField('heading'), label: 'Medical History' },
-      { ...mfNewField('paragraph'), label: 'Known Allergies' },
-      { ...mfNewField('paragraph'), label: 'Current Medications' },
-      { ...mfNewField('paragraph'), label: 'Existing Conditions' },
-      { ...mfNewField('checkbox'), label: 'I consent to treatment' },
-      { ...mfNewField('signature'), label: 'Patient / Guardian Signature' },
+  interviewEval: {
+    name: 'Candidate Interview Evaluation', desc: 'Structured scorecard for interviewers with a clear recommendation.',
+    category: 'recruit', icon: MF_ICONS.clipList,
+    build: () => ({ title: 'Candidate Interview Evaluation Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Candidate Name', required: true },
+      { ...mfNewField('text'), label: 'Position Applied For', required: true },
+      { ...mfNewField('date'), label: 'Interview Date', required: true },
+      { ...mfNewField('text'), label: 'Interviewer Name', required: true },
+      { ...mfNewField('heading'), label: 'Evaluation' },
+      { ...mfNewField('select'), label: 'Technical Skills', options: ['Excellent','Good','Average','Poor'] },
+      { ...mfNewField('select'), label: 'Communication Skills', options: ['Excellent','Good','Average','Poor'] },
+      { ...mfNewField('select'), label: 'Problem Solving', options: ['Excellent','Good','Average','Poor'] },
+      { ...mfNewField('select'), label: 'Culture Fit', options: ['Excellent','Good','Average','Poor'] },
+      { ...mfNewField('paragraph'), label: 'Strengths' },
+      { ...mfNewField('paragraph'), label: 'Concerns' },
+      { ...mfNewField('select'), label: 'Overall Recommendation', options: ['Strongly Recommend','Recommend','Neutral','Do Not Recommend'] },
+      { ...mfNewField('signature'), label: 'Interviewer Signature', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
     ]})
   },
+  referenceCheck: {
+    name: 'Reference Check Form', desc: "Verify a candidate's work history directly with a former employer.",
+    category: 'recruit', icon: MF_ICONS.phoneCall,
+    build: () => ({ title: 'Reference Check Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Candidate Name', required: true },
+      { ...mfNewField('text'), label: 'Position Applied For' },
+      { ...mfNewField('text'), label: 'Reference Name', required: true },
+      { ...mfNewField('text'), label: 'Reference Company' },
+      { ...mfNewField('text'), label: 'Reference Designation' },
+      { ...mfNewField('text'), label: 'Reference Phone', required: true },
+      { ...mfNewField('text'), label: 'Relationship to Candidate', required: true },
+      { ...mfNewField('heading'), label: 'Reference Questions' },
+      { ...mfNewField('text'), label: 'How long have you known the candidate?' },
+      { ...mfNewField('paragraph'), label: "Candidate's Key Strengths" },
+      { ...mfNewField('paragraph'), label: 'Areas for Improvement' },
+      { ...mfNewField('select'), label: 'Would you rehire this candidate?', options: ['Yes','No','Maybe'] },
+      { ...mfNewField('text'), label: 'Checked By', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
+    ]})
+  },
+  offerAcceptance: {
+    name: 'Offer Acceptance Form', desc: "Candidate's formal acceptance of role, joining date, and terms.",
+    category: 'recruit', icon: MF_ICONS.checkCirc,
+    build: () => ({ title: 'Offer Acceptance Form', desc: '', fields: [
+      { ...mfNewField('text'), label: 'Candidate Name', required: true },
+      { ...mfNewField('text'), label: 'Position Offered', required: true },
+      { ...mfNewField('text'), label: 'Department' },
+      { ...mfNewField('date'), label: 'Proposed Joining Date', required: true },
+      { ...mfNewField('text'), label: 'Annual CTC / Salary' },
+      { ...mfNewField('heading'), label: 'Terms' },
+      { ...mfNewField('checkbox'), label: 'I accept the terms of employment as outlined in the offer letter', required: true },
+      { ...mfNewField('checkbox'), label: 'I confirm all documents submitted are authentic', required: true },
+      { ...mfNewField('signature'), label: 'Candidate Signature', required: true },
+      { ...mfNewField('date'), label: 'Date', required: true },
+    ]})
+  },
+
+  // ── GENERAL ───────────────────────────────────────────────────────────
   feedback: {
     name: 'Feedback Form', desc: 'Gather ratings and open-ended feedback.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+    category: 'general', icon: MF_ICONS.smile,
     build: () => ({ title: 'Feedback Form', desc: '', fields: [
       { ...mfNewField('text'), label: 'Name (optional)' },
       { ...mfNewField('date'), label: 'Date' },
@@ -43315,7 +43892,7 @@ const MF_TEMPLATES = {
   },
   registration: {
     name: 'Registration Form', desc: 'Sign people up for an event or program.',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+    category: 'general', icon: MF_ICONS.users,
     build: () => ({ title: 'Registration Form', desc: '', fields: [
       { ...mfNewField('heading'), label: 'Registration Details' },
       { ...mfNewField('text'), label: 'Full Name', required: true },
@@ -43323,24 +43900,66 @@ const MF_TEMPLATES = {
       { ...mfNewField('text'), label: 'Phone' },
       { ...mfNewField('text'), label: 'Event / Program', required: true },
       { ...mfNewField('date'), label: 'Date of Birth' },
-      { ...mfNewField('checkbox'), label: 'I agree to the terms and conditions' },
+      { ...mfNewField('checkbox'), label: 'I agree to the terms and conditions', required: true },
       { ...mfNewField('signature'), label: 'Signature' },
     ]})
   },
 };
 
 // ─── GALLERY: TEMPLATE GRID ───
+// Templates are grouped by profession/category (CA & Finance, HR, Hospitals,
+// Recruitment, General) with a pill filter row, so someone who only cares
+// about, say, HR paperwork isn't scrolling past a dozen unrelated cards.
+let mfTemplateFilter = 'all';
+function mfSetTemplateFilter(cat) {
+  mfTemplateFilter = cat;
+  mfRenderTemplateGrid();
+}
 function mfRenderTemplateGrid() {
   const grid = document.getElementById('mfTemplateGrid');
+  const filterHost = document.getElementById('mfTemplateFilters');
   if (!grid) return;
-  grid.innerHTML = Object.keys(MF_TEMPLATES).map(key => {
+
+  const catsPresent = [];
+  Object.keys(MF_TEMPLATES).forEach(key => {
+    const cat = MF_TEMPLATES[key].category || 'general';
+    if (!catsPresent.includes(cat)) catsPresent.push(cat);
+  });
+
+  if (filterHost) {
+    const pills = ['all', ...catsPresent].map(cat => {
+      const label = cat === 'all' ? 'All Templates' : (MF_CATEGORIES[cat] || cat);
+      const active = mfTemplateFilter === cat ? ' active' : '';
+      return `<button class="mf-tpl-filter-pill${active}" onclick="mfSetTemplateFilter('${cat}')">${mfEsc(label)}</button>`;
+    }).join('');
+    filterHost.innerHTML = pills;
+  }
+
+  const byCat = {};
+  Object.keys(MF_TEMPLATES).forEach(key => {
     const t = MF_TEMPLATES[key];
-    return `<div class="mf-template-card" onclick="mfCreateFromTemplate('${key}')">
-      <div class="mf-template-icon">${t.icon}</div>
-      <h4>${mfEsc(t.name)}</h4>
-      <p>${mfEsc(t.desc)}</p>
-    </div>`;
-  }).join('');
+    const cat = t.category || 'general';
+    if (mfTemplateFilter !== 'all' && mfTemplateFilter !== cat) return;
+    if (!byCat[cat]) byCat[cat] = [];
+    byCat[cat].push(key);
+  });
+
+  const orderedCats = Object.keys(MF_CATEGORIES).filter(c => byCat[c]);
+  grid.innerHTML = orderedCats.map(cat => `
+    <div class="mf-tpl-category">
+      ${mfTemplateFilter === 'all' ? `<div class="mf-tpl-category-label">${mfEsc(MF_CATEGORIES[cat] || cat)}</div>` : ''}
+      <div class="mf-tpl-category-grid">
+        ${byCat[cat].map(key => {
+          const t = MF_TEMPLATES[key];
+          return `<div class="mf-template-card" onclick="mfCreateFromTemplate('${key}')">
+            <div class="mf-template-icon">${t.icon}</div>
+            <h4>${mfEsc(t.name)}</h4>
+            <p>${mfEsc(t.desc)}</p>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('') || '<div class="mf-tpl-empty">No templates in this category yet.</div>';
 }
 
 function mfToggleTemplatePicker() {
@@ -43400,6 +44019,8 @@ function mfCreateFromTemplate(key) {
     accentColor: built.accentColor || '#0073E6',
     watermarkOn: true,
     watermarkOpacity: 8,
+    activeLang: 'original',
+    translations: {},
     updatedAt: Date.now()
   };
   mfState.forms.push(form);
@@ -43452,6 +44073,10 @@ function mfOpenEditor(id) {
   const f = mfState.forms.find(x => x.id === id);
   if (!f) return;
   if (f.kind === 'canvas') { mfcOpenEditor(id); return; }
+  // Old forms saved before the translation feature existed won't have these
+  // yet — default them in place so every other function can assume they exist.
+  if (f.activeLang == null) f.activeLang = 'original';
+  if (f.translations == null) f.translations = {};
   mfState.currentId = id;
   mfMode = 'design';
   mfActiveResponseId = null;
@@ -43468,12 +44093,13 @@ function mfOpenEditor(id) {
   const bodyD = document.getElementById('mfEditorBodyDesign'), bodyF = document.getElementById('mfEditorBodyFill');
   if (bodyD) bodyD.style.display = 'grid';
   if (bodyF) bodyF.style.display = 'none';
-  const panel = document.getElementById('mfPreviewPanel'), holder = document.getElementById('mfPreviewOffscreenHolder');
-  if (panel && holder && panel.parentElement !== holder) { panel.classList.remove('mf-preview-visible'); holder.appendChild(panel); }
+  const panel = document.getElementById('mfPreviewPanel'), designSlot = document.getElementById('mfDesignPreviewSlot');
+  if (panel && designSlot) { panel.classList.add('mf-preview-visible'); designSlot.appendChild(panel); }
   mfRenderFieldList();
   mfRenderLogoThumb();
   mfRenderAccentSwatches();
   mfRenderWatermarkControls();
+  mfRenderLangControls();
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
@@ -43556,7 +44182,7 @@ function mfRenderFieldList() {
     return;
   }
   wrap.innerHTML = f.fields.map((fl, idx) => {
-    const needsOptions = fl.type === 'select';
+    const needsOptions = fl.type === 'select' || fl.type === 'mcq';
     const canRequire = fl.type !== 'heading' && fl.type !== 'signature';
     return `<div class="mf-field-item">
       <div class="mf-field-item-head">
@@ -43629,6 +44255,427 @@ function mfSetWatermarkOpacity(val) {
   mfRenderPreview();
 }
 
+// ─── LANGUAGE / TRANSLATION ───
+// Translates the whole form (title, description, field labels, dropdown
+// options) into another language using the same free MyMemory Translation
+// API the PDF Editor's "Translate" tool already uses (sarvarcTranslateText,
+// defined further down). The original text is never overwritten — it's
+// cached per-language on f.translations and f.activeLang just picks which
+// one the Live Preview / Export PDF / Push to Workspace currently render,
+// so switching back to "Original" always gets the exact source text back.
+const MF_LANG_NAMES = {
+  hi: 'Hindi', gu: 'Gujarati', mr: 'Marathi', ta: 'Tamil', te: 'Telugu',
+  bn: 'Bengali', kn: 'Kannada', ml: 'Malayalam', pa: 'Punjabi',
+  es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese',
+  ar: 'Arabic', zh: 'Chinese', ja: 'Japanese'
+};
+// Each translation flow gets its OWN busy flag. These used to share a
+// single global (mfLangTranslating), which meant a canvas-form translation
+// in progress would make the field-based Make Forms Translate button think
+// IT was already busy (and silently refuse to run — "Already translating,
+// please wait"), and vice versa. Two independent flows, two independent
+// flags — one feature can never block the other.
+let mfFormLangBusy = false;   // field-based Make Forms (mfSwitchFormLanguage)
+let mfCanvasLangBusy = false; // canvas Make Forms (mfcSwitchLanguage)
+let _mfLangConfirmResolve = null;
+function mfAskLangConfirm(message) {
+  return new Promise(resolve => {
+    _mfLangConfirmResolve = resolve;
+    const msgEl = document.getElementById('mfLangConfirmMsg');
+    if (msgEl) msgEl.textContent = message;
+    const ov = document.getElementById('mfLangConfirmOverlay');
+    if (ov) ov.classList.add('open'); else resolve(true); // modal missing — don't hard-block the feature
+  });
+}
+function mfLangConfirmCancel() {
+  const ov = document.getElementById('mfLangConfirmOverlay');
+  if (ov) ov.classList.remove('open');
+  if (_mfLangConfirmResolve) { const r = _mfLangConfirmResolve; _mfLangConfirmResolve = null; r(false); }
+}
+function mfLangConfirmOk() {
+  const ov = document.getElementById('mfLangConfirmOverlay');
+  if (ov) ov.classList.remove('open');
+  if (_mfLangConfirmResolve) { const r = _mfLangConfirmResolve; _mfLangConfirmResolve = null; r(true); }
+}
+
+function mfRenderLangControls() {
+  const f = mfGetCurrentForm();
+  const sel = document.getElementById('mfLangSelect');
+  const translateBtn = document.getElementById('mfLangTranslateBtn');
+  const retBtn = document.getElementById('mfLangRetranslateBtn');
+  const saveBtn = document.getElementById('mfLangSaveNewBtn');
+  const status = document.getElementById('mfLangStatus');
+  if (!f || !sel) return;
+  sel.value = f.activeLang || 'original';
+  const isTranslated = (f.activeLang && f.activeLang !== 'original');
+  if (translateBtn) translateBtn.disabled = !!mfFormLangBusy;
+  if (retBtn) retBtn.style.display = isTranslated ? 'inline-block' : 'none';
+  if (saveBtn) saveBtn.style.display = isTranslated ? 'inline-block' : 'none';
+  if (status && !mfFormLangBusy) {
+    status.className = 'mf-lang-status';
+    status.textContent = isTranslated
+      ? `Showing ${MF_LANG_NAMES[f.activeLang] || f.activeLang} translation — editing on the left still edits the original`
+      : '';
+  }
+}
+
+// Dropdown's onchange still auto-translates (picking a language IS the
+// opt-in), but a lot of users don't notice a <select> firing a background
+// action — they expect to press something. The explicit Translate button
+// below is the reliable, unmissable way to trigger it: it always re-runs
+// the translation for whatever language is currently selected (even
+// "Original", which just switches back with no network call, and even a
+// language that's already active, which forces a fresh Re-translate) and
+// scrolls/flashes the live preview so the result is impossible to miss.
+function mfLangSelectChanged(val) {
+  mfSwitchFormLanguage(val);
+}
+function mfTranslateClick() {
+  const sel = document.getElementById('mfLangSelect');
+  if (!sel) return;
+  // The #1 way this button looks "dead": the dropdown is still sitting on
+  // "Original" (its default) and the user clicks Translate expecting
+  // something to happen. Switching to "original" when you're already on
+  // "original" is correctly a no-op — but silently doing nothing looks
+  // exactly like a broken button. Catch it here and tell the user what to
+  // do instead of leaving them guessing.
+  if (sel.value === 'original') {
+    toast('Pick a language from the dropdown first, then hit Translate', 'info');
+    sel.focus();
+    return;
+  }
+  const f = mfGetCurrentForm();
+  const alreadyOnThisLang = f && f.activeLang === sel.value;
+  mfSwitchFormLanguage(sel.value, alreadyOnThisLang);
+}
+
+// Makes sure the Live Preview panel is actually on-screen and gives it a
+// brief highlight flash so a just-completed translation is unmissable —
+// this is what "click Translate and see it happen with live preview in
+// visibility" means in practice.
+function mfFlashPreviewIntoView() {
+  const panel = document.getElementById('mfPreviewPanel');
+  if (!panel) return;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  panel.classList.remove('mf-lang-flash');
+  void panel.offsetWidth; // restart the animation if it's already mid-flash
+  panel.classList.add('mf-lang-flash');
+  setTimeout(() => panel.classList.remove('mf-lang-flash'), 900);
+}
+
+// Walks a form's translatable strings (title, description, every field's
+// label, and every dropdown's options — headings and signatures only have
+// a label, checkboxes/text/number/date/paragraph fields just a label) and
+// returns a flat list the caller can translate one at a time.
+function mfCollectTranslatableStrings(f) {
+  const items = [{ path: 'title', text: f.title || '' }];
+  if (f.desc) items.push({ path: 'desc', text: f.desc });
+  (f.fields || []).forEach(fl => {
+    if (fl.label) items.push({ path: 'field:' + fl.id + ':label', text: fl.label });
+    if ((fl.type === 'select' || fl.type === 'mcq') && Array.isArray(fl.options)) {
+      fl.options.forEach((opt, idx) => {
+        if (opt) items.push({ path: 'field:' + fl.id + ':option:' + idx, text: opt });
+      });
+    }
+  });
+  return items;
+}
+
+async function mfSwitchFormLanguage(lang, force) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const sel = document.getElementById('mfLangSelect');
+  if (lang === 'original') {
+    f.activeLang = 'original';
+    mfTouch(f);
+    mfRenderLangControls();
+    mfRenderPreview();
+    mfFlashPreviewIntoView();
+    return;
+  }
+  if (!force && f.translations && f.translations[lang]) {
+    // Already translated once — just switch to the cached version, no
+    // network calls needed.
+    f.activeLang = lang;
+    mfTouch(f);
+    mfRenderLangControls();
+    mfRenderPreview();
+    mfFlashPreviewIntoView();
+    return;
+  }
+  if (mfFormLangBusy) { toast('Already translating — please wait for it to finish', 'info'); if (sel) sel.value = f.activeLang || 'original'; return; }
+  const langName = MF_LANG_NAMES[lang] || lang;
+  // Selecting a language from this dropdown IS the opt-in — translating
+  // immediately (instead of pausing on a second confirm dialog) is what
+  // makes "pick a language and the form translates itself" actually true.
+  // A blocking custom-modal confirm here previously risked leaving the
+  // whole flow stuck forever if that modal's promise was ever left
+  // unresolved (e.g. dismissed some other way), which looked exactly like
+  // "nothing happens" — the dropdown shows the new language, but nothing
+  // ever translates and Push/Export silently go out in English.
+  mfFormLangBusy = true;
+  const translateBtn = document.getElementById('mfLangTranslateBtn');
+  if (translateBtn) translateBtn.disabled = true;
+  const status = document.getElementById('mfLangStatus');
+  if (status) { status.className = 'mf-lang-status mf-lang-busy'; status.textContent = `Translating into ${langName}…`; }
+  toast(`Translating form into ${langName}…`, 'info');
+  const items = mfCollectTranslatableStrings(f);
+  const result = { title: f.title || '', desc: f.desc || '', fields: {} };
+  let okCount = 0, errCount = 0;
+  for (const item of items) {
+    let translated = item.text;
+    try {
+      translated = await sarvarcTranslateText(item.text, lang);
+      okCount++;
+    } catch (e) {
+      errCount++; // fall back to original text for this one string
+      console.error('mfSwitchFormLanguage: failed to translate "' + item.path + '":', e);
+    }
+    if (item.path === 'title') result.title = translated;
+    else if (item.path === 'desc') result.desc = translated;
+    else {
+      const m = item.path.match(/^field:(.+):label$/);
+      const mo = item.path.match(/^field:(.+):option:(\d+)$/);
+      if (m) {
+        const fid = m[1];
+        if (!result.fields[fid]) result.fields[fid] = {};
+        result.fields[fid].label = translated;
+      } else if (mo) {
+        const fid = mo[1], idx = Number(mo[2]);
+        if (!result.fields[fid]) result.fields[fid] = {};
+        if (!result.fields[fid].options) result.fields[fid].options = [];
+        result.fields[fid].options[idx] = translated;
+      }
+    }
+    await new Promise(r => setTimeout(r, 350)); // stay well within the free API's rate limit
+  }
+  if (!f.translations) f.translations = {};
+  f.translations[lang] = result;
+  // A total failure (every single string fell back to its original text)
+  // means the form would silently look untouched — same language switched
+  // to, same words on screen — with no visible sign anything went wrong.
+  // Don't leave the user staring at that mystery: back the switcher out to
+  // Original and surface it as a real, unmissable error instead.
+  const totalFailure = items.length > 0 && okCount === 0;
+  if (totalFailure) {
+    f.activeLang = 'original';
+    mfTouch(f);
+    mfFormLangBusy = false;
+    mfRenderLangControls();
+    mfRenderPreview();
+    if (status) { status.className = 'mf-lang-status mf-lang-error'; status.textContent = `Couldn't reach the translation service — nothing was translated`; }
+    if (sel) sel.value = 'original';
+    toast(`Translation into ${langName} failed — the free translation service didn't respond usefully (likely today's free quota, or no internet access right now). Try again in a bit.`, 'error');
+    return;
+  }
+  f.activeLang = lang;
+  mfTouch(f);
+  mfFormLangBusy = false;
+  mfRenderLangControls();
+  mfRenderPreview();
+  mfFlashPreviewIntoView();
+  if (errCount) {
+    if (status) { status.className = 'mf-lang-status mf-lang-error'; status.textContent = `Translated ${okCount}, ${errCount} kept original (retry with Re-translate)`; }
+    toast(`Translated into ${langName} — ${errCount} string(s) kept their original text, try Re-translate`, 'error');
+  } else {
+    toast(`Form translated into ${langName}`, 'success');
+  }
+}
+
+// Bakes the currently-active translation into a brand-new, independent form
+// (its own id, its own English/original fields set to the translated text,
+// no lingering f.translations cache) so it can be edited, filled, and
+// exported on its own without touching the source-language form.
+function mfSaveTranslationAsNewForm() {
+  const f = mfGetCurrentForm();
+  if (!f || !f.activeLang || f.activeLang === 'original') { toast('Select a translated language first', 'error'); return; }
+  const tr = f.translations && f.translations[f.activeLang];
+  if (!tr) { toast('No translation cached for this language yet', 'error'); return; }
+  const langName = MF_LANG_NAMES[f.activeLang] || f.activeLang;
+  const copy = JSON.parse(JSON.stringify(f));
+  copy.id = mfUid('form');
+  copy.title = (tr.title || f.title || 'Untitled Form') + ` (${langName})`;
+  copy.desc = tr.desc != null ? tr.desc : f.desc;
+  copy.fields = copy.fields.map(fl => {
+    const nf = { ...fl, id: mfUid('fld') };
+    const ov = tr.fields && tr.fields[fl.id];
+    if (ov) {
+      if (ov.label) nf.label = ov.label;
+      if (ov.options) nf.options = fl.options.map((o, i) => (ov.options[i] != null ? ov.options[i] : o));
+    }
+    return nf;
+  });
+  copy.activeLang = 'original';
+  copy.translations = {};
+  copy.updatedAt = Date.now();
+  mfState.forms.push(copy);
+  mfPersist();
+  toast(`Saved as new form: "${copy.title}"`, 'success');
+  mfOpenEditor(copy.id);
+}
+
+// ─── LANGUAGE / TRANSLATION — CANVAS FORMS ───
+// Same idea as the field-based form's language switcher above, adapted to
+// the canvas builder's free-form text boxes. Selecting a language in the
+// dropdown does NOT fire a translation by itself — the dropdown only stages
+// the target language. Translation only runs when "Translate" (or
+// "Re-translate") is actually clicked, so it can never be skipped by
+// accident right before Export PDF / Push to Workspace / Print, all of
+// which rasterize the same #mfcPages DOM that mfcRenderPages() just drew.
+function mfcRenderLangControls() {
+  const f = mfcGetForm();
+  const sel = document.getElementById('mfcLangSelect');
+  const translateBtn = document.getElementById('mfcTranslateBtn');
+  const retBtn = document.getElementById('mfcRetranslateBtn');
+  const saveBtn = document.getElementById('mfcSaveNewBtn');
+  const status = document.getElementById('mfcLangStatus');
+  if (!f || !sel) return;
+  sel.value = f.activeLang || 'original';
+  const isTranslated = (f.activeLang && f.activeLang !== 'original');
+  if (translateBtn) translateBtn.disabled = !!mfCanvasLangBusy;
+  if (retBtn) retBtn.style.display = isTranslated ? 'inline-block' : 'none';
+  if (saveBtn) saveBtn.style.display = isTranslated ? 'inline-block' : 'none';
+  if (status && !mfCanvasLangBusy) {
+    status.className = 'mf-lang-status';
+    status.textContent = isTranslated
+      ? `Showing ${MF_LANG_NAMES[f.activeLang] || f.activeLang} translation — text boxes are read-only, switch to "Original" to edit`
+      : '';
+  }
+}
+
+// Walks every text box across every page and returns a flat list the
+// caller can translate one string at a time, keyed by box id.
+function mfcCollectTranslatableStrings(f) {
+  const items = [];
+  (f.pages || []).forEach(pg => (pg.boxes || []).forEach(b => {
+    if (b.text && b.text.trim()) items.push({ id: b.id, text: b.text });
+  }));
+  return items;
+}
+
+// Called by the dropdown's onchange — selecting any language, including
+// "Original", immediately triggers the switch (and the translation, for a
+// language not yet cached). This is the "pick a language and it just
+// translates itself" behavior; the separate Translate/Re-translate buttons
+// stay around purely as an explicit retry if a translation ever partially
+// fails.
+function mfcLangSelectChanged(val) {
+  mfcSwitchLanguage(val);
+}
+function mfcTranslateClick() {
+  const sel = document.getElementById('mfcLangSelect');
+  if (!sel) return;
+  mfcSwitchLanguage(sel.value, true);
+}
+
+async function mfcSwitchLanguage(lang, force) {
+  const f = mfcGetForm(); if (!f) return;
+  if (f.activeLang == null) f.activeLang = 'original';
+  if (f.translations == null) f.translations = {};
+  const sel = document.getElementById('mfcLangSelect');
+  if (lang === 'original') {
+    f.activeLang = 'original';
+    mfTouch(f);
+    mfcRenderLangControls();
+    mfcRenderPages();
+    return;
+  }
+  if (!force && f.translations[lang]) {
+    // Already translated once — just switch to the cached version, no
+    // network calls needed.
+    f.activeLang = lang;
+    mfTouch(f);
+    mfcRenderLangControls();
+    mfcRenderPages();
+    return;
+  }
+  if (mfCanvasLangBusy) { toast('Already translating — please wait for it to finish', 'info'); if (sel) sel.value = f.activeLang || 'original'; return; }
+  const langName = MF_LANG_NAMES[lang] || lang;
+  // Selecting the language IS the opt-in — translate immediately instead of
+  // pausing on a second confirm dialog, which could otherwise leave this
+  // stuck forever if that dialog's promise never resolved for any reason
+  // (looks exactly like "nothing happens": dropdown shows the new language,
+  // canvas silently stays in English).
+  mfCanvasLangBusy = true;
+  const status = document.getElementById('mfcLangStatus');
+  if (status) { status.className = 'mf-lang-status mf-lang-busy'; status.textContent = `Translating into ${langName}…`; }
+  const translateBtn = document.getElementById('mfcTranslateBtn');
+  if (translateBtn) translateBtn.disabled = true;
+  toast(`Translating canvas form into ${langName}…`, 'info');
+  const items = mfcCollectTranslatableStrings(f);
+  const result = {};
+  let okCount = 0, errCount = 0;
+  for (const item of items) {
+    let translated = item.text;
+    try {
+      translated = await sarvarcTranslateText(item.text, lang);
+      okCount++;
+    } catch (e) {
+      errCount++; // fall back to original text for this one box
+      console.error('mfcSwitchLanguage: failed to translate box "' + item.id + '":', e);
+    }
+    result[item.id] = translated;
+    await new Promise(r => setTimeout(r, 350)); // stay well within the free API's rate limit
+  }
+  f.translations[lang] = result;
+  mfCanvasLangBusy = false;
+  if (translateBtn) translateBtn.disabled = false;
+  // A total failure (every single string fell back to its original text)
+  // would otherwise leave the canvas looking untouched with no visible sign
+  // anything went wrong — back the switcher out to Original instead.
+  const totalFailure = items.length > 0 && okCount === 0;
+  if (totalFailure) {
+    f.activeLang = 'original';
+    mfTouch(f);
+    mfcRenderLangControls();
+    mfcRenderPages();
+    if (status) { status.className = 'mf-lang-status mf-lang-error'; status.textContent = `Couldn't reach the translation service — nothing was translated`; }
+    if (sel) sel.value = 'original';
+    toast(`Translation into ${langName} failed — the free translation service didn't respond usefully (likely today's free quota, or no internet access right now). Try again in a bit.`, 'error');
+    return;
+  }
+  f.activeLang = lang;
+  mfTouch(f);
+  mfcRenderLangControls();
+  mfcRenderPages();
+  if (errCount) {
+    if (status) { status.className = 'mf-lang-status mf-lang-error'; status.textContent = `Translated ${okCount}, ${errCount} kept original (retry with Re-translate)`; }
+    toast(`Translated into ${langName} — ${errCount} string(s) kept their original text, try Re-translate`, 'error');
+  } else {
+    toast(`Canvas form translated into ${langName}`, 'success');
+  }
+}
+
+// Bakes the currently-active translation into a brand-new, independent
+// canvas form (its own id, its own boxes set to the translated text, no
+// lingering translations cache) so it can be edited and exported on its
+// own without touching the source-language form.
+function mfcSaveTranslationAsNewForm() {
+  const f = mfcGetForm();
+  if (!f || !f.activeLang || f.activeLang === 'original') { toast('Select a translated language first', 'error'); return; }
+  const tr = f.translations && f.translations[f.activeLang];
+  if (!tr) { toast('No translation cached for this language yet', 'error'); return; }
+  const langName = MF_LANG_NAMES[f.activeLang] || f.activeLang;
+  const copy = JSON.parse(JSON.stringify(f));
+  copy.id = mfUid('form');
+  copy.title = (f.title || 'Untitled Canvas Form') + ` (${langName})`;
+  copy.pages = copy.pages.map(pg => ({
+    ...pg,
+    id: mfUid('pg'),
+    boxes: (pg.boxes || []).map(b => {
+      const nb = { ...b, id: mfUid('box') };
+      if (tr[b.id] != null) nb.text = tr[b.id];
+      return nb;
+    })
+  }));
+  copy.activeLang = 'original';
+  copy.translations = {};
+  copy.updatedAt = Date.now();
+  mfState.forms.push(copy);
+  mfPersist();
+  toast(`Saved as new form: "${copy.title}"`, 'success');
+  mfcOpenEditor(copy.id);
+}
+
 function mfHandleLogoUpload(input) {
   const f = mfGetCurrentForm();
   const file = input.files && input.files[0];
@@ -43637,7 +44684,7 @@ function mfHandleLogoUpload(input) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       let w = img.naturalWidth, h = img.naturalHeight;
       const scale = Math.min(1, MF_LOGO_MAX_DIM / Math.max(w, h));
       w = Math.round(w * scale); h = Math.round(h * scale);
@@ -43648,11 +44695,23 @@ function mfHandleLogoUpload(input) {
       f.logoDataUrl = c.toDataURL('image/png');
       if (f.watermarkOn == null) f.watermarkOn = true;
       if (f.watermarkOpacity == null) f.watermarkOpacity = 8;
+
+      // Auto-theme the form to the logo's own brand color — same extraction
+      // Refine Report uses for headings/tables — so the accent divider,
+      // section headings, field focus rings, and checkboxes pick up the
+      // company's actual brand color instead of the generic default blue.
+      let brandColors = [];
+      try { brandColors = await pdfedExtractLogoColors(f.logoDataUrl); } catch (err) { console.error('Logo color extraction failed', err); }
+      if (brandColors.length) f.accentColor = brandColors[0];
+
       mfTouch(f);
       mfRenderLogoThumb();
       mfRenderWatermarkControls();
+      mfRenderAccentSwatches();
       mfRenderPreview();
-      toast('Logo added, placed as a centered watermark automatically', 'success');
+      toast(brandColors.length
+        ? 'Logo added — theme color matched to your brand automatically'
+        : 'Logo added, placed as a centered watermark automatically', 'success');
     };
     img.onerror = () => toast('Could not read that image', 'error');
     img.src = e.target.result;
@@ -43697,56 +44756,195 @@ function mfRenderPreview() {
   if (!f || !page) return;
   const vals = (typeof mfDraftValues !== 'undefined' && mfDraftValues) || {};
   page.style.setProperty('--mf-accent', f.accentColor || '#0073E6');
-  let watermarkHtml = '';
-  if (f.logoDataUrl && f.watermarkOn !== false) {
-    const op = Math.min(10, Math.max(5, f.watermarkOpacity == null ? 8 : f.watermarkOpacity)) / 100;
-    watermarkHtml = `<img class="mf-pv-watermark" src="${f.logoDataUrl}" alt="" style="opacity:${op}">`;
-  }
+  // If a translated language is active, render its cached strings instead
+  // of the original title/description/field labels/options — this is what
+  // makes the Live Preview, Export PDF, and Push to Workspace all show the
+  // translated form, since all three ultimately capture this same element.
+  // The underlying f.title / f.fields are never touched, so switching back
+  // to "Original" (or editing on the left, which always edits the source
+  // language) is never destructive.
+  const tr = (f.activeLang && f.activeLang !== 'original' && f.translations) ? f.translations[f.activeLang] : null;
+  const displayTitle = (tr && tr.title) ? tr.title : (f.title || 'Untitled Form');
+  const displayDesc = (tr && tr.desc != null) ? tr.desc : f.desc;
+  // The watermark is no longer baked in once here — with a multi-page form
+  // the whole point is one centered logo PER A4 sheet, not one centered on
+  // the entire (much taller) scrollable content. mfUpdatePreviewPagination(),
+  // called at the end of this function, knows the real per-page height once
+  // pagination is measured, so it owns populating #mfPvWatermarks with one
+  // <img> per page, each centered on its own sheet. This container is just
+  // the empty slot it fills in.
+  const watermarkHtml = '<div class="mf-pv-watermarks" id="mfPvWatermarks"></div>';
   let html = '';
   if (f.logoDataUrl) {
-    html += `<div class="mf-pv-header"><img class="mf-pv-logo" src="${f.logoDataUrl}" alt="Logo"><div class="mf-pv-header-text"><h1>${mfEsc(f.title || 'Untitled Form')}</h1></div></div>`;
+    html += `<div class="mf-pv-header"><img class="mf-pv-logo" src="${f.logoDataUrl}" alt="Logo"><div class="mf-pv-header-text"><h1>${mfEsc(displayTitle)}</h1></div></div>`;
   } else {
-    html += `<h1>${mfEsc(f.title || 'Untitled Form')}</h1>`;
+    html += `<h1>${mfEsc(displayTitle)}</h1>`;
   }
-  if (f.desc) html += `<div class="mf-pv-desc">${mfEsc(f.desc)}</div>`;
+  if (displayDesc) html += `<div class="mf-pv-desc">${mfEsc(displayDesc)}</div>`;
   if (f.fields.length === 0) {
     html += '<div style="font-size:12px;color:#999;padding:20px 0;text-align:center">Add fields on the left to see them appear here.</div>';
   }
   f.fields.forEach(fl => {
+    const fov = tr && tr.fields && tr.fields[fl.id];
+    const label = (fov && fov.label) ? fov.label : fl.label;
+    const options = (fl.options || []).map((o, i) => (fov && fov.options && fov.options[i] != null) ? fov.options[i] : o);
     const req = fl.required ? '<span class="mf-pv-req">*</span>' : '';
     const id = 'mfin_' + fl.id;
     const v = vals[fl.id];
     switch(fl.type) {
       case 'heading':
-        html += `<div class="mf-pv-heading">${mfEsc(fl.label)}</div>`;
+        html += `<div class="mf-pv-heading">${mfEsc(label)}</div>`;
         break;
       case 'text':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(label)}${req}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
         break;
       case 'number':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="number" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(label)}${req}</label><input type="number" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
         break;
       case 'date':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><input type="date" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(label)}${req}</label><input type="date" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
         break;
       case 'paragraph':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><textarea id="${id}" data-fid="${fl.id}" class="mf-pv-textarea" rows="3">${mfEsc(v||'')}</textarea></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(label)}${req}</label><textarea id="${id}" data-fid="${fl.id}" class="mf-pv-textarea" rows="3">${mfEsc(v||'')}</textarea></div>`;
         break;
       case 'select':
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}${req}</label><select id="${id}" data-fid="${fl.id}" class="mf-pv-select-real">` +
-          (fl.options||[]).map(o => `<option ${o===v?'selected':''}>${mfEsc(o)}</option>`).join('') + `</select></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(label)}${req}</label><select id="${id}" data-fid="${fl.id}" class="mf-pv-select-real">` +
+          options.map((o, i) => `<option ${(fl.options||[])[i]===v?'selected':''}>${mfEsc(o)}</option>`).join('') + `</select></div>`;
         break;
       case 'checkbox':
-        html += `<div class="mf-pv-field mf-pv-check"><input type="checkbox" id="${id}" data-fid="${fl.id}" ${v?'checked':''}><label for="${id}">${mfEsc(fl.label)}${req}</label></div>`;
+        html += `<div class="mf-pv-field mf-pv-check"><input type="checkbox" id="${id}" data-fid="${fl.id}" ${v?'checked':''}><label for="${id}">${mfEsc(label)}${req}</label></div>`;
+        break;
+      case 'mcq':
+        html += `<div class="mf-pv-field mf-pv-mcq"><label>${mfEsc(label)}${req}</label><div class="mf-pv-mcq-opts">` +
+          options.map((o, i) => {
+            const optVal = (fl.options || [])[i];
+            const oid = id + '_' + i;
+            return `<label class="mf-pv-mcq-opt" for="${oid}"><input type="radio" id="${oid}" name="${id}" data-fid="${fl.id}" value="${mfEsc(optVal)}" ${optVal === v ? 'checked' : ''}><span>${mfEsc(o)}</span></label>`;
+          }).join('') + `</div></div>`;
         break;
       case 'signature':
-        html += `<div class="mf-pv-field"><div class="mf-pv-sig"></div><div class="mf-pv-sig-label">${mfEsc(fl.label)}</div></div>`;
+        html += `<div class="mf-pv-field"><div class="mf-pv-sig"></div><div class="mf-pv-sig-label">${mfEsc(label)}</div></div>`;
         break;
       default:
-        html += `<div class="mf-pv-field"><label>${mfEsc(fl.label)}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
+        html += `<div class="mf-pv-field"><label>${mfEsc(label)}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
     }
   });
   page.innerHTML = watermarkHtml + `<div class="mf-pv-content">${html}</div>`;
+  mfUpdatePreviewPagination();
+}
+
+// Shared A4 page margins for every paginated form surface — the live
+// Design-mode preview, Export PDF, and Push to Workspace all reserve
+// exactly these margins, so what's shown while building the form is a
+// true WYSIWYG match for what actually gets produced. Page 1 keeps its
+// own designed top padding (logo/title) as part of its content, so it
+// only needs the bottom margin reserved for the footer; every page after
+// that reserves both a top margin and a bottom margin.
+const MF_PAGE_TOP_MARGIN_MM = 16;
+const MF_PAGE_BOTTOM_MARGIN_MM = 14;
+
+// Keeps the Live Preview an accurate, WYSIWYG match for what Export PDF /
+// Push to Workspace / Print actually produce. Rather than a dashed line
+// drawn over one continuous scroll, this actually paginates the preview:
+// it measures every field row / heading's natural position, runs them
+// through the exact same smart-break engine Export PDF and Push to
+// Workspace use, then inserts a real blank spacer into the DOM at each
+// break so the field after it visually starts at the top of the next A4
+// sheet, with a genuine top margin — not just "whatever didn't fit". This
+// is what lets you see, while still designing the form, exactly how many
+// pages it will come out as and where each one begins, before you ever
+// push it to the Workspace canvas.
+function mfUpdatePreviewPagination() {
+  const page = document.getElementById('mfPreviewPage');
+  const breaksHost = document.getElementById('mfPreviewPageBreaks');
+  const sizeLabel = document.getElementById('mfDesignPreviewSize');
+  if (!page) return;
+  // Strip spacers from any previous pass before re-measuring — otherwise a
+  // resize-triggered re-run would measure its own previously-inserted
+  // padding and the page would grow a little more every time it's called.
+  page.querySelectorAll('.mf-pv-pagespacer').forEach(el => el.remove());
+  const pageRect = page.getBoundingClientRect();
+  const pageW = pageRect.width;
+  if (!pageW) return;
+  const sheetH = pageW * (297 / 210); // one true A4 sheet, in on-screen px
+  const topMarginPx = sheetH * (MF_PAGE_TOP_MARGIN_MM / 297);
+  const bottomMarginPx = sheetH * (MF_PAGE_BOTTOM_MARGIN_MM / 297);
+
+  const blocks = [];
+  page.querySelectorAll('.mf-pv-field, .mf-pv-heading').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (!r.height) return;
+    blocks.push({ el, top: r.top - pageRect.top, bottom: r.bottom - pageRect.top, isHeading: el.classList.contains('mf-pv-heading') });
+  });
+  blocks.sort((a, b) => a.top - b.top);
+
+  const naturalHeight = page.scrollHeight; // real, unpadded content height before any spacers
+  const naturalBreaks = mfComputeSmartBreaks(naturalHeight, sheetH - bottomMarginPx, sheetH - topMarginPx - bottomMarginPx, blocks);
+  const totalPages = naturalBreaks.length - 1;
+
+  // Turn each natural break into a real blank spacer in the DOM flow, so
+  // the field after it actually starts at the top of the next sheet.
+  // Breaks were measured against the natural (pre-spacer) layout, so each
+  // spacer's size accounts for whatever spacers were already inserted
+  // above it — no re-measuring needed as we go.
+  let insertedSoFar = 0;
+  for (let i = 1; i < totalPages; i++) {
+    const naturalPos = naturalBreaks[i];
+    const targetPos = i * sheetH + topMarginPx;
+    const gap = Math.max(0, Math.round(targetPos - (naturalPos + insertedSoFar)));
+    const atBlock = blocks.find(b => Math.abs(b.top - naturalPos) < 1) || blocks.find(b => b.top >= naturalPos);
+    const spacer = document.createElement('div');
+    spacer.className = 'mf-pv-pagespacer';
+    spacer.style.height = gap + 'px';
+    spacer.innerHTML = `<span class="mf-pv-pagespacer-seam"></span><span class="mf-pv-pagespacer-label">Page ${i + 1} of ${totalPages}</span>`;
+    if (atBlock && atBlock.el && atBlock.el.parentNode) {
+      atBlock.el.parentNode.insertBefore(spacer, atBlock.el);
+    } else {
+      page.appendChild(spacer);
+    }
+    insertedSoFar += gap;
+  }
+
+  // One centered logo watermark PER A4 sheet, not one for the whole
+  // (much taller, multi-sheet) scrollable content. Now that pagination is
+  // measured, sheetH is the true on-screen height of a single page, so page
+  // i's vertical center is simply i*sheetH + sheetH/2 in the same
+  // coordinate space the pagespacers above were just inserted into.
+  const wmHost = document.getElementById('mfPvWatermarks');
+  if (wmHost) {
+    const f2 = (typeof mfGetCurrentForm === 'function') ? mfGetCurrentForm() : null;
+    if (f2 && f2.logoDataUrl && f2.watermarkOn !== false) {
+      const op = Math.min(10, Math.max(5, f2.watermarkOpacity == null ? 8 : f2.watermarkOpacity)) / 100;
+      let wmHtml = '';
+      for (let i = 0; i < totalPages; i++) {
+        const centerY = Math.round(i * sheetH + sheetH / 2);
+        wmHtml += `<img class="mf-pv-watermark" src="${f2.logoDataUrl}" alt="" style="top:${centerY}px;opacity:${op}">`;
+      }
+      wmHost.innerHTML = wmHtml;
+    } else {
+      wmHost.innerHTML = '';
+    }
+  }
+
+  if (sizeLabel) {
+    sizeLabel.textContent = totalPages > 1
+      ? `A4 · ${totalPages} pages`
+      : 'A4 · 210 × 297 mm';
+  }
+  // Faint sheet-boundary guides across the now-real page gaps — a light
+  // finishing touch on top of the actual spacers above, not the only thing
+  // marking a page break anymore.
+  if (breaksHost) {
+    if (totalPages <= 1) {
+      breaksHost.innerHTML = '';
+    } else {
+      let html = '';
+      for (let i = 1; i < totalPages; i++) {
+        html += `<div class="mf-pv-pagebreak" style="top:${Math.round(i * sheetH)}px"></div>`;
+      }
+      breaksHost.innerHTML = html;
+    }
+  }
 }
 
 // ─── FILL & RESPONSES ───
@@ -43767,15 +44965,27 @@ function mfSwitchMode(mode) {
   if (bodyD) bodyD.style.display = mode === 'design' ? 'grid' : 'none';
   if (bodyF) bodyF.style.display = mode === 'fill' ? 'grid' : 'none';
   const panel = document.getElementById('mfPreviewPanel');
-  const slot = document.getElementById('mfFillPreviewSlot');
+  const fillSlot = document.getElementById('mfFillPreviewSlot');
+  const designSlot = document.getElementById('mfDesignPreviewSlot');
   const holder = document.getElementById('mfPreviewOffscreenHolder');
-  if (panel && slot && holder) {
-    if (mode === 'fill') { panel.classList.add('mf-preview-visible'); slot.appendChild(panel); }
+  if (panel && fillSlot && designSlot && holder) {
+    if (mode === 'fill') { panel.classList.add('mf-preview-visible'); fillSlot.appendChild(panel); }
+    else if (mode === 'design') { panel.classList.add('mf-preview-visible'); designSlot.appendChild(panel); }
     else { panel.classList.remove('mf-preview-visible'); holder.appendChild(panel); }
   }
   if (mode === 'fill') mfRenderResponsesList();
   mfRenderPreview();
+  // The preview panel's effective on-screen width can change when it moves
+  // between slots (design vs fill columns have different widths), which
+  // changes where real A4 page breaks land — re-measure once the browser
+  // has actually laid out the panel in its new home.
+  requestAnimationFrame(mfUpdatePreviewPagination);
 }
+window.addEventListener('resize', () => {
+  if (typeof mfUpdatePreviewPagination === 'function' && document.getElementById('mfPreviewPage')) {
+    mfUpdatePreviewPagination();
+  }
+});
 
 function mfUpdateFillStatus() {
   const el = document.getElementById('mfFillStatus');
@@ -43820,6 +45030,11 @@ function mfCollectDraftFromDOM() {
   const values = {};
   f.fields.forEach(fl => {
     if (fl.type === 'heading' || fl.type === 'signature') return;
+    if (fl.type === 'mcq') {
+      const checked = document.querySelector('input[name="mfin_' + fl.id + '"]:checked');
+      values[fl.id] = checked ? checked.value : '';
+      return;
+    }
     const el = document.getElementById('mfin_' + fl.id);
     if (!el) return;
     values[fl.id] = (fl.type === 'checkbox') ? !!el.checked : el.value;
@@ -44066,35 +45281,441 @@ function mfConfirmMergeImport() {
   toast(`Imported ${imported} row${imported !== 1 ? 's' : ''} as response${imported !== 1 ? 's' : ''}`, 'success');
 }
 
+// ─── SMART PAGE BREAKS ───
+// A naive paginator slices the rasterized form at a blind fixed pixel
+// interval (one A4 height at a time), with zero awareness of what's
+// actually sitting on that boundary — so a field row or section heading
+// that happens to straddle the 297mm mark gets guillotined across two
+// pages. This collects every field row (.mf-pv-field) and section heading
+// (.mf-pv-heading) as an "unbreakable" block first, then nudges each page
+// break up into the whitespace just above the nearest block instead of
+// cutting through it. It also refuses to strand a heading alone at the
+// very bottom of a page with its fields pushed onto the next one.
+//
+// Every page also reserves real margin — not just wherever content happens
+// to stop. Page 1 keeps its own designed top padding (logo/title area) as
+// part of its content, so it only needs a bottom margin reserved for the
+// footer. Every continuation page reserves both a top margin (so it isn't
+// flush against the sheet edge) and a bottom margin, matching how a real
+// multi-page document is laid out. The exact same constants and break
+// engine drive the live Design-mode preview, Export PDF, and Push to
+// Workspace, so what's on screen while building the form is a true
+// WYSIWYG match for what actually gets produced.
+function mfCollectUnbreakableBlocks(page, pageRect, scale) {
+  const blocks = [];
+  page.querySelectorAll('.mf-pv-field, .mf-pv-heading').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (!r.height) return;
+    blocks.push({
+      el,
+      top: (r.top - pageRect.top) * scale,
+      bottom: (r.bottom - pageRect.top) * scale,
+      isHeading: el.classList.contains('mf-pv-heading')
+    });
+  });
+  blocks.sort((a, b) => a.top - b.top);
+  return blocks;
+}
+
+// firstBudget is the usable height of page 1 (sheet height minus only the
+// bottom margin); restBudget is the usable height of every page after that
+// (sheet height minus top margin AND bottom margin).
+function mfComputeSmartBreaks(canvasHeightPx, firstBudget, restBudget, blocks) {
+  const breaks = [0];
+  let cursor = 0;
+  let budget = firstBudget;
+  while (cursor < canvasHeightPx - 1) {
+    let next = Math.min(cursor + budget, canvasHeightPx);
+    // Never let a single nudge shrink a page below this — guards against a
+    // pathological run of oversized blocks collapsing pages down to nothing.
+    const MIN_PAGE = budget * 0.3;
+    // How close to the boundary a heading needs to be to count as "stranded"
+    // alone at the bottom of a page, scaled to the current page budget so it
+    // behaves the same whether we're measuring on-screen px or raster px.
+    const strandedZone = budget * 0.03;
+    if (next < canvasHeightPx - 1) {
+      // Never cut through the middle of a field row or heading.
+      const cutting = blocks.filter(b => b.top < next - 1 && b.bottom > next + 1);
+      if (cutting.length) {
+        const minTop = Math.min(...cutting.map(b => b.top));
+        if (minTop - cursor > MIN_PAGE) next = minTop;
+        // else: a single block is taller than a whole page — unavoidable,
+        // leave the hard cut in place rather than producing a near-empty page.
+      }
+      // Don't strand a section heading alone at the bottom of a page —
+      // pull it down onto the next page along with its first field.
+      const stranded = blocks.find(b => b.isHeading && b.bottom <= next && b.bottom > next - strandedZone);
+      if (stranded && stranded.top - cursor > MIN_PAGE) next = stranded.top;
+    }
+    breaks.push(next);
+    cursor = next;
+    budget = restBudget;
+  }
+  return breaks;
+}
+
+// Export PDF / Push to Workspace both rasterize #mfPreviewPage directly, and
+// both compute their own page breaks fresh against the natural, unpadded
+// content flow — but the live preview leaves real .mf-pv-pagespacer blanks
+// (with "Page N of M" pills) sitting inside that same element between
+// renders. Captured as-is, those pills get baked straight into the output
+// and the blank gaps get double-counted by the break math on top of that.
+// Stripping them right before capture guarantees a clean natural-flow
+// source; mfUpdatePreviewPagination() in each function's `finally` block
+// already re-inserts fresh spacers afterward, so nothing needs restoring.
+function mfStripPreviewSpacers(page) {
+  page.querySelectorAll('.mf-pv-pagespacer').forEach(el => el.remove());
+  // Also strip the live preview's per-page watermark <img>s — they're
+  // positioned for the on-screen preview's (smaller, CSS-proxy) width, not
+  // the true 210mm capture width Export PDF / Push to Workspace resize to
+  // right before rasterizing, so their baked-in top offsets would land in
+  // the wrong place once that resize happens. Both callers draw the
+  // watermark fresh onto each already-sliced output canvas instead — see
+  // mfDrawWatermarkOnSlice() — which is correct by construction because it
+  // uses that slice's own real pixel dimensions, not a leftover DOM position.
+  page.querySelectorAll('.mf-pv-watermark').forEach(el => el.remove());
+}
+
+// Draws one centered, dead-center logo watermark onto a single already-
+// sliced A4 page canvas — used by both Export PDF and Push to Workspace so
+// a multi-page form gets the logo centered on EVERY page, not just once
+// somewhere in the middle of the whole stacked document.
+function mfDrawWatermarkOnSlice(ctx, logoImg, canvasW, canvasH, opacity) {
+  if (!logoImg || !logoImg.naturalWidth || !logoImg.naturalHeight) return;
+  const maxW = canvasW * 0.58, maxH = canvasH * 0.58;
+  const ratio = Math.min(maxW / logoImg.naturalWidth, maxH / logoImg.naturalHeight);
+  const w = logoImg.naturalWidth * ratio, h = logoImg.naturalHeight * ratio;
+  const x = (canvasW - w) / 2, y = (canvasH - h) / 2;
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.drawImage(logoImg, x, y, w, h);
+  ctx.restore();
+}
+
+function mfLoadImageEl(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 // ─── PRINT / EXPORT ───
 function mfPrintForm() {
   const f = mfGetCurrentForm();
   if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfFormLangBusy) { toast('Still translating — wait for it to finish so the printed copy matches', 'info'); return; }
   window.print();
+}
+
+// ─── EXPORT DROPDOWN (PDF / Word / Image, chosen from the toolbar button) ───
+function mfToggleExportDropdown(e) {
+  if (e) e.stopPropagation();
+  const btn = document.getElementById('mfExportBtn');
+  if (!btn) return;
+  const dd = document.getElementById('mfExportDropdown');
+  if (!dd) return;
+  const wasOpen = dd.classList.contains('open');
+  dd.classList.remove('open');
+  if (!wasOpen) {
+    const rect = btn.getBoundingClientRect();
+    let left = rect.left;
+    const panelW = 250;
+    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
+    dd.style.top = (rect.bottom + 6) + 'px';
+    dd.style.left = left + 'px';
+    dd.classList.add('open');
+  }
+}
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('mfExportDropdown');
+  const btn = document.getElementById('mfExportBtn');
+  if (dd && dd.classList.contains('open') && !dd.contains(e.target) && (!btn || !btn.contains(e.target))) {
+    dd.classList.remove('open');
+  }
+});
+function mfExportAs(fmt) {
+  const dd = document.getElementById('mfExportDropdown');
+  if (dd) dd.classList.remove('open');
+  if (fmt === 'pdf') mfExportPDF();
+  else if (fmt === 'docx') mfExportDOCX();
+  else if (fmt === 'image') mfExportImages();
+}
+
+// Shared rasterizer for Word/Image export: reuses the exact same true-A4
+// resize, html2canvas capture, smart-break pagination, and per-page
+// watermark/footer baking that mfExportPDF already does — just returns the
+// finished page canvases instead of feeding them into a jsPDF doc, so PDF,
+// Word, and Image export all produce pixel-identical pages.
+async function mfRasterizeFormPageCanvases() {
+  const f = mfGetCurrentForm();
+  const page = document.getElementById('mfPreviewPage');
+  if (!f || !page) { toast('Open a form first', 'error'); return null; }
+  if (mfFormLangBusy) { toast('Still translating — wait for it to finish so the exported file matches', 'info'); return null; }
+  if (typeof html2canvas === 'undefined') { toast('Export is unavailable right now', 'error'); return null; }
+  const A4_W_MM = 210, A4_H_MM = 297, PXMM = 3.7795, CAPTURE_SCALE = 2;
+  const trueWidthPx = Math.round(A4_W_MM * PXMM);
+  const stack = page.parentElement;
+  const prev = { width: page.style.width, maxWidth: page.style.maxWidth, height: page.style.height, overflowY: page.style.overflowY, aspectRatio: page.style.aspectRatio };
+  const prevStack = stack ? { maxWidth: stack.style.maxWidth, flex: stack.style.flex, flexShrink: stack.style.flexShrink } : null;
+  page.style.width = trueWidthPx + 'px'; page.style.maxWidth = 'none';
+  page.style.height = 'auto'; page.style.overflowY = 'visible'; page.style.aspectRatio = 'auto';
+  if (stack) { stack.style.maxWidth = 'none'; stack.style.flex = 'none'; stack.style.flexShrink = '0'; }
+  mfStripPreviewSpacers(page);
+  try {
+    const pageRect = page.getBoundingClientRect();
+    const canvas = await html2canvas(page, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true });
+    const pxPerMm = canvas.width / A4_W_MM;
+    const pageHeightPx = Math.round(A4_H_MM * pxPerMm);
+    const topMarginPx = Math.round(MF_PAGE_TOP_MARGIN_MM * pxPerMm);
+    const bottomMarginPx = Math.round(MF_PAGE_BOTTOM_MARGIN_MM * pxPerMm);
+    const scale = canvas.width / pageRect.width;
+    const blocks = mfCollectUnbreakableBlocks(page, pageRect, scale);
+    const breaks = mfComputeSmartBreaks(canvas.height, pageHeightPx - bottomMarginPx, pageHeightPx - topMarginPx - bottomMarginPx, blocks);
+    const totalPages = breaks.length - 1;
+    let wmImg = null, wmOpacity = 0;
+    if (f.logoDataUrl && f.watermarkOn !== false) {
+      wmOpacity = Math.min(10, Math.max(5, f.watermarkOpacity == null ? 8 : f.watermarkOpacity)) / 100;
+      try { wmImg = await mfLoadImageEl(f.logoDataUrl); } catch (e) { wmImg = null; }
+    }
+    const slices = [];
+    for (let i = 0; i < totalPages; i++) {
+      const sliceTop = breaks[i], sliceBottom = breaks[i + 1];
+      const sliceH = sliceBottom - sliceTop;
+      const destY = i === 0 ? 0 : topMarginPx;
+      const slice = document.createElement('canvas');
+      slice.width = canvas.width; slice.height = pageHeightPx;
+      const sctx = slice.getContext('2d');
+      sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, slice.width, slice.height);
+      sctx.drawImage(canvas, 0, sliceTop, canvas.width, sliceH, 0, destY, canvas.width, sliceH);
+      if (wmImg) mfDrawWatermarkOnSlice(sctx, wmImg, slice.width, slice.height, wmOpacity);
+      if (totalPages > 1) {
+        sctx.font = `${Math.round(8 * 0.3528 * pxPerMm)}px Inter, Arial, sans-serif`;
+        sctx.fillStyle = '#96a0b1';
+        sctx.textAlign = 'right';
+        sctx.fillText(`Page ${i + 1} of ${totalPages}`, slice.width - Math.round(12 * pxPerMm), slice.height - Math.round(8 * pxPerMm));
+      }
+      slices.push(slice);
+    }
+    return { slices, mmW: A4_W_MM, mmH: A4_H_MM };
+  } finally {
+    Object.assign(page.style, prev);
+    if (stack && prevStack) Object.assign(stack.style, prevStack);
+    mfUpdatePreviewPagination();
+  }
+}
+
+// Embeds every rasterized page as a picture in a .docx — same OOXML
+// plumbing (pdfedAddImageRun + the docx zip skeleton) Redaction's Word
+// export already uses, appropriate here since the form's layout is baked
+// into pixels rather than reconstructed as live text.
+// Guards + progress UI mirror the rest of the app (Workspace, Redaction):
+// mfExportBusy blocks a second export from starting mid-flight — same
+// double-click guard mfPushToWorkspace uses — and showExportOverlay/
+// updateExportProgress/completeExportOverlay give the same full-screen
+// progress feedback instead of a bare toast.
+let mfExportBusy = false;
+async function mfExportDOCX() {
+  const f = mfGetCurrentForm();
+  if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfExportBusy) return; // guard against double-clicks starting two exports at once
+  if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
+  mfExportBusy = true;
+  showExportOverlay('Exporting Word…', 'Rendering pages…');
+  try {
+    const result = await mfRasterizeFormPageCanvases();
+    if (!result) { hideExportOverlay(); return; }
+    const { slices, mmW, mmH } = result;
+    const PAGE_W_TWIPS = 11906, PAGE_H_TWIPS = 16838, MARGIN_TWIPS = 720;
+    const contentWidthEmu = (PAGE_W_TWIPS - MARGIN_TWIPS * 2) * 635;
+    const images = { list: [] };
+    let bodyXml = '';
+    slices.forEach((slice, i) => {
+      updateExportProgress((i / slices.length) * 80, `Embedding page ${i + 1} of ${slices.length}…`);
+      if (i > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      const dataUrl = slice.toDataURL('image/png');
+      const wPt = mmW * 2.83465, hPt = mmH * 2.83465;
+      bodyXml += pdfedAddImageRun(images, dataUrl, wPt, hPt, contentWidthEmu);
+    });
+    updateExportProgress(88, 'Building document…');
+    const rootNamespaces = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
+      `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
+      `xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"`;
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<w:document ${rootNamespaces}><w:body>${bodyXml}` +
+      `<w:sectPr><w:pgSz w:w="${PAGE_W_TWIPS}" w:h="${PAGE_H_TWIPS}"/>` +
+      `<w:pgMar w:top="${MARGIN_TWIPS}" w:right="${MARGIN_TWIPS}" w:bottom="${MARGIN_TWIPS}" w:left="${MARGIN_TWIPS}"/></w:sectPr></w:body></w:document>`;
+    const imageDefaults = images.list.length ? `<Default Extension="png" ContentType="image/png"/>` : '';
+    const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+      `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+      `<Default Extension="xml" ContentType="application/xml"/>${imageDefaults}` +
+      `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
+    const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+    const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      images.list.map(img => `<Relationship Id="${img.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${img.rId}.${img.ext}"/>`).join('') +
+      `</Relationships>`;
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', contentTypes);
+    zip.folder('_rels').file('.rels', rootRels);
+    const wordFolder = zip.folder('word');
+    wordFolder.file('document.xml', documentXml);
+    if (images.list.length) {
+      wordFolder.folder('_rels').file('document.xml.rels', docRels);
+      const media = wordFolder.folder('media');
+      images.list.forEach(img => media.file(`${img.rId}.${img.ext}`, img.base64, { base64: true }));
+    }
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.docx';
+    pdfedDownloadBlob(blob, sarvarcBrandFilename(fname));
+    if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+    completeExportOverlay('Word document exported');
+    toast('Form exported as Word document', 'success');
+  } catch (e) {
+    console.error(e);
+    hideExportOverlay();
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    mfExportBusy = false;
+  }
+}
+
+// Saves each page as a PNG — a plain single download for a one-page form,
+// or a ZIP bundle for a multi-page one, matching Redaction's image export.
+async function mfExportImages() {
+  const f = mfGetCurrentForm();
+  if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfExportBusy) return; // guard against double-clicks starting two exports at once
+  mfExportBusy = true;
+  showExportOverlay('Exporting images…', 'Rendering pages…');
+  try {
+    const result = await mfRasterizeFormPageCanvases();
+    if (!result) { hideExportOverlay(); return; }
+    const { slices } = result;
+    const base = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'form';
+    if (slices.length === 1) {
+      updateExportProgress(50, 'Rendering page…');
+      const blob = await new Promise(res => slices[0].toBlob(res, 'image/png'));
+      updateExportProgress(95, 'Saving file…');
+      pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '.png'));
+      completeExportOverlay('1 page exported');
+      toast('Form exported as image', 'success');
+    } else {
+      if (typeof JSZip === 'undefined') { hideExportOverlay(); toast('Zip engine failed to load, check your connection', 'error'); return; }
+      const zip = new JSZip();
+      slices.forEach((slice, i) => {
+        updateExportProgress((i / slices.length) * 80, `Packing page ${i + 1} of ${slices.length}…`);
+        const dataUrl = slice.toDataURL('image/png');
+        zip.file(base + '-page' + (i + 1) + '.png', dataUrl.split(',')[1], { base64: true });
+      });
+      const blob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+        updateExportProgress(80 + metadata.percent * 0.18, `Compressing… ${Math.round(metadata.percent)}%`);
+      });
+      pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '-pages.zip'));
+      completeExportOverlay(slices.length + ' pages exported');
+      toast('Exported ' + slices.length + ' images', 'success');
+    }
+    if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+  } catch (e) {
+    console.error(e);
+    hideExportOverlay();
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    mfExportBusy = false;
+  }
 }
 
 async function mfExportPDF() {
   const f = mfGetCurrentForm();
   const page = document.getElementById('mfPreviewPage');
   if (!f || !page) { toast('Open a form first', 'error'); return; }
+  if (mfFormLangBusy) { toast('Still translating — wait for it to finish so the exported PDF matches', 'info'); return; }
   if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  if (mfExportBusy) return; // guard against double-clicks starting two exports at once
   const password = await sarvarcAskExportPassword('Export Form as PDF');
   if (password === undefined) return; // cancelled
-  toast('Preparing PDF…', 'info');
+  mfExportBusy = true;
+  showExportOverlay('Exporting your PDF…', 'Preparing page…');
+  // The on-screen preview column is a scaled-down CSS proxy (max-width:420px),
+  // not physically 210mm. For an accurate strict-A4 capture, temporarily
+  // render the page at its true 210mm pixel width with natural (unclipped)
+  // height, then slice that capture into real 210×297mm A4 PDF pages below.
+  const A4_W_MM = 210, A4_H_MM = 297, PXMM = 3.7795, CAPTURE_SCALE = 2;
+  const trueWidthPx = Math.round(A4_W_MM * PXMM);
+  const stack = page.parentElement; // .mf-preview-page-stack — the actual flex child now
+  const prev = { width: page.style.width, maxWidth: page.style.maxWidth, height: page.style.height, overflowY: page.style.overflowY, aspectRatio: page.style.aspectRatio };
+  const prevStack = stack ? { maxWidth: stack.style.maxWidth, flex: stack.style.flex, flexShrink: stack.style.flexShrink } : null;
+  page.style.width = trueWidthPx + 'px'; page.style.maxWidth = 'none';
+  page.style.height = 'auto'; page.style.overflowY = 'visible'; page.style.aspectRatio = 'auto';
+  // Pin against the flex container (.mf-preview-scroll) shrinking our forced
+  // width back down — flex-shrink defaults to 1, and the stack wrapper (not
+  // the page itself) is the actual flex child — so the capture really is
+  // 210mm wide, not silently squeezed narrower.
+  if (stack) { stack.style.maxWidth = 'none'; stack.style.flex = 'none'; stack.style.flexShrink = '0'; }
+  mfStripPreviewSpacers(page);
   try {
-    const canvas = await html2canvas(page, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const pageRect = page.getBoundingClientRect();
+    const canvas = await html2canvas(page, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true });
     const { jsPDF } = window.jspdf;
-    const imgW = canvas.width, imgH = canvas.height;
-    const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795); // /2 to undo scale:2, then px->mm
-    const pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+    // Derive px-per-mm from the actual captured width rather than assuming
+    // it landed exactly at trueWidthPx*CAPTURE_SCALE.
+    const pxPerMm = canvas.width / A4_W_MM;
+    const pageHeightPx = Math.round(A4_H_MM * pxPerMm);
+    const topMarginPx = Math.round(MF_PAGE_TOP_MARGIN_MM * pxPerMm);
+    const bottomMarginPx = Math.round(MF_PAGE_BOTTOM_MARGIN_MM * pxPerMm);
+    const scale = canvas.width / pageRect.width;
+    const blocks = mfCollectUnbreakableBlocks(page, pageRect, scale);
+    const breaks = mfComputeSmartBreaks(canvas.height, pageHeightPx - bottomMarginPx, pageHeightPx - topMarginPx - bottomMarginPx, blocks);
+    const totalPages = breaks.length - 1;
+
+    // Load the logo once (if a watermark should appear) so it can be drawn
+    // fresh onto every page slice below — dead center on each individual
+    // A4 sheet, matching what the live preview now shows per page.
+    let wmImg = null, wmOpacity = 0;
+    if (f.logoDataUrl && f.watermarkOn !== false) {
+      wmOpacity = Math.min(10, Math.max(5, f.watermarkOpacity == null ? 8 : f.watermarkOpacity)) / 100;
+      try { wmImg = await mfLoadImageEl(f.logoDataUrl); } catch (e) { wmImg = null; }
+    }
+
+    const pdf = new jsPDF(Object.assign({ orientation: 'portrait', unit: 'mm', format: [A4_W_MM, A4_H_MM] }, sarvarcPdfEncryptionOpts(password)));
+    for (let i = 0; i < totalPages; i++) {
+      updateExportProgress((i / totalPages) * 90, totalPages > 1 ? `Rendering page ${i + 1} of ${totalPages}…` : 'Rendering page…');
+      if (i > 0) pdf.addPage([A4_W_MM, A4_H_MM], 'portrait');
+      const sliceTop = breaks[i], sliceBottom = breaks[i + 1];
+      const sliceH = sliceBottom - sliceTop;
+      const destY = i === 0 ? 0 : topMarginPx; // page 1 already has its own top padding baked in
+      const slice = document.createElement('canvas');
+      slice.width = canvas.width; slice.height = pageHeightPx;
+      const sctx = slice.getContext('2d');
+      sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, slice.width, slice.height);
+      sctx.drawImage(canvas, 0, sliceTop, canvas.width, sliceH, 0, destY, canvas.width, sliceH);
+      if (wmImg) mfDrawWatermarkOnSlice(sctx, wmImg, slice.width, slice.height, wmOpacity);
+      pdf.addImage(slice.toDataURL('image/png'), 'PNG', 0, 0, A4_W_MM, A4_H_MM, '', 'FAST');
+      if (totalPages > 1) {
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 156, 168);
+        pdf.text(`Page ${i + 1} of ${totalPages}`, A4_W_MM - 12, A4_H_MM - 8, { align: 'right' });
+      }
+    }
+    updateExportProgress(95, 'Saving file…');
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+    completeExportOverlay(totalPages + (totalPages > 1 ? ' pages exported' : ' page exported'));
     toast('Form exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch(e) {
     console.error(e);
+    hideExportOverlay();
     toast('Export failed: ' + e.message, 'error');
+  } finally {
+    Object.assign(page.style, prev);
+    if (stack && prevStack) Object.assign(stack.style, prevStack);
+    mfUpdatePreviewPagination();
+    mfExportBusy = false;
   }
 }
 
@@ -44105,21 +45726,109 @@ async function mfExportPDF() {
 // adjustable in the PDF Editor) on top of every fillable input, textarea,
 // dropdown, and signature line, so the person can actually type real answers
 // with real fonts instead of being stuck with the Make Forms layout.
+let mfPushInFlight = false;
 async function mfPushToWorkspace() {
+  if (mfPushInFlight) return; // guard against double-clicks starting two pushes at once
   const f = mfGetCurrentForm();
   const page = document.getElementById('mfPreviewPage');
   if (!f || !page) { toast('Open a form first', 'error'); return; }
+  // Guard against pushing a half-translated form: a translation in flight
+  // hasn't updated the preview yet (mfRenderPreview only re-renders once
+  // every string is back), so capturing right now would silently push
+  // whatever language was showing BEFORE the translate click — not the one
+  // the person just asked for. Block and let them retry once it's done.
+  if (mfFormLangBusy) { toast('Still translating — wait for it to finish so the pushed page matches', 'info'); return; }
   if (typeof html2canvas === 'undefined') { toast('Push to Workspace is unavailable right now', 'error'); return; }
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
+  mfPushInFlight = true;
+  const pushBtn = document.getElementById('mfPushBtn');
+  const btnPrevHtml = pushBtn ? pushBtn.innerHTML : null;
+  if (pushBtn) { pushBtn.disabled = true; pushBtn.innerHTML = '<span class="mf-btn-spinner"></span>Pushing…'; }
   toast('Pushing form to Workspace…', 'info');
+  // Resizing the preview to its true A4 pixel width for an accurate capture
+  // (below) would otherwise cause a visible resize flash in front of the
+  // user. Cover the on-screen preview column with a plain overlay for the
+  // duration of the push instead of moving the panel out of the DOM — an
+  // earlier version relocated it into the tiny 1x1px off-screen holder,
+  // but that starved the real A4-proportioned resize of a proper layout
+  // context and produced badly distorted (way-too-tall) pages. The panel
+  // now stays exactly where it already lives (same in-place approach
+  // Export PDF uses, which is known to size pages correctly); the overlay
+  // is purely a visual mask, so it can't affect the capture at all.
+  const scrollHost = page.closest('.mf-preview-scroll') || page.parentElement;
+  const hostRect = scrollHost ? scrollHost.getBoundingClientRect() : null;
+  let pushOverlay = null;
+  if (hostRect && hostRect.width > 2 && hostRect.height > 2) {
+    pushOverlay = document.createElement('div');
+    pushOverlay.style.cssText = `position:fixed;left:${hostRect.left}px;top:${hostRect.top}px;width:${hostRect.width}px;height:${hostRect.height}px;background:var(--bg3,#f4f6f9);z-index:10000;display:flex;align-items:center;justify-content:center;border-radius:8px;`;
+    pushOverlay.innerHTML = '<span class="mf-btn-spinner" style="width:22px;height:22px;border-color:rgba(0,0,0,0.12);border-top-color:var(--blue,#0073E6);"></span>';
+    document.body.appendChild(pushOverlay);
+  }
+  // Always land on real 210×297mm A4 page(s) in the Workspace — the same
+  // standard Refine Report standardizes every page to — instead of one
+  // oversized page that merely happens to be 210mm wide. The on-screen
+  // preview column is a scaled-down CSS proxy (max-width:420px), not
+  // physically 210mm, so force it to its true A4 pixel width (exactly what
+  // Export PDF does for an accurate capture) with natural unclipped height,
+  // then slice that capture into real A4 pages below — long forms spill
+  // onto additional A4 pages instead of one tall non-standard sheet.
+  const A4_W_MM = 210, A4_H_MM = 297, PXMM = 3.7795, CAPTURE_SCALE = 2;
+  const trueWidthPx = Math.round(A4_W_MM * PXMM);
+  const stack = page.parentElement; // .mf-preview-page-stack — the actual flex child now
+  const prev = { width: page.style.width, maxWidth: page.style.maxWidth, height: page.style.height, overflowY: page.style.overflowY, aspectRatio: page.style.aspectRatio };
+  const prevStack = stack ? { maxWidth: stack.style.maxWidth, flex: stack.style.flex, flexShrink: stack.style.flexShrink } : null;
+  page.style.width = trueWidthPx + 'px'; page.style.maxWidth = 'none';
+  page.style.height = 'auto'; page.style.overflowY = 'visible'; page.style.aspectRatio = 'auto';
+  // The preview panel sits inside a flex container (.mf-preview-scroll), which
+  // is free to shrink our forced width back down to fit the available column
+  // — flex-shrink defaults to 1, and the stack wrapper (not the page itself)
+  // is the actual flex child. Pin it so the capture is really 210mm wide,
+  // not silently squeezed narrower (which is what was producing badly
+  // distorted, way-too-tall pages: the A4 height below was being computed
+  // for a 210mm-wide capture that, in practice, wasn't actually that wide).
+  if (stack) { stack.style.maxWidth = 'none'; stack.style.flex = 'none'; stack.style.flexShrink = '0'; }
+  mfStripPreviewSpacers(page);
   try {
     const pageRect = page.getBoundingClientRect();
 
     // Capture every fillable target's position/size BEFORE rasterizing, while
-    // the live preview DOM is still on screen, inputs, textareas, dropdowns,
-    // and signature lines. Checkboxes are left as printed (nothing to type).
+    // the live preview DOM is still on screen — inputs, textareas, dropdowns,
+    // signature lines, checkboxes, and every individual MCQ option bubble.
+    // Checkbox/MCQ bubbles each get their own small editable box sitting
+    // right on the bubble, so once pushed the person can click into the
+    // Workspace and type a mark (e.g. "X") on any option line — nothing is
+    // left as a flattened, unmarkable image.
     const targets = [];
     page.querySelectorAll('.mf-pv-field').forEach(fieldEl => {
+      const mcqOpts = fieldEl.querySelectorAll('.mf-pv-mcq-opt input');
+      if (mcqOpts.length) {
+        const cs = window.getComputedStyle(fieldEl);
+        const fontSize = parseFloat(cs.fontSize) || 12;
+        mcqOpts.forEach(opt => {
+          const r = opt.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          targets.push({
+            x: r.left - pageRect.left,
+            y: r.top - pageRect.top - 1,
+            w: Math.max(16, r.width + 4),
+            fontSize
+          });
+        });
+        return;
+      }
+      const checkInput = fieldEl.classList.contains('mf-pv-check') ? fieldEl.querySelector('input[type="checkbox"]') : null;
+      if (checkInput) {
+        const r = checkInput.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const cs = window.getComputedStyle(fieldEl);
+        targets.push({
+          x: r.left - pageRect.left,
+          y: r.top - pageRect.top - 1,
+          w: Math.max(16, r.width + 4),
+          fontSize: parseFloat(cs.fontSize) || 12
+        });
+        return;
+      }
       const input = fieldEl.querySelector('.mf-pv-input, .mf-pv-textarea, .mf-pv-select-real');
       const sig = fieldEl.querySelector('.mf-pv-sig');
       const target = input || sig;
@@ -44136,44 +45845,91 @@ async function mfPushToWorkspace() {
     });
 
     // Rasterize the form exactly as Export PDF does, so the background matches 1:1.
-    const shot = await html2canvas(page, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-
-    const mmW = 210; // A4 width, fixed
-    const mmH = Math.max(297, mmW * (shot.height / shot.width)); // grow taller for long forms
-    const EXPORT_PXMM = 3.7795;
-    const eW = Math.max(1, Math.round(mmW * EXPORT_PXMM));
-    const eH = Math.max(1, Math.round(mmH * EXPORT_PXMM));
-    const out = document.createElement('canvas');
-    out.width = eW; out.height = eH;
-    const octx = out.getContext('2d');
-    octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, eW, eH);
-    octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high';
-    const drawW = eW, drawH = eW * (shot.height / shot.width);
-    octx.drawImage(shot, 0, 0, drawW, drawH);
-    const dataUrl = out.toDataURL('image/png');
-
-    // Map each target from on-screen preview pixels into the new page's pixel space.
+    const canvas = await html2canvas(page, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true });
+    const eW = canvas.width;
+    // Derive px-per-mm from the ACTUAL captured width rather than assuming
+    // it landed exactly at trueWidthPx*CAPTURE_SCALE — this is what keeps
+    // the output page a real A4 rectangle even if the flex-shrink guard
+    // above still ended up slightly off, instead of baking in whatever
+    // mismatch that produced.
+    const pxPerMm = eW / A4_W_MM;
+    const pageHeightPx = Math.round(A4_H_MM * pxPerMm);
+    const topMarginPx = Math.round(MF_PAGE_TOP_MARGIN_MM * pxPerMm);
+    const bottomMarginPx = Math.round(MF_PAGE_BOTTOM_MARGIN_MM * pxPerMm);
     const scale = eW / pageRect.width;
-    const placedTexts = targets.map((t, i) => ({
-      id: 'ptxt_mf_' + Date.now() + '_' + i,
-      text: '',
-      x: Math.round(t.x * scale),
-      y: Math.round(t.y * scale),
-      w: Math.round(t.w * scale),
-      fontSize: Math.max(11, Math.round(t.fontSize * scale)),
-      fontFamily: 'Inter',
-      color: '#101820',
-      bold: false, italic: false, underline: false, align: 'left',
-      locked: false, zIndex: i + 1
-    }));
+
+    // Smart pagination: never let a page break fall inside a field row or a
+    // section heading, and always reserve a real top margin on continuation
+    // pages plus a bottom margin for breathing room / the footer on every
+    // page — the same budget the live Design-mode preview and Export PDF
+    // both use, so this always matches what was already shown before pushing.
+    const blocks = mfCollectUnbreakableBlocks(page, pageRect, scale);
+    const breaks = mfComputeSmartBreaks(canvas.height, pageHeightPx - bottomMarginPx, pageHeightPx - topMarginPx - bottomMarginPx, blocks);
+    const totalPages = breaks.length - 1;
+
+    // Load the logo once (if a watermark should appear) so it can be drawn
+    // fresh onto every page slice below — dead center on each individual
+    // A4 sheet, matching what the live preview now shows per page.
+    let wmImg = null, wmOpacity = 0;
+    if (f.logoDataUrl && f.watermarkOn !== false) {
+      wmOpacity = Math.min(10, Math.max(5, f.watermarkOpacity == null ? 8 : f.watermarkOpacity)) / 100;
+      try { wmImg = await mfLoadImageEl(f.logoDataUrl); } catch (e) { wmImg = null; }
+    }
+
+    // Map each target from on-screen preview pixels into the captured raster's
+    // pixel space, then bucket it onto whichever smart-break slice it falls on.
+    const perPageTexts = Array.from({ length: totalPages }, () => []);
+    targets.forEach((t, i) => {
+      const yFull = t.y * scale;
+      let pageIdx = breaks.findIndex((b, idx) => idx < totalPages && yFull >= b && yFull < breaks[idx + 1]);
+      if (pageIdx === -1) pageIdx = totalPages - 1;
+      const destY = pageIdx === 0 ? 0 : topMarginPx;
+      perPageTexts[pageIdx].push({
+        id: 'ptxt_mf_' + Date.now() + '_' + i,
+        text: '',
+        x: Math.round(t.x * scale),
+        y: Math.round(yFull - breaks[pageIdx]) + destY,
+        w: Math.round(t.w * scale),
+        fontSize: Math.max(11, Math.round(t.fontSize * scale)),
+        fontFamily: 'Inter',
+        color: '#101820',
+        bold: false, italic: false, underline: false, align: 'left',
+        locked: false, zIndex: i + 1
+      });
+    });
 
     const isNewDoc = pdfed.pages.length === 0;
-    const newPg = {
-      type: 'blank', dataUrl, modified: true, edits: {}, textBlocks: [],
-      placedTexts, label: f.title || 'Form', bgColor: '#ffffff', pageMM: [mmW, mmH]
-    };
     const at = pdfed.pages.length;
-    pdfed.pages.push(newPg);
+    for (let i = 0; i < totalPages; i++) {
+      const sliceTop = breaks[i], sliceBottom = breaks[i + 1];
+      const sliceH = sliceBottom - sliceTop;
+      const destY = i === 0 ? 0 : topMarginPx; // page 1 already has its own top padding baked in
+      const out = document.createElement('canvas');
+      out.width = eW; out.height = pageHeightPx;
+      const octx = out.getContext('2d');
+      octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, eW, pageHeightPx);
+      octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high';
+      octx.drawImage(canvas, 0, sliceTop, eW, sliceH, 0, destY, eW, sliceH);
+      if (wmImg) mfDrawWatermarkOnSlice(octx, wmImg, eW, pageHeightPx, wmOpacity);
+      // Bake in a quiet "Page X of Y" footer on multi-page forms, matching
+      // what a client would expect from a real paginated document. It sits
+      // inside the reserved bottom margin, never against live content.
+      if (totalPages > 1) {
+        const fontPx = Math.round(8 * 0.3528 * pxPerMm);
+        octx.font = `${fontPx}px Inter, Arial, sans-serif`;
+        octx.fillStyle = '#96a0b1';
+        octx.textAlign = 'right';
+        octx.fillText(`Page ${i + 1} of ${totalPages}`, eW - Math.round(12 * pxPerMm), pageHeightPx - Math.round(8 * pxPerMm));
+      }
+      const dataUrl = out.toDataURL('image/png');
+      pdfed.pages.push({
+        type: 'blank', dataUrl, modified: true, edits: {}, textBlocks: [],
+        placedTexts: perPageTexts[i],
+        label: (f.title || 'Form') + (totalPages > 1 ? ` (${i + 1}/${totalPages})` : ''),
+        bgColor: '#ffffff', pageMM: [A4_W_MM, A4_H_MM]
+      });
+      if (state && state.stats) state.stats.pages++;
+    }
 
     if (isNewDoc) {
       pdfed.pdfDoc = null;
@@ -44192,7 +45948,6 @@ async function mfPushToWorkspace() {
       if (state && state.stats) state.stats.pdfs++;
     }
 
-    if (state && state.stats) state.stats.pages++;
     if (typeof updateStats === 'function') updateStats();
 
     navigate('pdfeditor');
@@ -44201,10 +45956,19 @@ async function mfPushToWorkspace() {
     if (isNewDoc && typeof pdfedZoomFit === 'function') setTimeout(pdfedZoomFit, 50);
     if (isNewDoc && typeof pdfedScheduleAutoCollapse === 'function') pdfedScheduleAutoCollapse();
 
-    toast('Form pushed to Workspace, click any field to type, with full font controls', 'success');
+    toast(totalPages > 1
+      ? `Form pushed to Workspace as ${totalPages} A4 pages, click any field to type`
+      : 'Form pushed to Workspace, click any field to type, with full font controls', 'success');
   } catch (err) {
     console.error(err);
     toast('Could not push to Workspace: ' + err.message, 'error');
+  } finally {
+    Object.assign(page.style, prev);
+    if (stack && prevStack) Object.assign(stack.style, prevStack);
+    mfUpdatePreviewPagination();
+    if (pushOverlay && pushOverlay.parentNode) pushOverlay.parentNode.removeChild(pushOverlay);
+    if (pushBtn) { pushBtn.disabled = false; pushBtn.innerHTML = btnPrevHtml; }
+    mfPushInFlight = false;
   }
 }
 
@@ -44235,6 +45999,7 @@ function mfcCreateForm() {
     fields: [], pageSize: 'A4', orientation: 'portrait',
     showGrid: true, gridSize: 5,
     pages: [{ id: mfUid('pg'), boxes: [] }],
+    activeLang: 'original', translations: {},
     updatedAt: Date.now()
   };
   mfState.forms.push(form);
@@ -44250,6 +46015,11 @@ function mfStartCanvas() {
 function mfcOpenEditor(id) {
   const f = mfState.forms.find(x => x.id === id);
   if (!f) return;
+  // Canvas forms saved before the translate feature existed won't have
+  // these yet — default them in place so every other function can assume
+  // they exist (mirrors the same guard mfOpenEditor does for field forms).
+  if (f.activeLang == null) f.activeLang = 'original';
+  if (f.translations == null) f.translations = {};
   mfState.currentId = id;
   mfc.formId = id; mfc.zoom = 1; mfc.selectedId = null; mfc.activePage = 0;
   const gv = document.getElementById('mfGalleryView');
@@ -44261,6 +46031,7 @@ function mfcOpenEditor(id) {
   document.getElementById('mfcTitleInput').value = f.title || '';
   document.getElementById('mfcPageSizeSelect').value = f.pageSize || 'A4';
   document.getElementById('mfcPages').style.setProperty('--mfc-zoom', '1');
+  mfcRenderLangControls();
   mfcRenderPages();
   mfcUpdateZoomLabel();
   mfcSyncToolbar();
@@ -44299,20 +46070,36 @@ function mfcRenderPages(opts) {
   const wrap = document.getElementById('mfcPages');
   if (!wrap) return;
   const gridCss = opts.noGrid ? '' : mfcGridBg(f);
+  // If a translated language is active, render its cached per-box text
+  // instead of the original — this is what makes Export PDF, Print, and
+  // Push to Workspace all show the translated form, since all three
+  // rasterize this exact DOM. The underlying box.text is never touched,
+  // so switching back to "Original" (or editing while on Original) is
+  // never destructive.
+  const tr = (f.activeLang && f.activeLang !== 'original' && f.translations) ? f.translations[f.activeLang] : null;
   wrap.innerHTML = f.pages.map((pg, pIdx) => {
-    const boxesHtml = (pg.boxes || []).map(b => mfcBoxHtml(b, b.id === mfc.selectedId)).join('');
+    const boxesHtml = (pg.boxes || []).map(b => {
+      const trText = tr ? (tr[b.id] != null ? tr[b.id] : (b.text || '')) : null;
+      return mfcBoxHtml(b, b.id === mfc.selectedId, trText);
+    }).join('');
     return `<div class="mfc-page-wrap">
       <div class="mfc-page-bar"><span>Page ${pIdx + 1} of ${f.pages.length}</span>${f.pages.length > 1 ? `<button onclick="mfcDeletePage(${pIdx})" title="Delete page">✕</button>` : ''}</div>
       <div class="mfc-page" data-page-idx="${pIdx}" style="width:calc(${w}mm * var(--mfc-zoom));height:calc(${h}mm * var(--mfc-zoom));${gridCss}" onmousedown="mfcPageMouseDown(event, ${pIdx})">${boxesHtml}</div>
     </div>`;
   }).join('');
 }
-function mfcBoxHtml(b, selected) {
+// trText: null when the Original language is showing (box stays editable
+// and reflects b.text live); a string when a translated language is active
+// (box becomes read-only so typing can never land on the wrong language —
+// switch back to Original on the language row to edit the source text).
+function mfcBoxHtml(b, selected, trText) {
   const style = `left:calc(${b.x}mm * var(--mfc-zoom));top:calc(${b.y}mm * var(--mfc-zoom));width:calc(${b.w}mm * var(--mfc-zoom));height:calc(${b.h}mm * var(--mfc-zoom));border:${b.border ? '1px dashed rgba(0,0,0,0.35)' : 'none'};background:${b.background || 'transparent'};`;
   const innerStyle = `font-size:calc(${b.fontSize}pt * var(--mfc-zoom));font-family:'${b.fontFamily || 'Inter'}',sans-serif;font-weight:${b.bold ? 700 : 400};font-style:${b.italic ? 'italic' : 'normal'};text-decoration:${b.underline ? 'underline' : 'none'};text-align:${b.align || 'left'};color:${b.color || '#1a1a1a'};`;
+  const isTranslated = trText != null;
+  const displayText = isTranslated ? trText : (b.text || '');
   return `<div class="mfc-box${selected ? ' selected' : ''}" data-id="${b.id}" onmousedown="mfcSelectBox('${b.id}')" style="${style}">
     <div class="mfc-box-drag" onmousedown="mfcStartDrag(event,'${b.id}')" title="Drag to move"></div>
-    <div class="mfc-box-inner" contenteditable="true" data-ph="Text box" style="${innerStyle}" oninput="mfcBoxInput('${b.id}', this)">${mfEsc(b.text || '')}</div>
+    <div class="mfc-box-inner" contenteditable="${isTranslated ? 'false' : 'true'}" data-ph="Text box" style="${innerStyle}${isTranslated ? 'cursor:default;' : ''}" ${isTranslated ? '' : `oninput="mfcBoxInput('${b.id}', this)"`} title="${isTranslated ? 'Translated text is read-only — switch to Original to edit' : ''}">${mfEsc(displayText)}</div>
     <div class="mfc-handle nw" onmousedown="mfcStartResize(event,'${b.id}','nw')"></div>
     <div class="mfc-handle ne" onmousedown="mfcStartResize(event,'${b.id}','ne')"></div>
     <div class="mfc-handle sw" onmousedown="mfcStartResize(event,'${b.id}','sw')"></div>
@@ -44369,6 +46156,11 @@ function mfcPageMouseDown(e, pageIdx) {
 }
 function mfcBoxInput(id, el) {
   const f = mfcGetForm(); if (!f) return;
+  // Defensive: the box is only made contenteditable when Original is
+  // showing (see mfcBoxHtml), but guard here too in case anything ever
+  // renders it editable while a translated language is active — typing
+  // must never silently land on box.text while a translation is on screen.
+  if (f.activeLang && f.activeLang !== 'original') return;
   const box = mfcFindBox(f, id); if (!box) return;
   box.text = el.innerText;
   mfTouch(f);
@@ -44608,17 +46400,173 @@ function mfcUpdateZoomLabel() {
 // ─── print / export ───
 function mfcPrint() {
   const f = mfcGetForm(); if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfCanvasLangBusy) { toast('Still translating — wait for it to finish so the printed copy matches', 'info'); return; }
   document.body.classList.add('mfc-printing');
   const cleanup = () => document.body.classList.remove('mfc-printing');
   window.addEventListener('afterprint', cleanup, { once: true });
   setTimeout(() => { window.print(); }, 30);
 }
+// ─── EXPORT DROPDOWN (Canvas Form) ───
+function mfcToggleExportDropdown(e) {
+  if (e) e.stopPropagation();
+  const btn = document.getElementById('mfcExportBtn');
+  if (!btn) return;
+  const dd = document.getElementById('mfcExportDropdown');
+  if (!dd) return;
+  const wasOpen = dd.classList.contains('open');
+  dd.classList.remove('open');
+  if (!wasOpen) {
+    const rect = btn.getBoundingClientRect();
+    let left = rect.left;
+    const panelW = 250;
+    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
+    dd.style.top = (rect.bottom + 6) + 'px';
+    dd.style.left = left + 'px';
+    dd.classList.add('open');
+  }
+}
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('mfcExportDropdown');
+  const btn = document.getElementById('mfcExportBtn');
+  if (dd && dd.classList.contains('open') && !dd.contains(e.target) && (!btn || !btn.contains(e.target))) {
+    dd.classList.remove('open');
+  }
+});
+function mfcExportAs(fmt) {
+  const dd = document.getElementById('mfcExportDropdown');
+  if (dd) dd.classList.remove('open');
+  if (fmt === 'pdf') mfcExportPDF();
+  else if (fmt === 'docx') mfcExportDOCX();
+  else if (fmt === 'image') mfcExportImages();
+}
+
+// Embeds every rasterized canvas page as a picture in a .docx — same OOXML
+// plumbing Redaction's and the field-based Make Forms' Word export use.
+// Same double-click guard + full-screen progress overlay as the field-based
+// Make Forms exports above (and the rest of the app), for consistency.
+let mfcExportBusy = false;
+async function mfcExportDOCX() {
+  const f = mfcGetForm(); if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfCanvasLangBusy) { toast('Still translating — wait for it to finish so the exported file matches', 'info'); return; }
+  if (typeof html2canvas === 'undefined') { toast('Export is unavailable right now', 'error'); return; }
+  if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
+  if (mfcExportBusy) return; // guard against double-clicks starting two exports at once
+  mfcExportBusy = true;
+  showExportOverlay('Exporting Word…', 'Rendering pages…');
+  try {
+    const [mmW, mmH] = mfcPageDims(f);
+    const shots = await mfcRasterizePages(f);
+    if (!shots.length) { hideExportOverlay(); toast('Nothing to export yet', 'info'); return; }
+    const PAGE_W_TWIPS = Math.round(mmW * 56.6929), PAGE_H_TWIPS = Math.round(mmH * 56.6929), MARGIN_TWIPS = 720;
+    const contentWidthEmu = (PAGE_W_TWIPS - MARGIN_TWIPS * 2) * 635;
+    const images = { list: [] };
+    let bodyXml = '';
+    shots.forEach((dataUrl, i) => {
+      updateExportProgress((i / shots.length) * 80, `Embedding page ${i + 1} of ${shots.length}…`);
+      if (i > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      const wPt = mmW * 2.83465, hPt = mmH * 2.83465;
+      bodyXml += pdfedAddImageRun(images, dataUrl, wPt, hPt, contentWidthEmu);
+    });
+    updateExportProgress(88, 'Building document…');
+    const rootNamespaces = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
+      `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
+      `xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"`;
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<w:document ${rootNamespaces}><w:body>${bodyXml}` +
+      `<w:sectPr><w:pgSz w:w="${PAGE_W_TWIPS}" w:h="${PAGE_H_TWIPS}"/>` +
+      `<w:pgMar w:top="${MARGIN_TWIPS}" w:right="${MARGIN_TWIPS}" w:bottom="${MARGIN_TWIPS}" w:left="${MARGIN_TWIPS}"/></w:sectPr></w:body></w:document>`;
+    const imageDefaults = images.list.length ? `<Default Extension="png" ContentType="image/png"/>` : '';
+    const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+      `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+      `<Default Extension="xml" ContentType="application/xml"/>${imageDefaults}` +
+      `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
+    const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+    const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      images.list.map(img => `<Relationship Id="${img.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${img.rId}.${img.ext}"/>`).join('') +
+      `</Relationships>`;
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', contentTypes);
+    zip.folder('_rels').file('.rels', rootRels);
+    const wordFolder = zip.folder('word');
+    wordFolder.file('document.xml', documentXml);
+    if (images.list.length) {
+      wordFolder.folder('_rels').file('document.xml.rels', docRels);
+      const media = wordFolder.folder('media');
+      images.list.forEach(img => media.file(`${img.rId}.${img.ext}`, img.base64, { base64: true }));
+    }
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.docx';
+    pdfedDownloadBlob(blob, sarvarcBrandFilename(fname));
+    if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+    completeExportOverlay('Word document exported');
+    toast('Form exported as Word document', 'success');
+  } catch (e) {
+    console.error(e);
+    hideExportOverlay();
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    mfcExportBusy = false;
+  }
+}
+
+// Saves each canvas page as a PNG — a plain single download for a one-page
+// form, or a ZIP bundle for a multi-page one.
+async function mfcExportImages() {
+  const f = mfcGetForm(); if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfCanvasLangBusy) { toast('Still translating — wait for it to finish so the exported file matches', 'info'); return; }
+  if (typeof html2canvas === 'undefined') { toast('Export is unavailable right now', 'error'); return; }
+  if (mfcExportBusy) return; // guard against double-clicks starting two exports at once
+  mfcExportBusy = true;
+  showExportOverlay('Exporting images…', 'Rendering pages…');
+  try {
+    const shots = await mfcRasterizePages(f);
+    if (!shots.length) { hideExportOverlay(); toast('Nothing to export yet', 'info'); return; }
+    const base = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'canvas_form';
+    if (shots.length === 1) {
+      updateExportProgress(50, 'Rendering page…');
+      const res = await fetch(shots[0]);
+      const blob = await res.blob();
+      updateExportProgress(95, 'Saving file…');
+      pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '.png'));
+      completeExportOverlay('1 page exported');
+      toast('Form exported as image', 'success');
+    } else {
+      if (typeof JSZip === 'undefined') { hideExportOverlay(); toast('Zip engine failed to load, check your connection', 'error'); return; }
+      const zip = new JSZip();
+      shots.forEach((dataUrl, i) => {
+        updateExportProgress((i / shots.length) * 80, `Packing page ${i + 1} of ${shots.length}…`);
+        zip.file(base + '-page' + (i + 1) + '.png', dataUrl.split(',')[1], { base64: true });
+      });
+      const blob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+        updateExportProgress(80 + metadata.percent * 0.18, `Compressing… ${Math.round(metadata.percent)}%`);
+      });
+      pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '-pages.zip'));
+      completeExportOverlay(shots.length + ' pages exported');
+      toast('Exported ' + shots.length + ' images', 'success');
+    }
+    if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+  } catch (e) {
+    console.error(e);
+    hideExportOverlay();
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    mfcExportBusy = false;
+  }
+}
+
 async function mfcExportPDF() {
   const f = mfcGetForm(); if (!f) { toast('Open a form first', 'error'); return; }
+  if (mfCanvasLangBusy) { toast('Still translating — wait for it to finish so the exported PDF matches', 'info'); return; }
   if (typeof html2canvas === 'undefined' || !window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
+  if (mfcExportBusy) return; // guard against double-clicks starting two exports at once
   const password = await sarvarcAskExportPassword('Export Form as PDF');
   if (password === undefined) return; // cancelled
-  toast('Preparing PDF…', 'info');
+  mfcExportBusy = true;
+  showExportOverlay('Exporting your PDF…', 'Preparing page…');
   const prevZoom = mfc.zoom, prevSel = mfc.selectedId;
   mfc.zoom = 1; mfc.selectedId = null;
   const wrap = document.getElementById('mfcPages');
@@ -44631,18 +46579,22 @@ async function mfcExportPDF() {
     const pageEls = document.querySelectorAll('#mfcPages .mfc-page');
     let pdf = null;
     for (let i = 0; i < pageEls.length; i++) {
+      updateExportProgress((i / pageEls.length) * 90, pageEls.length > 1 ? `Rendering page ${i + 1} of ${pageEls.length}…` : 'Rendering page…');
       const canvas = await html2canvas(pageEls[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true });
       const img = canvas.toDataURL('image/png');
       if (!pdf) pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
       else pdf.addPage([mmW, mmH], mmW > mmH ? 'landscape' : 'portrait');
       pdf.addImage(img, 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     }
+    updateExportProgress(95, 'Saving file…');
     const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
+    completeExportOverlay(pageEls.length + (pageEls.length > 1 ? ' pages exported' : ' page exported'));
     toast('Form exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     console.error(e);
+    hideExportOverlay();
     toast('Export failed: ' + e.message, 'error');
   } finally {
     mfc.zoom = prevZoom; mfc.selectedId = prevSel;
@@ -44650,6 +46602,7 @@ async function mfcExportPDF() {
     mfcRenderPages();
     mfcUpdateZoomLabel();
     mfcSyncToolbar();
+    mfcExportBusy = false;
   }
 }
 
@@ -44661,6 +46614,11 @@ function mfcOpenPushChoiceModal() {
   const f = mfcGetForm();
   if (!f) { toast('Open a form first', 'error'); return; }
   if (!f.pages || !f.pages.length) { toast('Nothing to push yet', 'info'); return; }
+  // Guard against pushing a half-translated canvas: a translation in flight
+  // hasn't re-rendered #mfcPages yet, so rasterizing right now would push
+  // whatever language was on screen BEFORE Translate was clicked, not the
+  // one just requested. Block and let them retry once it's done.
+  if (mfCanvasLangBusy) { toast('Still translating — wait for it to finish so the pushed page matches', 'info'); return; }
   if (typeof html2canvas === 'undefined') { toast('Push to Workspace is unavailable right now', 'error'); return; }
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
   const overlay = document.getElementById('mfcPushChoiceOverlay');
@@ -44849,6 +46807,10 @@ window.mfToggleWatermark = mfToggleWatermark;
 window.mfSetWatermarkOpacity = mfSetWatermarkOpacity;
 window.mfPrintForm = mfPrintForm;
 window.mfExportPDF = mfExportPDF;
+window.mfExportDOCX = mfExportDOCX;
+window.mfExportImages = mfExportImages;
+window.mfToggleExportDropdown = mfToggleExportDropdown;
+window.mfExportAs = mfExportAs;
 window.mfPushToWorkspace = mfPushToWorkspace;
 window.mfSwitchMode = mfSwitchMode;
 window.mfNewResponseDraft = mfNewResponseDraft;
@@ -44889,6 +46851,10 @@ window.mfcSetGridSize = mfcSetGridSize;
 window.mfcZoom = mfcZoom;
 window.mfcPrint = mfcPrint;
 window.mfcExportPDF = mfcExportPDF;
+window.mfcExportDOCX = mfcExportDOCX;
+window.mfcExportImages = mfcExportImages;
+window.mfcToggleExportDropdown = mfcToggleExportDropdown;
+window.mfcExportAs = mfcExportAs;
 window.mfcOpenPushChoiceModal = mfcOpenPushChoiceModal;
 window.mfcClosePushChoice = mfcClosePushChoice;
 window.mfcConfirmPushChoice = mfcConfirmPushChoice;
