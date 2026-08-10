@@ -14755,6 +14755,7 @@ async function runExport() {
       const img = state.extractedImages[i];
       updateExportProgress((i / total) * 90, total > 1 ? `Rendering image ${i + 1} of ${total}…` : 'Rendering image…');
       const raster = await buildExportRaster(img, scalePreset);
+      if (window.sarvarcApplyFreeWatermark) raster.dataUrl = await sarvarcStampDataUrlWatermark(raster.dataUrl);
       const finalUrl = await encodeExportFormat(raster.dataUrl, format, quality);
       toDownload.push({ ...img, dataUrl: finalUrl, width: raster.width, height: raster.height, name: img.name.replace(/\.\w+$/, '') + '.' + ext });
     }
@@ -14888,6 +14889,7 @@ async function exportAsPdf(imgs, password) {
       });
     }
     updateExportProgress(95, 'Saving file…');
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename('extractly-ai-export.pdf'));
     state.stats.exports += imgs.length;
     updateStats();
@@ -21659,6 +21661,7 @@ async function pdfedExport(pageIndices, password, suffixOverride, successLabel) 
     updateExportProgress(95, 'Saving file…');
     const suffix = suffixOverride || ((pageIndices && pageIndices.length && pageIndices.length !== pdfed.pages.length) ? '_pages' : '_edited');
     const fname = (pdfed.file ? pdfed.file.name.replace(/\.pdf$/i,'') : 'edited') + suffix + '.pdf';
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     state.stats.exports++;
     updateStats();
@@ -22194,8 +22197,9 @@ async function pdfedExportImages(pageIndices) {
       const i = indices[0];
       const pg = pdfed.pages[i];
       updateExportProgress(50, 'Rendering page…');
-      const url = await pdfedComposeThumb(pg, i);
+      let url = await pdfedComposeThumb(pg, i);
       if (!url) { hideExportOverlay(); toast('Nothing to export', 'error'); return; }
+      if (window.sarvarcApplyFreeWatermark) url = await sarvarcStampDataUrlWatermark(url);
       const res = await fetch(url);
       const blob = await res.blob();
       updateExportProgress(95, 'Saving file…');
@@ -22211,8 +22215,9 @@ async function pdfedExportImages(pageIndices) {
         const pg = pdfed.pages[i];
         if (!pg) continue;
         updateExportProgress((k / total) * 80, `Rendering page ${k + 1} of ${total}…`);
-        const url = await pdfedComposeThumb(pg, i);
+        let url = await pdfedComposeThumb(pg, i);
         if (!url) continue;
+        if (window.sarvarcApplyFreeWatermark) url = await sarvarcStampDataUrlWatermark(url);
         const b64 = url.split(',')[1];
         zip.file(base + '_page' + (i + 1) + '.png', b64, { base64: true });
       }
@@ -22377,9 +22382,10 @@ async function pdfedExportCSV(indices) {
     if (!allRows.length) { hideExportOverlay(); toast('No extractable text found on selected pages', 'error'); return; }
     updateExportProgress(90, 'Building CSV…');
     const csv = pdfedRowsToCSV(allRows);
+    const csvOut = window.sarvarcApplyFreeWatermark ? (csv + '\n\n' + SARVARC_WATERMARK_TEXT) : csv;
     // Leading BOM so Excel opens the CSV with correct UTF-8 encoding instead
     // of mangling non-ASCII characters (drug names, GST fields, etc).
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csvOut], { type: 'text/csv;charset=utf-8;' });
     const fname = (pdfed.file ? pdfed.file.name.replace(/\.pdf$/i, '') : 'export') + '.csv';
     pdfedDownloadBlob(blob, fname);
     state.stats.exports++;
@@ -22585,6 +22591,14 @@ async function pdfedExportXLSX(indices) {
 
     if (!dataRowCount && !drawings.length) { hideExportOverlay(); toast('No extractable content found on selected pages', 'error'); return; }
 
+    // Free-tier watermark: one small, faint footer row under everything —
+    // never overlapping real data, just a trailing line under the sheet.
+    if (window.sarvarcApplyFreeWatermark) {
+      row++;
+      sheetDataXml += `<row r="${row}">${pdfedXlsxCellXml('A' + row, SARVARC_WATERMARK_TEXT, 5)}</row>`;
+      row++;
+    }
+
     updateExportProgress(90, 'Packaging file…');
 
     const lastRow = Math.max(1, row - 1);
@@ -22602,21 +22616,23 @@ async function pdfedExportXLSX(indices) {
 
     const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
       `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
-      `<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font>` +
+      `<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font>` +
       `<font><b/><sz val="11"/><name val="Calibri"/></font>` +
-      `<font><b/><sz val="13"/><color rgb="FF1A1A2E"/><name val="Calibri"/></font></fonts>` +
+      `<font><b/><sz val="13"/><color rgb="FF1A1A2E"/><name val="Calibri"/></font>` +
+      `<font><i/><sz val="9"/><color rgb="FF9AA5B8"/><name val="Calibri"/></font></fonts>` +
       `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>` +
       `<fill><patternFill patternType="solid"><fgColor rgb="FFE8ECF5"/><bgColor indexed="64"/></patternFill></fill></fills>` +
       `<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>` +
       `<border><left style="thin"><color rgb="FFB9C2D0"/></left><right style="thin"><color rgb="FFB9C2D0"/></right>` +
       `<top style="thin"><color rgb="FFB9C2D0"/></top><bottom style="thin"><color rgb="FFB9C2D0"/></bottom><diagonal/></border></borders>` +
       `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-      `<cellXfs count="5">` +
+      `<cellXfs count="6">` +
       `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
       `<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>` +
       `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>` +
       `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>` +
       `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+      `<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
       `</cellXfs>` +
       `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
       `</styleSheet>`;
@@ -23179,6 +23195,7 @@ async function pdfedExportDOCX(indices) {
       const pg = pdfed.pages[i];
       updateExportProgress((k / indices.length) * 85, `Reading page ${k + 1} of ${indices.length}…`);
       if (k > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      if (window.sarvarcApplyFreeWatermark) bodyXml += sarvarcDocxWatermarkXml(210, 297);
 
       try {
         if (pg.type === 'pdf') {
@@ -39489,7 +39506,9 @@ async function pdfedAppendTableFitPages(chunks, headers, layout, titleText) {
 
 function daDownloadCSV(dsArg) {
   const ds = dsArg || daGetActive(); if (!ds) { toast('Nothing to download yet', 'info'); return; }
-  const blob = new Blob(['\uFEFF' + daRowsToCSV(ds.headers, daComputedRowsForExport(ds))], { type: 'text/csv;charset=utf-8;' });
+  let csv = daRowsToCSV(ds.headers, daComputedRowsForExport(ds));
+  if (window.sarvarcApplyFreeWatermark) csv += '\n\n' + SARVARC_WATERMARK_TEXT;
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = sarvarcBrandFilename(`${ds.name || 'data'}.csv`);
@@ -39502,6 +39521,7 @@ function daDownloadXLSX(dsArg) {
   const ds = dsArg || daGetActive(); if (!ds) { toast('Nothing to download yet', 'info'); return; }
   const computedRows = daComputedRowsForExport(ds);
   const aoa = [ds.headers, ...computedRows];
+  if (window.sarvarcApplyFreeWatermark) { aoa.push([]); aoa.push([SARVARC_WATERMARK_TEXT]); }
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = ds.headers.map((h, ci) => {
     const maxLen = Math.max(String(h).length, ...computedRows.slice(0, 200).map(r => String(r[ci] ?? '').length));
@@ -39708,7 +39728,8 @@ function daExportPreviewStep(dir) {
 }
 
 function daBuildCombinedCSV(datasetsArr) {
-  return datasetsArr.map(ds => `# ${ds.name || 'Table'}\n` + daRowsToCSV(ds.headers, daComputedRowsForExport(ds))).join('\n\n');
+  const out = datasetsArr.map(ds => `# ${ds.name || 'Table'}\n` + daRowsToCSV(ds.headers, daComputedRowsForExport(ds))).join('\n\n');
+  return window.sarvarcApplyFreeWatermark ? (out + '\n\n' + SARVARC_WATERMARK_TEXT) : out;
 }
 
 function daDownloadXLSXMulti(datasetsArr, fname) {
@@ -39716,6 +39737,7 @@ function daDownloadXLSXMulti(datasetsArr, fname) {
   const usedNames = new Set();
   datasetsArr.forEach(ds => {
     const aoa = [ds.headers, ...daComputedRowsForExport(ds)];
+    if (window.sarvarcApplyFreeWatermark) { aoa.push([]); aoa.push([SARVARC_WATERMARK_TEXT]); }
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     let sheetName = (ds.name || 'Sheet').slice(0, 31) || 'Sheet';
     let i = 2;
@@ -39803,6 +39825,7 @@ async function daExportPDFFile(datasetsArr, fname, password) {
   if (!window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
   try {
     const pdf = daBuildPdfDoc(datasetsArr, password);
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     toast('PDF exported' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
@@ -39824,6 +39847,7 @@ async function daExportDOCXFile(datasetsArr, fname) {
       bodyXml += pdfedBuildDocxTableXml(aoa);
       bodyXml += '<w:p/>';
     });
+    if (window.sarvarcApplyFreeWatermark) bodyXml += sarvarcDocxWatermarkXml(297, 210);
     const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
       `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${bodyXml}` +
       `<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>`;
@@ -42543,6 +42567,7 @@ async function rdxExport() {
         else pdf.addPage([wmm, hmm], ori);
         pdf.addImage(imgData, 'JPEG', 0, 0, wmm, hmm);
       });
+      if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
       pdf.save(rdxOutputName('pdf'));
     }
     toast('Redacted document exported.' + (password ? ' (password protected)' : ''), 'success');
@@ -42612,6 +42637,7 @@ async function rdxExportPDF() {
       pdf.addImage(imgData, 'JPEG', 0, 0, wmm, hmm);
     });
     updateExportProgress(95, 'Saving file…');
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(rdxOutputName('pdf')));
     if (typeof state !== 'undefined' && state.stats) { state.stats.exports = (state.stats.exports || 0) + 1; if (typeof updateStats === 'function') updateStats(); }
     completeExportOverlay(rdxState.pages.length + (rdxState.pages.length > 1 ? ' pages exported' : ' page exported'));
@@ -42635,7 +42661,8 @@ async function rdxExportImages() {
     if (rdxState.pages.length === 1) {
       updateExportProgress(50, 'Rendering page…');
       const pg = rdxState.pages[0];
-      const blob = await new Promise(res => pg.canvas.toBlob(res, 'image/png'));
+      const outCanvas = sarvarcMaybeWatermarkCanvas(pg.canvas);
+      const blob = await new Promise(res => outCanvas.toBlob(res, 'image/png'));
       updateExportProgress(95, 'Saving file…');
       pdfedDownloadBlob(blob, base + '-redacted.png');
       completeExportOverlay('1 page exported');
@@ -42646,7 +42673,7 @@ async function rdxExportImages() {
       for (let i = 0; i < rdxState.pages.length; i++) {
         updateExportProgress((i / rdxState.pages.length) * 80, `Packing page ${i + 1} of ${rdxState.pages.length}…`);
         const pg = rdxState.pages[i];
-        const dataUrl = pg.canvas.toDataURL('image/png');
+        const dataUrl = sarvarcMaybeWatermarkCanvas(pg.canvas).toDataURL('image/png');
         zip.file(base + '-redacted-page' + (i + 1) + '.png', dataUrl.split(',')[1], { base64: true });
       }
       const blob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
@@ -42682,7 +42709,7 @@ async function rdxExportDOCX() {
     rdxState.pages.forEach((pg, i) => {
       updateExportProgress((i / rdxState.pages.length) * 80, `Embedding page ${i + 1} of ${rdxState.pages.length}…`);
       if (i > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
-      const dataUrl = pg.canvas.toDataURL('image/png');
+      const dataUrl = sarvarcMaybeWatermarkCanvas(pg.canvas).toDataURL('image/png');
       const wPt = pg.mmW ? pg.mmW * 2.83465 : (pg.canvas.width * 72 / 96);
       const hPt = pg.mmH ? pg.mmH * 2.83465 : (pg.canvas.height * 72 / 96);
       bodyXml += pdfedAddImageRun(images, dataUrl, wPt, hPt, contentWidthEmu);
@@ -42749,6 +42776,7 @@ function rdxExportXLSX() {
   try {
     const aoa = [['Page', 'Category', 'Mask Style', 'Detected By']];
     log.forEach(e => aoa.push([e.page, rdxCatLabel(e.category), e.maskStyle, e.manual ? 'Manual box' : 'Auto-detected']));
+    if (window.sarvarcApplyFreeWatermark) { aoa.push([]); aoa.push([SARVARC_WATERMARK_TEXT]); }
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 8 }, { wch: 22 }, { wch: 16 }, { wch: 16 }];
     const wb = XLSX.utils.book_new();
@@ -45140,6 +45168,7 @@ async function mfExportSingleResponsePDF(id, ev) {
     const pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_response.pdf';
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     toast('Response exported as PDF' + (password ? ' (password protected)' : ''), 'success');
@@ -45177,6 +45206,7 @@ async function mfExportAllResponsesPDF() {
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
     }
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_responses.pdf';
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     toast(`Exported ${responses.length} response${responses.length > 1 ? 's' : ''} as one PDF` + (password ? ' (password protected)' : ''), 'success');
@@ -45543,6 +45573,21 @@ function mfDocxTextboxXml(opts) {
     `<v:textbox inset="1pt,0.5pt,1pt,0.5pt"><w:txbxContent>${bodyPs}</w:txbxContent></v:textbox>` +
     `</v:shape></w:pict></w:r></w:p>`;
 }
+// Free-tier watermark for native vector .docx exports (no rasterized image
+// to stamp on to, so this drops a small, faint text box in the bottom-right
+// corner of the page instead — sits in the margin, doesn't overlap content —
+// same "Made Using SARVARC Workspace" message as the canvas/PDF stamps, just
+// expressed as a VML shape).
+function sarvarcDocxWatermarkXml(mmW, mmH) {
+  const id = mfDocxShapeIdCounter++;
+  const boxWPt = 170, boxHPt = 14;
+  const rightPt = Math.round(mmW * 2.83465) - boxWPt - 10;
+  const bottomPt = Math.round(mmH * 2.83465) - boxHPt - 8;
+  return `<w:p><w:r><w:pict><v:shape id="mfWmShape${id}" o:spt="202" type="#_x0000_t202" ` +
+    `style="position:absolute;left:${rightPt}pt;top:${bottomPt}pt;width:${boxWPt}pt;height:${boxHPt}pt;mso-position-horizontal-relative:page;mso-position-vertical-relative:page;z-index:${id}" filled="f" stroked="f">` +
+    `<v:textbox inset="0,0,0,0"><w:txbxContent><w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:sz w:val="14"/><w:color w:val="8C96A8"/></w:rPr><w:t xml:space="preserve">Made Using SARVARC Workspace</w:t></w:r></w:p></w:txbxContent></v:textbox>` +
+    `</v:shape></w:pict></w:r></w:p>`;
+}
 // Root namespaces for any docx body that embeds mfDocxTextboxXml() shapes —
 // adds xmlns:v/xmlns:o (VML + Office) on top of the standard w/r/wp set.
 const MF_DOCX_ROOT_NAMESPACES = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
@@ -45695,6 +45740,7 @@ async function mfExportDOCX() {
     const result = await mfRasterizeFormPageCanvasesWithFields();
     if (!result) { hideExportOverlay(); return; }
     const { slices, mmW, mmH, perPageFields } = result;
+    if (window.sarvarcApplyFreeWatermark) slices.forEach(s => sarvarcStampCanvasWatermark(s));
     const PAGE_W_TWIPS = 11906, PAGE_H_TWIPS = 16838, MARGIN_TWIPS = 720;
     const contentWidthEmu = (PAGE_W_TWIPS - MARGIN_TWIPS * 2) * 635;
     const images = { list: [] };
@@ -45770,6 +45816,7 @@ async function mfExportImages() {
     const result = await mfRasterizeFormPageCanvases();
     if (!result) { hideExportOverlay(); return; }
     const { slices } = result;
+    if (window.sarvarcApplyFreeWatermark) slices.forEach(s => sarvarcStampCanvasWatermark(s));
     const base = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'form';
     if (slices.length === 1) {
       updateExportProgress(50, 'Rendering page…');
@@ -45877,6 +45924,7 @@ async function mfExportPDF() {
     }
     updateExportProgress(95, 'Saving file…');
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     completeExportOverlay(totalPages + (totalPages > 1 ? ' pages exported' : ' page exported'));
@@ -46653,6 +46701,7 @@ async function mfcExportDOCX() {
           text
         });
       });
+      if (window.sarvarcApplyFreeWatermark) bodyXml += sarvarcDocxWatermarkXml(mmW, mmH);
     });
     updateExportProgress(92, 'Building document…');
     const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
@@ -46696,8 +46745,9 @@ async function mfcExportImages() {
   mfcExportBusy = true;
   showExportOverlay('Exporting images…', 'Rendering pages…');
   try {
-    const shots = await mfcRasterizePages(f);
+    let shots = await mfcRasterizePages(f);
     if (!shots.length) { hideExportOverlay(); toast('Nothing to export yet', 'info'); return; }
+    if (window.sarvarcApplyFreeWatermark) shots = await Promise.all(shots.map(sarvarcStampDataUrlWatermark));
     const base = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'canvas_form';
     if (shots.length === 1) {
       updateExportProgress(50, 'Rendering page…');
@@ -46761,6 +46811,7 @@ async function mfcExportPDF() {
     }
     updateExportProgress(95, 'Saving file…');
     const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
     completeExportOverlay(pageEls.length + (pageEls.length > 1 ? ' pages exported' : ' page exported'));
@@ -53825,8 +53876,9 @@ function dgRender() {
 }
 
 function dgDownloadPNG() {
-  const canvas = dgGetExportCanvas();
+  let canvas = dgGetExportCanvas();
   if (!canvas) { if (dgActiveMode === 'flow') toast('Write or pick a diagram first', 'error'); return; }
+  canvas = sarvarcMaybeWatermarkCanvas(canvas);
   const titleId = (dgActiveMode === 'flow') ? 'dgFlowTitleInput' : 'dgTitleInput';
   try {
     const a = document.createElement('a');
@@ -53856,8 +53908,9 @@ function dgExportChart(format) {
 }
 
 function dgExportJPEG() {
-  const canvas = dgGetExportCanvas();
+  let canvas = dgGetExportCanvas();
   if (!canvas) return;
+  canvas = sarvarcMaybeWatermarkCanvas(canvas);
   // The chart canvas is always painted with an opaque white background
   // first (see dgDrawChart), so converting straight to JPEG is safe —
   // there's no transparency to lose.
@@ -53882,6 +53935,7 @@ async function dgExportPDF() {
     const pageW = imgW + margin * 2, pageH = imgH + margin * 2;
     const pdf = new jsPDF(Object.assign({ orientation: pageW > pageH ? 'landscape' : 'portrait', unit: 'mm', format: [pageW, pageH] }, sarvarcPdfEncryptionOpts(password)));
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin, imgW, imgH, '', 'FAST');
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(dgExportFilename('pdf'));
     toast('Chart exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
@@ -53891,8 +53945,9 @@ async function dgExportPDF() {
 }
 
 async function dgExportDOCX() {
-  const canvas = dgGetExportCanvas();
+  let canvas = dgGetExportCanvas();
   if (!canvas) return;
+  canvas = sarvarcMaybeWatermarkCanvas(canvas);
   if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
   try {
     const title = (document.getElementById('dgTitleInput') || {}).value || 'Chart';
@@ -55549,6 +55604,7 @@ function dgStartVideoRecording() {
     ctx.fillRect(0, 0, totalW, totalH);
     ctx.drawImage(capRenderer.domElement, 0, 0, chartW, chartH);
     dgVideoDrawNotes(ctx, recCanvas, chartH, uiScale);
+    if (window.sarvarcApplyFreeWatermark) sarvarcStampCanvasWatermark(recCanvas);
 
     if (btn) btn.textContent = 'Recording… ' + Math.ceil(durationSec - elapsed) + 's';
     if (status) status.textContent = Math.round(progress * 100) + '% · ' + (qualityKey === '2160' ? '4K' : qualityKey + 'p') + ' · ' + fps + 'fps';
@@ -56268,30 +56324,160 @@ if (document.readyState === 'loading') {
   // file and "Save Your Workflow" are deliberately NOT gated — those are local
   // project saves, not finished deliverables, and stay free exactly as today.
   //
-  // If logged in: runs the export immediately, no behavior change.
-  // If logged out: the export never runs — nothing is generated or touched —
-  // the sign-up modal opens instead, and the SAME export automatically fires
-  // the moment sign-up/login succeeds, so the user never has to click twice.
+  // Policy: the FIRST export on a given browser is free and runs immediately,
+  // but comes out with a small "SARVARC — Free Export" watermark stamped onto
+  // it (see sarvarcStampPdfWatermark / sarvarcStampCanvasWatermark below).
+  // From the SECOND export onward, logged-out users are stopped before
+  // anything is generated and sent to sign up / log in — once they do, the
+  // SAME export automatically fires (watermark-free), so nobody has to click
+  // twice. Logged-in users always export watermark-free, every time.
+  const SARVARC_FREE_EXPORT_KEY = 'sarvarc_free_export_used';
   let sarvarcPendingExportAction = null;
+  // Read by the export functions themselves right before they finalize a
+  // file (pdf.save / canvas.toBlob / canvas.toDataURL) to decide whether to
+  // stamp the free-tier watermark onto this particular export.
+  window.sarvarcApplyFreeWatermark = false;
+
+  function sarvarcHasUsedFreeExport() {
+    try { return localStorage.getItem(SARVARC_FREE_EXPORT_KEY) === '1'; }
+    catch (e) { return false; } // storage unavailable (private mode etc) — fail open to "not used yet" once
+  }
+  function sarvarcMarkFreeExportUsed() {
+    try { localStorage.setItem(SARVARC_FREE_EXPORT_KEY, '1'); } catch (e) {}
+  }
 
   async function sarvarcGateExport(actionFn) {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
     if (user) {
+      window.sarvarcApplyFreeWatermark = false;
       actionFn();
       return;
     }
+    if (!sarvarcHasUsedFreeExport()) {
+      // First export on this browser: let it through, watermarked.
+      sarvarcMarkFreeExportUsed();
+      window.sarvarcApplyFreeWatermark = true;
+      actionFn();
+      if (typeof toast === 'function') {
+        toast('Free export complete — it includes a small SARVARC watermark. Sign up free to export without it next time.', 'info');
+      }
+      return;
+    }
+    // Free export already used — gate as before.
+    window.sarvarcApplyFreeWatermark = false;
     sarvarcPendingExportAction = actionFn;
     sarvarcAuthOpenModal('signup');
     document.getElementById('sarvarcAuthNote').textContent =
-      'Sign up free to export — your document stays in your browser, we never see it.';
+      'You\'ve used your free watermarked export — sign up free to keep exporting, watermark-free.';
   }
 
   function sarvarcRunPendingExportIfAny() {
     if (!sarvarcPendingExportAction) return;
+    // Anyone who just signed up / logged in to unlock an export gets a
+    // clean, watermark-free file — the free watermarked export was a
+    // one-time trial, not something logged-in users should ever see.
+    window.sarvarcApplyFreeWatermark = false;
     const fn = sarvarcPendingExportAction;
     sarvarcPendingExportAction = null;
     fn();
   }
+
+  // ---- FREE-TIER WATERMARK STAMPING ----
+  // Two small helpers used by the export functions themselves, guarded by
+  // `window.sarvarcApplyFreeWatermark`. Kept intentionally subtle: small
+  // text tucked in the bottom-right corner, never overlapping content, so
+  // it reads as a light attribution rather than a stamped-over graphic.
+  const SARVARC_WATERMARK_TEXT = 'Made Using SARVARC Workspace';
+
+  // Stamps every page of a jsPDF document right before pdf.save(...).
+  function sarvarcStampPdfWatermark(pdf) {
+    try {
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        const w = pdf.internal.pageSize.getWidth();
+        const h = pdf.internal.pageSize.getHeight();
+        const fontSize = Math.max(6, Math.min(w, h) * 0.018);
+        const margin = Math.max(4, Math.min(w, h) * 0.015);
+        pdf.saveGraphicsState();
+        if (pdf.setGState && pdf.GState) {
+          pdf.setGState(new pdf.GState({ opacity: 0.45 }));
+        }
+        pdf.setTextColor(120, 130, 145);
+        pdf.setFontSize(fontSize);
+        pdf.text(SARVARC_WATERMARK_TEXT, w - margin, h - margin, { align: 'right' });
+        pdf.restoreGraphicsState();
+      }
+    } catch (e) { console.warn('[sarvarc] pdf watermark stamp failed', e); }
+  }
+
+  // Stamps a small watermark in the bottom-right corner of a canvas, right
+  // before it's turned into the final image/zip entry (toDataURL / toBlob).
+  function sarvarcStampCanvasWatermark(canvas) {
+    try {
+      const ctx = canvas.getContext('2d');
+      const fontSize = Math.max(11, Math.round(Math.min(canvas.width, canvas.height) * 0.022));
+      const margin = Math.max(8, Math.round(Math.min(canvas.width, canvas.height) * 0.018));
+      ctx.save();
+      ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      const textW = ctx.measureText(SARVARC_WATERMARK_TEXT).width;
+      // Faint backing pill so the text stays legible over busy/dark corners
+      // without needing to be bold or large.
+      const padX = fontSize * 0.5, padY = fontSize * 0.35;
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(
+        canvas.width - margin - textW - padX,
+        canvas.height - margin - fontSize - padY,
+        textW + padX * 2,
+        fontSize + padY * 2
+      );
+      ctx.fillStyle = 'rgba(60,70,90,0.65)';
+      ctx.fillText(SARVARC_WATERMARK_TEXT, canvas.width - margin, canvas.height - margin);
+      ctx.restore();
+    } catch (e) { console.warn('[sarvarc] canvas watermark stamp failed', e); }
+  }
+  // Same stamp as sarvarcStampCanvasWatermark, but for the many export paths
+  // that pass image data around as a dataURL string rather than a live
+  // canvas element (png/jpg/webp raster exports).
+  function sarvarcStampDataUrlWatermark(dataUrl) {
+    return new Promise((resolve) => {
+      try {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          sarvarcStampCanvasWatermark(canvas);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      } catch (e) { resolve(dataUrl); }
+    });
+  }
+  // Non-destructive variant: returns a watermarked COPY of the canvas when
+  // the free-tier flag is set, and the original canvas untouched otherwise.
+  // Use this wherever the source canvas is a live, on-screen element (e.g.
+  // a chart canvas still visible in the editor) that must not be mutated.
+  function sarvarcMaybeWatermarkCanvas(canvas) {
+    if (!window.sarvarcApplyFreeWatermark || !canvas) return canvas;
+    try {
+      const copy = document.createElement('canvas');
+      copy.width = canvas.width;
+      copy.height = canvas.height;
+      copy.getContext('2d').drawImage(canvas, 0, 0);
+      sarvarcStampCanvasWatermark(copy);
+      return copy;
+    } catch (e) { return canvas; }
+  }
+  window.sarvarcStampPdfWatermark = sarvarcStampPdfWatermark;
+  window.sarvarcStampCanvasWatermark = sarvarcStampCanvasWatermark;
+  window.sarvarcStampDataUrlWatermark = sarvarcStampDataUrlWatermark;
+  window.sarvarcMaybeWatermarkCanvas = sarvarcMaybeWatermarkCanvas;
 
   // ---- Nav button: click behavior depends on logged-in state ----
   async function sarvarcAuthNavClick() {
