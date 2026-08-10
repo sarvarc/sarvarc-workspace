@@ -4203,6 +4203,35 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .pdfed-refine-logo-remove:hover { color: var(--text2); }
 
+/* ─── Refine Report — live style preview ───
+   A small mock report card (not the real page) that reflects the chosen
+   theme font/colors, logo, alignment, and section-icon toggle the instant
+   they change, so the person can see roughly what the pass will look like
+   before running it on the actual document. */
+.pdfed-refine-preview-wrap { padding: 16px 24px 0; flex-shrink: 0; }
+.pdfed-refine-preview {
+  background: #fff; border: 1px solid var(--border2); border-radius: 10px;
+  padding: 16px 18px; box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  color: #0f172a; overflow: hidden; transition: box-shadow 0.15s;
+}
+.prp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
+.prp-logo { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; flex-shrink: 0; display: none; }
+.prp-title { font-size: 14px; font-weight: 800; text-align: left; }
+.prp-section { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; margin-top: 6px; text-align: left; }
+.prp-section-icon { width: 16px; height: 16px; display: none; flex-shrink: 0; }
+.prp-divider { height: 3px; border-radius: 2px; margin: 5px 0 9px; width: 70px; display: none; }
+.prp-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 8px; }
+.prp-table th { padding: 5px 6px; text-align: left; font-weight: 700; }
+.prp-table td { padding: 5px 6px; border-bottom: 1px solid #eef1f5; color: #334155; }
+.prp-para { font-size: 10px; line-height: 1.5; color: #64748b; text-align: left; }
+.pdfed-refine-preview-label { font-size: 10px; color: var(--text3); margin-top: 7px; text-align: center; }
+.prp-align-center .prp-header { justify-content: center; }
+.prp-align-center .prp-title, .prp-align-center .prp-section, .prp-align-center .prp-para { text-align: center; }
+.prp-align-center .prp-section { justify-content: center; }
+.prp-align-center .prp-divider { margin-left: auto; margin-right: auto; }
+.prp-align-stretch .prp-header { justify-content: space-between; }
+.prp-align-stretch .prp-table { width: 100%; }
+
 .pdfed-export-footer {
   display: flex; gap: 10px; justify-content: flex-end;
   padding: 16px 24px 22px; border-top: 1px solid var(--border); flex-shrink: 0;
@@ -6614,6 +6643,7 @@ th:hover .da-th-del { opacity:1; }
 .dg-upload-value-check input { cursor:pointer; margin:0; flex:none; }
 .dg-upload-value-swatch { width:10px; height:10px; border-radius:3px; flex:none; }
 .dg-upload-value-check-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dg-upload-value-flag { flex:none; font-size:10px; color:var(--text3); white-space:nowrap; }
 .dg-export-dropdown { width:250px; }
 .dg-export-dropdown .pdfed-export-menu-item { margin-bottom:2px; }
 .dg-export-dropdown .pdfed-export-menu-item:last-child { margin-bottom:0; }
@@ -7000,6 +7030,7 @@ button.dg-show-chip.active { background:var(--blue); }
   background:rgba(0,194,255,0.1); color:var(--blue); border:1px solid rgba(0,194,255,0.22);
 }
 .dg-upload-chip.text { background:rgba(138,148,163,0.12); color:var(--text3); border-color:var(--border2); }
+.dg-upload-chip.date { background:rgba(16,185,129,0.12); color:var(--green); border-color:rgba(16,185,129,0.3); }
 .dg-upload-preview-table-wrap { max-height:130px; overflow:auto; border:1px solid var(--border2); border-radius:8px; }
 .dg-upload-preview-table { width:100%; border-collapse:collapse; font-size:10px; }
 .dg-upload-preview-table th, .dg-upload-preview-table td {
@@ -7011,6 +7042,7 @@ button.dg-show-chip.active { background:var(--blue); }
 }
 .dg-upload-preview-table th .dg-upload-preview-type { display:block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--blue); margin-top:1px; }
 .dg-upload-preview-table th .dg-upload-preview-type.text { color:var(--text3); }
+.dg-upload-preview-table th .dg-upload-preview-type.date { color:var(--green); }
 .dg-upload-preview-table td { color:var(--text2); }
 .dg-upload-preview-table tr:last-child td { border-bottom:none; }
 
@@ -11559,10 +11591,34 @@ button.dg-show-chip.active { background:var(--blue); }
       <div>
         <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Refine Report</h3>
         <div class="pdfed-export-sub">Sync headers, right-size fonts, and straighten every table across all <span id="pdfedRefinePageCount">0</span> page(s)</div>
+        <div class="pdfed-export-sub" id="pdfedRefineFormScopeHint" style="display:none;color:var(--blue,#0073E6);margin-top:2px">Pushed form page(s) are left exactly as pushed — only the page(s) you added afterward are refined.</div>
       </div>
       <button type="button" class="pdfed-export-close" onclick="pdfedCloseRefineModal()" aria-label="Close">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
+    </div>
+
+    <div class="pdfed-refine-preview-wrap">
+      <div class="pdfed-refine-preview prp-align-left" id="pdfedRefinePreview">
+        <div class="prp-header" id="prpHeader">
+          <img id="prpLogo" class="prp-logo" alt="Logo">
+          <div class="prp-title" id="prpTitle">Report Title</div>
+        </div>
+        <div class="prp-section" id="prpSection">
+          <img id="prpSectionIcon" class="prp-section-icon" alt="">
+          <span id="prpSectionLabel">Section Heading</span>
+        </div>
+        <div class="prp-divider" id="prpDivider"></div>
+        <table class="prp-table" id="prpTable">
+          <thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Widget A</td><td>12</td><td>₹4,200</td></tr>
+            <tr><td>Widget B</td><td>7</td><td>₹1,850</td></tr>
+          </tbody>
+        </table>
+        <div class="prp-para" id="prpPara">Body copy reads in the style's paragraph font, so remarks and summaries stay easy to read at document length.</div>
+      </div>
+      <div class="pdfed-refine-preview-label">Live preview — a style sample, not your actual pages</div>
     </div>
 
     <div class="da-dropdown-body">
@@ -11596,12 +11652,12 @@ button.dg-show-chip.active { background:var(--blue); }
             <div id="pdfedRefineLogoStatus" class="pdfed-refine-logo-status">No logo uploaded — the report uses the style colors above.</div>
             <div id="pdfedRefineLogoSwatches" class="pdfed-refine-logo-swatches" style="display:none"></div>
             <label class="pdfed-export-checkbox" id="pdfedRefineUseLogoColorsRow" style="display:none;margin-top:4px">
-              <input type="checkbox" id="pdfedRefineUseLogoColors" checked onchange="pdfedRefineState.useLogoColors=this.checked">
+              <input type="checkbox" id="pdfedRefineUseLogoColors" checked onchange="pdfedRefineState.useLogoColors=this.checked;pdfedUpdateRefinePreview()">
               <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
               Match report colors to logo
             </label>
             <label class="pdfed-export-checkbox" id="pdfedRefineAddLogoRow" style="display:none">
-              <input type="checkbox" id="pdfedRefineAddLogoToHeader" checked onchange="pdfedRefineState.addLogoToHeader=this.checked">
+              <input type="checkbox" id="pdfedRefineAddLogoToHeader" checked onchange="pdfedRefineState.addLogoToHeader=this.checked;pdfedUpdateRefinePreview()">
               <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
               Place logo in report header
             </label>
@@ -11638,7 +11694,7 @@ button.dg-show-chip.active { background:var(--blue); }
       </label>
 
       <label class="pdfed-export-checkbox" id="pdfedRefineSectionIconsRow" style="display:none">
-        <input type="checkbox" id="pdfedRefineSectionIcons" checked>
+        <input type="checkbox" id="pdfedRefineSectionIcons" checked onchange="pdfedUpdateRefinePreview()">
         <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
         Highlight section titles <span style="font-weight:400;opacity:.65">(color badge + divider bar)</span>
       </label>
@@ -16850,9 +16906,21 @@ function pdfedApplyZoom() {
   const canvas  = document.getElementById('pdfedPageCanvas');
   const wrap    = document.getElementById('pdfedCanvasWrap');
   const overlay = document.getElementById('pdfedTextOverlay');
-  // Drive display size via CSS, canvas pixel data stays intact
-  const displayW = Math.round(canvas.width  * pdfed.zoom);
-  const displayH = Math.round(canvas.height * pdfed.zoom);
+  // Drive display size via CSS, canvas pixel data stays intact.
+  // canvas.width/height are the page's RAW pixel dimensions, which differ by
+  // source: native blank/table pages render at 96 DPI (3.7795 px/mm), native
+  // PDF pages at 144 DPI, and pages pushed from Make Forms at ~192 DPI
+  // (html2canvas scale:2). Scaling straight off canvas.width means two pages
+  // that are both physically A4 show up at different on-screen sizes at the
+  // same zoom % (a Make Forms page rendering ~2x bigger than a typed page).
+  // Normalize through each page's own recorded density (pg._pxPerMm, same
+  // field pdfedExport already reads) against the shared on-screen baseline
+  // (PDFED_PX_PER_MM) so 100% zoom always means the same physical size.
+  const pdfedZoomPg = pdfed.pages && pdfed.pages[pdfed.active];
+  const pdfedZoomDensity = (pdfedZoomPg && pdfedZoomPg._pxPerMm) || PDFED_PX_PER_MM;
+  const pdfedZoomNormalize = PDFED_PX_PER_MM / pdfedZoomDensity;
+  const displayW = Math.round(canvas.width  * pdfedZoomNormalize * pdfed.zoom);
+  const displayH = Math.round(canvas.height * pdfedZoomNormalize * pdfed.zoom);
   canvas.style.width  = displayW + 'px';
   canvas.style.height = displayH + 'px';
   wrap.style.width    = displayW + 'px';
@@ -16914,7 +16982,16 @@ function pdfedZoomFit() {
   if (!canvas.width || !scroll.clientWidth) return;
   const availW = scroll.clientWidth  - 80;  // 2×40px padding from .pdfed-canvas-inner
   const availH = scroll.clientHeight - 80;
-  pdfed.zoom = Math.max(0.10, Math.min(availW / canvas.width, availH / canvas.height));
+  // Same density normalization as pdfedApplyZoom: fit against this page's
+  // real on-screen size (raw px ÷ its own density × baseline), not its raw
+  // pixel count, so a 192-DPI Make Forms page and a 96-DPI typed page both
+  // "Fit to page" at a zoom % that shows them at the same true physical size.
+  const pdfedFitPg = pdfed.pages && pdfed.pages[pdfed.active];
+  const pdfedFitDensity = (pdfedFitPg && pdfedFitPg._pxPerMm) || PDFED_PX_PER_MM;
+  const pdfedFitNormalize = PDFED_PX_PER_MM / pdfedFitDensity;
+  const fitW = canvas.width  * pdfedFitNormalize;
+  const fitH = canvas.height * pdfedFitNormalize;
+  pdfed.zoom = Math.max(0.10, Math.min(availW / fitW, availH / fitH));
   pdfedApplyZoom();
   scroll.scrollLeft = 0;
   scroll.scrollTop  = 0;
@@ -27385,6 +27462,51 @@ function pdfedPastePlacedText(text, cx, cy) {
 // column after that cell silently shifts one slot for the rest of that row.
 // This walks each cell's actual colspan/rowspan and places it at its real
 // grid column instead of just the next free array index.
+// Reads a cell's flex/grid CSS `order` (inline style only — a detached,
+// unattached-to-document fragment like our clipboard `tmp` div never
+// resolves stylesheet rules, only inline ones). Browsers that write a
+// "computed style" clipboard fragment (Chrome/Edge do this on copy, to
+// preserve how the source page actually looked) bake that order value in
+// as an inline style even when the original page set it via a class. A
+// table that visually reorders its columns with CSS `order` — a frozen/
+// pinned first column being the most common reason to do this — keeps its
+// <td>s in their original, UNREORDERED position in the DOM, so reading
+// cells in plain child order silently scrambles which value lands under
+// which header. Falls back to DOM position (a no-op) when no explicit
+// order is set, which is the case for every ordinary table.
+function pdfedCellVisualOrder(cell, domIndex) {
+  const styleOrder = cell.style && cell.style.order;
+  const n = styleOrder !== undefined && styleOrder !== '' ? parseInt(styleOrder, 10) : NaN;
+  return Number.isFinite(n) ? n : domIndex;
+}
+
+// A single cell that bundles a text label together with one or more
+// trailing numeric values — e.g. "Solar Panel 18,500 2,22,000" — happens
+// when a source page renders several logically separate columns (name,
+// unit price, total) as inner flex/grid children of ONE <td> with no
+// text-level separator between them, so their combined textContent reads
+// as a single run-together cell instead of three. Peels whitespace-
+// separated, digit-led tokens off the END of the text, one per still-
+// missing column, so numbers land in their own cells instead of glued
+// onto the name. Works for plain integers, decimals, and comma-grouped
+// numbers (Western "12,345" or Indian "2,22,000" grouping) since it only
+// requires the token to be made up of digits/commas/dots — it doesn't
+// validate grouping shape.
+function pdfedSplitTrailingNumbers(text, countNeeded) {
+  if (countNeeded <= 0) return null;
+  const tokenRe = /(\S*\d)\s*$/;
+  let rest = String(text || '');
+  const nums = [];
+  while (nums.length < countNeeded) {
+    const m = tokenRe.exec(rest.replace(/\s+$/, ''));
+    if (!m || !/^[\d.,]+$/.test(m[1])) break;
+    nums.unshift(m[1]);
+    rest = rest.slice(0, m.index).trim();
+  }
+  if (!nums.length) return null;
+  return [rest, ...nums];
+}
+
 function pdfedParseHtmlTableClipboard(html) {
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
@@ -27406,7 +27528,16 @@ function pdfedParseHtmlTableClipboard(html) {
         c.remaining--;
       }
     });
-    Array.from(tr.children).filter(el => el.tagName === 'TH' || el.tagName === 'TD').forEach(cell => {
+    const rawCells = Array.from(tr.children).filter(el => el.tagName === 'TH' || el.tagName === 'TD');
+    // Re-sort into visual order (see pdfedCellVisualOrder) before walking —
+    // only actually changes anything when the source explicitly set a
+    // flex/grid `order` style that differs from DOM position; every normal
+    // table's cells are already in ascending order and this is a no-op.
+    const orderedCells = rawCells
+      .map((cell, i) => ({ cell, order: pdfedCellVisualOrder(cell, i) }))
+      .sort((a, b) => a.order - b.order)
+      .map(x => x.cell);
+    orderedCells.forEach(cell => {
       while (grid[rIdx][col] !== undefined) col++;
       const text = (cell.textContent || '').trim();
       const colSpan = Math.max(1, parseInt(cell.getAttribute('colspan') || '1', 10) || 1);
@@ -27458,9 +27589,67 @@ function pdfedParseHtmlTableClipboard(html) {
       if (emptyIdx === -1) break;
       rows[i].splice(emptyIdx, 1);
     }
+    // A row SHORTER than the header (the mirror image of the excess-length
+    // case above) means some cell is carrying more than one column's worth
+    // of text glued together — e.g. a "Product" cell whose source <td> also
+    // rendered Unit Price and Total Sales as inner children with no
+    // separator, so it reads as "Solar Panel 18,500 2,22,000" instead of
+    // three cells. Find the cell missing the most trailing numeric tokens
+    // it needs to supply and peel them off the end, one per missing
+    // column, until the row lines up with the header.
+    if (rows[i].length < headerLen) {
+      let deficit = headerLen - rows[i].length;
+      let bestIdx = -1, bestSplit = null;
+      for (let j = 0; j < rows[i].length; j++) {
+        const split = pdfedSplitTrailingNumbers(rows[i][j], deficit);
+        if (split && (!bestSplit || split.length > bestSplit.length)) { bestIdx = j; bestSplit = split; }
+      }
+      if (bestIdx !== -1) rows[i].splice(bestIdx, 1, ...bestSplit);
+    }
   }
 
+  if (!pdfedGridLooksLikeRealTable(rows)) return null;
   return rows;
+}
+
+// Sanity-checks a parsed clipboard grid before we commit to rendering it as
+// a table. Word/Outlook/Google Docs and plenty of websites routinely wrap
+// plain paragraphs in a <table> purely for layout (indentation, spacer
+// columns, a bullet glyph living in its own cell) — the mere presence of a
+// <table> tag in the clipboard HTML, which is all the caller checked
+// before reaching here, isn't proof the person actually copied tabular
+// data. This catches the two shapes that were fooling that check and
+// turning an ordinary paragraph paste into a table:
+//   - spacer columns that are blank in every single row, which collapse
+//     the "real" content down to one column once ignored
+//   - one cell holding a long run of prose (several sentences) that makes
+//     up almost all the text on the clipboard, with the other cell(s) just
+//     a bullet, a number, or blank padding around it
+// Either shape means what got copied was really a paragraph, not a table,
+// so the caller falls back to placing it as a normal text box instead.
+function pdfedGridLooksLikeRealTable(rows) {
+  if (!rows || !rows.length) return false;
+  const maxCols = Math.max(...rows.map(r => r.length));
+  if (maxCols < 2) return false;
+
+  const realCols = [];
+  for (let c = 0; c < maxCols; c++) {
+    if (rows.some(r => String(r[c] ?? '').trim())) realCols.push(c);
+  }
+  if (realCols.length < 2) return false;
+
+  const allText = [];
+  rows.forEach(r => realCols.forEach(c => {
+    const t = String(r[c] ?? '').trim();
+    if (t) allText.push(t);
+  }));
+  if (!allText.length) return false;
+  const totalLen = allText.reduce((s, t) => s + t.length, 0);
+  const longest = allText.reduce((a, b) => a.length > b.length ? a : b);
+  const sentenceEnders = (longest.match(/[.!?]\s/g) || []).length;
+  if (longest.length > 120 && longest.length > totalLen * 0.7 && sentenceEnders >= 2) return false;
+
+  return true;
 }
 
 // Builds a new placed table from parsed clipboard rows, same shape as
@@ -34223,19 +34412,28 @@ function daFindEmail(v) {
 }
 function daFindDate(v) {
   const lenient = DA_OCR_DIGIT_LENIENT(v);
+  // Purely-numeric date shapes ("2023-01-15", "01/16/2023") benefit from the
+  // OCR digit-lenient swap (O↔0, l/I↔1), so those patterns match against
+  // `lenient`. Patterns that spell out a month NAME must match against the
+  // ORIGINAL string instead — running the digit-lenient swap first mangles
+  // real month names that happen to contain an 'l'/'I' or 'o'/'O'
+  // ("July"→"Ju1y", "November"→"N0vember", "October"→"0ct0ber"), which then
+  // silently fail to match and make daFindDate report no date at all for a
+  // perfectly valid cell.
   const patterns = [
-    /\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/,
-    /\d{1,2}[-\/]\d{1,2}[-\/]\d{4}/,
+    { re: /\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/, source: lenient },
+    { re: /\d{1,2}[-\/]\d{1,2}[-\/]\d{4}/, source: lenient },
     // "15-Jan-2023", "15 Jan 2023", "1st Jan 2025", "21st-Mar-2024"
-    /\d{1,2}(st|nd|rd|th)?[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\s]\d{2,4}/i,
+    { re: /\d{1,2}(st|nd|rd|th)?[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\s]\d{2,4}/i, source: v },
     // "Jan 19 2023", "Jan 19, 2023", "January 1st, 2025"
-    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s\d{1,2}(st|nd|rd|th)?,?\s\d{2,4}/i,
+    { re: /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s\d{1,2}(st|nd|rd|th)?,?\s\d{2,4}/i, source: v },
   ];
-  for (const re of patterns) {
-    const m = re.exec(lenient);
+  for (const { re, source } of patterns) {
+    const m = re.exec(source);
     if (m) {
       // Pull the equivalent slice from the ORIGINAL string (same offsets —
-      // the lenient copy is character-for-character the same length) so the
+      // `lenient` is character-for-character the same length as `v`, and the
+      // month-name patterns already run against `v` directly) so the
       // returned value keeps its original characters rather than the
       // digit-swapped stand-in used only for matching.
       const match = v.slice(m.index, m.index + m[0].length);
@@ -34286,7 +34484,15 @@ function daFindNumber(v) {
 const DA_MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
 function daNormalizeDateValue(raw) {
+  // Two variants: `lenient` runs the OCR digit-swap (O↔0, l/I↔1) for the
+  // purely-numeric formats below, where that tolerance is actually useful.
+  // `plain` skips the digit-swap and is used for the month-NAME formats —
+  // running the swap on those first mangles real month names that contain
+  // an 'l'/'I' or 'o'/'O' ("July"→"Ju1y", "November"→"N0vember",
+  // "October"→"0ct0ber"), which then fail to match and silently leave the
+  // date unconverted.
   const lenient = DA_OCR_DIGIT_LENIENT(raw).toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g, '$1');
+  const plain = raw.toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g, '$1');
   let y, m, d, mm;
   if ((mm = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/.exec(lenient))) {
     y = +mm[1]; m = +mm[2]; d = +mm[3];
@@ -34295,9 +34501,9 @@ function daNormalizeDateValue(raw) {
     // first number can't possibly be a month (e.g. "25/12/2024").
     const a = +mm[1], b = +mm[2]; y = +mm[3];
     if (a > 12 && b <= 12) { d = a; m = b; } else { m = a; d = b; }
-  } else if ((mm = /^(\d{1,2})[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\s](\d{2,4})$/.exec(lenient))) {
+  } else if ((mm = /^(\d{1,2})[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\s](\d{2,4})$/.exec(plain))) {
     d = +mm[1]; m = DA_MONTHS[mm[2]]; y = +mm[3];
-  } else if ((mm = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s(\d{1,2}),?\s(\d{2,4})$/.exec(lenient))) {
+  } else if ((mm = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s(\d{1,2}),?\s(\d{2,4})$/.exec(plain))) {
     m = DA_MONTHS[mm[1]]; d = +mm[2]; y = +mm[3];
   }
   if (!y || !m || !d) return raw; // couldn't confidently parse — leave untouched rather than guess
@@ -34662,6 +34868,25 @@ function daCreateBlankTable() {
 // scoring/splitting. A delimiter is only trusted if it shows up across most
 // of the sample lines (not just one or two), otherwise we fall back to
 // splitting on runs of whitespace.
+// Tells apart a real short data value ("NYC", "42", "Engineer") from a
+// chunk of ordinary sentence that just happened to sit between two commas
+// ("and agree to proceed with the offer"). Two independent tells:
+//   - a full stop followed by a new capitalized sentence living INSIDE a
+//     single cell — a real data value never contains a complete sentence
+//     boundary, only continuous prose does
+//   - most cells reading as 3+-word phrases built around ordinary English
+//     stopwords (the, and, of, with, that, ...) rather than short atomic
+//     labels or numbers
+function daCellsLookLikeProse(cells) {
+  if (cells.some(c => /[.!?]\s+[A-Z]/.test(c))) return true;
+  const STOPWORDS = /\b(the|and|of|to|that|this|for|with|is|are|on|in|at|from|or|be|by|we|will|may|shall|have|has|been|which|who|where|when)\b/i;
+  const proseLike = cells.filter(c => {
+    const words = c.trim().split(/\s+/).filter(Boolean);
+    return words.length >= 3 && STOPWORDS.test(c);
+  }).length;
+  return cells.length >= 4 && (proseLike / cells.length) > 0.5;
+}
+
 function daSplitDelimitedText(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length);
   if (!lines.length) return null;
@@ -34718,13 +34943,45 @@ function daSplitDelimitedText(text) {
   }
 
   if (best && best.maxCount >= 2) {
+    // A comma or semicolon is everyday punctuation inside ordinary
+    // sentences, so with only one line to go on — no second row to check
+    // the column count stays consistent against — a long comma-heavy
+    // sentence scores exactly the same as a real one-row CSV export. Only
+    // for that single-line comma/semicolon case, look at what the
+    // resulting "cells" actually contain: a full stop followed by a new
+    // capitalized sentence sitting INSIDE one cell, or most cells reading
+    // as multi-word phrases stitched together with ordinary stopwords,
+    // means this was prose being cut on its commas, not real data — bail
+    // out so the caller falls back to placing it as plain text instead.
+    if (lines.length === 1 && (best.delim === ',' || best.delim === ';')) {
+      const cells = parseLineCsvAware(lines[0], best.delim);
+      if (daCellsLookLikeProse(cells)) return null;
+    }
     return lines.map(l => parseLineCsvAware(l, best.delim));
   }
 
-  // Fallback: no reliable real delimiter — try space-aligned columns
-  // (2+ consecutive spaces = a column gap). This is the common shape for
-  // OCR output, terminal/log dumps, and anything copied out of a monospace
-  // preview.
+  // Fallback: no reliable real delimiter — try space-aligned columns.
+  // First choice: a whole-block "ruler" pass — find character columns that
+  // are whitespace across EVERY sampled line (not just 2+ spaces on one
+  // line in isolation). This is the difference that matters for real pasted
+  // tables: if one row's cell text runs long enough that its gap to the next
+  // column narrows to a single space (while other rows still have 2+ spaces
+  // there), a per-line "\s{2,}" split misses that boundary on THAT row only —
+  // the cell merges into its neighbor and every column after it shifts by
+  // one. Scanning all lines together instead of one at a time survives that:
+  // as long as the boundary is a space in every row, it's still detected,
+  // whether it's 1 space or 10.
+  const rulerRows = daSplitBySpaceRuler(sample);
+  if (rulerRows) {
+    const rulerCols = rulerRows[0].length;
+    if (rulerCols >= 2 && rulerRows.every(r => r.length === rulerCols)) {
+      return daSplitBySpaceRuler(lines);
+    }
+  }
+
+  // Last resort: 2+ consecutive spaces = a column gap, judged per line. Kept
+  // as a fallback for blocks where the ruler pass above doesn't find a clean
+  // whitespace column shared by every line (e.g. genuinely ragged OCR output).
   const spaceCounts = sample.map(l => l.trim().split(/\s{2,}/).length);
   const maxSpaceCols = Math.max(...spaceCounts);
   if (maxSpaceCols >= 2) {
@@ -34740,6 +34997,67 @@ function daSplitDelimitedText(text) {
   }
 
   return null;
+}
+
+// Whole-block fixed-width column splitter. Finds character positions that
+// are whitespace in EVERY given line (treating past-end-of-line as
+// whitespace, so shorter rows don't break the scan), groups the remaining
+// non-whitespace positions into contiguous runs, and slices each line by
+// those runs. Returns null if fewer than 2 columns are found. This is what
+// actually fixes a row like "22 July 2001" or "30 November 1990" running
+// long enough to leave only one space before the next column — as long as
+// that one space lines up with a space in every other row, it still counts
+// as a real column boundary.
+function daSplitBySpaceRuler(lines) {
+  if (!lines.length) return null;
+  const maxLen = Math.max(...lines.map(l => l.length));
+  if (!maxLen) return null;
+  const isGapCol = new Array(maxLen).fill(true);
+  for (const line of lines) {
+    for (let i = 0; i < maxLen; i++) {
+      const ch = i < line.length ? line[i] : ' ';
+      if (ch !== ' ' && ch !== '\t') isGapCol[i] = false;
+    }
+  }
+  // A gap column that's only 1 character wide needs a second check before it's trusted as a
+  // real column boundary. Without this, a value that always has an internal space at the same
+  // relative position in every row — e.g. "11:15 PM" — would get mistaken for a column gap,
+  // since that single space column happens to be whitespace in every line too. The distinguishing
+  // signal: a REAL narrowed gap (the case this whole function exists to catch — one or two rows'
+  // long cell text eating most of the padding) still has most OTHER rows sitting comfortably wide
+  // at that same position. An incidental in-value space doesn't — it's exactly 1 space in every
+  // row, never wider. So: demote a 1-wide global gap to "not a boundary" unless most individual
+  // rows show a locally wider space run there.
+  let i = 0;
+  while (i < maxLen) {
+    if (!isGapCol[i]) { i++; continue; }
+    let j = i;
+    while (j < maxLen && isGapCol[j]) j++;
+    if (j - i === 1) {
+      let wideLocalCount = 0, applicable = 0;
+      for (const line of lines) {
+        if (i >= line.length) continue; // line doesn't reach here — not informative either way
+        applicable++;
+        let a = i, b = i;
+        while (a > 0 && line[a - 1] === ' ') a--;
+        while (b < line.length && line[b] === ' ') b++;
+        if (b - a >= 2) wideLocalCount++;
+      }
+      if (!applicable || wideLocalCount / applicable < 0.6) isGapCol[i] = false;
+    }
+    i = j;
+  }
+  const segments = [];
+  i = 0;
+  while (i < maxLen) {
+    if (isGapCol[i]) { i++; continue; }
+    let j = i;
+    while (j < maxLen && !isGapCol[j]) j++;
+    segments.push([i, j]);
+    i = j;
+  }
+  if (segments.length < 2) return null;
+  return lines.map(line => segments.map(([s, e]) => line.slice(s, Math.min(e, line.length)).trim()));
 }
 
 // Tries to find a human title for a pasted table by looking at the HTML
@@ -36749,26 +37067,65 @@ const DA_TYPE_KEYWORDS = {
        'chq/ref no', 'ref no', 'reference no', 'utr', 'ifsc', 'branch code', 'statement of account',
        'account statement', 'mode of payment', 'transaction id', 'txn id', 'balance', 'cr amt', 'dr amt',
        'withdrawal amt', 'deposit amt', 'transaction remarks'],
+  // Checked ahead of plain "accounting" for the same reason as bank above —
+  // a sales invoice / customer bill usually also has 1-2 generic accounting
+  // hits ("invoice no", "gst no") but should read as Invoicing, not Accounting.
+  invoicing: ['invoice number', 'invoice date', 'invoice id', 'tax invoice', 'bill to', 'ship to',
+       'due date', 'subtotal', 'amount due', 'payment terms', 'line item', 'billing address',
+       'invoice total', 'invoice status'],
+  // Checked ahead of plain "sales" for the same reason — a purchase order
+  // table often also picks up "quantity"/"unit price" hits that would
+  // otherwise misclassify it as Sales.
+  purchase: ['purchase order', 'po number', 'po no', 'vendor', 'supplier', 'purchase date',
+       'goods received', 'grn', 'requisition', 'vendor name', 'vendor id', 'buyer name'],
+  inventory: ['sku', 'stock', 'inventory', 'warehouse', 'reorder level', 'reorder point', 'on hand',
+       'bin location', 'stock qty', 'opening stock', 'closing stock', 'stock in', 'stock out',
+       'batch no', 'expiry date'],
   accounting: ['debit', 'credit', 'ledger', 'voucher', 'particulars', 'gstin', 'gst no', 'invoice no',
        'tds', 'pan no', 'cess', 'journal', 'opening balance', 'closing balance', 'narration',
        'bill no', 'account number', 'account no'],
   sales: ['product', 'sku', 'order id', 'order no', 'customer name', 'quantity', 'qty', 'unit price',
        'discount', 'item name', 'order date', 'revenue', 'customer id', 'sales rep'],
+  crm: ['lead', 'contact name', 'account manager', 'opportunity', 'pipeline stage', 'lead source',
+       'deal stage', 'churn', 'lead status', 'deal value', 'won lost'],
+  marketing: ['campaign', 'impressions', 'clicks', 'ctr', 'conversion rate', 'ad spend', 'reach',
+       'engagement rate', 'leads generated', 'cpc', 'cpm', 'roi', 'campaign name'],
+  education: ['student', 'roll no', 'roll number', 'grade', 'marks', 'gpa', 'semester', 'course name',
+       'exam', 'student id', 'attendance %', 'section', 'subject'],
+  project: ['task', 'milestone', 'assignee', 'sprint', 'story points', 'epic', 'project name',
+       'task status', 'priority', 'task id', 'blocked', 'reporter'],
+  logistics: ['shipment', 'tracking number', 'tracking no', 'carrier', 'freight', 'origin',
+       'destination', 'consignment', 'awb', 'bill of lading', 'container no', 'delivery date'],
+  healthcare: ['patient', 'diagnosis', 'doctor', 'prescription', 'admission date', 'discharge date',
+       'ward', 'patient id', 'symptom', 'treatment', 'physician'],
+  real_estate: ['property', 'listing', 'sq ft', 'square feet', 'rent', 'lease', 'tenant', 'broker',
+       'property id', 'possession date', 'built up area'],
 };
 
-const DA_TYPE_LABELS = { hr: 'HR', bank: 'Bank Statement', accounting: 'Accounting', sales: 'Sales', generic: 'General' };
+const DA_TYPE_LABELS = {
+  hr: 'HR & Payroll', bank: 'Bank Statement', invoicing: 'Invoicing & Billing', purchase: 'Purchase & Procurement',
+  inventory: 'Inventory & Stock', accounting: 'Accounting', sales: 'Sales', crm: 'Customer / CRM',
+  marketing: 'Marketing', education: 'Education / Academic', project: 'Project & Task Management',
+  logistics: 'Logistics & Shipping', healthcare: 'Healthcare', real_estate: 'Real Estate', generic: 'General',
+};
 
-// Returns { type, label } — type is one of 'hr' | 'bank' | 'accounting' | 'sales' | 'generic'.
+// Returns { type, label } — type is one of the DA_TYPE_KEYWORDS keys, or 'generic'.
+// Header-only, scored by keyword hits per category; a table needs at least 2
+// hits in one category to be called out specifically, otherwise it's treated
+// as general data. Building `scores` from Object.keys(DA_TYPE_KEYWORDS)
+// rather than a hardcoded list means new domains added above are picked up
+// automatically, with no second place in the code to keep in sync.
 function daDetectDataType(headers) {
   if (!headers || !headers.length) return { type: 'generic', label: DA_TYPE_LABELS.generic };
   const norm = headers.map(daNormHeader);
-  const scores = { hr: 0, bank: 0, accounting: 0, sales: 0 };
+  const scores = {};
   Object.keys(DA_TYPE_KEYWORDS).forEach(type => {
+    scores[type] = 0;
     DA_TYPE_KEYWORDS[type].forEach(kw => { if (norm.some(h => h.includes(kw))) scores[type]++; });
   });
   let best = 'generic', bestScore = 1; // need >=2 keyword hits to beat the "generic" default
   Object.keys(scores).forEach(type => { if (scores[type] >= 2 && scores[type] > bestScore) { best = type; bestScore = scores[type]; } });
-  return { type: best, label: DA_TYPE_LABELS[best] };
+  return { type: best, label: DA_TYPE_LABELS[best], score: bestScore, confident: best !== 'generic' && bestScore >= 3 };
 }
 
 // First header index whose normalized text contains any of `patterns`, or -1.
@@ -36783,8 +37140,18 @@ function daFindCol(headers, patterns) {
 const DA_HEADER_FILL = {
   hr: 'rgba(0,150,136,0.14)',
   bank: 'rgba(8,145,178,0.14)',
+  invoicing: 'rgba(124,77,255,0.14)',
+  purchase: 'rgba(230,81,0,0.14)',
+  inventory: 'rgba(93,64,55,0.14)',
   accounting: 'rgba(0,115,230,0.14)',
   sales: 'rgba(255,152,0,0.14)',
+  crm: 'rgba(216,27,96,0.14)',
+  marketing: 'rgba(255,64,129,0.14)',
+  education: 'rgba(63,81,181,0.14)',
+  project: 'rgba(0,150,136,0.14)',
+  logistics: 'rgba(0,172,193,0.14)',
+  healthcare: 'rgba(211,47,47,0.14)',
+  real_estate: 'rgba(85,139,47,0.14)',
   generic: 'rgba(15,23,42,0.05)',
 };
 
@@ -37251,6 +37618,7 @@ function pdfedHandleLogoFileInput(inputEl) {
     pdfedRefineState.logoColors = colors;
     pdfedRefineState.logoAccent = colors[0] || null;
     pdfedUpdateLogoPreviewUI();
+    pdfedUpdateRefinePreview();
   };
   reader.onerror = () => toast('Could not read that logo file', 'error');
   reader.readAsDataURL(file);
@@ -37263,6 +37631,7 @@ function pdfedClearRefineLogo() {
   const input = document.getElementById('pdfedRefineLogoInput');
   if (input) input.value = '';
   pdfedUpdateLogoPreviewUI();
+  pdfedUpdateRefinePreview();
 }
 
 // Reflects pdfedRefineState's logo fields into the modal: preview thumbnail,
@@ -37306,7 +37675,7 @@ function pdfedUpdateLogoPreviewUI() {
 // wins — this never overwrites it). Sized to a sensible header width and
 // dropped near the top-right; the normal auto-align pass right after this
 // (pdfedAutoAlignContent) is what snaps it to its final, consistent slot.
-function pdfedInsertLogoIntoPages(dataUrl) {
+function pdfedInsertLogoIntoPages(dataUrl, scopeToInsertedOnly) {
   const pages = pdfed.pages || [];
   return new Promise((resolve) => {
     const img = new Image();
@@ -37316,6 +37685,10 @@ function pdfedInsertLogoIntoPages(dataUrl) {
       const targetH = Math.max(1, Math.round(naturalH * (targetW / naturalW)));
       let inserted = 0;
       pages.forEach((pg, idx) => {
+        // Refine is scoped to only the page(s) added after a Make Forms
+        // push — a pushed form page keeps its own header exactly as
+        // pushed and never gets a logo dropped into it here.
+        if (scopeToInsertedOnly && pg.fromMakeForm) return;
         pg.placedImages = pg.placedImages || [];
         const pageW = pg.width || 800, pageH = pg.height || 1100;
         const alreadyHasAnchor = pg.placedImages.some(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar && pdfedIsAnchorImage(im, pageW, pageH));
@@ -37476,8 +37849,17 @@ async function pdfedFitPageToA4(idx, baseMM) {
     const curMmW = bbox.w / pxPerMm, curMmH = bbox.h / pxPerMm;
     const neededW = bbox.w + PDFED_A4_CONTENT_MARGIN * 2;
     const neededH = bbox.h + PDFED_A4_CONTENT_MARGIN * 2;
-    const landscape = neededW > neededH;
-    const targetMmW = landscape ? baseH : baseW, targetMmH = landscape ? baseW : baseH;
+    // A composed report page (tables/charts pushed from Data Arrangement/
+    // Diagrams) never flips to landscape just because its content's own
+    // bounding box happens to read wider than it is tall — a chart sitting
+    // above a wide table is exactly that shape, and flipping the whole
+    // sheet to landscape over it is what actually reads as "off" next to
+    // the rest of an A4 report. Composed pages always target the sheet's
+    // own portrait orientation; anything that doesn't fit gets shrunk to
+    // fit it (same "contain" scale below, plus pdfedAutoAlignContent's own
+    // font/row shrink pass right after this), not solved by rotating the
+    // page.
+    const targetMmW = baseW, targetMmH = baseH;
     const targetW = Math.round(targetMmW * pxPerMm);
     const targetH = Math.round(targetMmH * pxPerMm);
 
@@ -37589,7 +37971,7 @@ async function pdfedFitPageToA4(idx, baseMM) {
 // stored page data, so — unlike the DOM-navigation approach this replaced —
 // it doesn't need to visit/display every page to do its job; only the page
 // that ends up on screen afterward gets a real re-render.
-async function pdfedAdjustAllPagesToA4() {
+async function pdfedAdjustAllPagesToA4(scopeToInsertedOnly) {
   const total = (pdfed.pages || []).length;
   const startActive = pdfed.active;
   // Always the real A4 sheet (210x297mm) — this used to vote for whichever
@@ -37602,6 +37984,10 @@ async function pdfedAdjustAllPagesToA4() {
   let adjusted = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
+    // Refine is scoped to only the page(s) added after a Make Forms push —
+    // a pushed form page is already a real, final A4 page and is left
+    // exactly as pushed rather than re-fit here.
+    if (scopeToInsertedOnly && pdfed.pages[i].fromMakeForm) continue;
     const result = await pdfedFitPageToA4(i, baseMM);
     details.push({ index: i, curMmW: Math.round(result.curMmW), curMmH: Math.round(result.curMmH), changed: result.adjusted });
     if (result.adjusted) { adjusted++; pdfedMarkModified(i); }
@@ -37627,10 +38013,23 @@ function pdfedFormatLabelForMM(mmW, mmH) {
 function pdfedOpenRefineReportModal() {
   const pages = (typeof pdfed !== 'undefined' && pdfed.pages) || [];
   if (!pages.length) { toast('Open or build a report first', 'info'); return; }
-  const hasContent = pages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length));
-  if (!hasContent) { toast('Add some tables, text, or images to the canvas first', 'info'); return; }
+  // A report built from a Make Forms push refines differently: the pushed
+  // form page(s) are already a finished, real document and are left
+  // exactly as pushed — Refine Report only ever touches a page the person
+  // inserted and wrote content on afterward. With no form-origin pages at
+  // all, this has no effect and every page is in scope, same as before.
+  const hasFormPages = pages.some(pg => pg.fromMakeForm);
+  const scopePages = hasFormPages ? pages.filter(pg => !pg.fromMakeForm) : pages;
+  if (hasFormPages && !scopePages.length) {
+    toast('Insert a page and add content to refine it — pushed form pages are left as they are', 'info');
+    return;
+  }
+  const hasContent = scopePages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length));
+  if (!hasContent) { toast(hasFormPages ? 'Add some content to the inserted page first' : 'Add some tables, text, or images to the canvas first', 'info'); return; }
   const countEl = document.getElementById('pdfedRefinePageCount');
-  if (countEl) countEl.textContent = pages.length;
+  if (countEl) countEl.textContent = hasFormPages ? scopePages.length : pages.length;
+  const scopeHintEl = document.getElementById('pdfedRefineFormScopeHint');
+  if (scopeHintEl) scopeHintEl.style.display = hasFormPages ? '' : 'none';
   // Always A4 now — the checkbox label matches exactly what the pass below
   // targets, rather than describing the document's own current dominant
   // size (which was the actual bug: an odd/custom canvas would get
@@ -37641,6 +38040,7 @@ function pdfedOpenRefineReportModal() {
   if (overlay) overlay.classList.add('open');
   pdfedUpdateLogoPreviewUI();
   pdfedUpdateSectionIconsVisibility();
+  pdfedUpdateRefinePreview();
 }
 
 function pdfedCloseRefineModal() {
@@ -37653,6 +38053,7 @@ function pdfedSetRefineTheme(key, el) {
   const group = document.getElementById('pdfedRefineThemeGroup');
   if (group) group.querySelectorAll('.da-dropdown-scope-btn').forEach(b => b.classList.toggle('active', b === el));
   pdfedUpdateSectionIconsVisibility();
+  pdfedUpdateRefinePreview();
 }
 
 // Highlighted section headings (color badge + divider bar) are SVG-based
@@ -37679,6 +38080,65 @@ function pdfedSetRefineAlign(key, el) {
   pdfedRefineState.align = key;
   const group = document.getElementById('pdfedRefineAlignGroup');
   if (group) group.querySelectorAll('.da-dropdown-scope-btn').forEach(b => b.classList.toggle('active', b === el));
+  pdfedUpdateRefinePreview();
+}
+
+// Repaints the small mock report card at the top of the Refine Report modal
+// so it reflects the current theme (font + accent + header tint), logo,
+// content alignment, and "highlight section titles" choice the instant any
+// of them change. It's a style sample built from fixed placeholder content
+// — not a render of the real document — since running the actual refine
+// pipeline live on every keystroke would be far too heavy for a preview.
+function pdfedUpdateRefinePreview() {
+  const box = document.getElementById('pdfedRefinePreview');
+  if (!box) return;
+  const theme = pdfedResolveRefineTheme(pdfedRefineState);
+  const align = pdfedRefineState.align || 'left';
+  const sectionIconsOn = pdfedRefineState.theme === 'modern' &&
+    !!document.getElementById('pdfedRefineSectionIcons')?.checked;
+
+  box.classList.remove('prp-align-left', 'prp-align-center', 'prp-align-stretch');
+  box.classList.add('prp-align-' + align);
+
+  const title = document.getElementById('prpTitle');
+  const section = document.getElementById('prpSection');
+  const sectionIcon = document.getElementById('prpSectionIcon');
+  const divider = document.getElementById('prpDivider');
+  const table = document.getElementById('prpTable');
+  const para = document.getElementById('prpPara');
+  const logo = document.getElementById('prpLogo');
+
+  if (title) { title.style.fontFamily = theme.font; title.style.color = theme.accent; }
+  if (section) { section.style.fontFamily = theme.font; section.style.color = theme.accent; }
+  if (para) para.style.fontFamily = theme.bodyFont;
+  if (table) {
+    table.querySelectorAll('th').forEach(th => {
+      th.style.fontFamily = theme.font;
+      th.style.background = theme.headerFill;
+      th.style.color = theme.accent;
+    });
+    table.querySelectorAll('td').forEach(td => { td.style.fontFamily = theme.bodyFont; });
+  }
+
+  if (divider) {
+    divider.style.display = sectionIconsOn ? 'block' : 'none';
+    divider.style.background = `linear-gradient(90deg, ${theme.accent}, ${pdfedShadeHex(theme.accent, 0.4)})`;
+  }
+  if (sectionIcon) {
+    if (sectionIconsOn) {
+      const badge = pdfedSectionIconBadgeDataUrl('chart', theme.accent, 32);
+      if (badge) { sectionIcon.src = badge; sectionIcon.style.display = 'inline-block'; }
+      else { sectionIcon.style.display = 'none'; }
+    } else {
+      sectionIcon.style.display = 'none';
+    }
+  }
+
+  const hasLogo = !!pdfedRefineState.logoDataUrl && pdfedRefineState.addLogoToHeader !== false;
+  if (logo) {
+    logo.src = hasLogo ? pdfedRefineState.logoDataUrl : '';
+    logo.style.display = hasLogo ? 'inline-block' : 'none';
+  }
 }
 
 // A text box counts as a "heading" if it reads like one (short, one or two
@@ -37767,10 +38227,13 @@ function pdfedRefineOneTable(item, theme, autoFit) {
 // this same pass added before, and undoes the heading x-shift, so repeated
 // runs never keep nudging the title further right or leaving stale marks
 // behind.
-function pdfedApplySectionIcons(pages, theme, addIcons) {
+function pdfedApplySectionIcons(pages, theme, addIcons, scopeToInsertedOnly) {
   let count = 0;
   const accent = theme.accent || '#0f172a';
   pages.forEach(pg => {
+    // Refine is scoped to only the page(s) added after a Make Forms push —
+    // a pushed form page never gets section badges of its own.
+    if (scopeToInsertedOnly && pg.fromMakeForm) return;
     // Strip any badges/bands/dividers from a previous run before anything
     // else — this also matters for pdfedAutoAlignContent on a *second*
     // refine pass, since a stale mark left in placedImages would otherwise
@@ -37889,6 +38352,13 @@ function pdfedApplySectionIcons(pages, theme, addIcons) {
 // page itself so this works the same on a small canvas as it does on a
 // full A4 sheet, not just at one fixed pixel size.
 function pdfedIsAnchorImage(img, pageW, pageH) {
+  // Charts/maps pushed in from Diagrams & Graphs are content, never a logo
+  // or brand mark — no matter how small they end up. Without this guard a
+  // small pushed chart passes the pure size check below and gets
+  // misread as "the page already has a logo" (silently skipping real logo
+  // insertion in pdfedInsertLogoIntoPages) or gets yanked out of the normal
+  // content flow and pinned into a header slot like a logo would be.
+  if (img.kind === 'chart' || img.kind === 'map') return false;
   const maxW = Math.max(220, pageW * 0.42);
   const maxH = Math.max(170, pageH * 0.22);
   return (img.w || 0) <= maxW && (img.h || 0) <= maxH;
@@ -38124,6 +38594,43 @@ function pdfedAutoAlignContent(pg, mode) {
 
   flow.sort((a, b) => (a.item.y || 0) - (b.item.y || 0));
 
+  // pdfedGroupImagesIntoRows above only clusters images that already sit at
+  // the same height and read as a similar shape — it deliberately leaves a
+  // messily-pasted pair (dropped at different heights, different sizes —
+  // e.g. a bar chart dragged in first near the top, a pie chart pasted in
+  // later, lower down) as two separate lone images, so it never forces a
+  // genuinely unrelated pair into a distorted row. But once everything is
+  // sorted into one flow by y, any run of consecutive lone images that's
+  // immediately followed by the SAME table — with nothing else (a heading,
+  // another table) breaking up the run — unambiguously belongs to that
+  // table: there's nothing else on the page between them. That run is
+  // merged into a single row here and handed to the same pdfedSizeImageRow
+  // treatment a deliberately-placed side-by-side cluster gets below, so a
+  // messily-pasted set of charts still comes out of Refine Report as one
+  // clean, evenly-matched row sitting above its table.
+  {
+    const merged = [];
+    let i = 0;
+    while (i < flow.length) {
+      const entry = flow[i];
+      if (entry.kind === 'image') {
+        const run = [entry.item];
+        let j = i + 1;
+        while (j < flow.length && flow[j].kind === 'image') { run.push(flow[j].item); j++; }
+        const followedByTable = j < flow.length && flow[j].kind === 'table';
+        if (run.length > 1 && followedByTable) {
+          merged.push({ item: run[0], images: run, kind: 'imageRow' });
+          i = j;
+          continue;
+        }
+      }
+      merged.push(entry);
+      i++;
+    }
+    flow.length = 0;
+    flow.push(...merged);
+  }
+
   // Always start from the same, consistent top position — never from
   // wherever the first item happened to already be sitting. Inheriting the
   // original y0 (the old behavior) is exactly what produced inconsistent
@@ -38148,14 +38655,56 @@ function pdfedAutoAlignContent(pg, mode) {
     return SECTION_GAP;
   });
 
+  // A lone chart sitting directly above its own data table gets sized on
+  // purpose instead of being left at whatever tiny (or oversized) footprint
+  // it happened to arrive at — a chart that visualizes the table right below
+  // it is the centerpiece of that section and should read as a prominent,
+  // enhanced graphic, not a thumbnail. It's scaled (aspect ratio kept, never
+  // distorted) UP to a generous share of the width its table settles on —
+  // enhancing a chart that arrived small — then centered over that same
+  // table's span so the two visually belong to each other even under
+  // 'left'/'stretch' alignment, where every other flow item sits flush at
+  // the page margin. The upscale is capped at 1.6x the chart's own natural
+  // size so a low-resolution source image is never blown up past the point
+  // of visible pixelation; within that ceiling, it's always sized UP toward
+  // the target, never shrunk below what it already was. A chart that's part
+  // of a side-by-side pair (handled by pdfedSizeImageRow just below, which
+  // already fills the row 50/50-ish across the full content width) or that
+  // isn't immediately followed by a table is left alone — there's nothing
+  // concrete to size it against.
+  const CHART_TABLE_WIDTH_TARGET = 0.85; // generous share of the table's width — enhance, don't shrink
+  const CHART_MAX_UPSCALE = 1.6; // never blow a chart up past 1.6x its own natural size
+  flow.forEach((entry, i) => {
+    if (entry.kind !== 'image') return;
+    const next = flow[i + 1];
+    if (!next || next.kind !== 'table') return;
+    const item = entry.item;
+    const naturalW = item.w || 0, naturalH = item.h || 0;
+    if (!(naturalW > 0) || !(naturalH > 0)) return;
+    const tableW = Math.min(pdfedTableWidth(next.item) || maxContentW, maxContentW);
+    const desiredW = Math.min(tableW, maxContentW) * CHART_TABLE_WIDTH_TARGET;
+    const maxAllowedW = Math.min(maxContentW, naturalW * CHART_MAX_UPSCALE);
+    // Never shrink a chart that's already at or above the desired size —
+    // only ever grow it toward the target (still bounded by the page and
+    // the upscale ceiling above).
+    const targetW = Math.max(MIN_CHART_W, naturalW, Math.min(desiredW, maxAllowedW));
+    const scale = targetW / naturalW;
+    item.w = Math.round(targetW);
+    item.h = Math.round(naturalH * scale);
+    // Stashed only for the positioning pass below (left/stretch mode) to
+    // center this chart over its table instead of flush-left at the
+    // margin; deleted again right after it's consumed so it never leaks
+    // into the saved page data.
+    item._refineChartTableW = tableW;
+  });
+
   // A chart row's natural footprint: normalize every image in the row to a
   // shared height (their average original height) so a side-by-side pair
   // reads as one clean, evenly-matched block instead of two mismatched
   // charts, then uniformly scale the whole row so it fills the page's
   // content width edge-to-edge (capped so it can never blow a low-res chart
-  // up past ~1.6x its own size, and never shrunk past 0.4x). A lone image
-  // is left exactly as-is — resizing a single standalone image/chart isn't
-  // this pass's job and risks distorting it.
+  // up past ~1.6x its own size, and never shrunk past 0.4x). This is also
+  // what gives two same-shaped charts a clean 50/50 side-by-side split.
   function pdfedSizeImageRow(images, maxContentW) {
     const targetH = images.reduce((s, im) => s + (im.h || 0), 0) / images.length;
     const naturalWidths = images.map(im => targetH * ((im.w || 1) / (im.h || 1)));
@@ -38281,6 +38830,13 @@ function pdfedAutoAlignContent(pg, mode) {
     const size = sizes[i];
     if (mode === 'center') {
       item.x = Math.round((pageW - size.w) / 2);
+    } else if (kind === 'image' && item._refineChartTableW) {
+      // A lone chart sized against its table just above (see
+      // CHART_TABLE_WIDTH_FRACTION above) centers over that table's own
+      // span instead of sitting flush at the page margin like every other
+      // 'left'/'stretch' item — it visually belongs to the table below it,
+      // so it should look centered on it, not left-hung above it.
+      item.x = margin + Math.round((item._refineChartTableW - size.w) / 2);
     } else {
       // 'left', and 'stretch' for non-table items — stretching an image,
       // chart, or heading would distort/misjudge it, so those always just
@@ -38291,6 +38847,7 @@ function pdfedAutoAlignContent(pg, mode) {
       // margin same as everything else and simply IS full width.
       item.x = margin;
     }
+    if (item._refineChartTableW !== undefined) delete item._refineChartTableW;
     // Clearance: the first item in the flow is the one that would open
     // directly under a header logo, since everything after it is pushed
     // down anyway by the normal stacking below. If this item's own
@@ -38456,9 +39013,12 @@ function pdfedProbeImageSize(dataUrl) {
 // Pulls every map-tagged image off of every page (fully relocating it, not
 // duplicating it), then rebuilds it as one or more dedicated grid pages.
 // Returns a summary used by the Refine Report toast.
-async function pdfedApplyMapGridLayout(pages) {
+async function pdfedApplyMapGridLayout(pages, scopeToInsertedOnly) {
   const maps = [];
   pages.forEach(pg => {
+    // Refine is scoped to only the page(s) added after a Make Forms push —
+    // a pushed form page's images (if any) are left exactly as pushed.
+    if (scopeToInsertedOnly && pg.fromMakeForm) return;
     if (!pg.placedImages || !pg.placedImages.length) return;
     const keep = [];
     pg.placedImages.forEach(img => {
@@ -38533,6 +39093,12 @@ async function pdfedApplyMapGridLayout(pages) {
 async function pdfedApplyReportRefinement(opts) {
   const theme = pdfedResolveRefineTheme(opts);
   const pages = pdfed.pages || [];
+  const scopeToInsertedOnly = !!opts.scopeToInsertedOnly;
+  // Skips any page pushed straight from Make Forms when Refine is scoped —
+  // shared by every pass below so a form page is never touched by any of
+  // them, while a normal report (no form pages at all) refines every page
+  // exactly as it always has.
+  const inScope = pg => !(scopeToInsertedOnly && pg.fromMakeForm);
   let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0, overflowPagesAdded = 0;
 
   // Maps get pulled out and re-laid out into their own grid page(s) FIRST,
@@ -38540,7 +39106,7 @@ async function pdfedApplyReportRefinement(opts) {
   // just below, the auto-align pass, and the overflow-flow pass all treat
   // a map the same as "not here" rather than as a logo/photo to preserve
   // in place.
-  const mapGridResult = await pdfedApplyMapGridLayout(pages);
+  const mapGridResult = await pdfedApplyMapGridLayout(pages, scopeToInsertedOnly);
   const mapsLaidOut = mapGridResult.mapsLaidOut;
   const mapPagesAdded = mapGridResult.mapPagesAdded;
 
@@ -38560,6 +39126,7 @@ async function pdfedApplyReportRefinement(opts) {
   // same untouched baseline guarantees the exact same, correct result no
   // matter how many times this runs — true idempotency.
   pages.forEach(pg => {
+    if (!inScope(pg)) return;
     (pg.placedTables || []).forEach(item => {
       const structureMatches = item._refineBaseline
         && item._refineBaseline.colWidths.length === (item.colWidths || []).length
@@ -38606,6 +39173,7 @@ async function pdfedApplyReportRefinement(opts) {
   // Pass 1: table styling/autofit first — headings size themselves off each
   // table's real, final font, not a guess.
   pages.forEach(pg => {
+    if (!inScope(pg)) return;
     (pg.placedTables || []).forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
   });
 
@@ -38625,6 +39193,7 @@ async function pdfedApplyReportRefinement(opts) {
   {
     const pc = document.getElementById('pdfedPageCanvas');
     pages.forEach(pg => {
+      if (!inScope(pg)) return;
       const pageW = pg.width || (pc && pc.width) || 600;
       const margin = 36;
       const maxW = Math.max(120, pageW - margin * 2);
@@ -38661,6 +39230,7 @@ async function pdfedApplyReportRefinement(opts) {
   // actually needs; sizing it up *after* stacking is what caused the
   // overlap (the slot it landed in was measured for the old, smaller text).
   pages.forEach(pg => {
+    if (!inScope(pg)) return;
     if (!opts.syncHeadings || !pg.placedTexts || !pg.placedTexts.length) return;
     const headings = pg.placedTexts.filter(pdfedTextLooksLikeHeading);
     if (!headings.length) return;
@@ -38716,6 +39286,7 @@ async function pdfedApplyReportRefinement(opts) {
   // measured, not its old single-paragraph height.
   if (opts.syncHeadings) {
     pages.forEach(pg => {
+      if (!inScope(pg)) return;
       (pg.placedTexts || []).forEach(t => {
         if (pdfedTextLooksLikeHeading(t) || !pdfedTextLooksLikeList(t)) return;
         const lines = String(t.text || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -38739,6 +39310,7 @@ async function pdfedApplyReportRefinement(opts) {
   // reflected in the box's height before anything gets restacked around it.
   if (opts.syncHeadings) {
     pages.forEach(pg => {
+      if (!inScope(pg)) return;
       (pg.placedTexts || []).forEach(t => {
         if (pdfedTextLooksLikeHeading(t)) return;
         t.fontFamily = theme.bodyFont || theme.font;
@@ -38761,6 +39333,7 @@ async function pdfedApplyReportRefinement(opts) {
     let pageIdx = 0;
     while (pageIdx < pages.length) {
       const pg = pages[pageIdx];
+      if (!inScope(pg)) { pageIdx++; continue; }
       const overflow = pdfedAutoAlignContent(pg, opts.align) || [];
       if (overflow.length) {
         const newPg = await pdfedMakeRefineOverflowPage(pg);
@@ -38781,6 +39354,7 @@ async function pdfedApplyReportRefinement(opts) {
   // final x — stacking may have moved the table; width was already
   // settled in Pass 3, this just keeps the heading lined up over it.
   pages.forEach(pg => {
+    if (!inScope(pg)) return;
     if (!opts.syncHeadings || !pg.placedTexts || !pg.placedTexts.length) return;
     pg.placedTexts.filter(pdfedTextLooksLikeHeading).forEach(t => {
       const assoc = pdfedFindAssociatedTable(pg, t);
@@ -38799,9 +39373,10 @@ async function pdfedApplyReportRefinement(opts) {
   // Modern-gated: SVG icon art only fits the Modern style's look, so
   // General/Financial/Corporate always end this pass with icons removed
   // and never gain any of their own.
-  sectionIconsApplied = pdfedApplySectionIcons(pages, theme, opts.sectionIcons && opts.theme === 'modern');
+  sectionIconsApplied = pdfedApplySectionIcons(pages, theme, opts.sectionIcons && opts.theme === 'modern', scopeToInsertedOnly);
 
   pages.forEach((pg, idx) => {
+    if (!inScope(pg)) return;
     const pageTouched = !!(
       (pg.placedTables && pg.placedTables.length) ||
       (opts.align && ((pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length))) ||
@@ -38832,27 +39407,47 @@ async function pdfedRunRefineReportFromModal() {
   let before;
   try { before = JSON.parse(JSON.stringify(pdfed.pages)); } catch (e) { before = null; }
 
+  // When this report contains any page pushed straight from Make Forms,
+  // Refine Report only ever touches the page(s) added afterward (an
+  // inserted page the person then wrote content on) — the pushed form
+  // page(s) are a finished document already and are left exactly as
+  // pushed. With no form-origin pages in the document at all, this has no
+  // effect and Refine Report keeps working across every page as before.
+  const scopeToInsertedOnly = pdfed.pages.some(pg => pg.fromMakeForm);
+  opts.scopeToInsertedOnly = scopeToInsertedOnly;
+
   // Fit any odd-sized page onto A4 first, so the table/heading pass right
   // after it sizes fonts and lays out headings against each page's real,
   // final width instead of whatever width it happened to arrive at.
   let a4Result = { adjusted: 0, details: [] };
-  if (opts.adjustA4) a4Result = await pdfedAdjustAllPagesToA4();
+  if (opts.adjustA4) a4Result = await pdfedAdjustAllPagesToA4(scopeToInsertedOnly);
 
   // Drop the logo into any page that doesn't already have one of its own,
   // before the styling/alignment pass — so it's already in placedImages
   // when that pass's auto-align step snaps it into its final header slot.
   let logoInserted = 0;
   if (opts.addLogoToHeader && opts.logoDataUrl) {
-    logoInserted = await pdfedInsertLogoIntoPages(opts.logoDataUrl);
+    logoInserted = await pdfedInsertLogoIntoPages(opts.logoDataUrl, scopeToInsertedOnly);
   }
+
+  // Track the page the person was actually looking at by OBJECT IDENTITY,
+  // not by its numeric index — Refine Report can splice overflow/map pages
+  // in anywhere in the array (including before this one), which shifts
+  // every later index. Navigating back to a stale numeric index after that
+  // can land on a brand-new blank overflow page instead of the page the
+  // person was on — which reads as "my content disappeared" even though
+  // nothing was actually removed, it's just sitting one or more slots
+  // further down than before.
+  const activePageRef = pdfed.active >= 0 ? pdfed.pages[pdfed.active] : null;
 
   const summary = await pdfedApplyReportRefinement(opts);
 
-  const activeIdx = pdfed.active;
   // A full pdfedGoto (not just re-rendering the placed layers) since the A4
   // pass above (and any overflow pages inserted just now) may have changed
   // page count/background rasters, including possibly the active page's.
   if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+  const resolvedActiveIdx = activePageRef ? pdfed.pages.indexOf(activePageRef) : -1;
+  const activeIdx = resolvedActiveIdx >= 0 ? resolvedActiveIdx : pdfed.active;
   if (activeIdx >= 0) await pdfedGoto(activeIdx);
   if (typeof pdfedRefreshSelectionPanel === 'function') pdfedRefreshSelectionPanel();
 
@@ -38901,6 +39496,7 @@ async function pdfedRunRefineReportFromModal() {
   if (summary.mapsLaidOut) parts.push(`${summary.mapsLaidOut} map${summary.mapsLaidOut !== 1 ? 's' : ''} arranged on ${summary.mapPagesAdded} page${summary.mapPagesAdded !== 1 ? 's' : ''}`);
   if (logoInserted) parts.push(`logo placed on ${logoInserted} page${logoInserted !== 1 ? 's' : ''}`);
   if (opts.useLogoColors && opts.logoAccent) parts.push('logo colors applied');
+  if (scopeToInsertedOnly) parts.push('pushed form page(s) left as-is');
   toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
 }
 
@@ -46148,6 +46744,17 @@ async function mfPushToWorkspace() {
         type: 'blank', dataUrl, modified: true, edits: {}, textBlocks: [],
         placedTexts: perPageTexts[i],
         label: (f.title || 'Form') + (totalPages > 1 ? ` (${i + 1}/${totalPages})` : ''),
+        // Marks this page as having come straight from a Make Forms push —
+        // Refine Report reads this to leave pushed form pages exactly as
+        // pushed and only ever restyle pages the person added afterward.
+        fromMakeForm: true,
+        // Record the density this page was ACTUALLY rasterized at (html2canvas
+        // scale:2 above → ~7.56 px/mm, not the 3.7795 px/mm default other page
+        // types use). Without this, pdfedExport() falls back to 3.7795 when
+        // computing this page's physical mm size from its pixel dimensions,
+        // which silently doubles it to ~420×594mm — a real A4 page next to a
+        // "fake" oversized one, even though both are tagged pageMM [210,297].
+        _pxPerMm: pxPerMm,
         bgColor: '#ffffff', pageMM: [A4_W_MM, A4_H_MM]
       });
       if (state && state.stats) state.stats.pages++;
@@ -46745,7 +47352,11 @@ async function mfcExportImages() {
   mfcExportBusy = true;
   showExportOverlay('Exporting images…', 'Rendering pages…');
   try {
-    let shots = await mfcRasterizePages(f);
+    // mfcRasterizePages now returns {dataUrl, w, h} per shot (needed by the
+    // push-to-Workspace path to record accurate page density) — this export
+    // path only ever needs the images themselves, so unwrap to plain
+    // dataUrl strings right away and leave everything below unchanged.
+    let shots = (await mfcRasterizePages(f)).map(s => s.dataUrl);
     if (!shots.length) { hideExportOverlay(); toast('Nothing to export yet', 'info'); return; }
     if (window.sarvarcApplyFreeWatermark) shots = await Promise.all(shots.map(sarvarcStampDataUrlWatermark));
     const base = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'canvas_form';
@@ -46862,6 +47473,14 @@ const MFC_PUSH_MARGIN = 60;     // margin around the form when dropped onto a li
 
 // Rasterizes every canvas page at full quality, same as Export PDF does, so
 // what lands in the Workspace matches the live canvas 1:1.
+// Returns {dataUrl, w, h} per page (w/h = the ACTUAL captured pixel
+// dimensions) instead of a bare dataUrl string — html2canvas's scale:2 here
+// means each shot is captured at roughly double the page's on-screen CSS
+// density, and callers need those real pixel dims (not an assumed density)
+// to record an accurate _pxPerMm on any brand-new page built from a shot.
+// Without this, a canvas form pushed as new page(s) would silently land at
+// ~2x true size in both the editor and the exported PDF — the same bug
+// mfPushToWorkspace (Make Forms) had before its _pxPerMm fix.
 async function mfcRasterizePages(f) {
   const prevZoom = mfc.zoom, prevSel = mfc.selectedId;
   mfc.zoom = 1; mfc.selectedId = null;
@@ -46873,7 +47492,7 @@ async function mfcRasterizePages(f) {
   const shots = [];
   for (let i = 0; i < pageEls.length; i++) {
     const canvas = await html2canvas(pageEls[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-    shots.push(canvas.toDataURL('image/png'));
+    shots.push({ dataUrl: canvas.toDataURL('image/png'), w: canvas.width, h: canvas.height });
   }
   mfc.zoom = prevZoom; mfc.selectedId = prevSel;
   if (wrap) wrap.style.setProperty('--mfc-zoom', prevZoom);
@@ -46886,11 +47505,19 @@ async function mfcRasterizePages(f) {
 // Builds a brand-new blank Workspace page sized to match one canvas page,
 // with that page's rasterized content baked straight into the background
 // (same idea as pdfedAppendTableFitPages does for tables, one page per chunk).
-function mfcMakeFittedPage(dataUrl, mmW, mmH, label) {
+// pxPerMm MUST be the density the dataUrl was actually captured at (from
+// mfcRasterizePages' shot.w / mmW) — not assumed — so pdfedExport and the
+// live editor's zoom (both of which read pg._pxPerMm) size this page
+// correctly instead of defaulting to the wrong density.
+function mfcMakeFittedPage(dataUrl, mmW, mmH, label, pxPerMm) {
   return {
     type: 'blank', dataUrl, modified: true, edits: {}, textBlocks: [],
     placedTexts: [], placedImages: [], label: label || 'Canvas Form',
-    bgColor: '#ffffff', pageMM: [mmW, mmH]
+    bgColor: '#ffffff', pageMM: [mmW, mmH],
+    // Marks this page as having come straight from a Make Forms push — see
+    // the matching flag in mfPushToWorkspace for why Refine Report cares.
+    fromMakeForm: true,
+    _pxPerMm: pxPerMm || MFC_PUSH_PXMM
   };
 }
 
@@ -46954,7 +47581,7 @@ async function mfcPushToWorkspace(mode) {
 
       pg.placedImages.push({
         id: 'pimg_mfc_' + Date.now(),
-        dataUrl: shots[0], x, y, w, h,
+        dataUrl: shots[0].dataUrl, x, y, w, h,
         locked: false,
         zIndex: pdfedNextZ(pg)
       });
@@ -46963,8 +47590,8 @@ async function mfcPushToWorkspace(mode) {
       // Any remaining canvas pages spill onto brand-new fitted page(s)
       // appended at the end, each sized to match the canvas's own page size.
       const remaining = shots.slice(1);
-      remaining.forEach(dataUrl => {
-        pdfed.pages.push(mfcMakeFittedPage(dataUrl, mmW, mmH, f.title));
+      remaining.forEach(shot => {
+        pdfed.pages.push(mfcMakeFittedPage(shot.dataUrl, mmW, mmH, f.title, shot.w / mmW));
         if (state && state.stats) state.stats.pages++;
       });
       if (typeof updateStats === 'function') updateStats();
@@ -46984,8 +47611,8 @@ async function mfcPushToWorkspace(mode) {
       // Land on fresh page(s) appended at the end, sized to exactly match
       // the canvas's own page dimensions, one Workspace page per canvas page.
       let firstNewIdx = -1;
-      shots.forEach(dataUrl => {
-        pdfed.pages.push(mfcMakeFittedPage(dataUrl, mmW, mmH, f.title));
+      shots.forEach(shot => {
+        pdfed.pages.push(mfcMakeFittedPage(shot.dataUrl, mmW, mmH, f.title, shot.w / mmW));
         if (firstNewIdx === -1) firstNewIdx = pdfed.pages.length - 1;
         if (state && state.stats) state.stats.pages++;
       });
@@ -50393,9 +51020,40 @@ function dgProcessUploadedFile(file) {
   }
 }
 
+// Scans a freshly-parsed table for a birth-date-looking column (by header text) and, if every
+// sampled cell in it actually parses as a date, appends a derived "Age (years)" column computed
+// against today's date — so a roster/HR/student list with a DOB column gets an age chart
+// available to plot immediately, with no manual date-subtraction step. Non-destructive: the
+// original DOB column stays exactly as uploaded, this only adds a new column alongside it, and
+// it's skipped entirely if an "age" column already exists in the sheet.
+function dgInjectDerivedAgeColumn(headers, rows) {
+  const hasAgeAlready = headers.some(h => /\bage\b/i.test(String(h || '')));
+  if (hasAgeAlready) return;
+  const dobIdx = headers.findIndex(h => dgIsBirthDateHeader(h));
+  if (dobIdx === -1) return;
+  const today = new Date();
+  let parsedCount = 0;
+  const ages = rows.map(r => {
+    const d = dgParseDateCell(r[dobIdx]);
+    if (!d) return '';
+    parsedCount++;
+    return dgComputeAge(d, today);
+  });
+  // Require most rows to actually parse as dates before committing to the derived column —
+  // a header that merely contains "birthday" but holds free-text notes shouldn't get a bogus
+  // Age column bolted on.
+  if (rows.length && parsedCount / rows.length < 0.6) return;
+  headers.push('Age (years)');
+  rows.forEach((r, i) => r.push(ages[i]));
+  if (typeof toast === 'function') {
+    toast(`Detected a birth-date column ("${headers[dobIdx]}") — added an "Age (years)" column you can plot directly`, 'info');
+  }
+}
+
 function dgOnUploadParsed(aoa, fileName) {
   const { headers, rows, titleRow } = daNormalize(aoa);
   if (!rows.length || headers.length < 1) { toast('No tabular data found in that file', 'info'); return; }
+  dgInjectDerivedAgeColumn(headers, rows);
   dgUploadParsed = { headers, rows, fileName };
   if (typeof dgState !== 'undefined') dgState.formatUserSet = false; // fresh dataset — let sign auto-detection have a say again
   const nameEl = document.getElementById('dgUploadFileName');
@@ -51401,8 +52059,139 @@ function dgApplyDetectedSign(detected) {
   return true;
 }
 
+// ── Date / time / age intelligence ──────────────────────────────────────────────────────
+// Uploaded tables very often carry a date, timestamp, or birth-date column, and treating those
+// columns as plain text (alphabetical sort, raw string labels) or — worse — silently mangling
+// them into a giant meaningless number (dgParseNumericCell strips the separators out of
+// "2024-01-15" and would otherwise read it as 20240115) makes for a much worse chart than the
+// data actually supports. This block recognises real-world date formats, tells a genuine date
+// column apart from an ordinary numeric one, and turns a detected birth-date column into a
+// ready-to-plot "Age (years)" measure — so someone uploading a roster with a DOB column gets an
+// age chart without doing the subtraction by hand, and someone uploading monthly sales gets a
+// properly time-ordered line/x-axis instead of whatever order the rows happened to be typed in.
+const DG_MONTH_NAMES = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  january: 0, february: 1, march: 2, april: 3, june: 5, july: 6, august: 7,
+  september: 8, october: 9, november: 10, december: 11
+};
+
+// Parses a single cell into a Date, or null if it doesn't look like one. Deliberately narrow
+// (a handful of common, unambiguous shapes) rather than a permissive `new Date(str)` call, since
+// the built-in parser accepts all sorts of non-date strings and would make ordinary text/number
+// columns misfire as dates.
+function dgParseDateCell(v) {
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === 'number' && isFinite(v)) {
+    // Excel/Sheets serial date (days since 1899-12-30). Only trusted inside a plausible
+    // real-world date range (~1950-2100) so an ordinary numeric column (age, price, count)
+    // that happens to hold a 5-digit number never gets misread as a date.
+    if (v > 18262 && v < 73050) {
+      const d = new Date(Math.round((v - 25569) * 86400000));
+      return isNaN(d) ? null : d;
+    }
+    return null;
+  }
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+
+  let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[T\s].*)?$/); // ISO: 2024-01-15[T..]
+  if (m) { const d = new Date(+m[1], +m[2] - 1, +m[3]); return isNaN(d) ? null : d; }
+
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/); // 15/01/2024, 01-15-2024, etc.
+  if (m) {
+    let a = +m[1], b = +m[2], y = +m[3];
+    if (y < 100) y += y < 50 ? 2000 : 1900;
+    const day = a > 12 ? a : b, month = a > 12 ? b : a; // day-first when unambiguous, else month-first
+    const d = new Date(y, month - 1, day);
+    return isNaN(d) ? null : d;
+  }
+
+  m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s,-]+([A-Za-z]{3,9})[\s,-]+(\d{2,4})$/); // "15 Jan 2024"
+  if (m) {
+    const mon = DG_MONTH_NAMES[m[2].toLowerCase()];
+    if (mon != null) { let y = +m[3]; if (y < 100) y += y < 50 ? 2000 : 1900; const d = new Date(y, mon, +m[1]); return isNaN(d) ? null : d; }
+  }
+  m = s.match(/^([A-Za-z]{3,9})[\s,-]+(\d{1,2})(?:st|nd|rd|th)?[\s,]+(\d{2,4})$/); // "Jan 15, 2024"
+  if (m) {
+    const mon = DG_MONTH_NAMES[m[1].toLowerCase()];
+    if (mon != null) { let y = +m[3]; if (y < 100) y += y < 50 ? 2000 : 1900; const d = new Date(y, mon, +m[2]); return isNaN(d) ? null : d; }
+  }
+
+  m = s.match(/^(19|20)\d{2}$/); // bare year, e.g. a "Year" column — treated as Jan 1 of that year
+  if (m) { const d = new Date(+s, 0, 1); return isNaN(d) ? null : d; }
+
+  return null;
+}
+
+// Column-level date detection, sampled the same way dgColumnIsNumeric samples for numbers.
+function dgColumnIsDate(colIdx) {
+  if (!dgUploadParsed) return false;
+  const allRows = dgUploadParsed.rows;
+  const SAMPLE_SIZE = 40;
+  let sample;
+  if (allRows.length <= SAMPLE_SIZE) sample = allRows;
+  else {
+    const stride = allRows.length / SAMPLE_SIZE;
+    sample = [];
+    for (let i = 0; i < SAMPLE_SIZE; i++) sample.push(allRows[Math.floor(i * stride)]);
+  }
+  let dateLike = 0, total = 0;
+  sample.forEach(r => {
+    const v = r[colIdx];
+    if (String(v ?? '').trim() === '') return;
+    total++;
+    if (dgParseDateCell(v)) dateLike++;
+  });
+  // A lone 4-digit number is ambiguous with a plain small integer column, so a column read as
+  // dates ONLY via the bare-year fallback needs every sampled cell to agree before it counts —
+  // any other date shape (slashes, dashes, month names) is unambiguous and uses a normal majority.
+  const allBareYears = total > 0 && sample.every(r => { const v = String(r[colIdx] ?? '').trim(); return v === '' || /^(19|20)\d{2}$/.test(v); });
+  const threshold = allBareYears ? 1.0 : 0.6;
+  return total > 0 && (dateLike / total) >= threshold;
+}
+
+// Header text hint for "this column is probably someone's birth date" — used to auto-offer a
+// derived Age column rather than making people compute it by hand.
+function dgIsBirthDateHeader(header) {
+  return /\b(dob|d\.o\.b\.?|birth\s*-?date|date\s*of\s*birth|birthday)\b/i.test(String(header || ''));
+}
+
+// Whole-years age between a birth date and a reference date (default: today), accounting for
+// whether the birthday has actually happened yet this year rather than just subtracting years.
+function dgComputeAge(birthDate, refDate) {
+  const ref = refDate || new Date();
+  let age = ref.getFullYear() - birthDate.getFullYear();
+  const m = ref.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && ref.getDate() < birthDate.getDate())) age--;
+  return age;
+}
+
+// Picks a label granularity that fits the actual spread of dates in a column — years apart
+// shows just the year, a same-year spread shows "Jan 2024", and a tight day-to-day range shows
+// the full date — so a time-series axis never prints a redundant year on every tick or, at the
+// other extreme, an unreadably long date for a chart spanning a decade.
+function dgDetectDateGranularity(dates) {
+  if (!dates.length) return 'day';
+  const sorted = [...dates].sort((a, b) => a - b);
+  const spanDays = (sorted[sorted.length - 1] - sorted[0]) / 86400000;
+  if (spanDays > 730) return 'year';
+  if (spanDays > 60) return 'month';
+  return 'day';
+}
+
+function dgFormatDateLabel(date, granularity) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (granularity === 'year') return String(date.getFullYear());
+  if (granularity === 'month') return `${months[date.getMonth()]} ${date.getFullYear()}`;
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
 function dgColumnIsNumeric(colIdx) {
   if (!dgUploadParsed) return false;
+  // A genuine date column (even a slash/dash-formatted one that's technically all digits once
+  // the separators are stripped) should never be treated as a numeric measure — plotting
+  // "2024-01-15" as the number 20240115 is never what anyone wants.
+  if (dgColumnIsDate(colIdx)) return false;
   const allRows = dgUploadParsed.rows;
   const SAMPLE_SIZE = 40;
   // Spread the sample across the WHOLE column, not just the first 25 rows —
@@ -51427,6 +52216,83 @@ function dgColumnIsNumeric(colIdx) {
   });
   return total > 0 && (numeric / total) > 0.6;
 }
+
+// ── Identifier-column detection ──────────────────────────────────────────
+// "Order ID", "Invoice No", "Customer ID" columns parse as numeric (they're
+// digits) but they're LABELS, not measures — an ID has no meaningful sum,
+// average, or trend. Charted as a value next to real measures like Revenue
+// or Unit Price, an ID column produces stats that are arithmetically valid
+// but semantically nonsense.
+//
+// This is deliberately NOT a header-keyword lookup. A wordlist ("id", "no",
+// "code"...) only understands columns that happen to be spelled in English
+// the way the wordlist expects — it fails silently on "Sr.", "Roll", a
+// Hindi/Gujarati header, or any header at all if the sheet has none. What
+// actually makes a column an identifier isn't its name, it's how its values
+// behave relative to the rows they sit in. Three structural signals, none
+// of them language-dependent:
+//   1. Near-total uniqueness — a real measure (price, quantity, revenue)
+//      naturally repeats across rows; an identifier is ~1 distinct value
+//      per row. Required baseline for every route below.
+//   2. Row-order correlation — an identifier is fundamentally an
+//      enumeration of the rows themselves, so its values track row
+//      position (Pearson r against row index) whether it counts 1,2,3,...
+//      or 1005,1010,1015,... or counts downward. A genuine measure has no
+//      structural reason to move in lockstep with upload row order.
+//   3. Alphanumeric code shape — letters mixed with digits in most values
+//      (ORD1001, INV-2026-045) is a shape business measures don't take,
+//      independent of whether the codes happen to be sequential.
+// A column only needs to clear (1) plus EITHER (2) or (3) — it's read from
+// what the column IS, not what it's called.
+function dgRowOrderCorrelation(nums) {
+  const n = nums.length;
+  if (n < 3) return 0;
+  const meanIdx = (n - 1) / 2;
+  const meanVal = nums.reduce((a, b) => a + b, 0) / n;
+  let cov = 0, varIdx = 0, varVal = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = i - meanIdx, dy = nums[i] - meanVal;
+    cov += dx * dy; varIdx += dx * dx; varVal += dy * dy;
+  }
+  if (varIdx === 0 || varVal === 0) return 0;
+  return cov / Math.sqrt(varIdx * varVal);
+}
+
+function dgValuesLookLikeAlnumCode(vals) {
+  // Mixed letters-and-digits in a consistent shape (ORD1001, INV-2026-045,
+  // TXN-00931) — real measures don't take this shape; codes do.
+  const codeLike = vals.filter(v => /[a-z]/i.test(v) && /\d/.test(v));
+  return vals.length > 0 && (codeLike.length / vals.length) > 0.8;
+}
+
+function dgIsIdentifierColumn(colIdx) {
+  if (!dgUploadParsed) return false;
+  const rows = dgUploadParsed.rows;
+  const vals = rows.map(r => String(r[colIdx] ?? '').trim()).filter(v => v !== '');
+  if (vals.length < 3) return false; // too few rows to judge shape/uniqueness meaningfully
+  const uniqueRatio = new Set(vals).size / vals.length;
+  if (uniqueRatio <= 0.85) return false; // real measures repeat; identifiers essentially never do
+
+  // Certain: mixed letters+digits is a shape real business measures don't take at
+  // all, sequential or not — safe to treat as a hard identifier.
+  if (dgValuesLookLikeAlnumCode(vals)) return 'hard';
+
+  // Ambiguous: a purely numeric column that tracks row order near-perfectly IS
+  // what a row index looks like, but it's also EXACTLY what a genuinely rising,
+  // all-unique measure looks like (a running balance, cumulative revenue, a
+  // steadily climbing KPI) — the two are structurally identical from values
+  // alone, with no reliable way to tell them apart without semantic context this
+  // function doesn't have. So this is a signal to default off and flag, not a
+  // reason to hide the column outright — the person uploading it still knows
+  // whether it's really an index or a real measure, even when the statistics
+  // can't.
+  const nums = vals.map(v => dgParseNumericCell(v)).filter(n => !isNaN(n));
+  if (nums.length === vals.length && Math.abs(dgRowOrderCorrelation(nums)) > 0.9) return 'soft';
+
+  return false;
+}
+
+
 
 // ── Map mode: "country column" detection ────────────────────────────────
 // Scores a column by how many of its sampled cells resolve against the
@@ -51500,13 +52366,19 @@ function dgPopulateUploadSelectors() {
   const labelSel = document.getElementById('dgLabelColSelect');
   if (!labelSel) return;
   const numericFlags = headers.map((_, i) => dgColumnIsNumeric(i));
+  const dateFlags = headers.map((_, i) => dgColumnIsDate(i));
   // Map mode: the Label Column dropdown IS the "which column holds my countries" picker,
   // so flag whichever column actually looks like a country list right in its option text
   // instead of leaving the person to guess from the header name alone.
   const isMapMode = dgActiveMode === 'map';
   const bestCountryIdx = isMapMode ? dgBestCountryColumnIdx() : -1;
+  // A date column is the natural x-axis/category for a time series, so flag it in the Label
+  // Column dropdown the same way a detected country column is flagged for the Map tab.
+  const bestDateIdx = !isMapMode ? dateFlags.findIndex(Boolean) : -1;
   const optionsHtml = headers.map((h, i) => {
-    const tag = (i === bestCountryIdx) ? ' \u2014 Country column detected \ud83c\udf0d' : '';
+    let tag = '';
+    if (i === bestCountryIdx) tag = ' \u2014 Country column detected \ud83c\udf0d';
+    else if (i === bestDateIdx) tag = ' \u2014 Date column detected \ud83d\udcc5';
     return `<option value="${i}">${daEsc(h)}${tag}</option>`;
   }).join('');
   labelSel.innerHTML = optionsHtml;
@@ -51515,11 +52387,13 @@ function dgPopulateUploadSelectors() {
   // value column — if someone uploads Product | Q1 | Q2 | Q3 | Total, the default chart
   // should plot Q1 (a real, comparable number), not a column that's the sum of the other
   // three. Only falls back to the Total column if it's the ONLY numeric column present.
-  const firstNonAggregateNumericIdx = numericFlags.findIndex((n, i) => n && !dgIsAggregateHeader(headers[i]));
-  const firstNumericIdx = firstNonAggregateNumericIdx >= 0 ? firstNonAggregateNumericIdx : numericFlags.findIndex(n => n);
-  // On the Map tab, default straight to the detected country column when there is one —
-  // otherwise fall back to the old "first non-numeric column" guess.
-  labelSel.value = bestCountryIdx >= 0 ? bestCountryIdx : (firstLabelIdx >= 0 ? firstLabelIdx : 0);
+  const firstNonAggregateNumericIdx = numericFlags.findIndex((n, i) => n && !dgIsAggregateHeader(headers[i]) && !dgIsIdentifierColumn(i));
+  const firstNumericIdx = firstNonAggregateNumericIdx >= 0 ? firstNonAggregateNumericIdx
+    : (numericFlags.findIndex((n, i) => n && !dgIsIdentifierColumn(i)) >= 0 ? numericFlags.findIndex((n, i) => n && !dgIsIdentifierColumn(i)) : numericFlags.findIndex(n => n));
+  // On the Map tab, default straight to the detected country column when there is one; otherwise
+  // prefer a detected date column as the x-axis (time series read far better than an arbitrary
+  // row order), and only fall back to the old "first non-numeric column" guess after that.
+  labelSel.value = bestCountryIdx >= 0 ? bestCountryIdx : (bestDateIdx >= 0 ? bestDateIdx : (firstLabelIdx >= 0 ? firstLabelIdx : 0));
   let valueIdx = firstNumericIdx >= 0 ? firstNumericIdx : (headers.length > 1 ? 1 : 0);
   if (valueIdx === parseInt(labelSel.value, 10) && headers.length > 1) {
     valueIdx = (valueIdx + 1) % headers.length;
@@ -51528,9 +52402,14 @@ function dgPopulateUploadSelectors() {
   const hint = document.getElementById('dgUploadHint');
   if (hint) {
     const numCount = numericFlags.filter(Boolean).length;
-    hint.textContent = `${dgUploadParsed.rows.length} rows detected \u00b7 ${numCount} numeric column${numCount === 1 ? '' : 's'} found. Tick just one column for a normal chart, or 2+ to build a side-by-side comparison.`;
+    const dateNote = bestDateIdx >= 0 ? ` \u00b7 date column found \u2014 charted in chronological order` : '';
+    const hardIdIdxs = headers.map((_, i) => i).filter(i => numericFlags[i] && dgIsIdentifierColumn(i) === 'hard');
+    const softIdIdxs = headers.map((_, i) => i).filter(i => numericFlags[i] && dgIsIdentifierColumn(i) === 'soft');
+    const hardNote = hardIdIdxs.length ? ` \u00b7 ${hardIdIdxs.length} ID column${hardIdIdxs.length === 1 ? '' : 's'} (${hardIdIdxs.map(i => headers[i]).join(', ')}) kept out of Values \u2014 use as Label instead` : '';
+    const softNote = softIdIdxs.length ? ` \u00b7 ${softIdIdxs.map(i => headers[i]).join(', ')} look${softIdIdxs.length === 1 ? 's' : ''} like a row index \u2014 left unticked, but available if it's really a measure` : '';
+    hint.textContent = `${dgUploadParsed.rows.length} rows detected \u00b7 ${numCount} numeric column${numCount === 1 ? '' : 's'} found${dateNote}${hardNote}${softNote}. Tick just one column for a normal chart, or 2+ to build a side-by-side comparison.`;
   }
-  dgRenderUploadPreview(numericFlags);
+  dgRenderUploadPreview(numericFlags, dateFlags);
 }
 
 // Reads which value-column checkboxes the person has ticked, in the order they appear
@@ -51553,15 +52432,27 @@ function dgRenderValueColChecks(defaultIdx) {
   const labelSel = document.getElementById('dgLabelColSelect');
   const labelIdx = labelSel && labelSel.value !== '' ? parseInt(labelSel.value, 10) : -1;
   const scheme = dgCurrentScheme();
-  const numericIdxs = headers.map((_, i) => i).filter(i => i !== labelIdx && dgColumnIsNumeric(i));
+  // Hard identifiers (alphanumeric codes — ORD1001, CMP-2026-01) are excluded
+  // outright: that shape is never a real business measure, so offering them as
+  // tickable "values" only invites comparing a code against a revenue total.
+  // "Soft" flags (a purely numeric column that tracks row order almost
+  // perfectly) stay in the list — that shape is genuinely ambiguous, it can be
+  // a row index OR a real climbing measure (running balance, cumulative
+  // total) — so those are kept selectable, just unchecked by default and
+  // visibly labeled, so the person decides instead of the heuristic deciding
+  // for them. Either way, an ID column is still fully available as the Label
+  // Column, which is where an identifier actually belongs.
+  const numericIdxs = headers.map((_, i) => i).filter(i => i !== labelIdx && dgColumnIsNumeric(i) && dgIsIdentifierColumn(i) !== 'hard');
   const prevChecked = new Set(dgGetCheckedValueCols());
   wrap.innerHTML = numericIdxs.length ? numericIdxs.map((i, si) => {
-    const checked = prevChecked.size ? prevChecked.has(i) : (i === defaultIdx);
+    const idLevel = dgIsIdentifierColumn(i);
+    const checked = prevChecked.size ? prevChecked.has(i) : (!idLevel && i === defaultIdx);
+    const flagNote = idLevel === 'soft' ? ' <span class="dg-upload-value-flag" title="Values track row order almost perfectly \u2014 looks like a row index. Tick only if this is really a measure you want to chart.">\u26a0\ufe0f looks like a row index</span>' : '';
     return `
       <label class="dg-upload-value-check">
         <input type="checkbox" value="${i}" ${checked ? 'checked' : ''} onchange="dgGenerateChartFromUpload()">
         <span class="dg-upload-value-swatch" style="background:${scheme[si % scheme.length]}"></span>
-        <span class="dg-upload-value-check-label" title="${daEsc(headers[i])}">${daEsc(headers[i])}</span>
+        <span class="dg-upload-value-check-label" title="${daEsc(headers[i])}">${daEsc(headers[i])}</span>${flagNote}
       </label>`;
   }).join('') : `<div class="dg-upload-hint" style="margin:0">No other numeric columns found</div>`;
 }
@@ -51576,24 +52467,29 @@ function dgOnLabelColSelectChange() {
 // Complex uploads (many columns, mixed types, big row counts) are hard to reason about from a
 // bare pair of dropdowns. This gives a quick visual sanity-check — column type badges plus a
 // peek at the first few rows — before the person commits to a label/value mapping.
-function dgRenderUploadPreview(numericFlags) {
+function dgRenderUploadPreview(numericFlags, dateFlags) {
   const wrap = document.getElementById('dgUploadPreview');
   if (!wrap || !dgUploadParsed) return;
   const { headers, rows } = dgUploadParsed;
   const flags = numericFlags || headers.map((_, i) => dgColumnIsNumeric(i));
+  const dFlags = dateFlags || headers.map((_, i) => dgColumnIsDate(i));
+  const dateCount = dFlags.filter(Boolean).length;
   const numCount = flags.filter(Boolean).length;
-  const textCount = headers.length - numCount;
+  const textCount = headers.length - numCount - dateCount;
   const sampleRows = rows.slice(0, 4);
   const chips = `
     <div class="dg-upload-preview-chips">
       <span class="dg-upload-chip">${rows.length} rows</span>
       <span class="dg-upload-chip">${headers.length} columns</span>
       <span class="dg-upload-chip">${numCount} numeric</span>
+      ${dateCount ? `<span class="dg-upload-chip date">${dateCount} date/time</span>` : ''}
       ${textCount ? `<span class="dg-upload-chip text">${textCount} text</span>` : ''}
     </div>`;
-  const theadCells = headers.map((h, i) => `
-    <th title="${daEsc(h)}">${daEsc(h)}<span class="dg-upload-preview-type${flags[i] ? '' : ' text'}">${flags[i] ? '123 Numeric' : 'ABC Text'}</span></th>
-  `).join('');
+  const theadCells = headers.map((h, i) => {
+    const kind = dFlags[i] ? 'date' : (flags[i] ? '' : 'text');
+    const label = dFlags[i] ? '\ud83d\udcc5 Date' : (flags[i] ? '123 Numeric' : 'ABC Text');
+    return `<th title="${daEsc(h)}">${daEsc(h)}<span class="dg-upload-preview-type${kind ? ' ' + kind : ''}">${label}</span></th>`;
+  }).join('');
   const bodyRows = sampleRows.map(r => `
     <tr>${headers.map((_, i) => `<td title="${daEsc(String(r[i] ?? ''))}">${daEsc(String(r[i] ?? ''))}</td>`).join('')}</tr>
   `).join('');
@@ -51612,23 +52508,58 @@ function dgGenerateChartFromUpload(topGrouped) {
   const labelSel = document.getElementById('dgLabelColSelect');
   if (!labelSel || labelSel.value === '') return;
   const labelIdx = parseInt(labelSel.value, 10);
-  const valueIdxs = dgGetCheckedValueCols();
+  let valueIdxs = dgGetCheckedValueCols();
   if (!valueIdxs.length) { toast('Tick at least one value column to plot', 'info'); return; }
   const scheme = dgCurrentScheme();
   const MAX_POINTS = 40;
   const rawRows = dgUploadParsed.rows;
 
   if (valueIdxs.length >= 2) {
-    // 2+ columns ticked \u2014 an explicit "compare these" request. Build the same
-    // categories/series shape the automatic stem detector builds, so it plugs straight
-    // into the existing 2D grouped bar, 3D grouped bar, and Hologram renderers untouched.
+    // Comparability guard \u2014 ticking 2+ columns is an explicit "compare these" request,
+    // but that request can still mix incompatible measures (Unit Price vs. Total Sales, a
+    // raw count vs. a currency total) if someone ticks whatever happens to look numeric.
+    // Reuse the exact same unit/stem/magnitude clustering the automatic stem-detector uses
+    // (dgGroupNumericColumns, above) so a manual multi-tick gets the same protection
+    // instead of silently charting apples against oranges on one shared axis.
+    const clusters = dgGroupNumericColumns(dgUploadParsed.headers, valueIdxs, rawRows);
+    if (clusters.length > 1) {
+      // Keep whichever cluster the FIRST ticked column belongs to \u2014 the column ticked
+      // first is the best signal of what the person actually meant to compare \u2014 and
+      // drop the rest. Never silent: uncheck those boxes and say exactly why.
+      const keepCluster = clusters.find(c => c.includes(valueIdxs[0])) || clusters[0];
+      const dropped = valueIdxs.filter(i => !keepCluster.includes(i));
+      if (dropped.length) {
+        dropped.forEach(i => {
+          const cb = document.querySelector(`#dgValueColChecks input[type="checkbox"][value="${i}"]`);
+          if (cb) cb.checked = false;
+        });
+        const droppedNames = dropped.map(i => dgUploadParsed.headers[i]).join(', ');
+        const keptNames = keepCluster.map(i => dgUploadParsed.headers[i]).join(', ');
+        toast(`${droppedNames} isn\u2019t on the same scale as ${keptNames} \u2014 left out so the axis stays meaningful. Chart it on its own if you need it.`, 'info');
+      }
+      valueIdxs = keepCluster.slice().sort((a, b) => a - b);
+    }
+    // 2+ (now comparability-checked) columns ticked \u2014 build the same categories/series
+    // shape the automatic stem detector builds, so it plugs straight into the existing 2D
+    // grouped bar, 3D grouped bar, and Hologram renderers untouched.
     const MAX_CATEGORIES = 30;
+    // Same time-series awareness as the single-series path below: a date label column gets
+    // sorted chronologically and re-labelled at a fitting granularity, so a grouped/clustered
+    // comparison chart built from monthly or yearly data reads left-to-right through time
+    // instead of in upload row order.
+    const groupedLabelColIsDate = dgColumnIsDate(labelIdx);
+    let candidateRows = rawRows.map(r => ({ r, dateVal: groupedLabelColIsDate ? dgParseDateCell(r[labelIdx]) : null }))
+      .filter(x => !groupedLabelColIsDate || x.dateVal);
+    if (groupedLabelColIsDate) candidateRows.sort((a, b) => a.dateVal - b.dateVal);
+    const groupedGranularity = groupedLabelColIsDate ? dgDetectDateGranularity(candidateRows.map(x => x.dateVal)) : null;
     const categories = [];
     const rowsUsed = [];
     let excludedTotalRows = 0;
-    for (let i = 0; i < rawRows.length && categories.length < MAX_CATEGORIES; i++) {
-      const r = rawRows[i];
-      const label = String(r[labelIdx] ?? '').trim() || `Item ${categories.length + 1}`;
+    for (let i = 0; i < candidateRows.length && categories.length < MAX_CATEGORIES; i++) {
+      const r = candidateRows[i].r;
+      const label = groupedLabelColIsDate
+        ? dgFormatDateLabel(candidateRows[i].dateVal, groupedGranularity)
+        : (String(r[labelIdx] ?? '').trim() || `Item ${categories.length + 1}`);
       // A "Total"/"Grand Total"/"Average" row baked into the sheet isn't its own category
       // — it's the sum of the others, and would dwarf every real bar in the group.
       if (dgIsAggregateLabel(label)) { excludedTotalRows++; continue; }
@@ -51673,15 +52604,29 @@ function dgGenerateChartFromUpload(topGrouped) {
   const valueIdx = valueIdxs[0];
   const signHint2 = [dgUploadParsed.headers[valueIdx], document.getElementById('dgTitleInput')?.value].filter(Boolean).join(' ');
   dgApplyDetectedSign(dgDetectValueSign(rawRows.map(r => r[valueIdx]), signHint2));
+  // A date/time label column means this is a time series: parse each row's real date so the
+  // points can be put back in chronological order (never trust upload row order for this — a
+  // sheet sorted newest-first, or with a few rows out of order, would otherwise plot a chart
+  // that zig-zags across time) and re-labelled at whatever granularity actually fits the span
+  // of dates present (see dgDetectDateGranularity), instead of printing the raw cell text.
+  const labelColIsDate = dgColumnIsDate(labelIdx);
   const rawParsed = [];
   for (let i = 0; i < rawRows.length; i++) {
     const r = rawRows[i];
     const value = dgParseNumericCell(r[valueIdx]);
     if (isNaN(value)) continue;
-    const label = String(r[labelIdx] ?? '').trim() || `Item ${rawParsed.length + 1}`;
-    rawParsed.push({ label, value });
+    let label = String(r[labelIdx] ?? '').trim() || `Item ${rawParsed.length + 1}`;
+    let dateVal = null;
+    if (labelColIsDate) { dateVal = dgParseDateCell(r[labelIdx]); if (!dateVal) continue; }
+    rawParsed.push({ label, value, dateVal });
   }
   if (!rawParsed.length) { toast('Could not find numeric values in that column — try a different Value column', 'error'); return; }
+
+  if (labelColIsDate) {
+    rawParsed.sort((a, b) => a.dateVal - b.dateVal);
+    const granularity = dgDetectDateGranularity(rawParsed.map(p => p.dateVal));
+    rawParsed.forEach(p => { p.label = dgFormatDateLabel(p.dateVal, granularity); });
+  }
 
   // Leave summary rows out of the actual chart — by label ("Total", "Grand Total",
   // "Average"...) first, and if none are spelled that way, fall back to catching a row
@@ -51693,7 +52638,9 @@ function dgGenerateChartFromUpload(topGrouped) {
   if (!parsed.length) { toast('Could not find numeric values in that column — try a different Value column', 'error'); return; }
 
   let built, infoMsg;
-  if (topGrouped && parsed.length > MAX_POINTS - 1) {
+  if (topGrouped && parsed.length > MAX_POINTS - 1 && !labelColIsDate) {
+    // (Skipped for date-labelled data — collapsing the smallest points into an "Other" bucket
+    // would destroy the chronological order that's the whole point of a time series chart.)
     // Instead of silently cutting the data off after MAX_POINTS rows, keep the largest
     // entries (by magnitude) visible on their own and fold everything smaller into one
     // "Other" bucket, so the total the chart represents still adds up to the real total.
@@ -51714,8 +52661,17 @@ function dgGenerateChartFromUpload(topGrouped) {
   const sameToggle = document.getElementById('dgSameColorToggle');
   if (sameToggle) sameToggle.checked = false;
   dgState.rows = built;
-  dgRenderRows();
-  dgRender();
+  // A time series reads far better as a line than as a row of disconnected bars — but only
+  // switch automatically while the chart is still sitting at the app's plain default ('bar'
+  // with nothing plotted yet); once someone has deliberately picked a chart type for THIS
+  // dataset, that choice is respected and left alone on every subsequent re-tick/re-upload.
+  let dateTypeNote = '';
+  if (labelColIsDate && dgState.type === 'bar' && dgActiveMode !== 'map') {
+    dgSetType('line');
+    dateTypeNote = ' \u2014 switched to a line chart for the time series';
+  } else {
+    dgRender();
+  }
   dgSyncPerCountryGallery(built);
   if (dgMapx.map && document.getElementById('dgMapExplorerModal').classList.contains('open')) dgRefreshMapExplorerMarkers();
 
@@ -51746,8 +52702,8 @@ function dgGenerateChartFromUpload(topGrouped) {
   const totalNote = excludedRows.length
     ? ` \u2014 left out ${excludedRows.length === 1 ? `"${excludedRows[0].label}"` : excludedRows.length + ' summary rows'} (looked like a total/average, not a real data point)`
     : '';
-  if (infoMsg) toast(infoMsg + totalNote + stateAutoNote, 'info');
-  else toast('Chart generated from your uploaded data' + totalNote + stateAutoNote, (totalNote || stateAutoNote) ? 'info' : 'success');
+  if (infoMsg) toast(infoMsg + totalNote + stateAutoNote + dateTypeNote, 'info');
+  else toast('Chart generated from your uploaded data' + totalNote + stateAutoNote + dateTypeNote, (totalNote || stateAutoNote || dateTypeNote) ? 'info' : 'success');
 }
 
 function dgRemoveRow(idx) {
@@ -52058,6 +53014,10 @@ const DG_DOMAINS = {
   operations_inventory: {
     label: 'Operations & Inventory',
     keywords: ['inventory', 'stock', 'unit', 'defect', 'downtime', 'production', 'shipment', 'sku', 'warehouse', 'backlog']
+  },
+  birth_demographics: {
+    label: 'Birth & Demographic Data',
+    keywords: ['birth', 'dob', 'age', 'birthday', 'demographic', 'cohort', 'generation', 'population', 'zodiac', 'birthplace', 'birth place', 'date of birth']
   }
 };
 
@@ -52155,9 +53115,28 @@ function dgBuildBusinessReadSentence(domain, stats, rows, opts) {
       }
       return '';
     }
+    case 'birth_demographics': {
+      const median = dgMedian(rows.map(r => r.value));
+      const spread = stats.max - stats.min;
+      if (stats.outliers.length) {
+        const who = stats.outliers.length > 1 ? `${stats.outliers.length} entries sit` : `<b>${dgEsc(stats.outliers[0].label)}</b> sits`;
+        return `${who} well outside the typical range for this group — median is ${fmt(median)} vs. a spread of ${fmt(spread)} end to end, so it's worth checking those rows are correct before drawing generational conclusions.`;
+      }
+      return `Median is ${fmt(median)}, close to the mean of ${fmt(stats.avg)} — a fairly even distribution across this group rather than being skewed by a few much older or younger entries.`;
+    }
     default:
       return '';
   }
+}
+
+// ── Median helper — used by the birth/demographic read above, and generally
+// useful anywhere a distribution's center matters more than its mean (which
+// a single very old or very young entry can drag around).
+function dgMedian(vals) {
+  const v = [...vals].filter(x => typeof x === 'number' && !isNaN(x)).sort((a, b) => a - b);
+  if (!v.length) return 0;
+  const mid = Math.floor(v.length / 2);
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
 }
 
 // ─── INSIGHTS PANEL TOGGLE (mirrors the PDF editor's right-panel collapse) ───
@@ -52215,8 +53194,15 @@ function dgRenderInsightsStrip() {
     avg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>',
     high: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>',
     low: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>',
-    growth: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6 13.5 15.5l-5-5L1 18"/><path d="M17 6h6v6"/></svg>'
+    growth: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6 13.5 15.5l-5-5L1 18"/><path d="M17 6h6v6"/></svg>',
+    median: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="6" x2="12" y2="18"/></svg>',
+    spread: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.9 4.9l2.8 2.8"/><path d="M16.3 16.3l2.8 2.8"/></svg>',
+    outlier: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="18" cy="6" r="2.2" fill="currentColor" stroke="none"/></svg>'
   };
+  // Distribution-level stats (median / std dev / outliers) — these speak to how the data is
+  // SHAPED, not just its total/average, which is what separates a rigorous read from a basic one.
+  const medianVal = dgMedian(dgState.rows.map(r => r.value));
+  const outlierCount = stats.outliers.length;
   const trendArrowUp = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
   const trendArrowDown = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>';
   const trendArrowFlat = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>';
@@ -52246,6 +53232,22 @@ function dgRenderInsightsStrip() {
       <span class="dg-stat-value" style="color:${growthColor}">${growthDisplay}</span>
       <span class="dg-stat-trend ${growthTrendClass}">${growthArrow}${growthTrendClass === 'up' ? 'Rising' : growthTrendClass === 'down' ? 'Falling' : 'Flat'}</span>
     </div>
+    <div class="dg-stat-card" style="--dg-accent:#7A8CA8">
+      <div class="dg-stat-card-top"><span class="dg-stat-label">Median</span><div class="dg-stat-icon">${ICONS.median}</div></div>
+      <span class="dg-stat-value">${fmt(medianVal)}</span>
+      <span class="dg-stat-sub">${Math.abs(medianVal - stats.avg) > stats.avg * 0.1 ? 'Differs from mean — data is skewed' : 'Close to mean — evenly spread'}</span>
+    </div>
+    <div class="dg-stat-card" style="--dg-accent:#8B7CA6">
+      <div class="dg-stat-card-top"><span class="dg-stat-label">Std Deviation</span><div class="dg-stat-icon">${ICONS.spread}</div></div>
+      <span class="dg-stat-value">${fmt(stats.stdDev)}</span>
+      <span class="dg-stat-sub">${(stats.coefVar * 100).toFixed(0)}% coefficient of variation</span>
+    </div>
+    ${outlierCount ? `
+    <div class="dg-stat-card" style="--dg-accent:#B8863E;border-color:rgba(184,134,62,0.35)">
+      <div class="dg-stat-card-top"><span class="dg-stat-label" style="color:#B8863E">Outliers</span><div class="dg-stat-icon">${ICONS.outlier}</div></div>
+      <span class="dg-stat-value" style="color:#B8863E">${outlierCount}</span>
+      <span class="dg-stat-sub" title="${dgEsc(stats.outliers.map(o=>o.label).join(', '))}">${dgEsc(stats.outliers.slice(0,2).map(o=>o.label).join(', '))}${outlierCount>2?` +${outlierCount-2} more`:''}</span>
+    </div>` : ''}
     ${negativeWarning}
   `;
   if (sentenceEl) {
