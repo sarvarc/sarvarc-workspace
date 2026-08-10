@@ -34944,18 +34944,23 @@ function daSplitDelimitedText(text) {
 
   if (best && best.maxCount >= 2) {
     // A comma or semicolon is everyday punctuation inside ordinary
-    // sentences, so with only one line to go on — no second row to check
-    // the column count stays consistent against — a long comma-heavy
-    // sentence scores exactly the same as a real one-row CSV export. Only
-    // for that single-line comma/semicolon case, look at what the
-    // resulting "cells" actually contain: a full stop followed by a new
-    // capitalized sentence sitting INSIDE one cell, or most cells reading
-    // as multi-word phrases stitched together with ordinary stopwords,
-    // means this was prose being cut on its commas, not real data — bail
-    // out so the caller falls back to placing it as plain text instead.
-    if (lines.length === 1 && (best.delim === ',' || best.delim === ';')) {
-      const cells = parseLineCsvAware(lines[0], best.delim);
-      if (daCellsLookLikeProse(cells)) return null;
+    // sentences, so a multi-paragraph paste (each paragraph comma-heavy)
+    // can score just as well as a real multi-row CSV export — every "row"
+    // (paragraph) having a similar comma count looks exactly like column
+    // consistency. A single line was the only case originally guarded
+    // against; that missed the far more common case of a pasted block of
+    // prose spanning several lines (e.g. a multi-paragraph report summary,
+    // which produced a 4-col/2-row table out of two ordinary sentences
+    // here). So for ANY comma/semicolon delimiter — not just a single
+    // line — check what the resulting cells actually contain across every
+    // sampled row: a full stop followed by a new capitalized sentence
+    // sitting INSIDE one cell, or most cells reading as multi-word phrases
+    // stitched together with ordinary stopwords, means this was prose
+    // being cut on its commas, not real data — bail out so the caller
+    // falls back to placing it as plain text instead.
+    if (best.delim === ',' || best.delim === ';') {
+      const allCells = sample.reduce((acc, l) => acc.concat(parseLineCsvAware(l, best.delim)), []);
+      if (daCellsLookLikeProse(allCells)) return null;
     }
     return lines.map(l => parseLineCsvAware(l, best.delim));
   }
