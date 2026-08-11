@@ -2,6 +2,18 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
+<script>
+  // Apply the user's last-chosen theme immediately (before CSS/paint) so the
+  // page never flashes/reverts to light mode for someone who left it in dark mode.
+  (function () {
+    try {
+      var saved = localStorage.getItem('sarvarcTheme');
+      if (saved === 'dark' || saved === 'light') {
+        document.documentElement.dataset.theme = saved;
+      }
+    } catch (e) {}
+  })();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SARVARC Workspace – All-in-One PDF, Data &amp; Diagram Editor Online</title>
@@ -2391,6 +2403,57 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   box-shadow: 0 0 10px rgba(0,194,255,0.35);
 }
 
+/* ─── Refine-connected group (SARVARC Eye + pull-up/push-down) ───
+   One shared capsule ties these three together visually as the same
+   family as Refine Report — same cyan→purple gradient language, just
+   quieter, since this is a one-page manual nudge rather than a whole-
+   document pass. Eye keeps its own stronger tint (it's the primary,
+   one-click action); the two flow buttons sit at a lighter tint so the
+   group reads as "Eye, plus two related tools" rather than three equals. */
+.pdfed-pgact-refine-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(0,194,255,0.08), rgba(168,85,247,0.08));
+  border: 1px solid rgba(0,194,255,0.16);
+}
+.theme-light .pdfed-pgact-refine-group {
+  background: linear-gradient(135deg, rgba(0,115,230,0.06), rgba(147,51,234,0.06));
+  border-color: rgba(0,115,230,0.16);
+}
+.pdfed-pgact-refine-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(0,194,255,0.2);
+  flex-shrink: 0;
+}
+.theme-light .pdfed-pgact-refine-divider { background: rgba(0,115,230,0.18); }
+.pdfed-pgact-flow-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--cyan);
+}
+.pdfed-pgact-flow-btn:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.20), rgba(168,85,247,0.20));
+  color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,194,255,0.28);
+}
+.pdfed-pgact-flow-btn:disabled {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text3);
+}
+.pdfed-pgact-flow-btn:disabled:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text3);
+}
+
 /* Quiet, single-pass shimmer across the canvas — confirms SARVARC Eye did
    something without any confetti/sparkle theatrics. A thin, low-opacity
    diagonal band sweeps once and is gone; nothing repeats, nothing loops. */
@@ -4203,6 +4266,91 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .pdfed-refine-logo-remove:hover { color: var(--text2); }
 
+/* ─── Refine Report — easy-UI step grouping ───
+   Wraps the modal's fields into clearly labeled, numbered steps (Style →
+   Logo → Layout → Formatting) so a first-time user can scan top-to-bottom
+   instead of parsing one long flat list of unrelated controls. */
+.pdfed-refine-step { padding: 14px 24px; border-top: 1px solid var(--border2); }
+.pdfed-refine-step:first-child { border-top: none; }
+.pdfed-refine-step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pdfed-refine-step-num {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--blue); color: #fff;
+  font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pdfed-refine-step-title { font-size: 13px; font-weight: 700; color: var(--text1); }
+.pdfed-refine-step-sub { font-size: 11px; color: var(--text3); font-weight: 400; margin-left: 4px; }
+.pdfed-refine-step > .pdfed-export-field:last-child,
+.pdfed-refine-step > .pdfed-export-checkbox:last-child { margin-bottom: 0; }
+.pdfed-refine-formatting-list { display: flex; flex-direction: column; gap: 10px; }
+.pdfed-refine-formatting-toggle {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  font-size: 12px; font-weight: 600; color: var(--text2); list-style: none; margin-bottom: 10px;
+}
+.pdfed-refine-formatting-toggle::-webkit-details-marker { display: none; }
+.pdfed-refine-formatting-toggle svg { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; }
+details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); }
+
+/* ─── Refine Report — bigger, two-column modal ───
+   The modal used to be a single narrow (440px) column: a tiny preview
+   stacked above a long scrolling form, so nothing was visible at once and
+   it read as a plain settings dialog rather than something that shows you
+   what it's about to do. This widens the modal into a proper rectangle and
+   splits it into a left column (a "what this does" summary + the live
+   preview, pinned in view) and a right column (the numbered steps,
+   scrolling independently) so the preview stays visible the whole time a
+   person is adjusting settings. */
+#pdfedRefineOverlay .pdfed-export-modal { max-width: 1040px; width: 95%; }
+.pdfed-refine-layout { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.pdfed-refine-preview-col {
+  width: 340px; flex-shrink: 0; background: var(--bg3);
+  border-right: 1px solid var(--border);
+  padding: 20px 22px 22px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px;
+  justify-content: center;
+}
+.pdfed-refine-preview-col .pdfed-refine-capabilities,
+.pdfed-refine-preview-col .pdfed-refine-preview-wrap { flex-shrink: 0; }
+.pdfed-refine-preview-col .pdfed-refine-safety-note { margin-top: 0; }
+.pdfed-refine-preview-col .pdfed-refine-preview-wrap { padding: 0; }
+.pdfed-refine-safety-note {
+  margin-top: auto; display: flex; gap: 10px; align-items: flex-start;
+  background: rgba(0,194,255,0.06); border: 1px solid rgba(0,194,255,0.18);
+  border-radius: 12px; padding: 13px 14px;
+}
+.pdfed-refine-safety-note svg { color: var(--blue); flex-shrink: 0; margin-top: 1px; }
+.pdfed-refine-safety-title { font-size: 11.5px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.pdfed-refine-safety-body { font-size: 11px; line-height: 1.5; color: var(--text2); }
+.pdfed-refine-safety-body b { color: var(--text); }
+@media (max-width: 860px) {
+  .pdfed-refine-safety-note { margin-top: 16px; }
+}
+.pdfed-refine-steps-col {
+  flex: 1 1 auto; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.pdfed-refine-steps-col .da-dropdown-body { flex: 1 1 auto; }
+.pdfed-refine-cap-title {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--text2); margin-bottom: 9px;
+}
+.pdfed-refine-cap-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.pdfed-refine-cap-chip {
+  font-size: 10.5px; font-weight: 600; color: var(--blue);
+  background: rgba(0,194,255,0.1); border: 1px solid rgba(0,194,255,0.25);
+  border-radius: 20px; padding: 4px 10px; line-height: 1.3;
+}
+@media (max-width: 860px) {
+  #pdfedRefineOverlay .pdfed-export-modal { max-width: 94%; }
+  .pdfed-refine-layout { flex-direction: column; overflow-y: auto; }
+  .pdfed-refine-preview-col {
+    width: auto; border-right: none; border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+  }
+  .pdfed-refine-steps-col { overflow: visible; }
+  .pdfed-refine-steps-col .da-dropdown-body { overflow-y: visible; flex: none; }
+}
+
 /* ─── Refine Report — live style preview ───
    A small mock report card (not the real page) that reflects the chosen
    theme font/colors, logo, alignment, and section-icon toggle the instant
@@ -4231,6 +4379,23 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .prp-align-center .prp-divider { margin-left: auto; margin-right: auto; }
 .prp-align-stretch .prp-header { justify-content: space-between; }
 .prp-align-stretch .prp-table { width: 100%; }
+
+/* Logo placement (independent of content alignment above) — nudges just the
+   logo mark to its own left/center/right slot within the header row, in a
+   given theme's chosen content alignment. */
+.prp-header.logo-pos-left .prp-logo { order: -1; margin-right: 0; }
+.prp-header.logo-pos-center .prp-logo { order: -1; margin: 0 auto; }
+.prp-header.logo-pos-right .prp-logo { order: 2; margin-left: auto; }
+
+/* Header text group placement — independent of the logo's own order above,
+   so the two can be paired on the same side (both right, stacked) or
+   opposite sides (logo right, text left), whichever reads as intended. */
+.prp-header.text-pos-left .prp-header-text { order: -2; margin-right: auto; }
+.prp-header.text-pos-right .prp-header-text { order: 3; margin-left: auto; text-align: right; }
+.prp-header.text-pos-right .prp-title,
+.prp-header.text-pos-right .prp-subheading,
+.prp-header.text-pos-right .prp-contact { text-align: right; }
+.prp-header-divider { height: 3px; border-radius: 2px; width: 100%; margin: 8px 0 10px; display: none; }
 
 .pdfed-export-footer {
   display: flex; gap: 10px; justify-content: flex-end;
@@ -8687,6 +8852,10 @@ button.dg-show-chip.active { background:var(--blue); }
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                   OCR
                 </button>
+                <button class="pdfed-rbn-btn" id="pdfedExtractTextBtn" onclick="pdfedOpenExtractChooser()" title="Pull the readable text off this page (or the whole document) as plain text you can copy or download">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+                  Extract Text
+                </button>
                 <button class="pdfed-rbn-btn" id="pdfedTranslateBtn" onclick="pdfedTranslatePageText()" title="Translate this page's text into another language (opt-in, sends only this page's text out)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
                   Translate
@@ -8902,9 +9071,26 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="pdfed-pgact-btn" id="pdfedPgactDup" onclick="pdfedDuplicatePage(pdfed.active)" title="Duplicate this page">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
-              <button class="pdfed-pgact-btn sarvarc-eye-btn" id="sarvarcEyeBtn" onclick="sarvarcEyeApply()" title="SARVARC Eye — one click. It looks at the page and every image placed on it, decides what kind of design each is (cool environment, premium, soft aesthetic, or bold print-ready), and refines each to match — no picking required.">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
+              <span class="pdfed-pgact-sep"></span>
+              <!-- Refine-connected group: SARVARC Eye plus the two manual
+                   layout-flow actions (pull next page up / push bottom item
+                   down) share one quiet gradient capsule — same family as
+                   Refine Report, since a manual nudge here is really just a
+                   one-page, one-click version of what Refine Report does
+                   across the whole document. -->
+              <span class="pdfed-pgact-refine-group" title="Refine Report tools">
+                <button class="pdfed-pgact-btn sarvarc-eye-btn" id="sarvarcEyeBtn" onclick="sarvarcEyeApply()" title="SARVARC Eye — one click. It looks at the page and every image placed on it, decides what kind of design each is (cool environment, premium, soft aesthetic, or bold print-ready), and refines each to match — no picking required.">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <span class="pdfed-pgact-refine-divider" id="pdfedPgactRefineDivider"></span>
+                <button class="pdfed-pgact-btn pdfed-pgact-flow-btn" id="pdfedPgactPullUp" onclick="pdfedManualPushContentUp(pdfed.active)" title="Push this page's content up onto the page above — keeps headers with their content, reflows in hierarchy order, and only moves however much actually fits">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                </button>
+                <button class="pdfed-pgact-btn pdfed-pgact-flow-btn" id="pdfedPgactPushDown" onclick="pdfedManualPushLastItemDown(pdfed.active)" title="Push this page's content down onto the next page — lands above next page's own content, keeps headings with their content, and only moves however much actually fits">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>
+                </button>
+              </span>
+              <span class="pdfed-pgact-sep"></span>
               <button class="pdfed-pgact-btn danger" id="pdfedPgactDel" onclick="pdfedDeletePage(pdfed.active)" title="Delete this page">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               </button>
@@ -11598,12 +11784,30 @@ button.dg-show-chip.active { background:var(--blue); }
       </button>
     </div>
 
+    <div class="pdfed-refine-layout">
+      <div class="pdfed-refine-preview-col">
+        <div class="pdfed-refine-capabilities">
+          <div class="pdfed-refine-cap-title">What this pass does</div>
+          <div class="pdfed-refine-cap-list">
+            <span class="pdfed-refine-cap-chip">Syncs heading &amp; body fonts</span>
+            <span class="pdfed-refine-cap-chip">Matches every table's header style</span>
+            <span class="pdfed-refine-cap-chip">Auto-fits table fonts to columns</span>
+            <span class="pdfed-refine-cap-chip">Straightens table placement</span>
+            <span class="pdfed-refine-cap-chip">Adds your logo + header/footer</span>
+            <span class="pdfed-refine-cap-chip">Standardizes page size</span>
+          </div>
+        </div>
     <div class="pdfed-refine-preview-wrap">
       <div class="pdfed-refine-preview prp-align-left" id="pdfedRefinePreview">
         <div class="prp-header" id="prpHeader">
           <img id="prpLogo" class="prp-logo" alt="Logo">
-          <div class="prp-title" id="prpTitle">Report Title</div>
+          <div class="prp-header-text" id="prpHeaderText">
+            <div class="prp-title" id="prpTitle">Report Title</div>
+            <div class="prp-subheading" id="prpSubheading" style="display:none;font-size:11px;font-weight:500;opacity:.75"></div>
+            <div class="prp-contact" id="prpContact" style="display:none;font-size:9px;opacity:.6;margin-top:2px"></div>
+          </div>
         </div>
+        <div class="prp-header-divider" id="prpHeaderDivider"></div>
         <div class="prp-section" id="prpSection">
           <img id="prpSectionIcon" class="prp-section-icon" alt="">
           <span id="prpSectionLabel">Section Heading</span>
@@ -11617,89 +11821,173 @@ button.dg-show-chip.active { background:var(--blue); }
           </tbody>
         </table>
         <div class="prp-para" id="prpPara">Body copy reads in the style's paragraph font, so remarks and summaries stay easy to read at document length.</div>
+        <div class="prp-footer-preview" id="prpFooterPreview" style="display:none;font-size:9px;opacity:.55;text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border2)"></div>
       </div>
       <div class="pdfed-refine-preview-label">Live preview — a style sample, not your actual pages</div>
     </div>
-
-    <div class="da-dropdown-body">
-
-      <div class="pdfed-export-field">
-        <label class="pdfed-export-label">Document style</label>
-        <div class="da-dropdown-scope" id="pdfedRefineThemeGroup" style="flex-wrap:wrap">
-          <div class="da-dropdown-scope-btn active" data-theme="general" onclick="pdfedSetRefineTheme('general',this)">General</div>
-          <div class="da-dropdown-scope-btn" data-theme="financial" onclick="pdfedSetRefineTheme('financial',this)">Financial</div>
-          <div class="da-dropdown-scope-btn" data-theme="corporate" onclick="pdfedSetRefineTheme('corporate',this)">Corporate</div>
-          <div class="da-dropdown-scope-btn" data-theme="modern" onclick="pdfedSetRefineTheme('modern',this)">Modern</div>
-        </div>
-        <div class="pdfed-export-note" id="pdfedRefineIconHint" style="margin-top:6px;display:none">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
-          Each section's own title (Working Capital, Banking Facilities, Compliance, etc.) can get a filled color badge icon beside it and a soft divider bar underneath — see "Highlight section titles" below. Uses the style's accent color, or your logo's own color when a logo is uploaded.
+        <div class="pdfed-refine-safety-note">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+          <div>
+            <div class="pdfed-refine-safety-title">Safe to try</div>
+            <div class="pdfed-refine-safety-body">One pass over every page, fully undoable with <b>Ctrl+Z</b> if the result isn't what you wanted.</div>
+          </div>
         </div>
       </div>
 
-      <div class="pdfed-export-field">
-        <label class="pdfed-export-label">Business logo <span style="font-weight:400;opacity:.65">(optional)</span></label>
-        <div class="pdfed-refine-logo-row" id="pdfedRefineLogoRow">
-          <div class="pdfed-refine-logo-drop" id="pdfedRefineLogoDrop" onclick="document.getElementById('pdfedRefineLogoInput').click()">
-            <img id="pdfedRefineLogoPreviewImg" style="display:none" alt="Logo preview">
-            <div id="pdfedRefineLogoDropLabel" class="pdfed-refine-logo-drop-label">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>Upload logo</span>
+      <div class="pdfed-refine-steps-col">
+    <div class="da-dropdown-body" style="padding:0">
+
+      <div class="pdfed-refine-step">
+        <div class="pdfed-refine-step-head">
+          <span class="pdfed-refine-step-num">1</span>
+          <span class="pdfed-refine-step-title">Style<span class="pdfed-refine-step-sub">— pick a look for headings, tables &amp; colors</span></span>
+        </div>
+        <div class="pdfed-export-field" style="margin-bottom:0">
+          <div class="da-dropdown-scope" id="pdfedRefineThemeGroup" style="flex-wrap:wrap">
+            <div class="da-dropdown-scope-btn active" data-theme="general" onclick="pdfedSetRefineTheme('general',this)">General</div>
+            <div class="da-dropdown-scope-btn" data-theme="financial" onclick="pdfedSetRefineTheme('financial',this)">Financial</div>
+            <div class="da-dropdown-scope-btn" data-theme="corporate" onclick="pdfedSetRefineTheme('corporate',this)">Corporate</div>
+            <div class="da-dropdown-scope-btn" data-theme="modern" onclick="pdfedSetRefineTheme('modern',this)">Modern</div>
+          </div>
+          <div class="pdfed-export-note" id="pdfedRefineIconHint" style="margin-top:6px;display:none">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+            Each section's own title (Working Capital, Banking Facilities, Compliance, etc.) can get a filled color badge icon beside it and a soft divider bar underneath — see "Highlight section titles" below. Uses the style's accent color, or your logo's own color when a logo is uploaded.
+          </div>
+        </div>
+      </div>
+
+      <div class="pdfed-refine-step">
+        <div class="pdfed-refine-step-head">
+          <span class="pdfed-refine-step-num">2</span>
+          <span class="pdfed-refine-step-title">Logo<span class="pdfed-refine-step-sub">— optional, placed on every page</span></span>
+        </div>
+        <div class="pdfed-export-field">
+          <div class="pdfed-refine-logo-row" id="pdfedRefineLogoRow">
+            <div class="pdfed-refine-logo-drop" id="pdfedRefineLogoDrop" onclick="document.getElementById('pdfedRefineLogoInput').click()">
+              <img id="pdfedRefineLogoPreviewImg" style="display:none" alt="Logo preview">
+              <div id="pdfedRefineLogoDropLabel" class="pdfed-refine-logo-drop-label">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Upload logo</span>
+              </div>
+            </div>
+            <input type="file" id="pdfedRefineLogoInput" accept="image/*" style="display:none" onchange="pdfedHandleLogoFileInput(this)">
+            <div class="pdfed-refine-logo-info">
+              <div id="pdfedRefineLogoStatus" class="pdfed-refine-logo-status">No logo uploaded — the report uses the style colors above.</div>
+              <div id="pdfedRefineLogoSwatches" class="pdfed-refine-logo-swatches" style="display:none"></div>
+              <label class="pdfed-export-checkbox" id="pdfedRefineUseLogoColorsRow" style="display:none;margin-top:4px">
+                <input type="checkbox" id="pdfedRefineUseLogoColors" checked onchange="pdfedRefineState.useLogoColors=this.checked;pdfedUpdateRefinePreview()">
+                <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                Match report colors to logo
+              </label>
+              <label class="pdfed-export-checkbox" id="pdfedRefineAddLogoRow" style="display:none">
+                <input type="checkbox" id="pdfedRefineAddLogoToHeader" checked onchange="pdfedRefineState.addLogoToHeader=this.checked;pdfedUpdateRefinePreview()">
+                <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                Place logo in report header
+              </label>
+              <button type="button" id="pdfedRefineRemoveLogoBtn" class="pdfed-refine-logo-remove" style="display:none" onclick="pdfedClearRefineLogo()">Remove logo</button>
             </div>
           </div>
-          <input type="file" id="pdfedRefineLogoInput" accept="image/*" style="display:none" onchange="pdfedHandleLogoFileInput(this)">
-          <div class="pdfed-refine-logo-info">
-            <div id="pdfedRefineLogoStatus" class="pdfed-refine-logo-status">No logo uploaded — the report uses the style colors above.</div>
-            <div id="pdfedRefineLogoSwatches" class="pdfed-refine-logo-swatches" style="display:none"></div>
-            <label class="pdfed-export-checkbox" id="pdfedRefineUseLogoColorsRow" style="display:none;margin-top:4px">
-              <input type="checkbox" id="pdfedRefineUseLogoColors" checked onchange="pdfedRefineState.useLogoColors=this.checked;pdfedUpdateRefinePreview()">
-              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-              Match report colors to logo
-            </label>
-            <label class="pdfed-export-checkbox" id="pdfedRefineAddLogoRow" style="display:none">
-              <input type="checkbox" id="pdfedRefineAddLogoToHeader" checked onchange="pdfedRefineState.addLogoToHeader=this.checked;pdfedUpdateRefinePreview()">
-              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-              Place logo in report header
-            </label>
-            <button type="button" id="pdfedRefineRemoveLogoBtn" class="pdfed-refine-logo-remove" style="display:none" onclick="pdfedClearRefineLogo()">Remove logo</button>
+        </div>
+
+        <div class="pdfed-export-field" id="pdfedRefineLogoPositionField" style="display:none;margin-bottom:0">
+          <label class="pdfed-export-label" style="font-size:11px">Logo placement</label>
+          <div class="da-dropdown-scope" id="pdfedRefineLogoPositionGroup">
+            <div class="da-dropdown-scope-btn" data-logopos="left" onclick="pdfedSetRefineLogoPosition('left',this)">Left</div>
+            <div class="da-dropdown-scope-btn" data-logopos="center" onclick="pdfedSetRefineLogoPosition('center',this)">Center</div>
+            <div class="da-dropdown-scope-btn active" data-logopos="right" onclick="pdfedSetRefineLogoPosition('right',this)">Right</div>
+          </div>
+          <div class="pdfed-export-note" style="margin-top:6px">Where the logo sits in the header on every page — with a matching divider rule underneath it, automatically.</div>
+        </div>
+      </div>
+
+      <div class="pdfed-refine-step">
+        <div class="pdfed-refine-step-head">
+          <span class="pdfed-refine-step-num">3</span>
+          <span class="pdfed-refine-step-title">Header text<span class="pdfed-refine-step-sub">— optional, placed on every page</span></span>
+        </div>
+        <div class="pdfed-export-field">
+          <label class="pdfed-export-label" style="font-size:11px">Text placement</label>
+          <div class="da-dropdown-scope" id="pdfedRefineTextPositionGroup">
+            <div class="da-dropdown-scope-btn active" data-textpos="left" onclick="pdfedSetRefineTextPosition('left',this)">Left</div>
+            <div class="da-dropdown-scope-btn" data-textpos="right" onclick="pdfedSetRefineTextPosition('right',this)">Right</div>
+          </div>
+          <div class="pdfed-export-note" style="margin-top:6px">Which side of the header the title/subheading/contact block sits on — independent of the logo, so you can pair them on the same side or opposite sides.</div>
+        </div>
+        <div class="pdfed-export-field">
+          <label class="pdfed-export-label" style="font-size:11px">Report title</label>
+          <input type="text" class="pdfed-export-range-input" id="pdfedRefineTitleInput" placeholder="e.g. Quarterly Compliance Report" style="margin-top:0" oninput="pdfedRefineState.headerTitle=this.value;pdfedUpdateRefinePreview()">
+        </div>
+        <div class="pdfed-export-field">
+          <label class="pdfed-export-label" style="font-size:11px">Subheading / slogan</label>
+          <input type="text" class="pdfed-export-range-input" id="pdfedRefineSubheadingInput" placeholder="e.g. Precision you can rely on" style="margin-top:0" oninput="pdfedRefineState.headerSubheading=this.value;pdfedUpdateRefinePreview()">
+        </div>
+        <div class="pdfed-export-field">
+          <label class="pdfed-export-label" style="font-size:11px">Contact info</label>
+          <input type="text" class="pdfed-export-range-input" id="pdfedRefineContactInput" placeholder="e.g. contact@company.com · +91 98765 43210" style="margin-top:0" oninput="pdfedRefineState.headerContact=this.value;pdfedUpdateRefinePreview()">
+        </div>
+        <div class="pdfed-export-field" style="margin-bottom:0">
+          <label class="pdfed-export-label" style="font-size:11px">Address</label>
+          <input type="text" class="pdfed-export-range-input" id="pdfedRefineAddressInput" placeholder="e.g. 4th Floor, SARVARC House, Ahmedabad, GJ" style="margin-top:0" oninput="pdfedRefineState.headerAddress=this.value;pdfedUpdateRefinePreview()">
+        </div>
+        <label class="pdfed-export-checkbox" style="margin-top:10px">
+          <input type="checkbox" id="pdfedRefineFooterEnabled" onchange="pdfedRefineState.footerEnabled=this.checked;pdfedUpdateRefinePreview()">
+          <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          Repeat contact info &amp; address in the footer of every page
+        </label>
+        <div class="pdfed-export-note" style="margin-top:6px">Title and subheading sit in the header next to your logo. Contact info and address stay small — header only, or footer too if you turn that on above.</div>
+      </div>
+
+      <div class="pdfed-refine-step">
+        <div class="pdfed-refine-step-head">
+          <span class="pdfed-refine-step-num">4</span>
+          <span class="pdfed-refine-step-title">Layout<span class="pdfed-refine-step-sub">— how content sits on the page</span></span>
+        </div>
+        <div class="pdfed-export-field" style="margin-bottom:0">
+          <div class="da-dropdown-scope" id="pdfedRefineAlignGroup">
+            <div class="da-dropdown-scope-btn active" data-align="left" onclick="pdfedSetRefineAlign('left',this)">Left margin</div>
+            <div class="da-dropdown-scope-btn" data-align="center" onclick="pdfedSetRefineAlign('center',this)">Centered</div>
+            <div class="da-dropdown-scope-btn" data-align="stretch" onclick="pdfedSetRefineAlign('stretch',this)">Stretch to width</div>
           </div>
         </div>
       </div>
 
-      <div class="pdfed-export-field">
-        <label class="pdfed-export-label">Content alignment</label>
-        <div class="da-dropdown-scope" id="pdfedRefineAlignGroup">
-          <div class="da-dropdown-scope-btn active" data-align="left" onclick="pdfedSetRefineAlign('left',this)">Left margin</div>
-          <div class="da-dropdown-scope-btn" data-align="center" onclick="pdfedSetRefineAlign('center',this)">Centered</div>
-          <div class="da-dropdown-scope-btn" data-align="stretch" onclick="pdfedSetRefineAlign('stretch',this)">Stretch to width</div>
-        </div>
+      <div class="pdfed-refine-step">
+        <details open>
+          <summary class="pdfed-refine-formatting-toggle">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="pdfed-refine-step-num" style="background:var(--bg3);color:var(--text2)">5</span>
+            Formatting options <span style="font-weight:400;color:var(--text3)">(sensible defaults — usually fine to leave as-is)</span>
+          </summary>
+          <div class="pdfed-refine-formatting-list">
+            <label class="pdfed-export-checkbox">
+              <input type="checkbox" id="pdfedRefineAdjustA4" checked>
+              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              Standardize all pages to <span id="pdfedRefineAdjustA4Size">one size</span>
+            </label>
+
+            <label class="pdfed-export-checkbox">
+              <input type="checkbox" id="pdfedRefineAutoFit" checked>
+              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              Auto-fit table fonts to columns
+            </label>
+
+            <label class="pdfed-export-checkbox">
+              <input type="checkbox" id="pdfedRefineSyncHeadings" checked>
+              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              Sync heading &amp; paragraph fonts to style
+            </label>
+
+            <label class="pdfed-export-checkbox" id="pdfedRefineSectionIconsRow" style="display:none">
+              <input type="checkbox" id="pdfedRefineSectionIcons" checked onchange="pdfedUpdateRefinePreview()">
+              <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              Highlight section titles <span style="font-weight:400;opacity:.65">(color badge + divider bar)</span>
+            </label>
+          </div>
+        </details>
+        <div class="pdfed-export-note" style="margin-top:12px">One undo-able pass (Ctrl+Z) that re-styles tables, aligns headings, adds section-title icons, and cleans up page layout throughout the document.</div>
       </div>
-
-      <label class="pdfed-export-checkbox">
-        <input type="checkbox" id="pdfedRefineAdjustA4" checked>
-        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Standardize all pages to <span id="pdfedRefineAdjustA4Size">one size</span>
-      </label>
-
-      <label class="pdfed-export-checkbox">
-        <input type="checkbox" id="pdfedRefineAutoFit" checked>
-        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Auto-fit table fonts to columns
-      </label>
-
-      <label class="pdfed-export-checkbox">
-        <input type="checkbox" id="pdfedRefineSyncHeadings" checked>
-        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Sync heading &amp; paragraph fonts to style
-      </label>
-
-      <label class="pdfed-export-checkbox" id="pdfedRefineSectionIconsRow" style="display:none">
-        <input type="checkbox" id="pdfedRefineSectionIcons" checked onchange="pdfedUpdateRefinePreview()">
-        <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-        Highlight section titles <span style="font-weight:400;opacity:.65">(color badge + divider bar)</span>
-      </label>
-
-      <div class="pdfed-export-note">One undo-able pass (Ctrl+Z) that re-styles tables, aligns headings, adds section-title icons, and cleans up page layout throughout the document.</div>
+    </div>
+      </div>
     </div>
 
     <div class="pdfed-export-footer">
@@ -12022,6 +12310,33 @@ button.dg-show-chip.active { background:var(--blue); }
       <button class="btn-secondary" onclick="reshapeModalImg()" style="background:linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);border-color:#c9962f;color:#1a1206;font-weight:700;box-shadow:0 2px 10px rgba(201,150,47,0.4)"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7 4"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg> Reshape</span></button>
       <button class="btn-secondary" onclick="deleteModalImg()" style="border-color:rgba(239,68,68,0.4);color:#ef4444"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Remove Image</span></button>
       <button class="btn-secondary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXTRACT TEXT — scope chooser -->
+<div class="modal-overlay" id="pdfedExtractChooserOverlay" onclick="if(event.target===this) pdfedCloseExtractChooser()">
+  <div class="modal" style="max-width:380px">
+    <h2>Extract Text</h2>
+    <p>Pull the readable text off this document as plain text — real PDF text where it exists, our OCR engine for scanned/photographed pages.</p>
+    <div class="modal-actions" style="flex-direction:column">
+      <button class="btn-primary" style="width:100%" onclick="pdfedCloseExtractChooser();pdfedRunTextExtraction('current')">This Page Only</button>
+      <button class="btn-secondary" style="width:100%" onclick="pdfedCloseExtractChooser();pdfedRunTextExtraction('all')">Whole Document</button>
+      <button class="btn-secondary" style="width:100%" onclick="pdfedCloseExtractChooser()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXTRACT TEXT — results -->
+<div class="modal-overlay" id="pdfedExtractResultOverlay" onclick="if(event.target===this) pdfedCloseExtractTextModal()">
+  <div class="modal" style="max-width:640px">
+    <h2>Extracted Text</h2>
+    <p id="pdfedExtractResultSub">—</p>
+    <textarea id="pdfedExtractResultText" spellcheck="false" style="width:100%;min-height:320px;max-height:52vh;resize:vertical;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.6;box-sizing:border-box;margin-bottom:16px"></textarea>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="pdfedCopyExtractedText()"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</span></button>
+      <button class="btn-secondary" onclick="pdfedDownloadExtractedText()"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download .txt</span></button>
+      <button class="btn-secondary" onclick="pdfedCloseExtractTextModal()">Close</button>
     </div>
   </div>
 </div>
@@ -12722,10 +13037,15 @@ function refreshSidebarFolder() {
 }
 
 // ─── THEME ───
-let isDark = false;
+// The inline <head> script already restored any saved theme onto
+// <html data-theme="..."> before this script ran, so read it back from the
+// DOM here instead of assuming 'light' — that's what used to force everyone
+// back into light mode on every reload.
+let isDark = document.documentElement.dataset.theme === 'dark';
 function toggleTheme() {
   isDark = !isDark;
   document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+  try { localStorage.setItem('sarvarcTheme', isDark ? 'dark' : 'light'); } catch (e) {}
   // Re-render PDF editor canvas if it's active so it picks up new CSS vars
   if (typeof pdfed !== 'undefined' && pdfed.active >= 0) {
     pdfedGoto(pdfed.active);
@@ -14450,6 +14770,7 @@ async function pushImageToPdfEditor(idx, e) {
     pdfed.file = { name: img.name || 'Image Document' };
     pdfed.pages = [newPg];
     pdfed.active = -1;
+    pdfed.refineReportUsed = false;
     ['pdfedExportBtn','pdfedRefineBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display = '';
@@ -15070,6 +15391,11 @@ const pdfed = {
   autoCollapseTimer: null,
   leftManuallyToggled: false,
   rightManuallyToggled: false,
+  // Pull-up/push-down (the flow arrows beside SARVARC Eye) stay hidden until
+  // the person actually runs Refine Report at least once on this document —
+  // they're a manual, one-page version of what Refine Report does, so they
+  // shouldn't show up before that feature has been used.
+  refineReportUsed: false,
 };
 
 // ─── Generic small IndexedDB key/value helper ───
@@ -16454,6 +16780,7 @@ async function pdfedLoadFileObject(file) {
     pdfed.file = file;
     pdfed.pages = [];
     pdfed.active = -1;
+    pdfed.refineReportUsed = false;
     pdfedSearchClose();
     pdfSearch.cache = new Map();
     pdfSearch.results = [];
@@ -16740,6 +17067,11 @@ async function pdfedBuildStrip() {
     del.onclick = (ev) => { ev.stopPropagation(); pdfedDeletePage(i); };
     card.appendChild(del);
 
+    // Manual whitespace-fill (pull next page up / push bottom item down)
+    // now lives as two direct buttons beside SARVARC Eye, above the canvas
+    // — one click on whichever page is open, instead of hovering a
+    // specific thumbnail here first to reach a popover menu.
+
     strip.appendChild(card);
   }
   // final insert zone after last page
@@ -16891,6 +17223,36 @@ function pdfedUpdatePageActions() {
   bar.classList.toggle('show', pdfed.active >= 0 && !!pdfed.pages[pdfed.active]);
   const delBtn = document.getElementById('pdfedPgactDel');
   if (delBtn) delBtn.disabled = false;
+
+  // Pull-up / push-down — moved here beside SARVARC Eye (was previously
+  // buried in a per-thumbnail popover menu in the left pages panel) so the
+  // two actions are one click away on whichever page is actually open,
+  // instead of needing to hover a specific thumbnail first.
+  const pullBtn = document.getElementById('pdfedPgactPullUp');
+  const pushBtn = document.getElementById('pdfedPgactPushDown');
+  const flowDivider = document.getElementById('pdfedPgactRefineDivider');
+  const pg = pdfed.pages[pdfed.active];
+
+  // Stay hidden until Refine Report has actually been run once on this
+  // document — before that, showing manual "pull up / push down" arrows
+  // beside SARVARC Eye implies a capability the person hasn't unlocked yet.
+  const showFlowArrows = !!pdfed.refineReportUsed;
+  if (pullBtn) pullBtn.style.display = showFlowArrows ? '' : 'none';
+  if (pushBtn) pushBtn.style.display = showFlowArrows ? '' : 'none';
+  if (flowDivider) flowDivider.style.display = showFlowArrows ? '' : 'none';
+
+  // Disabled when there's no page above to push into (was: no page below
+  // to pull from — the button now pushes THIS page's content up, not
+  // pulls the next page's content in).
+  if (pullBtn) pullBtn.disabled = !pg || pdfed.active <= 0;
+  if (pushBtn) {
+    const flowCount = pg ? (
+      (pg.placedTables || []).length +
+      (pg.placedTexts || []).length +
+      (pg.placedImages || []).filter(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider && !pdfedIsAnchorImage(im, pg.width || 600, pg.height || 800)).length
+    ) : 0;
+    pushBtn.disabled = flowCount < 2;
+  }
   pdfedSyncCompareBtnVisibility();
 }
 
@@ -17460,8 +17822,24 @@ function teMergeTextRuns(items, viewport, styleMap, srcCtx) {
     const color = teSampleTextColor(srcCtx, x, top, width, height, bgColor);
     const nameProbe = ((item.fontName || '') + ' ' + (styleInfo.fontFamily || '')).toLowerCase();
     const bold = /bold|black|heavy|semibold|semi-bold|extrabold|-700|-800|-900/.test(nameProbe);
+    // Two independent signals, either one is enough:
+    // 1) The font's own name/family usually says so directly for a real italic
+    //    variant (embedded subset fonts are commonly named like
+    //    "ArialMT-Italic" / "TimesNewRomanPS-ItalicMT" / "...-Oblique").
+    // 2) Some PDFs fake italics by skewing an upright font's glyph matrix
+    //    instead of switching to a real italic font variant, that has no
+    //    "italic" anywhere in its name, but shows up as a shear (the glyph's
+    //    own transform, before the page/viewport transform is applied) — the
+    //    x this glyph moves per unit of y it's drawn (item.transform[2] vs
+    //    [3]) is ~0 for upright text and a consistent nonzero ratio for a
+    //    deliberately slanted one.
+    const nameItalic = /italic|oblique|\bital\b|-it\b/.test(nameProbe);
+    const gt = item.transform || [1, 0, 0, 1, 0, 0];
+    const shearRatio = gt[3] ? Math.abs(gt[2] / gt[3]) : 0;
+    const shearItalic = shearRatio > 0.12; // ~7°+ slant
+    const italic = nameItalic || shearItalic;
     const fontFamily = [item.fontName, styleInfo.fontFamily, bold ? 'Arial Black, Arial, Helvetica, Liberation Sans, sans-serif' : 'Arial, Helvetica, Liberation Sans, sans-serif'].filter(Boolean).join(', ');
-    raw.push({ text: item.str, x, y: top, width, height, fontSize, fontFamily, color, bgColor, bold });
+    raw.push({ text: item.str, x, y: top, width, height, fontSize, fontFamily, color, bgColor, bold, italic });
   });
 
   // Merge pass: glue adjacent same-line, same-style fragments back into whole words/phrases.
@@ -17471,7 +17849,7 @@ function teMergeTextRuns(items, viewport, styleMap, srcCtx) {
     if (last) {
       const sameLine  = Math.abs(r.y - last.y) < Math.max(2, last.fontSize * 0.3);
       const sameSize  = Math.abs(r.fontSize - last.fontSize) < Math.max(1, last.fontSize * 0.15);
-      const sameStyle = r.color === last.color && r.bold === last.bold;
+      const sameStyle = r.color === last.color && r.bold === last.bold && r.italic === last.italic;
       const gap = r.x - (last.x + last.width);
       const closeEnough = gap < last.fontSize * 0.65;
       if (sameLine && sameSize && sameStyle && closeEnough) {
@@ -17550,12 +17928,18 @@ async function pdfedStartTextEdit() {
   teHideNoTextAlert();
 
   const canvas = document.getElementById('pdfedPageCanvas');
-  const z = pdfed.zoom;
+  const pg = pdfed.pages[pdfed.active];
+  // Native PDF pages render onto the canvas at 144dpi while the on-screen zoom
+  // baseline is 96dpi (PDFED_PX_PER_MM) — pdfedApplyZoom() corrects for this
+  // density mismatch when sizing the canvas itself, but this overlay setup was
+  // scaling purely by pdfed.zoom with no density correction. That's what made
+  // OCR/text boxes render ~1.5x too big and drift further off their real
+  // position the farther they sat from the top-left corner.
+  const pdfedTeZoomNormalize = PDFED_PX_PER_MM / ((pg && pg._pxPerMm) || PDFED_PX_PER_MM);
+  const z = pdfed.zoom * pdfedTeZoomNormalize;
   overlay.style.width  = canvas.width  + 'px';
   overlay.style.height = canvas.height + 'px';
   teSetOverlayZoom(overlay, z);
-
-  const pg = pdfed.pages[pdfed.active];
 
   // If this page already has saved text blocks (from a previous edit session),
   // restore those instead of re-extracting, this is what lets the user come
@@ -17591,7 +17975,7 @@ async function pdfedStartTextEdit() {
           fontFamily: r.fontFamily,
           color: r.color,
           bold: r.bold,
-          italic: false,
+          italic: r.italic,
           free: false,
           origWidth: r.width,
           origHeight: r.height,
@@ -17660,18 +18044,184 @@ const PDFED_OCR_STATUS_LABELS = {
   'initializing api': 'Preparing OCR…',
   'recognizing text': 'Reading text (OCR)…'
 };
+// ---- PP-OCR (PaddleOCR.js) — English recognition engine -------------------
+// Every English-only OCR path in the app (page/PDF text extraction, image-
+// table extraction, scanned-PDF fallback — everything that goes through
+// pdfedGetOcrWorker() below) runs on this engine instead of Tesseract.js.
+// It's a real detector+recognizer pair (PP-OCRv5), not a single legacy LSTM
+// model, so it reads real-world scans/photos — invoices, quotations,
+// receipts — noticeably more accurately, and its detector actually finds
+// text regions first instead of just reading whatever box it's handed,
+// which is what fixes the "whole table silently dropped" and "shaded header
+// row breaks detection" failures reported against the old engine.
+// The multilingual PII Redact module (eng+hin+guj, for Aadhaar/PAN cards)
+// intentionally still runs on Tesseract.js elsewhere in this file: PP-OCR
+// has no Gujarati recognition model, so switching that path over would
+// silently regress the Gujarati-misread fix already in place there. Only
+// the pure-English paths move to the new engine.
+let _ppOcrInstancePromise = null;
+function ppGetOcrInstance() {
+  if (!_ppOcrInstancePromise) {
+    _ppOcrInstancePromise = import('https://esm.sh/@paddleocr/paddleocr-js@0.4.2?bundle')
+      .then(mod => mod.PaddleOCR.create({
+        lang: 'en',
+        ocrVersion: 'PP-OCRv5',
+        ortOptions: {
+          backend: 'wasm',
+          wasmPaths: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/'
+        }
+      }))
+      .catch(err => {
+        _ppOcrInstancePromise = null;
+        throw err;
+      });
+  }
+  return _ppOcrInstancePromise;
+}
+
+// PP-OCR's detector reports one polygon per detected LINE (a whole printed
+// line, or a whole isolated phrase), not one box per word the way
+// Tesseract's word-level output does. Every downstream consumer that was
+// built against Tesseract's shape — table-column reconstruction, the PII
+// module's "value near this label" geometry, the per-word cover-patch
+// redraw when editing OCR'd text — inspects individual words, so this
+// distributes each line's pixel width across its words in proportion to
+// character count (including the trailing space) to synthesize a per-word
+// x-position. That's an approximation (assumes roughly even glyph width
+// within one line) good enough for column grouping and click targets; it's
+// not a re-detection, so don't expect pixel-perfect per-glyph underlines.
+function ppSplitLineIntoWords(text, x0, y0, x1, y1, scorePct) {
+  const tokens = (text || '').split(/(\s+)/);
+  const totalChars = Math.max(1, (text || '').length);
+  const width = Math.max(1, x1 - x0);
+  let cursor = x0;
+  const words = [];
+  tokens.forEach(tok => {
+    const w = (tok.length / totalChars) * width;
+    if (tok.trim()) {
+      words.push({ text: tok, confidence: scorePct, bbox: { x0: cursor, y0, x1: cursor + w, y1 } });
+    }
+    cursor += w;
+  });
+  return words;
+}
+
+// Converts one PaddleOCR.js OcrResult into the exact {lines, words, text}
+// shape Tesseract.js has always handed back, so nothing downstream needs to
+// change — only the engine underneath pdfedGetOcrWorker() does.
+function ppResultToTesseractShape(result) {
+  const lines = (result.items || []).map(item => {
+    const xs = item.poly.map(p => p[0]);
+    const ys = item.poly.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const scorePct = Math.round((item.score || 0) * 100);
+    const words = ppSplitLineIntoWords(item.text || '', x0, y0, x1, y1, scorePct);
+    return { text: item.text || '', confidence: scorePct, bbox: { x0, y0, x1, y1 }, words };
+  });
+  const allWords = lines.reduce((acc, l) => acc.concat(l.words), []);
+  return { lines, words: allWords, text: lines.map(l => l.text).join('\n') };
+}
+
+// Rejects with a clearly-tagged timeout error if `promise` doesn't settle
+// within `ms`. Without this, a blocked/hanging fetch of the PP-OCR module or
+// its WASM weights from esm.sh/jsdelivr just leaves a person staring at a
+// frozen "Loading OCR engine…" bar forever instead of failing over to the
+// bundled engine below.
+function ppWithTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      reject(Object.assign(new Error((label || 'Operation') + ' timed out'), { ocrEngineUnavailable: true }));
+    }, ms);
+    promise.then(
+      v => { clearTimeout(t); resolve(v); },
+      e => { clearTimeout(t); reject(e); }
+    );
+  });
+}
+
+// ---- Fallback engine: bundled Tesseract.js ---------------------------------
+// PP-OCR (above) is the primary engine and normally more accurate, but it's
+// fetched live from esm.sh + a WASM CDN on first use, anything that blocks or
+// breaks that (an ad-blocker, a corporate firewall, esm.sh having a bad
+// moment, a CSP rule) used to surface as a flat "OCR error" with no real text
+// ever extracted, on ANY page, image or PDF, for the rest of the session.
+// Tesseract.js, unlike PP-OCR, is already loaded as a plain <script> tag in
+// this file (no runtime import), so it has no equivalent failure mode, it's
+// the natural safety net: same {lines,words,text} output shape this whole
+// file already expects (that shape was built around Tesseract's own output
+// originally), so no downstream code needs to know which engine actually ran.
+let _teFallbackWorkerPromise = null;
+function teGetFallbackTesseractWorker() {
+  if (!_teFallbackWorkerPromise) {
+    _teFallbackWorkerPromise = Tesseract.createWorker('eng').catch(err => {
+      _teFallbackWorkerPromise = null;
+      throw Object.assign(err, { ocrEngineUnavailable: true });
+    });
+  }
+  return _teFallbackWorkerPromise;
+}
+function teMakeFallbackWorkerFacade() {
+  return {
+    recognize: async (canvas) => {
+      if (_teOcrProgressCb) _teOcrProgressCb(0.2, PDFED_OCR_STATUS_LABELS['initializing tesseract']);
+      const worker = await teGetFallbackTesseractWorker();
+      if (_teOcrProgressCb) _teOcrProgressCb(0.55, PDFED_OCR_STATUS_LABELS['recognizing text']);
+      const { data } = await worker.recognize(canvas);
+      if (_teOcrProgressCb) _teOcrProgressCb(0.95, PDFED_OCR_STATUS_LABELS['recognizing text']);
+      return { data };
+    }
+  };
+}
+
+// Tesseract-worker-shaped facade backed by PP-OCR. Model download+init is
+// the slow part and PaddleOCR.js doesn't expose fine-grained load progress
+// the way Tesseract's logger did, so this reports the same reassuring
+// status labels at the two real stage transitions (loading, reading)
+// instead of a frozen-looking progress bar.
+function ppMakeWorkerFacade() {
+  return {
+    recognize: async (canvas) => {
+      if (_teOcrProgressCb) _teOcrProgressCb(0.1, PDFED_OCR_STATUS_LABELS['loading tesseract core']);
+      const ocr = await ppGetOcrInstance();
+      if (_teOcrProgressCb) _teOcrProgressCb(0.55, PDFED_OCR_STATUS_LABELS['recognizing text']);
+      const [result] = await ocr.predict(canvas);
+      if (_teOcrProgressCb) _teOcrProgressCb(0.95, PDFED_OCR_STATUS_LABELS['recognizing text']);
+      return { data: ppResultToTesseractShape(result) };
+    }
+  };
+}
+
+// Single choke point every OCR call in the app goes through (Edit Text,
+// Extract Text, image-to-table, PDF-to-table). Tries the primary PP-OCR
+// engine first (better real-world accuracy), bounded by a timeout so a
+// blocked/slow CDN can't hang forever; on failure it permanently switches
+// this session to the bundled Tesseract engine instead of retrying a CDN
+// that's already shown itself to be unreachable on every subsequent OCR
+// call. Only throws (a clearly-tagged, unavailable-engine error) if BOTH
+// engines fail to even initialize — actual "couldn't read this specific
+// page" outcomes are a normal, separate, per-call result, not an engine
+// failure, and are handled by each call site the same way they always were.
+let _teUsingFallbackEngine = false;
 function pdfedGetOcrWorker() {
-  if (typeof Tesseract === 'undefined') return Promise.reject(new Error('Tesseract.js not loaded'));
   if (!_teOcrWorkerPromise) {
-    _teOcrWorkerPromise = Tesseract.createWorker('eng', 1, {
-      logger: m => {
-        if (!_teOcrProgressCb) return;
-        const label = PDFED_OCR_STATUS_LABELS[m.status] || 'Reading text (OCR)…';
-        _teOcrProgressCb(m.progress, label);
+    _teOcrWorkerPromise = (async () => {
+      if (!_teUsingFallbackEngine) {
+        try {
+          await ppWithTimeout(ppGetOcrInstance(), 20000, 'OCR engine');
+          return ppMakeWorkerFacade();
+        } catch (err) {
+          console.warn('Primary OCR engine (PP-OCR) failed to load, switching to the bundled backup engine for this session:', err);
+          _teUsingFallbackEngine = true;
+        }
       }
-    }).catch(err => {
-      _teOcrWorkerPromise = null;
-      throw err;
+      // Prime the fallback now so a broken fallback also fails fast, with a
+      // clearly-tagged error, instead of only surfacing on the first recognize() call.
+      await teGetFallbackTesseractWorker();
+      return teMakeFallbackWorkerFacade();
+    })().catch(err => {
+      _teOcrWorkerPromise = null; // let a future call try again from scratch
+      throw Object.assign(err, { ocrEngineUnavailable: true });
     });
   }
   return _teOcrWorkerPromise;
@@ -17705,15 +18255,65 @@ function pdfedHideOcrProgress() {
   setTimeout(() => { box.style.display = 'none'; }, 300);
 }
 
-// Upscales the page and stretches its luminance histogram to the full 0-255
-// range before handing it to Tesseract. Blurry scans/exports tend to be both
-// small (relative to real glyph detail) and washed-out/low-contrast, OCR
-// engines miss far more characters on that combination than on crisp, high-
-// contrast text. Upscaling recovers some of the missing resolution and the
-// contrast stretch sharpens the text/background separation, without a hard
-// binarization threshold that could erase thin strokes on lighter fonts.
-function pdfedPreprocessForOcr(srcCanvas) {
-  const scale = 2;
+// Picks how much to upscale a page before OCR based on its OWN resolution,
+// instead of always multiplying by a flat 2x. A page that was scanned/
+// exported small (its longer edge well under ~1500px) has genuinely coarse
+// glyph detail, that needs a bigger boost to give the recognizer enough
+// pixels per character. A page that's already high-res (a crisp 300dpi scan,
+// or a page re-exported from this app at 2x) gains little from more
+// upscaling, blowing it up further just burns time/memory for no accuracy
+// gain and can even soften edges through repeated resampling. Bounded on
+// both ends: never shrinks (min 1x) and never produces a canvas whose long
+// edge exceeds PDFED_OCR_MAX_EDGE, regardless of source size, so a huge
+// source canvas can't blow past the recognizer's practical sweet spot or the
+// browser's canvas memory limits.
+const PDFED_OCR_TARGET_EDGE = 3000;
+const PDFED_OCR_MAX_EDGE = 3600;
+function pdfedComputeOcrScale(w, h) {
+  const longEdge = Math.max(w, h) || 1;
+  let scale = PDFED_OCR_TARGET_EDGE / longEdge;
+  scale = Math.max(1, Math.min(scale, 3));
+  if (longEdge * scale > PDFED_OCR_MAX_EDGE) scale = PDFED_OCR_MAX_EDGE / longEdge;
+  return scale;
+}
+
+// Light 3x3 unsharp-style sharpen pass over the (already grayscale)
+// luminance buffer, run after the contrast stretch below. Upscaling with
+// bilinear/high-quality smoothing (needed to avoid jagged edges) softens
+// glyph edges as a side effect, exactly the edges the recognizer depends on
+// most to tell adjacent characters apart ("rn" vs "m", "cl" vs "d"). This
+// pulls a little of that sharpness back without a full Gaussian-blur unsharp
+// mask, cheap enough to run on every OCR pass. `amount` is how strongly the
+// centre pixel is boosted relative to its neighbours; kept modest so it
+// doesn't blow out already-crisp text into ringing/haloing.
+function pdfedSharpenGray(gray, w, h, amount) {
+  const amt = amount != null ? amount : 0.35;
+  const out = new Uint8ClampedArray(gray.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) { out[i] = gray[i]; continue; }
+      const center = gray[i];
+      const neighborSum = gray[i - 1] + gray[i + 1] + gray[i - w] + gray[i + w];
+      const sharpened = center + amt * (center * 4 - neighborSum);
+      out[i] = sharpened;
+    }
+  }
+  return out;
+}
+
+// Upscales the page (adaptively — see pdfedComputeOcrScale above) and
+// stretches its luminance histogram to the full 0-255 range, then sharpens
+// it, before handing it to the OCR engine. Blurry scans/exports tend to be
+// both small (relative to real glyph detail) and washed-out/low-contrast,
+// OCR engines miss far more characters on that combination than on crisp,
+// high-contrast text. Upscaling recovers some of the missing resolution, the
+// contrast stretch sharpens the text/background separation, and the sharpen
+// pass claws back edge definition the upscale's smoothing softened, all
+// without a hard binarization threshold that could erase thin strokes on
+// lighter fonts.
+function pdfedPreprocessForOcr(srcCanvas, forceScale) {
+  const scale = forceScale || pdfedComputeOcrScale(srcCanvas.width, srcCanvas.height);
   const w = Math.max(1, Math.round(srcCanvas.width * scale));
   const h = Math.max(1, Math.round(srcCanvas.height * scale));
   const tmp = document.createElement('canvas');
@@ -17734,22 +18334,105 @@ function pdfedPreprocessForOcr(srcCanvas) {
     if (g > max) max = g;
   }
   const range = Math.max(1, max - min);
+  const stretched = new Uint8ClampedArray(w * h);
+  for (let p = 0; p < gray.length; p++) {
+    stretched[p] = ((gray[p] - min) / range) * 255;
+  }
+  const sharpened = pdfedSharpenGray(stretched, w, h);
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const v = ((gray[p] - min) / range) * 255;
-    d[i] = d[i + 1] = d[i + 2] = v;
+    d[i] = d[i + 1] = d[i + 2] = sharpened[p];
   }
   tctx.putImageData(imgData, 0, 0);
   return { canvas: tmp, scale };
 }
 
+// ---- Targeted re-OCR for weak lines ----------------------------------------
+// A single uniform pass over the whole page is what every basic in-browser
+// OCR wrapper does, and it's a real accuracy ceiling: a page is rarely
+// uniformly hard. One dense, small-print line (a footer, a table of fine
+// print, a stamp) drags down the read while the rest of the page is clean,
+// and upscaling the WHOLE page further just to rescue that one line wastes
+// time and can blur the parts that were already reading fine. Instead, after
+// the normal pass, any line whose average word confidence falls in a
+// "probably wrong but not hopeless" band gets re-cropped from the original,
+// untouched source canvas — just that line's own region, at a much higher
+// zoom with its own fresh contrast-stretch/sharpen — and re-read in
+// isolation. If the isolated re-read comes back more confident, it replaces
+// the line in place; if not, the original stands. Lines already confident
+// enough, or so garbled a bigger crop won't help (mostly true for actual
+// graphics/watermarks misread as text), are left alone, and the number of
+// retries per page is capped, so this stays a small, bounded top-up rather
+// than doubling the whole page's OCR cost.
+const PDFED_OCR_RETRY_MIN_CONF = 35;
+const PDFED_OCR_RETRY_MAX_CONF = 68;
+const PDFED_OCR_RETRY_SCALE = 4;
+const PDFED_OCR_RETRY_MAX_LINES = 12;
+async function pdfedRetryWeakLines(srcCanvas, lines, scale, worker) {
+  const srcW = srcCanvas.width, srcH = srcCanvas.height;
+  const candidates = lines
+    .map((l, idx) => ({
+      l, idx,
+      avgConf: (l.words && l.words.length)
+        ? l.words.reduce((a, w) => a + (w.confidence || 0), 0) / l.words.length
+        : (l.confidence || 0)
+    }))
+    .filter(c => c.avgConf >= PDFED_OCR_RETRY_MIN_CONF && c.avgConf < PDFED_OCR_RETRY_MAX_CONF)
+    .slice(0, PDFED_OCR_RETRY_MAX_LINES);
+  if (!candidates.length) return;
+
+  for (const c of candidates) {
+    const bb = c.l.bbox;
+    // bbox is in the main pass's (already-upscaled) OCR-canvas coordinate
+    // space — map back to the real source canvas first, then pad a small
+    // margin so the crop doesn't clip ascenders/descenders right at the edge.
+    const padX = (bb.x1 - bb.x0) * 0.08, padY = (bb.y1 - bb.y0) * 0.35;
+    const sx0 = Math.max(0, Math.round(bb.x0 / scale - padX));
+    const sy0 = Math.max(0, Math.round(bb.y0 / scale - padY));
+    const sx1 = Math.min(srcW, Math.round(bb.x1 / scale + padX));
+    const sy1 = Math.min(srcH, Math.round(bb.y1 / scale + padY));
+    const cw = sx1 - sx0, ch = sy1 - sy0;
+    if (cw < 4 || ch < 4) continue;
+
+    const crop = document.createElement('canvas');
+    crop.width = cw; crop.height = ch;
+    crop.getContext('2d').drawImage(srcCanvas, sx0, sy0, cw, ch, 0, 0, cw, ch);
+
+    let retryData, retryScale;
+    try {
+      const pre = pdfedPreprocessForOcr(crop, PDFED_OCR_RETRY_SCALE);
+      retryScale = pre.scale;
+      const result = await worker.recognize(pre.canvas);
+      retryData = result.data;
+    } catch (e) { continue; } // isolated crop failed to read — keep the original line
+
+    const newLine = retryData.lines && retryData.lines[0];
+    if (!newLine || !newLine.text || !newLine.text.trim()) continue;
+    const newConf = (newLine.words && newLine.words.length)
+      ? newLine.words.reduce((a, w) => a + (w.confidence || 0), 0) / newLine.words.length
+      : (newLine.confidence || 0);
+    if (newConf <= c.avgConf) continue; // isolated read wasn't actually better — keep the original
+
+    // Re-map the retry's local (crop-space) word boxes back into the SAME
+    // coordinate space the rest of this OCR pass expects (the main upscaled
+    // OCR canvas), so nothing downstream needs to know a retry ever happened.
+    const remappedWords = (newLine.words || []).map(w => ({
+      text: w.text,
+      confidence: w.confidence,
+      bbox: {
+        x0: scale * (sx0 + w.bbox.x0 / retryScale),
+        y0: scale * (sy0 + w.bbox.y0 / retryScale),
+        x1: scale * (sx0 + w.bbox.x1 / retryScale),
+        y1: scale * (sy0 + w.bbox.y1 / retryScale),
+      }
+    }));
+    if (!remappedWords.length) continue;
+    lines[c.idx] = { text: newLine.text, confidence: newConf, bbox: c.l.bbox, words: remappedWords };
+  }
+}
+
 async function pdfedOcrExtract(overlay) {
   const srcCanvas = document.getElementById('pdfedPageCanvas');
   if (!srcCanvas || !srcCanvas.width) { teShowFreeOnly(overlay, 'This page hasn\'t finished rendering yet, so there\'s nothing to read text from. Try again in a moment.'); return; }
-  if (typeof Tesseract === 'undefined') {
-    console.warn('Tesseract.js failed to load, OCR unavailable (check network/CDN access)');
-    teShowFreeOnly(overlay, 'The text-reading tool couldn\'t load (likely a network/connection issue), so this scanned page can\'t be read automatically. You can still type text directly onto the page.');
-    return;
-  }
 
   document.getElementById('teBlockCount').textContent = 'Reading text (OCR)…';
   toast('Scanning page for text (OCR)…', 'info');
@@ -17761,6 +18444,11 @@ async function pdfedOcrExtract(overlay) {
     const worker = await pdfedGetOcrWorker();
     const { data } = await worker.recognize(ocrCanvas);
     const srcCtx = srcCanvas.getContext('2d');
+
+    // Give the borderline lines from the main pass a second, focused look
+    // before we start clustering/rendering — see pdfedRetryWeakLines above.
+    pdfedUpdateOcrProgress(0.97, 'Double-checking faint text…');
+    await pdfedRetryWeakLines(srcCanvas, data.lines || [], scale, worker);
 
     let blockCount = 0;
     const lines = (data.lines || []).filter(l => l.text && l.text.trim() && l.confidence >= 35);
@@ -17814,7 +18502,10 @@ async function pdfedOcrExtract(overlay) {
       // on its own, so normal-weight strokes were crossing the ratio threshold
       // just because the denominator was tiny. Using the line's average height
       // keeps the ratio stable regardless of which letters a given word has.
-      wordMeta.forEach(m => { m.bold = teEstimateBold(srcCtx, m.wx, m.wy, m.ww, avgH, m.bg); });
+      wordMeta.forEach(m => {
+        m.bold = teEstimateBold(srcCtx, m.wx, m.wy, m.ww, avgH, m.bg);
+        m.italic = teEstimateItalic(srcCtx, m.wx, m.wy, m.ww, avgH, m.bg);
+      });
       const clusters = [[wordMeta[0]]];
       for (let i = 1; i < wordMeta.length; i++) {
         const prev = wordMeta[i - 1], cur = wordMeta[i];
@@ -17823,7 +18514,8 @@ async function pdfedOcrExtract(overlay) {
         const sizeChanged = Math.abs(cur.height - prev.height) > avgH * 0.35; // different heading vs subtitle, etc.
         const colorChanged = !teColorsClose(cur.color, prev.color); // e.g. accent-colored word mid-heading
         const boldChanged = cur.bold !== prev.bold; // e.g. a bold label next to a regular-weight value
-        if (bigGap || sizeChanged || colorChanged || boldChanged) clusters.push([cur]);
+        const italicChanged = cur.italic !== prev.italic; // e.g. an italicized caption word mid-sentence
+        if (bigGap || sizeChanged || colorChanged || boldChanged || italicChanged) clusters.push([cur]);
         else clusters[clusters.length - 1].push(cur);
       }
 
@@ -17836,21 +18528,26 @@ async function pdfedOcrExtract(overlay) {
         const x = x0 / scale, y = y0 / scale;
         const w = Math.max(4, (x1 - x0) / scale);
         const h = Math.max(6, (y1 - y0) / scale);
-        const fontSize = Math.max(8, h * 0.82);
+        const fontSize = Math.max(8, h * teClassifyLineVerticalExtent(text));
         // Reuse this cluster's own already-sampled color/bg/bold (first word)
         // rather than re-sampling across the merged box, which is what caused
         // the color flattening in the first place.
         const bgColor = cluster[0].bg;
         const color = cluster[0].color;
         const bold = cluster[0].bold;
+        const italic = cluster[0].italic;
+        const monospace = teDetectMonospace(srcCtx, x, y, w, h, bgColor);
+        const fontFamily = monospace
+          ? "'Courier New', Courier, monospace"
+          : (bold ? 'Arial Black, Arial, Helvetica, Liberation Sans, sans-serif' : 'Arial, Helvetica, Liberation Sans, sans-serif');
         teAddBlock({
           text,
           x, y,
           fontSize,
-          fontFamily: bold ? 'Arial Black, Arial, Helvetica, Liberation Sans, sans-serif' : 'Arial, Helvetica, Liberation Sans, sans-serif',
+          fontFamily,
           color,
           bold,
-          italic: false,
+          italic,
           free: false,
           origWidth: w,
           origHeight: h,
@@ -17869,11 +18566,186 @@ async function pdfedOcrExtract(overlay) {
     }
   } catch (err) {
     console.warn('OCR extraction failed:', err);
-    teShowFreeOnly(overlay, 'Something went wrong while reading this page (OCR error). You can still type text directly onto the page.');
+    const msg = err && err.ocrEngineUnavailable
+      ? 'The OCR engine couldn\'t start (this is usually a network issue, e.g. an ad-blocker or firewall blocking a required resource). Please check your connection and try again — you can still type text directly onto the page in the meantime.'
+      : 'Something went wrong while reading this page. It may be blank, too blurry, or an image without real text. You can still type text directly onto the page.';
+    teShowFreeOnly(overlay, msg);
   } finally {
     _teOcrProgressCb = null;
     pdfedHideOcrProgress();
   }
+}
+
+// ---- EXTRACT TEXT (plain copy/download, no editable overlay) --------------
+// A separate, lighter path from the "OCR to edit" flow above: this reads a
+// page's text — the real embedded PDF text layer when there is one (fast,
+// exact character sequence, no recognition guesswork at all), our own
+// upgraded OCR engine otherwise (scanned/photographed pages, or plain image
+// pages) — and hands back clean plain text a person can copy or download.
+// It never touches the page, places no overlay, and doesn't care whether the
+// page is currently the one on screen, which is what makes whole-document
+// extraction possible below.
+
+// Reads one page's real PDF.js text content (when present) as reading-order
+// plain text, grouping items onto lines by shared baseline and left-to-right
+// x-position — the same geometry teMergeTextRuns uses for the editable path,
+// just collapsed straight to lines of text instead of styled boxes.
+async function pdfedExtractPdfLayerText(pg) {
+  if (!(pg.type === 'pdf' && (pg.srcDoc || pdfed.pdfDoc))) return null;
+  const pdfPage = await (pg.srcDoc || pdfed.pdfDoc).getPage(pg.pageNum);
+  const textContent = await pdfPage.getTextContent();
+  const items = (textContent.items || []).filter(it => it.str && it.str.trim());
+  if (!items.length) return null;
+  const viewport = pdfPage.getViewport({ scale: 1.0 });
+  const rows = [];
+  items.forEach(item => {
+    const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+    const y = tx[5];
+    let row = rows.find(r => Math.abs(r.y - y) < 3);
+    if (!row) { row = { y, parts: [] }; rows.push(row); }
+    row.parts.push({ x: tx[4], text: item.str });
+  });
+  rows.sort((a, b) => b.y - a.y); // PDF y-axis runs bottom-up; reading order is top-to-bottom
+  const lines = rows
+    .map(r => r.parts.sort((a, b) => a.x - b.x).map(p => p.text).join(' ').replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean);
+  return lines.length ? lines.join('\n') : null;
+}
+
+// OCR fallback for pages with no real text layer, reads from the page's
+// stored raster (pg.dataUrl via pdfedLoadPageImage — the same untainted-image
+// approach the A4-resize pass uses) rather than the live on-screen canvas, so
+// this works for ANY page in the document, not just the one currently open.
+async function pdfedExtractOcrPlainText(pg, worker) {
+  const img = await pdfedLoadPageImage(pg);
+  if (!img) return '';
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  if (!canvas.width || !canvas.height) return '';
+  canvas.getContext('2d').drawImage(img, 0, 0);
+
+  const { canvas: ocrCanvas, scale } = pdfedPreprocessForOcr(canvas);
+  const { data } = await worker.recognize(ocrCanvas);
+  await pdfedRetryWeakLines(canvas, data.lines || [], scale, worker);
+
+  return (data.lines || [])
+    .filter(l => l.text && l.text.trim() && l.confidence >= 35)
+    .sort((a, b) => a.bbox.y0 - b.bbox.y0)
+    .map(l => l.text.trim())
+    .join('\n');
+}
+
+async function pdfedExtractPlainTextForPage(pg, worker) {
+  try {
+    const layerText = await pdfedExtractPdfLayerText(pg);
+    if (layerText) return layerText;
+  } catch (err) {
+    console.warn('Plain text extraction (PDF layer) failed, falling back to OCR:', err);
+  }
+  try {
+    return await pdfedExtractOcrPlainText(pg, worker);
+  } catch (err) {
+    console.warn('Plain text extraction (OCR) failed:', err);
+    return '';
+  }
+}
+
+let pdfedExtractedTextResults = null;
+
+function pdfedOpenExtractChooser() {
+  if (pdfed.active < 0) { toast('Open a PDF first', 'error'); return; }
+  document.getElementById('pdfedExtractChooserOverlay').classList.add('open');
+}
+function pdfedCloseExtractChooser() {
+  document.getElementById('pdfedExtractChooserOverlay').classList.remove('open');
+}
+
+// scope: 'current' (just the page on screen) or 'all' (every page, in order).
+async function pdfedRunTextExtraction(scope) {
+  if (pdfed.active < 0) { toast('Open a PDF first', 'error'); return; }
+  const indices = scope === 'all' ? pdfed.pages.map((_, i) => i) : [pdfed.active];
+
+  pdfedShowOcrProgress('Starting OCR engine…');
+  _teOcrProgressCb = pdfedUpdateOcrProgress;
+  const results = [];
+  try {
+    const worker = await pdfedGetOcrWorker();
+    for (let n = 0; n < indices.length; n++) {
+      const idx = indices[n];
+      const pg = pdfed.pages[idx];
+      pdfedUpdateOcrProgress(
+        n / indices.length,
+        indices.length > 1 ? ('Reading page ' + (idx + 1) + ' of ' + pdfed.pages.length + '…') : 'Reading text (OCR)…'
+      );
+      const text = await pdfedExtractPlainTextForPage(pg, worker);
+      results.push({ page: idx + 1, text: text || '' });
+    }
+  } catch (err) {
+    console.warn('Text extraction failed:', err);
+    toast(err && err.ocrEngineUnavailable
+      ? 'The OCR engine couldn\'t start (check your connection and try again)'
+      : 'Something went wrong while extracting text', 'error');
+  } finally {
+    _teOcrProgressCb = null;
+    pdfedHideOcrProgress();
+  }
+
+  pdfedShowExtractTextModal(results);
+}
+
+function pdfedShowExtractTextModal(results) {
+  pdfedExtractedTextResults = results;
+  const found = results.filter(r => r.text && r.text.trim());
+  const combined = results.length > 1
+    ? results.map(r => '--- Page ' + r.page + ' ---\n' + (r.text && r.text.trim() ? r.text : '(no readable text found)')).join('\n\n')
+    : (results[0] ? results[0].text : '');
+
+  const sub = document.getElementById('pdfedExtractResultSub');
+  if (!found.length) {
+    sub.textContent = 'No readable text found — the page(s) may be blank, too blurry, or an image with nothing to read.';
+  } else {
+    sub.textContent = results.length > 1
+      ? (found.length + ' of ' + results.length + ' page' + (results.length !== 1 ? 's' : '') + ' had readable text.'
+         + ' Real PDF text where available, OCR for the rest — always double-check scanned pages.')
+      : 'Real PDF text where available, OCR for scanned/image pages — always double-check OCR\'d text.';
+  }
+  document.getElementById('pdfedExtractResultText').value = combined;
+  document.getElementById('pdfedExtractResultOverlay').classList.add('open');
+}
+
+function pdfedCloseExtractTextModal() {
+  document.getElementById('pdfedExtractResultOverlay').classList.remove('open');
+}
+
+async function pdfedCopyExtractedText() {
+  const text = document.getElementById('pdfedExtractResultText').value;
+  if (!text) { toast('Nothing to copy', 'error'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Text copied to clipboard', 'success');
+  } catch (err) {
+    // Clipboard API can be blocked (permissions, insecure context) — fall
+    // back to select-all-in-place so the person can still Ctrl/Cmd+C it.
+    const ta = document.getElementById('pdfedExtractResultText');
+    ta.focus(); ta.select();
+    toast('Press Ctrl/Cmd+C to copy the selected text', 'info');
+  }
+}
+
+function pdfedDownloadExtractedText() {
+  const text = document.getElementById('pdfedExtractResultText').value;
+  if (!text) { toast('Nothing to download', 'error'); return; }
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = sarvarcBrandFilename('extracted-text.txt');
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('Text downloaded', 'success');
 }
 
 // Samples a couple of points just outside a text run's bounding box (top-left
@@ -17889,6 +18761,30 @@ function teColorsClose(a, b, threshold) {
   if (!ca || !cb) return a === b;
   const dist = Math.sqrt((ca.r - cb.r) ** 2 + (ca.g - cb.g) ** 2 + (ca.b - cb.b) ** 2);
   return dist <= (threshold != null ? threshold : 40);
+}
+
+// A cluster's own recognized text tells us which vertical zones of the font's
+// em-square it actually occupies: letters with ascenders/caps reach up to
+// cap-height, letters with descenders reach below the baseline, and the OCR
+// bounding box only ever covers the ink that's actually present. A single
+// flat "bbox-height → font-size" ratio gets this wrong in both directions —
+// a line with descenders (e.g. "Trading" has none, but "Quantity" does) has
+// a taller bbox than cap-height-only text at the IDENTICAL font size, and a
+// short all-lowercase word with no ascenders/descenders at all (e.g. "an",
+// "was") has a bbox barely taller than its x-height, a much smaller fraction
+// of the real font size. Classifying which zones are present and picking the
+// matching ratio (calibrated against typical sans-serif metrics: cap-height
+// ≈0.72em, x-height ≈0.52em, descender depth ≈0.21em below baseline) keeps
+// extracted sizes consistent across a page, instead of descender-heavy
+// headings coming out oversized and short lowercase words coming out
+// microscopic.
+function teClassifyLineVerticalExtent(text) {
+  const hasCapOrAscender = /[A-Z0-9BDFHKLTbdfhklt]/.test(text);
+  const hasDescender = /[gjpqy]/.test(text);
+  if (hasCapOrAscender && hasDescender) return 0.82; // full span cap-height→descender depth
+  if (hasCapOrAscender && !hasDescender) return 1.05; // cap-height→baseline only
+  if (!hasCapOrAscender && hasDescender) return 1.04; // x-height→descender depth, no caps
+  return 1.45; // x-height only — smallest fraction of the em box
 }
 
 // Tesseract's default (LSTM) OCR engine, what this app uses, reports NO font
@@ -17935,6 +18831,110 @@ function teEstimateBold(ctx, x, y, w, h, bgColor) {
   // text (especially once combined with the anti-aliasing noise above),
   // which is why almost everything was coming through OCR marked bold.
   return (median / hh) > 0.19; // bold strokes run noticeably thicker relative to letter height
+}
+
+// Detects italic/oblique slant straight from the rendered pixels, same
+// approach as teEstimateBold above: no font metadata to lean on for OCR'd
+// (image-only) text, so weight and slant both have to be read off the glyphs
+// themselves. For each row in the middle band of the block, finds the
+// horizontal center of mass of the "ink" pixels on that row, then fits a
+// straight line (simple linear regression) of that center-x against row
+// index. Upright text's ink stays centered on roughly the same x as you scan
+// down the glyph, so the fitted slope is near zero; italic text's strokes
+// lean, so the center of mass drifts steadily rightward (or leftward, for a
+// backslant font) as row increases, producing a consistent non-zero slope.
+// Slope is expressed as dx per unit of row height so the same threshold works
+// regardless of the block's actual pixel size.
+function teEstimateItalic(ctx, x, y, w, h, bgColor) {
+  if (!ctx) return false;
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const x0 = Math.max(0, Math.round(x));
+  const y0 = Math.max(0, Math.round(y));
+  const ww = Math.max(1, Math.min(Math.round(w), cw - x0));
+  const hh = Math.max(1, Math.min(Math.round(h), ch - y0));
+  if (ww < 4 || hh < 6) return false;
+  let data;
+  try { data = ctx.getImageData(x0, y0, ww, hh).data; } catch (e) { return false; }
+  const bg = teParseColorToRgb(bgColor) || { r: 255, g: 255, b: 255 };
+
+  // Skip the very top/bottom rows (ascender/descender tips are sparse and
+  // noisy) and work in the stable middle band, same idea as teEstimateBold.
+  const rowStart = Math.floor(hh * 0.15), rowEnd = Math.ceil(hh * 0.9);
+  const pts = []; // {row, centerX}
+  for (let row = rowStart; row < rowEnd; row++) {
+    let sum = 0, count = 0;
+    for (let col = 0; col < ww; col++) {
+      const idx = (row * ww + col) * 4;
+      const dist = Math.sqrt((data[idx] - bg.r) ** 2 + (data[idx + 1] - bg.g) ** 2 + (data[idx + 2] - bg.b) ** 2);
+      if (dist > 70) { sum += col; count++; }
+    }
+    if (count >= 1) pts.push({ row, cx: sum / count });
+  }
+  if (pts.length < Math.max(6, hh * 0.4)) return false; // too little ink to trust a fit (sparse glyphs, thin block)
+
+  // Ordinary least squares slope of cx vs row.
+  const n = pts.length;
+  const meanRow = pts.reduce((a, p) => a + p.row, 0) / n;
+  const meanCx  = pts.reduce((a, p) => a + p.cx, 0) / n;
+  let num = 0, den = 0;
+  for (const p of pts) { num += (p.row - meanRow) * (p.cx - meanCx); den += (p.row - meanRow) ** 2; }
+  if (den === 0) return false;
+  const slope = num / den; // horizontal drift per row
+  const slant = slope * hh; // total horizontal drift over the block's own height, normalized
+  // Real italic fonts commonly sit around a 6-12° slant; 0.12 (~7°) as a
+  // floor keeps normal upright text (which still has small nonzero slope from
+  // anti-aliasing/serif noise) from tripping this, while still catching a
+  // clearly slanted face.
+  return Math.abs(slant) > (hh * 0.12);
+}
+
+// Detects fixed-width (monospace) text — Courier-style ledger numbers,
+// invoice/reference codes, Tally-style exports — straight from the rendered
+// pixels, the same way teEstimateBold reads weight. Real-world Indian
+// accounting documents lean on monospace far more than typical office docs
+// (columnar figures need to line up), and a proportional-font guess on those
+// makes extracted numbers visibly misaligned once placed back as editable
+// text. Measures the horizontal gaps BETWEEN ink runs (glyph strokes) across
+// the block: a fixed-width font gives every character cell — and so every
+// inter-character gap — nearly the same width, while a proportional font's
+// gaps vary a lot (an "i" sits in a far narrower cell than an "m"). Low
+// variation in that gap-width distribution reads as monospace.
+function teDetectMonospace(ctx, x, y, w, h, bgColor) {
+  if (!ctx) return false;
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const x0 = Math.max(0, Math.round(x)), y0 = Math.max(0, Math.round(y));
+  const ww = Math.max(1, Math.min(Math.round(w), cw - x0));
+  const hh = Math.max(1, Math.min(Math.round(h), ch - y0));
+  if (ww < 8 || hh < 4) return false;
+  let data;
+  try { data = ctx.getImageData(x0, y0, ww, hh).data; } catch (e) { return false; }
+  const bg = teParseColorToRgb(bgColor) || { r: 255, g: 255, b: 255 };
+
+  const colInk = new Array(ww).fill(false);
+  for (let col = 0; col < ww; col++) {
+    for (let row = 0; row < hh; row++) {
+      const idx = (row * ww + col) * 4;
+      const dist = Math.sqrt((data[idx] - bg.r) ** 2 + (data[idx + 1] - bg.g) ** 2 + (data[idx + 2] - bg.b) ** 2);
+      if (dist > 60) { colInk[col] = true; break; }
+    }
+  }
+
+  const gaps = [];
+  let inRun = false, gapLen = 0, sawRun = false;
+  for (let col = 0; col < ww; col++) {
+    if (colInk[col]) {
+      if (sawRun && gapLen > 0) gaps.push(gapLen);
+      gapLen = 0; inRun = true; sawRun = true;
+    } else if (sawRun) {
+      gapLen++; inRun = false;
+    }
+  }
+  if (gaps.length < 4) return false; // not enough characters to judge reliably
+  const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  if (mean < 1) return false;
+  const variance = gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length;
+  const cv = Math.sqrt(variance) / mean; // coefficient of variation
+  return cv < 0.35; // low variation in gap width = fixed-width font
 }
 
 function teSampleBgColor(ctx, x, y, w, h) {
@@ -18722,8 +19722,14 @@ function pdfedRenderTextLayer(pg, interactive) {
     overlay.style.width  = canvas.width  + 'px';
     overlay.style.height = canvas.height + 'px';
   }
-  overlay.style.transform = `scale(${pdfed.zoom})`;
-  overlay.style.setProperty('--pdfed-inv-zoom', (1 / (pdfed.zoom || 1)).toFixed(4));
+  // Same density correction as pdfedApplyZoom()/pdfedStartTextEdit() — without
+  // it, native PDF pages (rendered at 144dpi vs. the 96dpi on-screen baseline)
+  // show their OCR/text boxes oversized and drifting away from the real text
+  // the further a box sits from the top-left corner.
+  const pdfedTlZoomNormalize = PDFED_PX_PER_MM / ((pg._pxPerMm) || PDFED_PX_PER_MM);
+  const z = pdfed.zoom * pdfedTlZoomNormalize;
+  overlay.style.transform = `scale(${z})`;
+  overlay.style.setProperty('--pdfed-inv-zoom', (1 / (z || 1)).toFixed(4));
   overlay.style.transformOrigin = 'top left';
   if (!interactive) {
     (pg.textBlocks || []).forEach(tb => teAddBlock(tb, overlay, false));
@@ -20920,6 +21926,7 @@ function pdfedResetToNoDocument() {
   pdfedCropOff && pdfedCropOff();
   pdfedCancelAutoCollapse();
   pdfed.pdfDoc = null; pdfed.file = null; pdfed.active = -1; pdfed.zoom = 1.0;
+  pdfed.refineReportUsed = false;
   idbKvDelete(PDFED_STORAGE_KEY).catch(e => console.warn('[Workspace] could not clear saved document', e));
   const strip = document.getElementById('pdfedStrip');
   if (strip) strip.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 8px">Open a PDF to see pages</div>';
@@ -31044,7 +32051,7 @@ function pdfedRenderPlacedImages(idx) {
     // pixels straight onto a canvas, no border wrapper involved) renders the
     // divider correctly. These items already skip the badge-row chrome
     // below for the same "just decoration" reason — skip the border too.
-    const isSectionDecoration = item._sectionIcon || item._sectionDivider || item._sectionBar;
+    const isSectionDecoration = item._sectionIcon || item._sectionDivider || item._sectionBar || item._headerDivider;
     rotInner.style.cssText = `position:absolute;inset:0;box-sizing:border-box;
       border:${isSectionDecoration ? '0' : `2px ${item.locked ? 'solid rgba(255,255,255,0.25)' : 'dashed var(--blue)'}`};
       border-radius:${isSectionDecoration ? '0' : '4px'};transform-origin:50% 50%;`;
@@ -31077,7 +32084,7 @@ function pdfedRenderPlacedImages(idx) {
     // because the lock badge in particular is sized for a normal placed
     // image; on a box this small it would visually dominate the icon
     // itself, making it look oversized and misaligned next to the heading.
-    if (!item._sectionIcon && !item._sectionDivider && !item._sectionBar) {
+    if (!item._sectionIcon && !item._sectionDivider && !item._sectionBar && !item._headerDivider) {
 
     // Lock/unlock toggle badge, always interactive, even when image itself is locked
     const lockBtn = document.createElement('button');
@@ -31947,6 +32954,7 @@ function pdfedClosePdf() {
   pdfed.pdfDoc = null; pdfed.file = null;
   pdfed.pages = []; pdfed.active = -1;
   pdfed.zoom = 1.0;
+  pdfed.refineReportUsed = false;
   idbKvDelete(PDFED_STORAGE_KEY).catch(e => console.warn('[Workspace] could not clear saved document', e));
   const strip = document.getElementById('pdfedStrip');
   if (strip) strip.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 8px">Open a PDF to see pages</div>';
@@ -32612,7 +33620,10 @@ async function daIngestFiles(fileList) {
       if (result && result.tableFound === false) noTableFiles.push(file.name);
     } catch (err) {
       console.error('[Data Arrangement] failed to parse', file.name, err);
-      toast(`Couldn't read "${file.name}", ${err.message || 'unsupported or corrupted file'}`, 'error');
+      const msg = err && err.ocrEngineUnavailable
+        ? 'the OCR engine couldn\'t start (check your connection and try again)'
+        : (err.message || 'unsupported or corrupted file');
+      toast(`Couldn't read "${file.name}", ${msg}`, 'error');
     }
   }
   daSetProgress(false);
@@ -32770,10 +33781,6 @@ async function daExtractImageTable(file) {
     im.onerror = () => reject(new Error('could not decode image, it may be corrupted'));
     im.src = dataUrl;
   });
-
-  if (typeof Tesseract === 'undefined') {
-    throw new Error('the text-reading tool (OCR) couldn\'t load, check your connection and retry');
-  }
 
   const srcCanvas = document.createElement('canvas');
   srcCanvas.width = img.naturalWidth || img.width;
@@ -33894,9 +34901,6 @@ async function daExtractPdf(arrayBuffer, filename) {
 // before deciding whether this came back as a table, written content, or
 // both. ───
 async function daExtractScannedPdfViaOcr(doc, filename) {
-  if (typeof Tesseract === 'undefined') {
-    throw new Error('no readable text found, this PDF may be a scanned image with no text layer, and OCR is unavailable, check your connection and retry');
-  }
   const ocrTableRows = [];
   const ocrProseLines = [];
 
@@ -37521,7 +38525,33 @@ let pdfedRefineState = {
   theme: 'general', align: 'left',
   logoDataUrl: null, logoColors: [], logoAccent: null,
   useLogoColors: true, addLogoToHeader: true,
+  logoPosition: 'right', // 'left' | 'center' | 'right' — where the logo sits in the header on every page
+  // Header text — title/subheading sit beside the logo; contact/address stay
+  // small underneath. All optional; blank fields are simply skipped.
+  headerTitle: '', headerSubheading: '', headerContact: '', headerAddress: '',
+  headerTextPosition: 'left', // 'left' | 'right' — which side of the header this whole text group sits on, independent of the logo's own placement
+
+  footerEnabled: false, // when true, contact + address are repeated small & centered in the footer of every page
 };
+
+// Handles a click on one of the Logo placement buttons in the refine modal.
+function pdfedSetRefineLogoPosition(pos, el) {
+  pdfedRefineState.logoPosition = pos;
+  document.querySelectorAll('#pdfedRefineLogoPositionGroup .da-dropdown-scope-btn')
+    .forEach(b => b.classList.toggle('active', b === el));
+  pdfedUpdateRefinePreview();
+}
+
+// Handles a click on one of the Header text placement buttons (Left/Right)
+// in the refine modal — independent of where the logo itself sits, so a
+// person can pair a right-side logo with a right-side text block (both
+// stacked on the same side) instead of always defaulting to opposite sides.
+function pdfedSetRefineTextPosition(pos, el) {
+  pdfedRefineState.headerTextPosition = pos;
+  document.querySelectorAll('#pdfedRefineTextPositionGroup .da-dropdown-scope-btn')
+    .forEach(b => b.classList.toggle('active', b === el));
+  pdfedUpdateRefinePreview();
+}
 
 // Builds the effective theme for a refine pass: the chosen preset, unless a
 // logo was uploaded and "Match report colors to logo" is on, in which case
@@ -37649,6 +38679,7 @@ function pdfedUpdateLogoPreviewUI() {
   const useColorsRow = document.getElementById('pdfedRefineUseLogoColorsRow');
   const addLogoRow = document.getElementById('pdfedRefineAddLogoRow');
   const removeBtn = document.getElementById('pdfedRefineRemoveLogoBtn');
+  const positionField = document.getElementById('pdfedRefineLogoPositionField');
   const hasLogo = !!pdfedRefineState.logoDataUrl;
 
   if (img) { img.src = hasLogo ? pdfedRefineState.logoDataUrl : ''; img.style.display = hasLogo ? 'block' : 'none'; }
@@ -37656,6 +38687,7 @@ function pdfedUpdateLogoPreviewUI() {
   if (useColorsRow) useColorsRow.style.display = hasLogo && pdfedRefineState.logoColors.length ? 'flex' : 'none';
   if (addLogoRow) addLogoRow.style.display = hasLogo ? 'flex' : 'none';
   if (removeBtn) removeBtn.style.display = hasLogo ? 'block' : 'none';
+  if (positionField) positionField.style.display = hasLogo ? 'block' : 'none';
 
   if (swatchWrap) {
     if (hasLogo && pdfedRefineState.logoColors.length) {
@@ -37680,8 +38712,9 @@ function pdfedUpdateLogoPreviewUI() {
 // wins — this never overwrites it). Sized to a sensible header width and
 // dropped near the top-right; the normal auto-align pass right after this
 // (pdfedAutoAlignContent) is what snaps it to its final, consistent slot.
-function pdfedInsertLogoIntoPages(dataUrl, scopeToInsertedOnly) {
+function pdfedInsertLogoIntoPages(dataUrl, scopeToInsertedOnly, logoPosition) {
   const pages = pdfed.pages || [];
+  const position = logoPosition || 'right'; // 'left' | 'center' | 'right'
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -37696,12 +38729,12 @@ function pdfedInsertLogoIntoPages(dataUrl, scopeToInsertedOnly) {
         if (scopeToInsertedOnly && pg.fromMakeForm) return;
         pg.placedImages = pg.placedImages || [];
         const pageW = pg.width || 800, pageH = pg.height || 1100;
-        const alreadyHasAnchor = pg.placedImages.some(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar && pdfedIsAnchorImage(im, pageW, pageH));
+        const alreadyHasAnchor = pg.placedImages.some(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider && pdfedIsAnchorImage(im, pageW, pageH));
         if (alreadyHasAnchor) return;
         const margin = 36;
         pg.placedImages.push({
           id: 'logo_' + idx + '_' + Date.now().toString(36),
-          dataUrl, x: pageW - margin - targetW, y: Math.round(margin * 0.6),
+          dataUrl, x: pdfedAnchorSlotXForced({ w: targetW }, pageW, margin, position), y: Math.round(margin * 0.6),
           w: targetW, h: targetH, zIndex: 999, locked: false,
           kind: 'logo',
         });
@@ -37712,6 +38745,122 @@ function pdfedInsertLogoIntoPages(dataUrl, scopeToInsertedOnly) {
     img.onerror = () => resolve(0);
     img.src = dataUrl;
   });
+}
+
+// Places the report title / subheading / contact / address text entered in
+// the Refine Report modal onto every in-scope page — title+subheading+
+// contact+address sit together as one group, on whichever side
+// opts.headerTextPosition says (left or right), independent of where the
+// logo itself is placed. Contact+address ride underneath the subheading as
+// a small line, and the same contact+address line is optionally repeated,
+// small and centered, in the footer. Fully idempotent: any header/footer
+// text a PREVIOUS Refine Report pass placed (flagged via _reportHeaderText
+// / _reportFooterText) is stripped first, so editing the fields and
+// re-running replaces the old text instead of stacking duplicates on top
+// of it.
+function pdfedInsertHeaderTextIntoPages(opts, theme) {
+  const pages = pdfed.pages || [];
+  const title = (opts.headerTitle || '').trim();
+  const subheading = (opts.headerSubheading || '').trim();
+  const contact = (opts.headerContact || '').trim();
+  const address = (opts.headerAddress || '').trim();
+  const contactLine = [contact, address].filter(Boolean).join('   ·   ');
+  const hasHeaderText = !!(title || subheading || contactLine);
+  const hasFooterText = !!opts.footerEnabled && !!contactLine;
+  const textOnRight = opts.headerTextPosition === 'right';
+
+  const margin = 36;
+  const LOGO_RESERVE = 110 + 14; // logo target width + breathing room, kept clear of the text block
+  let headerPages = 0, footerPages = 0;
+
+  pages.forEach((pg, idx) => {
+    const inScope = !(opts.scopeToInsertedOnly && pg.fromMakeForm);
+    pg.placedTexts = pg.placedTexts || [];
+    // Always clear out anything a previous pass placed here first, whether
+    // or not this pass is putting anything back — that's how turning a
+    // field blank, or unchecking "repeat in footer", actually removes it.
+    pg.placedTexts = pg.placedTexts.filter(t => !t._reportHeaderText && !t._reportFooterText);
+    if (!inScope) return;
+
+    const pageW = pg.width || 800, pageH = pg.height || 1100;
+    const hasLogo = !!(opts.addLogoToHeader && opts.logoDataUrl);
+    const logoOnLeft = hasLogo && opts.logoPosition === 'left';
+    const logoOnRight = hasLogo && (opts.logoPosition === 'right' || !opts.logoPosition);
+    const reserveLeft = (logoOnLeft && !textOnRight) ? LOGO_RESERVE : 0;
+    const reserveRight = (logoOnRight && textOnRight) ? LOGO_RESERVE : 0;
+    const x = margin + reserveLeft;
+    const w = Math.max(120, pageW - x - margin - reserveRight);
+    const align = textOnRight ? 'right' : 'left';
+
+    // Vertically center the whole title/subheading/contact block against
+    // the logo actually placed on this page (pdfedInsertLogoIntoPages +
+    // the auto-align pass right after it run BEFORE this function, so the
+    // logo's real, final x/y/w/h already sit in placedImages by now) —
+    // rather than a fixed top offset. A fixed offset is what made a tall
+    // logo mark read as sitting lower than a short, three-line text block:
+    // both started at nearly the same y, so the logo's extra height just
+    // hung further down past the text, instead of the two sharing a
+    // common visual center the way an actual letterhead does.
+    const pageAnchor = hasLogo
+      ? (pg.placedImages || []).find(im => !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider && pdfedIsAnchorImage(im, pageW, pageH))
+      : null;
+    // Rough total height of the text block as it'll actually be laid out
+    // below (line-advance values match the y increments used per field
+    // further down) — good enough to center against, not meant to be a
+    // pixel-exact typographic measurement.
+    const textBlockH = (title ? 26 : 0) + (subheading ? 17 : 0) + (contactLine ? 13 : 0) || 20;
+    let y = pageAnchor
+      ? Math.round(pageAnchor.y + ((pageAnchor.h || 0) - textBlockH) / 2)
+      : Math.round(margin * 0.35);
+    y = Math.max(Math.round(margin * 0.3), y);
+
+    if (hasHeaderText) {
+      if (title) {
+        pg.placedTexts.push({
+          id: 'rpthdr_title_' + idx + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          text: title, x, y, w,
+          fontSize: 20, fontFamily: theme.font, color: theme.accent,
+          bold: true, italic: false, underline: false, align,
+          locked: false, zIndex: 998, _reportHeaderText: true,
+        });
+        y += 26;
+      }
+      if (subheading) {
+        pg.placedTexts.push({
+          id: 'rpthdr_sub_' + idx + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          text: subheading, x, y, w,
+          fontSize: 12, fontFamily: theme.bodyFont, color: theme.accent,
+          bold: false, italic: false, underline: false, align,
+          locked: false, zIndex: 998, _reportHeaderText: true,
+        });
+        y += 17;
+      }
+      if (contactLine) {
+        pg.placedTexts.push({
+          id: 'rpthdr_contact_' + idx + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          text: contactLine, x, y, w,
+          fontSize: 9, fontFamily: theme.bodyFont, color: '#6b7280',
+          bold: false, italic: false, underline: false, align,
+          locked: false, zIndex: 998, _reportHeaderText: true,
+        });
+      }
+      headerPages++;
+    }
+
+    if (hasFooterText) {
+      pg.placedTexts.push({
+        id: 'rptftr_' + idx + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+        text: contactLine, x: margin, y: Math.max(margin, pageH - margin * 0.75),
+        w: Math.max(60, pageW - margin * 2),
+        fontSize: 9, fontFamily: theme.bodyFont, color: '#6b7280',
+        bold: false, italic: false, underline: false, align: 'center',
+        locked: false, zIndex: 998, _reportFooterText: true,
+      });
+      footerPages++;
+    }
+  });
+
+  return { headerPages, footerPages };
 }
 
 // ── Adjust to A4 ────────────────────────────────────────────────────────
@@ -38112,6 +39261,13 @@ function pdfedUpdateRefinePreview() {
   const table = document.getElementById('prpTable');
   const para = document.getElementById('prpPara');
   const logo = document.getElementById('prpLogo');
+  const header = document.getElementById('prpHeader');
+  if (header) {
+    header.classList.remove('logo-pos-left', 'logo-pos-center', 'logo-pos-right');
+    header.classList.add('logo-pos-' + (pdfedRefineState.logoPosition || 'right'));
+    header.classList.remove('text-pos-left', 'text-pos-right');
+    header.classList.add('text-pos-' + (pdfedRefineState.headerTextPosition || 'left'));
+  }
 
   if (title) { title.style.fontFamily = theme.font; title.style.color = theme.accent; }
   if (section) { section.style.fontFamily = theme.font; section.style.color = theme.accent; }
@@ -38143,6 +39299,48 @@ function pdfedUpdateRefinePreview() {
   if (logo) {
     logo.src = hasLogo ? pdfedRefineState.logoDataUrl : '';
     logo.style.display = hasLogo ? 'inline-block' : 'none';
+  }
+
+  // Title falls back to the placeholder sample when left blank, so the
+  // preview never looks broken/empty — but subheading, contact info, and
+  // the footer line only ever show up once the person's actually typed
+  // something into them.
+  if (title) title.textContent = (pdfedRefineState.headerTitle || '').trim() || 'Report Title';
+  const subEl = document.getElementById('prpSubheading');
+  if (subEl) {
+    const sub = (pdfedRefineState.headerSubheading || '').trim();
+    subEl.textContent = sub;
+    subEl.style.display = sub ? 'block' : 'none';
+    subEl.style.fontFamily = theme.bodyFont;
+  }
+  const contactEl = document.getElementById('prpContact');
+  if (contactEl) {
+    const contact = (pdfedRefineState.headerContact || '').trim();
+    const address = (pdfedRefineState.headerAddress || '').trim();
+    const line = [contact, address].filter(Boolean).join('  ·  ');
+    contactEl.textContent = line;
+    contactEl.style.display = line ? 'block' : 'none';
+    contactEl.style.fontFamily = theme.bodyFont;
+  }
+  const footerEl = document.getElementById('prpFooterPreview');
+  if (footerEl) {
+    const contact = (pdfedRefineState.headerContact || '').trim();
+    const address = (pdfedRefineState.headerAddress || '').trim();
+    const line = [contact, address].filter(Boolean).join('  ·  ');
+    const show = !!pdfedRefineState.footerEnabled && !!line;
+    footerEl.textContent = line;
+    footerEl.style.display = show ? 'block' : 'none';
+    footerEl.style.fontFamily = theme.bodyFont;
+  }
+
+  // Mandatory margin-to-margin rule under the header, same gradient the
+  // real refine pass draws under the logo on every page — always on
+  // whenever a logo is present, independent of the "Highlight section
+  // titles" toggle above.
+  const headerDivider = document.getElementById('prpHeaderDivider');
+  if (headerDivider) {
+    headerDivider.style.display = hasLogo ? 'block' : 'none';
+    headerDivider.style.background = `linear-gradient(90deg, ${theme.accent}, ${pdfedShadeHex(theme.accent, 0.4)})`;
   }
 }
 
@@ -38348,6 +39546,71 @@ function pdfedApplySectionIcons(pages, theme, addIcons, scopeToInsertedOnly) {
   return count;
 }
 
+// A relayout (pdfedAutoAlignContent) recomputes every flow item's y — and
+// sometimes a heading's x, if content around it changes — but it never
+// touches an existing section badge/divider image: those are decorations,
+// not flow items (see the _sectionIcon/_sectionDivider guard inside
+// pdfedAutoAlignContent), so they only ever get placed once, by
+// pdfedApplySectionIcons at Refine Report time. A manual pull/push doesn't
+// go through that pass again, so without this, a heading that already had
+// a badge from an earlier Refine run stays shifted to its new position
+// while its badge+divider stay pinned to the OLD position — which is
+// exactly what reads as a badge sitting on top of the heading's own first
+// letters after a push/pull moves it. This finds each heading's own badge
+// and divider (matched by id, not re-detected) and moves them to match,
+// using the exact same geometry pdfedApplySectionIcons uses to place them
+// in the first place — it never creates, removes, or re-colors anything,
+// so a heading with no badge is left untouched.
+function pdfedResyncSectionIconsForPage(pg) {
+  if (!pg || !pg.placedTexts || !pg.placedTexts.length || !pg.placedImages || !pg.placedImages.length) return;
+  const headings = pg.placedTexts.filter(t => t && t._sectionIconShift);
+  if (!headings.length) return;
+  const pageW = pg.width || 800;
+  const margin = 36;
+  headings.forEach(t => {
+    const iconPrefix = 'sectionicon_' + t.id + '_';
+    const dividerPrefix = 'sectiondivider_' + t.id + '_';
+    const icon = pg.placedImages.find(im => im && im._sectionIcon && typeof im.id === 'string' && im.id.indexOf(iconPrefix) === 0);
+    const divider = pg.placedImages.find(im => im && im._sectionDivider && typeof im.id === 'string' && im.id.indexOf(dividerPrefix) === 0);
+    if (!icon && !divider) return; // no badge left to resync for this heading
+
+    // Recover the heading's true unshifted x (same undo pdfedApplySectionIcons
+    // does on a re-run) before recomputing geometry off of it.
+    const origX = (t.x || 0) - t._sectionIconShift;
+    const fontSize = t.fontSize || 20;
+    const iconSize = (icon && icon.w) || Math.max(20, Math.round(fontSize * 1.3));
+    const gap = 10;
+    const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
+    const lineHeight = fontSize * 1.25;
+    const lines = String(t.text || '').split('\n').length;
+
+    const assocTable = pdfedFindAssociatedTable(pg, t);
+    const tableX = assocTable ? (assocTable.x || 0) : null;
+    const tableW = assocTable ? pdfedTableWidth(assocTable) : 0;
+    const innerPadX = 12;
+    const barPad = 6;
+    let bandX = (assocTable && tableW > 0) ? Math.round(tableX) : Math.max(0, Math.round(origX + padX - innerPadX));
+    let bandW = (assocTable && tableW > 0) ? Math.round(tableW) : Math.max(60, Math.round(pageW - margin - bandX));
+    if (bandX < margin) { bandW -= (margin - bandX); bandX = margin; }
+    if (bandX + bandW > pageW - margin) bandW = Math.max(60, pageW - margin - bandX);
+
+    const iconX = bandX + innerPadX;
+    const iconY = Math.round((t.y || 0) + padY + (lineHeight - iconSize) / 2);
+    const rowBottom = (t.y || 0) + padY + lines * lineHeight;
+    const ruleH = Math.max(2, Math.round(fontSize * 0.14));
+    const bandBottom = Math.round(Math.max(rowBottom, iconY + iconSize) + barPad);
+
+    // Re-anchor the heading's x the same way pdfedApplySectionIcons does —
+    // covers the case where the relayout reset it back toward its raw,
+    // unshifted position.
+    t.x = Math.round(iconX + iconSize + gap - padX);
+    t._sectionIconShift = t.x - origX;
+
+    if (icon) { icon.x = iconX; icon.y = iconY; icon.w = iconSize; icon.h = iconSize; }
+    if (divider) { divider.x = bandX; divider.y = Math.round(bandBottom - ruleH); divider.w = bandW; divider.h = ruleH; }
+  });
+}
+
 // A small image reads as a logo/brand mark no matter where it currently
 // sits on the page — a report header logo dragged mid-canvas by accident,
 // or dropped low during editing, is still a logo, not a content image, and
@@ -38389,6 +39652,17 @@ function pdfedAnchorSlotX(img, pageW, margin) {
   };
   const best = Object.keys(dist).reduce((a, b) => (dist[a] <= dist[b] ? a : b));
   return slots[best];
+}
+
+// Same three header slots as pdfedAnchorSlotX above, but for when the person
+// has explicitly picked a logo placement (Left / Center / Right) in the
+// Refine Report modal rather than leaving it to the "closest to where it
+// already sits" guess — the explicit choice always wins.
+function pdfedAnchorSlotXForced(img, pageW, margin, slot) {
+  const w = img.w || 0;
+  if (slot === 'left') return margin;
+  if (slot === 'center') return Math.round((pageW - w) / 2);
+  return Math.round(pageW - margin - w); // 'right' (and default)
 }
 
 // A flowed item's own footprint — a table's is the sum of its row heights/
@@ -38494,7 +39768,15 @@ function pdfedGroupImagesIntoRows(images) {
   return rows;
 }
 
-function pdfedAutoAlignContent(pg, mode) {
+// Fixed report-header/footer text (Refine Report's title/subheading/
+// contact/address block) is pinned where it was placed, on purpose — it's
+// masthead/letterhead content, not part of the document's reading flow, and
+// must never be picked up by the auto-layout engine, the whitespace crawler,
+// or the manual pull-up/push-down arrows as if it were a paragraph or
+// heading that can be reflowed, resized, or moved to a different page.
+function pdfedIsFlowText(t) { return !(t && (t._reportHeaderText || t._reportFooterText)); }
+
+function pdfedAutoAlignContent(pg, mode, logoPosition, dividerColor) {
   const pc = document.getElementById('pdfedPageCanvas');
   const pageW = pg.width || (pc && pc.width) || 600;
   const pageH = pg.height || (pc && pc.height) || 800;
@@ -38531,6 +39813,16 @@ function pdfedAutoAlignContent(pg, mode) {
   // still gets clamped to the page as an absolute last resort below, but
   // this is where "shrink to fit" stops being the right tool for it.
   const MIN_SHRINK = 0.55;
+  // A deliberately lower floor than MIN_SHRINK above, used only to rescue a
+  // page from the "one small chart/table spills onto its own follow-on
+  // page, leaving most of that page blank" outcome. If shrinking everything
+  // down to somewhere between MIN_SHRINK and this floor is enough to make
+  // the WHOLE page's content fit together, that reads as more professional
+  // than a mostly-empty second page — so it's tried first, below, before
+  // ever falling back to an actual page split. If even this floor isn't
+  // enough, the content is genuinely too much for one page and the normal
+  // split still applies, giving the leftover its own proper page.
+  const RESCUE_MIN_SHRINK = 0.42;
   const IMG_ROW_GAP = 16; // horizontal gap between images placed in the same row
   const maxContentW = pageW - margin * 2;
   // A visual cluster of charts (see pdfedGroupImagesIntoRows) can be any
@@ -38558,11 +39850,11 @@ function pdfedAutoAlignContent(pg, mode) {
   const anchors = [];
 
   (pg.placedTables || []).forEach(item => flow.push({ item, kind: 'table' }));
-  (pg.placedTexts || []).forEach(item => flow.push({ item, kind: 'text' }));
+  (pg.placedTexts || []).forEach(item => { if (pdfedIsFlowText(item)) flow.push({ item, kind: 'text' }); });
 
   const contentImages = [];
   (pg.placedImages || []).forEach(item => {
-    if (item._sectionIcon || item._sectionDivider || item._sectionBar) return; // handled separately by pdfedApplySectionIcons — never an anchor/flow item
+    if (item._sectionIcon || item._sectionDivider || item._sectionBar || item._headerDivider) return; // handled separately — never an anchor/flow item
     if (pdfedIsAnchorImage(item, pageW, pageH)) anchors.push(item);
     else contentImages.push(item);
   });
@@ -38590,10 +39882,31 @@ function pdfedAutoAlignContent(pg, mode) {
   // (left / center / right), at a consistent, professional offset from the
   // page edge — never wherever it happened to be dropped.
   anchors.forEach(img => {
-    img.x = pdfedAnchorSlotX(img, pageW, margin);
+    img.x = logoPosition ? pdfedAnchorSlotXForced(img, pageW, margin, logoPosition) : pdfedAnchorSlotX(img, pageW, margin);
     img.y = Math.round(margin * 0.6);
   });
-  const anchorBottom = anchors.length ? Math.max(...anchors.map(a => a.y + (a.h || 0))) : 0;
+  let anchorBottom = anchors.length ? Math.max(...anchors.map(a => a.y + (a.h || 0))) : 0;
+
+  // Mandatory header divider: whenever a logo/header mark sits on the page,
+  // a thin margin-to-margin accent rule always runs underneath it — same
+  // gradient-rule treatment as the section-title dividers below, just
+  // stretched the full content width instead of one table's width, so the
+  // header always reads as a finished, professional band rather than a
+  // logo floating with nothing to ground it. Regenerated fresh every pass
+  // (stripped first) so it never drifts or duplicates on repeated runs.
+  pg.placedImages = (pg.placedImages || []).filter(im => !im._headerDivider);
+  const HEADER_DIVIDER_GAP = 10;
+  const HEADER_DIVIDER_H = 3;
+  if (anchors.length && dividerColor) {
+    const bandY = anchorBottom + HEADER_DIVIDER_GAP;
+    const bandW = pageW - margin * 2;
+    pg.placedImages.push({
+      id: 'headerdivider_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      dataUrl: pdfedSectionDividerDataUrl(dividerColor, bandW, HEADER_DIVIDER_H),
+      x: margin, y: bandY, w: bandW, h: HEADER_DIVIDER_H, zIndex: 998, locked: true, _headerDivider: true,
+    });
+    anchorBottom = bandY + HEADER_DIVIDER_H;
+  }
 
   if (!flow.length) return [];
 
@@ -38758,7 +40071,14 @@ function pdfedAutoAlignContent(pg, mode) {
     const tightTotalH = naturalContentH + totalGap();
     if (tightTotalH > availableH) {
       const rawScale = availableH / tightTotalH;
-      const scale = Math.max(MIN_SHRINK, Math.min(1, rawScale));
+      // If everything fits together at some scale down to RESCUE_MIN_SHRINK,
+      // use exactly that scale — the whole page's content stays as one
+      // group instead of splitting off a small tail onto a new, mostly
+      // blank page. Only when even that lower floor isn't enough does this
+      // fall back to the normal MIN_SHRINK clamp, which leaves genuine
+      // overflow for the split logic below to hand onto a fresh page.
+      const effectiveFloor = rawScale >= RESCUE_MIN_SHRINK ? RESCUE_MIN_SHRINK : MIN_SHRINK;
+      const scale = Math.max(effectiveFloor, Math.min(1, rawScale));
       flow.forEach(({ item, kind, images }) => {
         if (kind === 'table') {
           item.fontSize = Math.max(7, (item.fontSize || 12) * scale);
@@ -38977,7 +40297,7 @@ async function pdfedMakeRefineOverflowPage(sourcePg) {
     placedImages: [],
   };
   (sourcePg.placedImages || []).forEach(img => {
-    if (img._sectionIcon || img._sectionDivider || img._sectionBar) return;
+    if (img._sectionIcon || img._sectionDivider || img._sectionBar || img._headerDivider) return;
     if (!pdfedIsAnchorImage(img, width, height)) return;
     pg.placedImages.push(Object.assign({}, img, {
       id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
@@ -39027,7 +40347,7 @@ async function pdfedApplyMapGridLayout(pages, scopeToInsertedOnly) {
     if (!pg.placedImages || !pg.placedImages.length) return;
     const keep = [];
     pg.placedImages.forEach(img => {
-      if (img.kind === 'map' && !img._sectionIcon && !img._sectionDivider && !img._sectionBar) {
+      if (img.kind === 'map' && !img._sectionIcon && !img._sectionDivider && !img._sectionBar && !img._headerDivider) {
         maps.push(img);
       } else {
         keep.push(img);
@@ -39095,6 +40415,846 @@ async function pdfedApplyMapGridLayout(pages, scopeToInsertedOnly) {
   return { mapsLaidOut: maps.length, mapPagesAdded };
 }
 
+// ── Page Consolidation (Refine Report) ────────────────────────────────────
+// The overflow pass above only ever flows FORWARD: a page too full spills
+// its tail onto a fresh page after it. Nothing in that pass ever looks the
+// other way — a page with a lot of empty space left under its content, with
+// the very next page holding only a small table or a short block, is left
+// exactly as-is, because "does page N+1 actually need its own sheet at
+// all?" was never asked. This pass asks it: after the overflow pass has
+// settled, walk adjacent page pairs and, wherever the next page's whole
+// content would cleanly fold into the current page's leftover room, fold it
+// in and drop the now-empty page — so a KPI table on its own near-blank
+// page slides up onto the report page above it instead of forcing a manual
+// cleanup pass every time.
+//
+// This isn't limited to reports typed/built inside the Workspace. A
+// document can arrive here as editable placed items (a typed or AI-built
+// report, an annotated PDF, a form page) OR as a flat raster with nothing
+// placed on it at all (an imported/scanned PDF page, a photographed
+// document, an exported page opened read-only) — those two cases need two
+// different ways of measuring "how much real content is here" and "does it
+// fit", so this pass branches on which kind of page it's looking at rather
+// than assuming one format.
+function pdfedClonePlacedArray(arr) {
+  return (arr || []).map(item => JSON.parse(JSON.stringify(item)));
+}
+
+// Loads a page's own background raster and finds how far down its real
+// (non-blank) content actually goes, scanning in the image's native pixel
+// space. This is what lets a flat, un-annotated page (nothing in
+// placedTables/Texts/Images to measure) still report an honest "here's
+// where the whitespace starts" instead of being read as either fully empty
+// or fully full.
+function pdfedMeasureRasterContentBounds(dataUrl) {
+  return new Promise(resolve => {
+    if (!dataUrl) { resolve(null); return; }
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) { resolve(null); return; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      let data;
+      try { data = ctx.getImageData(0, 0, w, h).data; } catch (e) { resolve(null); return; }
+      // Only the bottom edge of the content matters here, so scan rows
+      // from the bottom up and stop at the first non-blank one — cheap for
+      // the common case of a mostly-full page, and never worse than
+      // scanning every row once for a fully blank one.
+      const isRowBlank = (y) => {
+        const rowStart = y * w * 4;
+        for (let x = 0; x < w; x++) {
+          const i = rowStart + x * 4;
+          const a = data[i + 3];
+          if (a < 10) continue; // fully transparent — not content
+          if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return false;
+        }
+        return true;
+      };
+      let contentBottom = 0;
+      for (let y = h - 1; y >= 0; y--) {
+        if (!isRowBlank(y)) { contentBottom = y + 1; break; }
+      }
+      resolve({ w, h, contentBottom });
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+// Crops a raster page down to just its real content (top of the page
+// through its measured content bottom, plus a small pad) — the piece that
+// actually needs to move, not the blank remainder below it.
+function pdfedCropRasterTop(dataUrl, bounds) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const w = bounds.w;
+      const h = Math.min(bounds.h, bounds.contentBottom + 12);
+      if (w <= 0 || h <= 0) { resolve(null); return; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+// A raster-only page (no placed items to fold — see the branch in
+// pdfedConsolidateUnderfilledPages below) can still be merged: measure how
+// much genuine blank space pg has left at its own bottom (from its placed
+// flow if it has any, otherwise from its own raster), measure how tall
+// next's real content actually is, and — if it fits — paste a crop of that
+// content into pg as a plain image and report success so the caller can
+// drop next entirely. Returns false without touching either page if it
+// doesn't fit or either raster can't be read.
+async function pdfedTryMergeRasterPage(pg, next) {
+  const margin = 36;
+  const gap = 24;
+  const pageH = pg.height || 800;
+  const pageW = pg.width || 600;
+
+  const pgRealImages = (pg.placedImages || []).filter(im =>
+    !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider);
+  const pgHasFlow = (pg.placedTables && pg.placedTables.length)
+    || (pg.placedTexts && pg.placedTexts.length)
+    || pgRealImages.length;
+
+  let pgContentBottom;
+  if (pgHasFlow) {
+    const bottoms = [margin];
+    (pg.placedTables || []).forEach(t => bottoms.push((t.y || 0) + pdfedFlowSize(t, 'table', pageW, margin).h));
+    (pg.placedTexts || []).forEach(t => bottoms.push((t.y || 0) + pdfedFlowSize(t, 'text', pageW, margin).h));
+    pgRealImages.forEach(im => bottoms.push((im.y || 0) + (im.h || 0)));
+    pgContentBottom = Math.max(...bottoms);
+  } else {
+    const pgBounds = await pdfedMeasureRasterContentBounds(pg.dataUrl);
+    pgContentBottom = pgBounds ? pgBounds.contentBottom : margin;
+  }
+
+  const nextBounds = await pdfedMeasureRasterContentBounds(next.dataUrl);
+  // A genuinely blank/divider page (nothing found, or content only in the
+  // first handful of pixel rows) is left alone rather than treated as
+  // mergeable — deleting a page the person deliberately left blank as a
+  // section break isn't "filling whitespace", it's losing their structure.
+  if (!nextBounds || nextBounds.contentBottom < 20) return false;
+
+  const availableH = pageH - margin - pgContentBottom;
+  if (nextBounds.contentBottom + gap > availableH) return false;
+
+  const cropDataUrl = await pdfedCropRasterTop(next.dataUrl, nextBounds);
+  if (!cropDataUrl) return false;
+
+  pg.placedImages = pg.placedImages || [];
+  pg.placedImages.push({
+    id: 'pimg_' + (++pdfedAnnotState.placedImgSeq),
+    dataUrl: cropDataUrl,
+    x: margin,
+    y: Math.round(pgContentBottom + gap),
+    w: pageW - margin * 2,
+    h: Math.round(nextBounds.contentBottom * ((pageW - margin * 2) / (nextBounds.w || 1))),
+    zIndex: pdfedNextZ(pg),
+  });
+  return true;
+}
+
+async function pdfedConsolidateUnderfilledPages(pages, opts, theme) {
+  // Consolidation is meaningless without the same flow/stacking pass that
+  // measures whether things fit — only ever runs alongside that pass, never
+  // on its own.
+  if (!opts.align) return 0;
+  const scopeToInsertedOnly = !!opts.scopeToInsertedOnly;
+  const inScope = pg => !(scopeToInsertedOnly && pg.fromMakeForm);
+  let consolidated = 0;
+  let i = 0;
+  while (i < pages.length - 1) {
+    const pg = pages[i];
+    const next = pages[i + 1];
+    if (!inScope(pg) || !inScope(next)) { i++; continue; }
+
+    // Only fold pages that are physically the same sheet — a size mismatch
+    // (e.g. a landscape map-grid page sitting between portrait report
+    // pages) means these were never meant to read as one continuous flow.
+    if ((pg.width || 0) !== (next.width || 0) || (pg.height || 0) !== (next.height || 0)) { i++; continue; }
+
+    const nextAllImages = (next.placedImages || []).filter(im =>
+      !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider);
+    // A repeating page header/logo isn't a reason to block the fold — most
+    // multi-page reports carry the exact same masthead on every page, and
+    // pg already has its own copy of it. Only the logo itself is dropped
+    // from what gets carried over (folding it in too would duplicate the
+    // header); everything else next actually contains — tables, text,
+    // real content images — still moves.
+    const nextRealImages = nextAllImages.filter(im => !pdfedIsAnchorImage(im, next.width || 600, next.height || 800));
+
+    const nextHasFlowContent = (next.placedTables && next.placedTables.length)
+      || (next.placedTexts && next.placedTexts.length)
+      || nextRealImages.length;
+
+    if (nextHasFlowContent) {
+      // Editable content — try the fold entirely on clones first. pg's and
+      // next's real arrays stay untouched unless the merged content
+      // actually re-flows onto one page with nothing left over.
+      // pdfedAutoAlignContent mutates whatever it's given (repositioning,
+      // and if needed shrinking fonts/rows to fit), so a failed attempt
+      // must never be allowed to leave marks on either page's real content.
+      const trialPg = Object.assign({}, pg, {
+        placedTables: pdfedClonePlacedArray(pg.placedTables).concat(pdfedClonePlacedArray(next.placedTables)),
+        placedTexts: pdfedClonePlacedArray(pg.placedTexts).concat(pdfedClonePlacedArray(next.placedTexts)),
+        placedImages: pdfedClonePlacedArray(pg.placedImages).concat(pdfedClonePlacedArray(nextRealImages)),
+      });
+      const overflow = pdfedAutoAlignContent(trialPg, opts.align, opts.logoPosition, theme.accent) || [];
+
+      if (overflow.length) {
+        // Doesn't fit together on one sheet — leave both pages exactly as
+        // they were (the clones are simply discarded) and try the next pair.
+        i++;
+        continue;
+      }
+
+      // Fits cleanly — commit the merged, re-flowed layout to pg and drop
+      // the now-empty next page. Re-check the SAME index in case the page
+      // that's now next also fits in pg's remaining room.
+      pg.placedTables = trialPg.placedTables;
+      pg.placedTexts = trialPg.placedTexts;
+      pg.placedImages = trialPg.placedImages;
+      pages.splice(i + 1, 1);
+      consolidated++;
+      continue;
+    }
+
+    // No placed items at all on the next page — a flat, rasterized page
+    // (imported/scanned PDF, photographed document, exported page opened
+    // read-only) rather than editable content. Nothing to reflow, but it
+    // can still be measured off its actual pixels and folded the same way.
+    const merged = await pdfedTryMergeRasterPage(pg, next);
+    if (!merged) { i++; continue; }
+    pages.splice(i + 1, 1);
+    consolidated++;
+  }
+  return consolidated;
+}
+
+// ── SARVARC Crawler: page whitespace inspection ────────────────────────
+// pdfedAutoAlignContent (below) re-flows every text/table/image fresh
+// against whichever page object it's handed — it reads pg.width/pg.height
+// live each call (falling back to a sane 600×800 default the same way
+// the rest of this file does when a page's own dimensions weren't
+// recorded), re-wraps text to that page's own content width, and bounds
+// its overflow check against that page's own height. A HEIGHT mismatch
+// between two pages was never actually unsafe, and — now that
+// pdfedScaleFlowItemsForWidth clamps against the destination's own
+// content width — neither is a WIDTH mismatch, however large, or even a
+// page missing its width entirely: it just falls back to 600 like every
+// other size read in this file already does, rather than refusing to
+// move anything. There's nothing left here that needs to block the move
+// up front; the fit-test below is what actually decides what fits.
+
+// Scales the width-sensitive fields of a set of tables/texts/images by a
+// shared ratio in place. Mirrors exactly what pdfedAutoAlignContent's own
+// vertical shrink-to-fit pass already does (column widths + font size
+// together for tables, width + font size for text, width/height for
+// images) — same mechanism, just triggered by a width difference between
+// two pages instead of a height overflow on one page.
+//
+// maxContentW (optional) is the DESTINATION page's actual content width
+// (pageW - margin*2) — after the shared-ratio scale, any item still wider
+// than that gets a second, individual clamp down to fit, same floor-
+// protected way. This is what makes it safe to allow ANY width gap
+// between two pages, no matter how large: the shared ratio gets things in
+// the right ballpark, and this clamp is the hard guarantee that nothing
+// scaled here can ever run past the destination page's own margin, even
+// if the ratio alone wouldn't have been enough.
+function pdfedScaleFlowItemsForWidth(tables, texts, images, scale, maxContentW) {
+  const noRatioChange = !scale || Math.abs(scale - 1) < 0.01;
+  const clampTableRow = (colWidths) => {
+    let widths = colWidths.map(w => Math.max(24, noRatioChange ? w : w * scale));
+    const totalW = widths.reduce((a, b) => a + b, 0);
+    if (maxContentW && totalW > maxContentW) {
+      const clamp = maxContentW / totalW;
+      widths = widths.map(w => Math.max(24, w * clamp));
+    }
+    return widths.map(w => Math.round(w));
+  };
+  (tables || []).forEach(it => {
+    let colScale = 1;
+    if (Array.isArray(it.colWidths)) {
+      const before = it.colWidths.reduce((a, b) => a + b, 0) || 1;
+      it.colWidths = clampTableRow(it.colWidths);
+      const after = it.colWidths.reduce((a, b) => a + b, 0);
+      colScale = after / before; // the REAL scale actually applied, ratio scale + any extra clamp
+    }
+    if (Array.isArray(it.rowHeights) && colScale !== 1) it.rowHeights = it.rowHeights.map(h => Math.max(12, Math.round(h * colScale)));
+    if (it.fontSize && colScale !== 1) it.fontSize = Math.max(7, it.fontSize * colScale);
+  });
+  (texts || []).forEach(it => {
+    if (!it.w) { if (!noRatioChange && it.fontSize) it.fontSize = Math.max(9, it.fontSize * scale); return; }
+    let w = Math.max(20, noRatioChange ? it.w : it.w * scale);
+    let itemScale = w / it.w;
+    if (maxContentW && w > maxContentW) { itemScale = itemScale * (maxContentW / w); w = maxContentW; }
+    it.w = Math.round(w);
+    if (it.fontSize) it.fontSize = Math.max(9, it.fontSize * itemScale);
+  });
+  (images || []).forEach(it => {
+    if (!it.w) return;
+    let w = Math.max(20, noRatioChange ? it.w : it.w * scale);
+    const itemScale = w / it.w;
+    if (maxContentW && w > maxContentW) { w = maxContentW; }
+    it.w = Math.round(w);
+    if (it.h) it.h = Math.max(20, Math.round(it.h * itemScale));
+  });
+}
+
+// Beyond the pure width-ratio scale above, this makes an incoming block of
+// pulled/pushed content actually READ like it belongs on the destination
+// page: its heading size and body paragraph size are set to match whatever
+// size is ALREADY established there, rather than just carrying over its
+// source page's own sizing (scaled by a width ratio that's usually ~1
+// anyway, since both pages are normally the same page size). Without this,
+// a manual pull/push can land a 16px heading next to an 18px one already on
+// the page, or 10px body text next to 11px body text — small enough to slip
+// past a glance, but exactly the kind of inconsistency that reads as
+// unpolished in a finished report. Runs a mode (most common size) over the
+// destination's OWN existing content, not an average, so one odd outlier
+// text box already on the page can't skew the match target; if the
+// destination page has no heading (or no body text) of its own yet, that
+// category is left at whatever the width-scale pass already gave it, since
+// there's nothing on the page to match to.
+function pdfedMatchIncomingFontsToDestination(destPg, incomingTables, incomingTexts) {
+  const mode = (nums) => {
+    if (!nums.length) return null;
+    const counts = new Map();
+    nums.forEach(n => counts.set(n, (counts.get(n) || 0) + 1));
+    let best = nums[0], bestCount = 0;
+    counts.forEach((c, n) => { if (c > bestCount) { bestCount = c; best = n; } });
+    return best;
+  };
+
+  const destTexts = destPg.placedTexts || [];
+  const targetHeadingSize = mode(destTexts.filter(pdfedTextLooksLikeHeading).map(t => t.fontSize).filter(Boolean));
+  const targetBodySize = mode(destTexts.filter(t => !pdfedTextLooksLikeHeading(t)).map(t => t.fontSize).filter(Boolean));
+  const targetTableSize = mode((destPg.placedTables || []).map(t => t.fontSize).filter(Boolean));
+
+  (incomingTexts || []).forEach(t => {
+    if (!t.fontSize) return;
+    if (pdfedTextLooksLikeHeading(t)) {
+      if (targetHeadingSize) t.fontSize = targetHeadingSize;
+    } else if (targetBodySize) {
+      t.fontSize = targetBodySize;
+    }
+  });
+
+  if (targetTableSize) {
+    (incomingTables || []).forEach(it => {
+      if (!it.fontSize || Math.abs(it.fontSize - targetTableSize) < 0.01) return;
+      const ratio = targetTableSize / it.fontSize;
+      it.fontSize = targetTableSize;
+      // Row heights were sized for the old font size — rescale them by the
+      // same ratio so cells don't end up cramped (size went up) or leaving
+      // odd extra air (size went down).
+      if (Array.isArray(it.rowHeights)) it.rowHeights = it.rowHeights.map(h => Math.max(12, Math.round(h * ratio)));
+    });
+  }
+}
+
+// Reads a page's own flow (tables/texts/real images — the same set
+// pdfedAutoAlignContent lays out) top-to-bottom and reports how much
+// genuinely empty vertical space sits above the first item and below the
+// last one. This is the whitespace a push/pull is actually trying to use;
+// surfaced here so callers can give a specific reason before even
+// attempting a move, rather than a generic size complaint. Decorative
+// anchors/dividers are excluded since they aren't part of the flow.
+function pdfedCrawlPageWhitespace(pg) {
+  const margin = 36;
+  const pageW = (pg && pg.width) || 600;
+  const pageH = (pg && pg.height) || 800;
+  const items = []
+    .concat(pg.placedTables || [])
+    .concat((pg.placedTexts || []).filter(pdfedIsFlowText))
+    .concat((pg.placedImages || []).filter(im =>
+      !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider
+      && !pdfedIsAnchorImage(im, pageW, pageH)));
+  if (!items.length) return { top: Math.max(0, pageH - margin * 2), bottom: Math.max(0, pageH - margin * 2), empty: true };
+  let top = Infinity, bottom = -Infinity;
+  items.forEach(it => {
+    const y0 = it.y || 0;
+    const y1 = y0 + (it.h || 0);
+    if (y0 < top) top = y0;
+    if (y1 > bottom) bottom = y1;
+  });
+  return {
+    top: Math.max(0, top - margin),
+    bottom: Math.max(0, (pageH - margin) - bottom),
+    empty: false,
+  };
+}
+
+// ── Manual per-page whitespace fill ────────────────────────────────────
+// The automatic passes above only ever commit when a WHOLE page's content
+// fits cleanly elsewhere — deliberately conservative, so Refine Report
+// never silently shrinks something past a comfortable size on its own.
+// That's still occasionally short of what someone can see with their own
+// eyes is possible ("this table would fit if it just moved up a bit").
+// These two actions are the manual override, available per page from the
+// pages panel regardless of whether Refine Report has ever been run on
+// this document: pull the next page's content up (accepting a PARTIAL
+// merge — whatever fits moves, the rest stays behind on next), or push
+// this page's own bottom-most item down onto the next one.
+function pdfedManualRefineDefaults() {
+  const theme = pdfedResolveRefineTheme({
+    theme: pdfedRefineState.theme,
+    useLogoColors: pdfedRefineState.useLogoColors,
+    logoAccent: pdfedRefineState.logoAccent,
+  });
+  return { align: pdfedRefineState.align || 'left', logoPosition: pdfedRefineState.logoPosition || null, theme };
+}
+
+// Splits pdfedAutoAlignContent's raw {item, kind[, images]} overflow
+// entries back out into placedTables/placedTexts/placedImages arrays, in
+// their original order, so they can be reassigned straight onto a page.
+function pdfedFlowEntriesToPlacedArrays(entries) {
+  const placedTables = [], placedTexts = [], placedImages = [];
+  entries.forEach(f => {
+    if (f.kind === 'table') placedTables.push(f.item);
+    else if (f.kind === 'text') placedTexts.push(f.item);
+    else if (f.kind === 'image') placedImages.push(f.item);
+    else if (f.kind === 'imageRow') placedImages.push(...f.images);
+  });
+  return { placedTables, placedTexts, placedImages };
+}
+
+async function pdfedRecordManualFillHistory(label, before, idx) {
+  if (!before) return;
+  const after = JSON.parse(JSON.stringify(pdfed.pages));
+  pushAppHistory({
+    label,
+    undo: async () => {
+      pdfed.pages = JSON.parse(JSON.stringify(before));
+      await pdfedGoto(Math.min(idx, pdfed.pages.length - 1));
+      pdfed.pages.forEach((_, i) => pdfedMarkModified(i));
+      if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+      toast(label + ' undone', 'info');
+    },
+    redo: async () => {
+      pdfed.pages = JSON.parse(JSON.stringify(after));
+      await pdfedGoto(Math.min(idx, pdfed.pages.length - 1));
+      pdfed.pages.forEach((_, i) => pdfedMarkModified(i));
+      if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+      toast(label, 'success');
+    }
+  });
+}
+
+// Pushes THIS page's own content UP onto the page above — lives on the page
+// the person is actually looking at, instead of requiring them to navigate
+// up to the previous page first and use ITS pull-up button to reach the
+// same result. "Page N pushes its own content up onto N-1" and "page N-1
+// pulls page N's content up onto itself" are exactly the same merge, so
+// this just delegates straight to pdfedManualPullNextPageUp on the
+// PREVIOUS page's index — same fit-testing, partial-merge, and font-match
+// guarantees, just triggered from the other side.
+async function pdfedManualPushContentUp(idx) {
+  if (idx <= 0) { toast('No page above this one to push into', 'info'); return; }
+  await pdfedManualPullNextPageUp(idx - 1);
+}
+
+async function pdfedManualPullNextPageUp(idx) {
+  const pages = pdfed.pages || [];
+  const pg = pages[idx];
+  const next = pages[idx + 1];
+  if (!pg || !next) { toast('No page below this one to pull up', 'info'); return; }
+
+  const { align, logoPosition, theme } = pdfedManualRefineDefaults();
+  const nextAllImages = (next.placedImages || []).filter(im =>
+    !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider);
+  const nextAnchors = nextAllImages.filter(im => pdfedIsAnchorImage(im, next.width || 600, next.height || 800));
+  const nextRealImages = nextAllImages.filter(im => !pdfedIsAnchorImage(im, next.width || 600, next.height || 800));
+  // Report header/footer text on "next" is fixed to that page and is never
+  // a candidate to pull up — split it out here so it's excluded from every
+  // flow/tag/clone step below, then stitched back onto next untouched if
+  // next survives as a (partially merged) page.
+  const nextOwnHeaderFooterTexts = (next.placedTexts || []).filter(t => !pdfedIsFlowText(t));
+  const nextFlowTexts = (next.placedTexts || []).filter(pdfedIsFlowText);
+  const hasFlow = (next.placedTables && next.placedTables.length)
+    || nextFlowTexts.length
+    || nextRealImages.length;
+
+  let before;
+  try { before = JSON.parse(JSON.stringify(pdfed.pages)); } catch (e) { before = null; }
+
+  let fullyMerged = false;
+  if (!hasFlow) {
+    // Raster-only next page (scanned/imported, nothing placed on it) —
+    // same crop-and-paste path the automatic pass uses, just triggered
+    // directly instead of waiting on the whole-page-fits check.
+    const merged = await pdfedTryMergeRasterPage(pg, next);
+    if (!merged) {
+      const ws = pdfedCrawlPageWhitespace(pg);
+      const room = Math.round(ws.bottom);
+      toast(room > 4
+        ? `Only ~${room}px of empty space left on this page — not enough room for what's below it`
+        : "Not enough room on this page for what's below it", 'info');
+      return;
+    }
+    pages.splice(idx + 1, 1);
+    fullyMerged = true;
+  } else {
+    // Tag next's own real items before cloning so a scaled clone can be
+    // matched back to its unscaled original below — needed because
+    // whatever DOESN'T end up fitting on pg has to stay on next at next's
+    // own native size, not carry pg's scale back with it.
+    let tagSeq = 0;
+    const tagAll = arr => (arr || []).forEach(it => { it._pullTag = 'ul' + (tagSeq++); });
+    tagAll(next.placedTables);
+    tagAll(nextFlowTexts);
+    tagAll(nextRealImages);
+
+    // Cross-width bridge: next's tables/text carry column widths and font
+    // sizes sized for next's own width. Scaled here, before the trial, so
+    // the fit-test below measures the size the content will actually be
+    // once it's living on pg. maxContentW is pg's own content width — the
+    // hard clamp that lets this run even when the width gap is large.
+    const scale = (pg.width || 600) / (next.width || 600);
+    const maxContentW = Math.max(60, (pg.width || 600) - 36 * 2);
+    const nextTablesClone = pdfedClonePlacedArray(next.placedTables);
+    const nextTextsClone = pdfedClonePlacedArray(nextFlowTexts);
+    const nextImagesClone = pdfedClonePlacedArray(nextRealImages);
+    pdfedScaleFlowItemsForWidth(nextTablesClone, nextTextsClone, nextImagesClone, scale, maxContentW);
+    // Match the incoming headings/body text/table font sizes to whatever's
+    // already established on pg (this page, the destination) — see
+    // pdfedMatchIncomingFontsToDestination for why this is more than the
+    // width-ratio scale above already covers.
+    pdfedMatchIncomingFontsToDestination(pg, nextTablesClone, nextTextsClone);
+    // Force next's content to sort AFTER all of this page's own content —
+    // pdfedAutoAlignContent below orders purely by each item's own y, and
+    // next's items still carry their own page's y (usually starting back
+    // near the top margin), which would otherwise interleave them above
+    // this page's later content instead of following it. The offset is a
+    // uniform shift, so next's own internal top-to-bottom order among
+    // itself is preserved — only its position relative to pg's content
+    // changes, keeping the correct hierarchy across the page boundary.
+    const NEXT_Y_OFFSET = 1000000;
+    [...nextTablesClone, ...nextTextsClone, ...nextImagesClone].forEach(it => { it.y = (it.y || 0) + NEXT_Y_OFFSET; });
+    const trialPg = Object.assign({}, pg, {
+      placedTables: pdfedClonePlacedArray(pg.placedTables).concat(nextTablesClone),
+      placedTexts: pdfedClonePlacedArray(pg.placedTexts).concat(nextTextsClone),
+      placedImages: pdfedClonePlacedArray(pg.placedImages).concat(nextImagesClone),
+    });
+    const overflow = pdfedAutoAlignContent(trialPg, align, logoPosition, theme.accent) || [];
+    pg.placedTables = trialPg.placedTables;
+    pg.placedTexts = trialPg.placedTexts;
+    pg.placedImages = trialPg.placedImages;
+
+    // Which of next's ORIGINAL headings actually made it onto pg (matched
+    // by their _pullTag, the same tag their pg-bound clone still carries).
+    const overflowTags = new Set();
+    overflow.forEach(f => (f.images ? f.images : [f.item]).forEach(it => { if (it && it._pullTag) overflowTags.add(it._pullTag); }));
+
+    // A heading carries its own section badge+divider (if Refine Report
+    // previously added one) along with it when it moves onto pg — badges
+    // are excluded from nextRealImages above (they're decorations, not
+    // flow content), so without this they'd stay behind on next while
+    // their heading moves to pg, leaving an orphaned badge on one page and
+    // a bare heading on the other. Matched purely by heading id (never
+    // re-detected); exact position/size for pg's own width/font gets
+    // recomputed by the resync call below.
+    {
+      const movedHeadingIds = new Set(
+        (next.placedTexts || [])
+          .filter(t => t && t._pullTag && !overflowTags.has(t._pullTag))
+          .map(t => t.id)
+          .filter(Boolean)
+      );
+      if (movedHeadingIds.size) {
+        next.placedImages = (next.placedImages || []).filter(im => {
+          if (!im || (!im._sectionIcon && !im._sectionDivider) || typeof im.id !== 'string') return true;
+          const belongs = Array.from(movedHeadingIds).some(hid =>
+            im.id.indexOf('sectionicon_' + hid + '_') === 0 || im.id.indexOf('sectiondivider_' + hid + '_') === 0);
+          if (belongs) { pg.placedImages.push(im); return false; }
+          return true;
+        });
+      }
+    }
+
+    // Leave the pulled-in block exactly where pdfedAutoAlignContent above
+    // already placed it: stacked directly beneath pg's own existing
+    // content with the normal SECTION_GAP, filling the page's empty space
+    // instead of being shoved down to sit flush against the bottom margin
+    // with a big dead gap in between. This used to re-anchor the pulled
+    // group to the bottom edge on purpose; that read as an obviously
+    // artificial gap in a finished report rather than a natural, filled
+    // page, so it's gone — the only thing this block still needs to do is
+    // strip the temporary _pullTag markers now that these items are
+    // permanent pg content.
+    {
+      [...pg.placedTables, ...pg.placedTexts, ...pg.placedImages].forEach(it => { if (it) delete it._pullTag; });
+    }
+    // pg just got fully relaid out (its own pre-existing content included,
+    // not just what was pulled in) — any heading on it that already carried
+    // a section badge from an earlier Refine Report run needs that badge
+    // moved to match, or it stays pinned to the heading's old position.
+    pdfedResyncSectionIconsForPage(pg);
+
+    if (!overflow.length) {
+      pages.splice(idx + 1, 1);
+      fullyMerged = true;
+      // next is being dropped entirely — its now-orphaned tags never
+      // get read again, no cleanup needed.
+    } else {
+      // Partial fit — whatever's left stays behind on next. Matched back
+      // to next's own UNSCALED originals by tag (never the scaled clones
+      // that went into the trial), so content that stays on next keeps
+      // reading at next's own native size, carrying its own header
+      // logo/divider back with it so a partial pull doesn't strand its
+      // branding, then re-flows from next's own top. (overflowTags was
+      // already computed above, right after the trial layout ran.)
+      const keepOriginal = arr => (arr || []).filter(it => it._pullTag && overflowTags.has(it._pullTag));
+      const stayingTables = keepOriginal(next.placedTables);
+      const stayingTexts = keepOriginal(next.placedTexts);
+      const stayingImages = keepOriginal(nextRealImages);
+      [...stayingTables, ...stayingTexts, ...stayingImages].forEach(it => delete it._pullTag);
+      next.placedTables = stayingTables;
+      // next's own fixed header/footer text (excluded from the trial
+      // entirely) rides back on untouched — it was never a candidate to
+      // move, so it's never at risk here regardless of what did or didn't fit.
+      next.placedTexts = stayingTexts.concat(nextOwnHeaderFooterTexts);
+      next.placedImages = nextAnchors.concat(stayingImages);
+      pdfedAutoAlignContent(next, align, logoPosition, theme.accent);
+      pdfedResyncSectionIconsForPage(next);
+      pdfedMarkModified(idx + 1);
+    }
+  }
+  pdfedMarkModified(idx);
+
+  if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+  await pdfedGoto(idx);
+  if (typeof pdfedRefreshSelectionPanel === 'function') pdfedRefreshSelectionPanel();
+  await pdfedRecordManualFillHistory('Pull next page up', before, idx);
+  toast(fullyMerged ? 'Page merged up' : 'Moved what fits — the rest stayed on the next page', 'success');
+}
+
+// Pushes THIS page's own content down onto the next page, landing ABOVE
+// next's own content — the direct mirror of pdfedManualPullNextPageUp
+// (which pulls the page below UP to sit BENEATH this page's own content).
+// Together the two buttons move a whole page's worth of content one step
+// in either direction while always keeping the natural above/below
+// hierarchy (a page always reads before whatever came after it) and never
+// guessing about whitespace: both directions test the real fit first and
+// only move however much of the content genuinely has room, leaving the
+// rest behind rather than losing it or leaving the source page emptied
+// out for no reason.
+async function pdfedManualPushLastItemDown(idx) {
+  const pages = pdfed.pages || [];
+  const pg = pages[idx];
+  const next = pages[idx + 1];
+  if (!pg || !next) { toast('No page below this one to push into', 'info'); return; }
+
+  const { align, logoPosition, theme } = pdfedManualRefineDefaults();
+
+  const pgRealImages = (pg.placedImages || []).filter(im =>
+    !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider
+    && !pdfedIsAnchorImage(im, pg.width || 600, pg.height || 800));
+  // pg's own report header/footer text is fixed to pg and is never a
+  // candidate to push down — split it out here so it's excluded from every
+  // tag/dry-run/split step below, then stitched back onto pg untouched.
+  const pgOwnHeaderFooterTexts = (pg.placedTexts || []).filter(t => !pdfedIsFlowText(t));
+  const pgFlowTexts = (pg.placedTexts || []).filter(pdfedIsFlowText);
+  const hasFlow = (pg.placedTables && pg.placedTables.length)
+    || pgFlowTexts.length
+    || pgRealImages.length;
+  if (!hasFlow) { toast('Nothing on this page to push down', 'info'); return; }
+
+  let before;
+  try { before = JSON.parse(JSON.stringify(pdfed.pages)); } catch (e) { before = null; }
+
+  // Tag every candidate item on this page with a temporary marker so it
+  // can be tracked through a dry-run pass below (which works on deep
+  // clones, so identity can't be matched by reference) — stripped again
+  // right after, never saved onto the real document.
+  let tagSeq = 0;
+  const tagAll = arr => (arr || []).forEach(it => { it._pushTag = 'pt' + (tagSeq++); });
+  tagAll(pg.placedTables);
+  tagAll(pgFlowTexts);
+  tagAll(pgRealImages);
+
+  // Dry run: NEXT's own content keeps its natural sort order and goes
+  // FIRST in the trial flow, which is what pdfedAutoAlignContent's
+  // overflow logic protects — it only ever trims the TAIL of the sorted
+  // flow when something doesn't fit. This page's candidate content is
+  // forced to sort after it, so only this page's own content can ever
+  // land in the returned overflow — next's own content is never at risk
+  // of being bumped by an incoming push. Whatever survives is exactly
+  // what has genuine room; the "never strand a heading" rule already
+  // built into that overflow split keeps a heading together with
+  // whatever it introduces on whichever side of the cut it lands.
+  // Cross-width bridge: this page's tables/text carry column widths and
+  // font sizes sized for pg's own width. Scaled here, before the dry run,
+  // so the fit-test measures the size the content will actually be once
+  // it's living on next — the "staying" half never gets touched, so
+  // whatever doesn't move keeps reading at pg's own native size.
+  // maxContentW is next's own content width — the hard clamp against
+  // next's real margins, not just the ratio.
+  const scale = (next.width || 600) / (pg.width || 600);
+  const maxContentW = Math.max(60, (next.width || 600) - 36 * 2);
+  const PUSH_Y_OFFSET = 1000000;
+  const dryPgTables = pdfedClonePlacedArray(pg.placedTables).map(it => { it.y = (it.y || 0) + PUSH_Y_OFFSET; return it; });
+  const dryPgTexts = pdfedClonePlacedArray(pgFlowTexts).map(it => { it.y = (it.y || 0) + PUSH_Y_OFFSET; return it; });
+  const dryPgImages = pdfedClonePlacedArray(pgRealImages).map(it => { it.y = (it.y || 0) + PUSH_Y_OFFSET; return it; });
+  pdfedScaleFlowItemsForWidth(dryPgTables, dryPgTexts, dryPgImages, scale, maxContentW);
+  // Match sizes to next's existing content here too, so the dry-run fit
+  // test measures against the SAME sizes the real move will actually use
+  // below — matching only in the real pass, after the dry run already
+  // measured at the (slightly different) width-scaled size, could let
+  // something the dry run approved turn out too tall once font-matched.
+  pdfedMatchIncomingFontsToDestination(next, dryPgTables, dryPgTexts);
+  const nextRealImagesForDry = (next.placedImages || []).filter(im =>
+    !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider);
+  const dryTrial = Object.assign({}, next, {
+    placedTables: pdfedClonePlacedArray(next.placedTables).concat(dryPgTables),
+    placedTexts: pdfedClonePlacedArray(next.placedTexts).concat(dryPgTexts),
+    placedImages: pdfedClonePlacedArray(nextRealImagesForDry).concat(dryPgImages),
+  });
+  const dryOverflow = pdfedAutoAlignContent(dryTrial, align, logoPosition, theme.accent) || [];
+  const overflowTags = new Set();
+  dryOverflow.forEach(f => {
+    (f.images ? f.images : [f.item]).forEach(it => { if (it && it._pushTag) overflowTags.add(it._pushTag); });
+  });
+
+  // Untag the real items and split them into "moving" (survived the dry
+  // run — has real room on next) vs "staying" (didn't fit, stays behind
+  // on this page).
+  const splitByTag = arr => {
+    const moving = [], staying = [];
+    (arr || []).forEach(it => {
+      const tag = it._pushTag;
+      delete it._pushTag;
+      if (tag && overflowTags.has(tag)) staying.push(it); else moving.push(it);
+    });
+    return { moving, staying };
+  };
+  const tablesSplit = splitByTag(pg.placedTables);
+  const textsSplit = splitByTag(pgFlowTexts);
+  const imagesSplit = splitByTag(pgRealImages);
+
+  if (!tablesSplit.moving.length && !textsSplit.moving.length && !imagesSplit.moving.length) {
+    const ws = pdfedCrawlPageWhitespace(next);
+    const room = Math.round(ws.top);
+    toast(room > 4
+      ? `Only ~${room}px of empty space at the top of the next page — not enough for anything to move down`
+      : 'Not enough room on the next page for anything to move down', 'info');
+    return;
+  }
+
+  // Commit: remove exactly the moving items from this page (anchors,
+  // section decorations, and whatever didn't fit all stay untouched), and
+  // reflow whatever's left so it doesn't sit with a gap where the moved
+  // content used to be.
+  const movingImageSet = new Set(imagesSplit.moving);
+  pg.placedTables = tablesSplit.staying;
+  // pg's own fixed header/footer text was never a candidate to push down —
+  // it rides back on untouched, regardless of what did or didn't fit.
+  pg.placedTexts = textsSplit.staying.concat(pgOwnHeaderFooterTexts);
+  // A heading carries its own section badge+divider (if Refine Report
+  // previously added one) along with it when pushed — pdfedResyncSectionIconsForPage
+  // only ever repositions a badge that's still living on the SAME page as
+  // its heading; it never re-creates one that got left behind. Move the
+  // decoration out of pg and into the set going to next, matched purely by
+  // heading id (never re-detected), so a badge stays with its own heading
+  // no matter which page that heading ends up on — its exact position/size
+  // for next's own width/font gets recomputed by the resync call below.
+  const movingHeadingIds = new Set(textsSplit.moving.map(t => t && t.id).filter(Boolean));
+  const movingDecor = [];
+  pg.placedImages = (pg.placedImages || []).filter(im => {
+    if (movingImageSet.has(im)) return false;
+    if (movingHeadingIds.size && im && (im._sectionIcon || im._sectionDivider) && typeof im.id === 'string') {
+      const belongsToMovingHeading = Array.from(movingHeadingIds).some(hid =>
+        im.id.indexOf('sectionicon_' + hid + '_') === 0 || im.id.indexOf('sectiondivider_' + hid + '_') === 0);
+      if (belongsToMovingHeading) { movingDecor.push(im); return false; }
+    }
+    return true;
+  });
+  const stillHasContent = pg.placedTables.length || pg.placedTexts.length || (pg.placedImages || []).some(im =>
+    !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider
+    && !pdfedIsAnchorImage(im, pg.width || 600, pg.height || 800));
+  if (stillHasContent) { pdfedAutoAlignContent(pg, align, logoPosition, theme.accent); pdfedResyncSectionIconsForPage(pg); }
+
+  // Commit the moving content onto next, forced to sort ABOVE next's own
+  // existing content so the hierarchy — this page's content always reads
+  // above whatever next already had — holds after the real (not just
+  // dry-run) layout pass too. Scaled to next's width now, for real, the
+  // same ratio the dry run already proved fits.
+  pdfedScaleFlowItemsForWidth(tablesSplit.moving, textsSplit.moving, imagesSplit.moving, scale, maxContentW);
+  // Real commit — match the moving content's heading/body/table font
+  // sizes to what's already on next (the destination), same as the dry
+  // run above.
+  pdfedMatchIncomingFontsToDestination(next, tablesSplit.moving, textsSplit.moving);
+  {
+    const movingTables = tablesSplit.moving.map((it, i) => Object.assign(it, { y: -1000000 + i }));
+    const movingTexts = textsSplit.moving.map((it, i) => Object.assign(it, { y: -1000000 + i }));
+    const movingImages = imagesSplit.moving.map((it, i) => Object.assign(it, { y: -1000000 + i }));
+    next.placedTables = movingTables.concat(next.placedTables || []);
+    next.placedTexts = movingTexts.concat(next.placedTexts || []);
+    // movingDecor's own x/y are stale (still from pg) — pdfedResyncSectionIconsForPage
+    // below recomputes them against next's own width/font once the heading
+    // it belongs to has its final position there.
+    next.placedImages = movingImages.concat(movingDecor, next.placedImages || []);
+  }
+  // The dry run already proved this exact combined content (all of next's
+  // own + this "moving" subset) fits inside next at the next-first sort
+  // order; reordering to moving-first for the real layout shouldn't
+  // reintroduce overflow, but if a junction's gap rules tip it over by a
+  // hair, don't lose that tail silently — fold it right back onto this
+  // page rather than dropping it.
+  const realOverflow = pdfedAutoAlignContent(next, align, logoPosition, theme.accent) || [];
+  pdfedResyncSectionIconsForPage(next);
+  if (realOverflow.length) {
+    const { placedTables, placedTexts, placedImages } = pdfedFlowEntriesToPlacedArrays(realOverflow);
+    pg.placedTables = (pg.placedTables || []).concat(placedTables);
+    pg.placedTexts = (pg.placedTexts || []).concat(placedTexts);
+    pg.placedImages = (pg.placedImages || []).concat(placedImages);
+    // Any heading folded back onto pg here might still have its badge
+    // sitting on next (it was moved over above, before this correction
+    // pulled the heading itself back) — bring the badge back with it so
+    // it doesn't end up orphaned on the wrong page.
+    const foldedBackHeadingIds = new Set(placedTexts.map(t => t && t.id).filter(Boolean));
+    if (foldedBackHeadingIds.size) {
+      next.placedImages = (next.placedImages || []).filter(im => {
+        if (!im || (!im._sectionIcon && !im._sectionDivider) || typeof im.id !== 'string') return true;
+        const belongs = Array.from(foldedBackHeadingIds).some(hid =>
+          im.id.indexOf('sectionicon_' + hid + '_') === 0 || im.id.indexOf('sectiondivider_' + hid + '_') === 0);
+        if (belongs) { pg.placedImages.push(im); return false; }
+        return true;
+      });
+    }
+    pdfedAutoAlignContent(pg, align, logoPosition, theme.accent);
+    pdfedResyncSectionIconsForPage(pg);
+  }
+
+  const pgEmptyNow = !pg.placedTables.length && !pg.placedTexts.length && !(pg.placedImages || []).some(im =>
+    !im._sectionIcon && !im._sectionDivider && !im._sectionBar && !im._headerDivider
+    && !pdfedIsAnchorImage(im, pg.width || 600, pg.height || 800));
+
+  let removedPg = false;
+  if (pgEmptyNow) {
+    pages.splice(idx, 1);
+    removedPg = true;
+    pdfedMarkModified(idx);
+  } else {
+    pdfedMarkModified(idx);
+    pdfedMarkModified(idx + 1);
+  }
+
+  if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+  await pdfedGoto(Math.min(idx, pages.length - 1));
+  if (typeof pdfedRefreshSelectionPanel === 'function') pdfedRefreshSelectionPanel();
+  await pdfedRecordManualFillHistory('Push page content down', before, idx);
+  toast(removedPg ? 'Page merged down' : 'Moved what fits — the rest stayed on this page', 'success');
+}
+
 async function pdfedApplyReportRefinement(opts) {
   const theme = pdfedResolveRefineTheme(opts);
   const pages = pdfed.pages || [];
@@ -39104,7 +41264,7 @@ async function pdfedApplyReportRefinement(opts) {
   // them, while a normal report (no form pages at all) refines every page
   // exactly as it always has.
   const inScope = pg => !(scopeToInsertedOnly && pg.fromMakeForm);
-  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0, overflowPagesAdded = 0;
+  let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0, overflowPagesAdded = 0, pagesConsolidated = 0;
 
   // Maps get pulled out and re-laid out into their own grid page(s) FIRST,
   // before any other pass ever sees them — so the baseline-snapshot pass
@@ -39165,7 +41325,7 @@ async function pdfedApplyReportRefinement(opts) {
       // Section badges/dividers are fully stripped and regenerated fresh
       // every pass (see pdfedApplySectionIcons) — they never carry drift
       // of their own, so they're deliberately left out of this baseline.
-      if (item._sectionIcon || item._sectionDivider || item._sectionBar) return;
+      if (item._sectionIcon || item._sectionDivider || item._sectionBar || item._headerDivider) return;
       if (!item._refineBaseline) {
         item._refineBaseline = { w: item.w, h: item.h };
       }
@@ -39339,7 +41499,7 @@ async function pdfedApplyReportRefinement(opts) {
     while (pageIdx < pages.length) {
       const pg = pages[pageIdx];
       if (!inScope(pg)) { pageIdx++; continue; }
-      const overflow = pdfedAutoAlignContent(pg, opts.align) || [];
+      const overflow = pdfedAutoAlignContent(pg, opts.align, opts.logoPosition, theme.accent) || [];
       if (overflow.length) {
         const newPg = await pdfedMakeRefineOverflowPage(pg);
         overflow.forEach(f => {
@@ -39353,6 +41513,17 @@ async function pdfedApplyReportRefinement(opts) {
       }
       pageIdx++;
     }
+  }
+
+  // Pass 4.5: consolidate under-filled pages — the reverse of Pass 4 above.
+  // Where a page still has clear room left after its own content, and the
+  // very next page's whole content would cleanly re-flow into that room,
+  // fold it in and drop the now-empty page. See
+  // pdfedConsolidateUnderfilledPages for the full reasoning; this is what
+  // stops a short table from sitting alone on a mostly-blank page just
+  // because it happened to land there.
+  if (opts.align) {
+    pagesConsolidated = await pdfedConsolidateUnderfilledPages(pages, opts, theme);
   }
 
   // Pass 5: re-anchor each heading's x under its associated table's now-
@@ -39391,7 +41562,7 @@ async function pdfedApplyReportRefinement(opts) {
     if (pageTouched) pdfedMarkModified(idx);
   });
 
-  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, mapsLaidOut, mapPagesAdded, pages: pages.length };
+  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, pagesConsolidated, mapsLaidOut, mapPagesAdded, pages: pages.length };
 }
 
 async function pdfedRunRefineReportFromModal() {
@@ -39406,6 +41577,13 @@ async function pdfedRunRefineReportFromModal() {
     logoAccent: pdfedRefineState.logoAccent,
     addLogoToHeader: !!pdfedRefineState.addLogoToHeader,
     logoDataUrl: pdfedRefineState.logoDataUrl,
+    logoPosition: pdfedRefineState.logoPosition || 'right',
+    headerTitle: pdfedRefineState.headerTitle || '',
+    headerSubheading: pdfedRefineState.headerSubheading || '',
+    headerContact: pdfedRefineState.headerContact || '',
+    headerAddress: pdfedRefineState.headerAddress || '',
+    headerTextPosition: pdfedRefineState.headerTextPosition || 'left',
+    footerEnabled: !!pdfedRefineState.footerEnabled,
   };
   pdfedCloseRefineModal();
 
@@ -39432,7 +41610,7 @@ async function pdfedRunRefineReportFromModal() {
   // when that pass's auto-align step snaps it into its final header slot.
   let logoInserted = 0;
   if (opts.addLogoToHeader && opts.logoDataUrl) {
-    logoInserted = await pdfedInsertLogoIntoPages(opts.logoDataUrl, scopeToInsertedOnly);
+    logoInserted = await pdfedInsertLogoIntoPages(opts.logoDataUrl, scopeToInsertedOnly, opts.logoPosition);
   }
 
   // Track the page the person was actually looking at by OBJECT IDENTITY,
@@ -39446,6 +41624,23 @@ async function pdfedRunRefineReportFromModal() {
   const activePageRef = pdfed.active >= 0 ? pdfed.pages[pdfed.active] : null;
 
   const summary = await pdfedApplyReportRefinement(opts);
+
+  // Title / subheading / contact / address text is placed AFTER the main
+  // refine pass, not before — that pass's heading-detection, body-font, and
+  // page-reflow logic is built around actual document content, and running
+  // it on our header/footer text too would risk it getting resized like a
+  // section heading or reflowed as if it were body copy. Doing this last,
+  // against each page's final (already A4-adjusted) size, keeps it exactly
+  // where it's meant to sit: a fixed header/footer band, not part of the flow.
+  // Always runs (even with every field blank) — that's also how it clears
+  // out header/footer text a PREVIOUS Refine Report pass placed, if the
+  // fields have since been emptied out or the footer checkbox turned off.
+  const headerFooterResult = pdfedInsertHeaderTextIntoPages(opts, pdfedResolveRefineTheme(opts));
+
+  // Refine Report has now actually been used on this document — reveal the
+  // pull-up/push-down flow arrows beside SARVARC Eye (pdfedUpdatePageActions,
+  // called below via pdfedGoto, reads this flag to show/hide them).
+  pdfed.refineReportUsed = true;
 
   // A full pdfedGoto (not just re-rendering the placed layers) since the A4
   // pass above (and any overflow pages inserted just now) may have changed
@@ -39498,8 +41693,11 @@ async function pdfedRunRefineReportFromModal() {
   }
   if (summary.sectionIconsApplied) parts.push(`${summary.sectionIconsApplied} section icon${summary.sectionIconsApplied !== 1 ? 's' : ''} added`);
   if (summary.overflowPagesAdded) parts.push(`${summary.overflowPagesAdded} extra page${summary.overflowPagesAdded !== 1 ? 's' : ''} added for overflow content`);
+  if (summary.pagesConsolidated) parts.push(`${summary.pagesConsolidated} under-filled page${summary.pagesConsolidated !== 1 ? 's' : ''} merged into the page above`);
   if (summary.mapsLaidOut) parts.push(`${summary.mapsLaidOut} map${summary.mapsLaidOut !== 1 ? 's' : ''} arranged on ${summary.mapPagesAdded} page${summary.mapPagesAdded !== 1 ? 's' : ''}`);
   if (logoInserted) parts.push(`logo placed on ${logoInserted} page${logoInserted !== 1 ? 's' : ''}`);
+  if (headerFooterResult.headerPages) parts.push(`header text added to ${headerFooterResult.headerPages} page${headerFooterResult.headerPages !== 1 ? 's' : ''}`);
+  if (headerFooterResult.footerPages) parts.push(`footer added to ${headerFooterResult.footerPages} page${headerFooterResult.footerPages !== 1 ? 's' : ''}`);
   if (opts.useLogoColors && opts.logoAccent) parts.push('logo colors applied');
   if (scopeToInsertedOnly) parts.push('pushed form page(s) left as-is');
   toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
