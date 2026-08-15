@@ -13128,6 +13128,25 @@ button.dg-show-chip.active { background:var(--blue); }
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   width: 32px !important; height: 32px !important; padding: 0 !important; flex-shrink: 0;
 }
+
+/* ─── Locked session (belongs to a different / signed-out Google account) ─── */
+.sm-session-row.sm-session-locked { background: var(--surface2, rgba(127,127,127,0.035)); }
+.sm-session-row.sm-session-locked .sm-session-name { opacity: .62; cursor: not-allowed; }
+.sm-session-row.sm-session-locked .sm-mod-row { opacity: .45; pointer-events: none; }
+.sm-session-row.sm-session-locked .sm-session-icon { color: var(--text3); }
+.sm-lock-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.28);
+  white-space: nowrap; flex-shrink: 0;
+}
+.sm-lock-badge svg { flex-shrink: 0; }
+.sm-session-unlock-btn {
+  background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #ef4444;
+  border-radius: 6px; padding: 5px 11px; font-size: 11px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; transition: all .12s ease; white-space: nowrap;
+}
+.sm-session-unlock-btn:hover { background: rgba(239,68,68,0.14); border-color: #ef4444; }
 </style>
 
 <!-- ─── CINEMA FULLSCREEN PAGE PREVIEW ─── -->
@@ -16111,8 +16130,54 @@ function smDefaultName() {
     ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
+// ─── Session ownership / lock ───────────────────────────────────────────────
+// Every session is now tagged with the email of whoever was signed in with
+// Google at the moment it was first saved (ownerEmail). A session with no
+// ownerEmail was created while signed out and was never mirrored to anyone's
+// Drive — it stays a local/guest session and is never locked. A session that
+// DOES have an ownerEmail can only be loaded, edited, exported, renamed, or
+// deleted while that exact same email is the one currently signed in. This
+// is what keeps a saved project from being opened/edited/downloaded by
+// whoever happens to be sitting at this browser after the owner signs out.
+async function smGetCurrentAuthEmail() {
+  try {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    return (user && user.email) || null;
+  } catch (e) { return null; }
+}
+
+// Returns { ok: true } if the current session is usable, or
+// { ok: false, ownerEmail } if it's locked to a different/no account.
+async function smCheckSessionAccess(rec) {
+  if (!rec || !rec.ownerEmail) return { ok: true };
+  const current = await smGetCurrentAuthEmail();
+  if (current && current.toLowerCase() === String(rec.ownerEmail).toLowerCase()) return { ok: true };
+  return { ok: false, ownerEmail: rec.ownerEmail };
+}
+
+// Shown any time a locked session is touched — whether the click came from
+// a disabled row (belt) or straight through to a core function (suspenders,
+// e.g. a stale second tab). Opens the sign-in modal directly so the person
+// can act on the message immediately instead of hunting for the login button.
+function smShowLockedMessage() {
+  const msg = 'This file is locked. Please log in with the email address you were working with to continue.';
+  if (typeof toast === 'function') toast(msg, 'error'); else alert(msg);
+  if (typeof sarvarcAuthOpenModal === 'function') sarvarcAuthOpenModal('login');
+}
+
+// Masks an email for display on a locked row without fully exposing it on a
+// shared/public browser, e.g. "prayag@gmail.com" -> "pr***g@gmail.com".
+function smMaskEmail(email) {
+  const s = String(email || '');
+  const at = s.indexOf('@');
+  if (at < 1) return s;
+  const user = s.slice(0, at), domain = s.slice(at);
+  if (user.length <= 3) return user[0] + '***' + domain;
+  return user.slice(0, 2) + '***' + user.slice(-1) + domain;
+}
+
 async function smSaveSession(name) {
-  const [ls, idb] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv()]);
+  const [ls, idb, ownerEmail] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv(), smGetCurrentAuthEmail()]);
   const snapshot = { ls, idb };
   let size = 0;
   try { size = JSON.stringify(snapshot).length; } catch (e) {}
@@ -16122,6 +16187,7 @@ async function smSaveSession(name) {
     savedAt: Date.now(),
     size,
     schemaVersion: SM_SNAPSHOT_SCHEMA_VERSION,
+    ownerEmail: ownerEmail || null,
     snapshot
   };
   const db = await idbKvOpen();
@@ -16166,6 +16232,8 @@ async function smUpdateSessionSnapshot(id) {
     req.onerror = () => reject(req.error);
   });
   if (!existing) return null;
+  const access = await smCheckSessionAccess(existing);
+  if (!access.ok) { smShowLockedMessage(); return null; }
 
   const [ls, idb] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv()]);
   const snapshot = { ls, idb };
@@ -16232,6 +16300,14 @@ async function smListSessions() {
 
 async function smRenameSession(id, newName) {
   const db = await idbKvOpen();
+  const existingRec = await new Promise((resolve) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+  const access = await smCheckSessionAccess(existingRec);
+  if (!access.ok) { smShowLockedMessage(); smRenderList(); return null; }
   const rec = await new Promise((resolve, reject) => {
     const tx = db.transaction('sessions', 'readwrite');
     const store = tx.objectStore('sessions');
@@ -16270,6 +16346,17 @@ async function smRenameSession(id, newName) {
 }
 
 async function smDeleteSession(id) {
+  {
+    const db0 = await idbKvOpen();
+    const rec0 = await new Promise((resolve) => {
+      const tx = db0.transaction('sessions', 'readonly');
+      const req = tx.objectStore('sessions').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+    const access = await smCheckSessionAccess(rec0);
+    if (!access.ok) { smShowLockedMessage(); throw new Error('LOCKED'); }
+  }
   // Clear whatever live module data is currently linked to this exact
   // session BEFORE removing the session record itself — i.e. whatever was
   // loaded from it, or saved as it, and hasn't since been re-linked to a
@@ -16324,6 +16411,8 @@ async function smLoadSession(id, moduleKeys, absentModuleKeys) {
     req.onerror = () => reject(req.error);
   });
   if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
+  const access = await smCheckSessionAccess(rec);
+  if (!access.ok) { smShowLockedMessage(); return; }
 
   if (rec.schemaVersion !== SM_SNAPSHOT_SCHEMA_VERSION) {
     // Not fatal — the {ls, idb} shape hasn't changed since this field was
@@ -16422,6 +16511,8 @@ async function smExportSession(id) {
   try {
     const rec = await smGetSession(id);
     if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
+    const access = await smCheckSessionAccess(rec);
+    if (!access.ok) { smShowLockedMessage(); return; }
     const payload = {
       sarvarcSessionExport: true,
       exportedAt: Date.now(),
@@ -16592,6 +16683,8 @@ async function smExportSW(id) {
   try {
     const rec = await smGetSession(id);
     if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
+    const access = await smCheckSessionAccess(rec);
+    if (!access.ok) { smShowLockedMessage(); return; }
     const bytes = await smBuildSWBytes(rec);
     const blob = new Blob([bytes], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
@@ -16778,6 +16871,9 @@ async function smRenderList() {
     '</div>';
     return;
   }
+  // Resolved once per render so every row checks against the same signed-in
+  // state instead of racing separate auth calls per row.
+  const currentEmail = await smGetCurrentAuthEmail();
   const countLabel = sessions.length === 1 ? '1 saved session' : sessions.length + ' saved sessions';
   listEl.innerHTML = '<div class="sm-session-count">' + countLabel + '</div>' + sessions.map(s => {
     const dt = new Date(s.savedAt);
@@ -16785,14 +16881,23 @@ async function smRenderList() {
     const timeStr = dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     const safeName = String(s.name).replace(/"/g, '&quot;');
     const searchName = String(s.name).toLowerCase().replace(/"/g, '&quot;');
-    return '<div class="sm-session-row" data-id="' + s.id + '" data-name="' + searchName + '">' +
-        '<div class="sm-session-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>' +
-        '<input class="sm-session-name" value="' + safeName + '" ' +
-          'onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">' +
-        '<div class="sm-session-meta">' + dateStr + ', ' + timeStr + ' · ' + smFormatBytes(s.size) + '</div>' +
-        '<div class="sm-session-divider"></div>' +
-        '<div class="sm-mod-row">' + smModuleChecksHtml(s.id, s.snapshot) + '</div>' +
-        '<div class="sm-session-actions">' +
+    const isLocked = !!(s.ownerEmail && (!currentEmail || currentEmail.toLowerCase() !== String(s.ownerEmail).toLowerCase()));
+
+    const lockBadge = isLocked
+      ? '<span class="sm-lock-badge" title="Locked to ' + smMaskEmail(s.ownerEmail).replace(/"/g, '&quot;') + '">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' +
+          'Locked' +
+        '</span>'
+      : '';
+
+    const actionsHtml = isLocked
+      ? '<div class="sm-session-actions">' +
+          '<button class="sm-session-unlock-btn" onclick="smShowLockedMessage()">' +
+            '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' +
+            '<span>Log in to unlock</span>' +
+          '</button>' +
+        '</div>'
+      : '<div class="sm-session-actions">' +
           '<button class="sm-session-btn sm-session-load-btn" onclick="smOnLoadClick(\'' + s.id + '\', \'' + safeName + '\')">' +
             '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
             '<span class="sm-load-label">Load all</span>' +
@@ -16800,7 +16905,21 @@ async function smRenderList() {
           '<button class="sm-session-btn icon-only" title="Save this project as a .sw file to share with another PC" onclick="smExportSW(\'' + s.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg></button>' +
           '<button class="sm-session-btn icon-only" title="Export session to a file (for backup or another browser)" onclick="smExportSession(\'' + s.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>' +
           '<button class="sm-session-btn danger icon-only" title="Delete session" onclick="smOnDeleteClick(\'' + s.id + '\', \'' + safeName + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
+        '</div>';
+
+    return '<div class="sm-session-row' + (isLocked ? ' sm-session-locked' : '') + '" data-id="' + s.id + '" data-name="' + searchName + '">' +
+        '<div class="sm-session-icon">' + (isLocked
+          ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+          : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>') +
         '</div>' +
+        (isLocked
+          ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage()">' + safeName + '</span>'
+          : '<input class="sm-session-name" value="' + safeName + '" onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">') +
+        lockBadge +
+        '<div class="sm-session-meta">' + dateStr + ', ' + timeStr + ' · ' + smFormatBytes(s.size) + '</div>' +
+        '<div class="sm-session-divider"></div>' +
+        '<div class="sm-mod-row">' + smModuleChecksHtml(s.id, s.snapshot) + '</div>' +
+        actionsHtml +
     '</div>';
   }).join('');
   smApplyFilter();
@@ -16881,6 +17000,7 @@ async function smOnDeleteClick(id, name) {
     }
   }
   catch (e) {
+    if (e && e.message === 'LOCKED') return; // smShowLockedMessage() already told the user
     console.warn('[Sessions] delete failed', e);
     if (typeof toast === 'function') toast('Could not delete "' + name + '" — nothing was removed. Try again.', 'error');
   }
@@ -61727,6 +61847,10 @@ if (document.readyState === 'loading') {
   })();
   sarvarcSupabase.auth.onAuthStateChange((event, _session) => {
     sarvarcAuthUpdateNavUI();
+    // Keep the Saved Sessions list's lock state in sync the moment someone
+    // signs in or out — otherwise a file could stay shown as unlocked (or
+    // locked) until the page happened to be reopened.
+    if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
     if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('sarvarcRecoveryOverlay').classList.add('open');
       setTimeout(() => document.getElementById('sarvarcRecoveryNewPw').focus(), 50);
