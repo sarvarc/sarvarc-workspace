@@ -1274,31 +1274,57 @@ a.nav-item:hover { color: var(--text); }
   box-shadow: 0 4px 14px rgba(155,92,255,0.35);
 }
 .img-card img { width: 100%; height: 120px; object-fit: cover; display: block; }
+/* Premium hover overlay: a soft dark gradient scrim (like Photos/Lightroom)
+   instead of a flat color wash, so the thumbnail stays readable and the
+   controls read as floating above it rather than tinting the whole image. */
 .img-card .img-overlay {
-  position: absolute; inset: 0;
-  background: rgba(0,194,255,0.1);
-  opacity: 0; transition: opacity 0.2s;
-  display: flex; align-items: center; justify-content: center;
-  flex-wrap: wrap; gap: 6px; padding: 4px;
+  position: absolute; top: 0; left: 0; right: 0; height: 120px;
+  background: linear-gradient(180deg, rgba(6,10,20,0) 38%, rgba(6,10,20,0.72) 100%);
+  opacity: 0; transition: opacity 0.25s ease;
+  display: flex; align-items: flex-end; justify-content: center;
+  flex-wrap: wrap; gap: 7px; padding: 5px 6px 9px;
 }
 .img-card:hover .img-overlay { opacity: 1; }
 .overlay-btn {
-  width: 27px; height: 27px; border-radius: 50%;
-  background: rgba(8,12,24,0.85); backdrop-filter: blur(8px);
-  border: 1px solid var(--border2);
+  width: 29px; height: 29px; border-radius: 10px; /* squircle reads more "app-like"/premium than a plain circle */
+  background: linear-gradient(160deg, rgba(30,36,52,0.92), rgba(10,13,22,0.92));
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
   display: flex; align-items: center; justify-content: center;
-  color: var(--text); font-size: 14px; cursor: pointer;
-  transition: all 0.15s; flex-shrink: 0;
+  color: #F2F6FA; /* fixed light icon color — this pill's background is always
+                      near-black regardless of theme, so tying the icon color
+                      to var(--text) made it near-invisible in light mode */
+  font-size: 14px; cursor: pointer;
+  flex-shrink: 0;
+  /* Buttons start slightly scaled-down/lower and fade+lift into place on
+     hover, staggered a touch per button, instead of just popping visible —
+     that small choreography is what separates "styled" from "premium". */
+  opacity: 0; transform: translateY(5px) scale(0.86);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(.34,1.4,.64,1),
+              background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.img-card:hover .overlay-btn { opacity: 1; transform: translateY(0) scale(1); }
+.img-card:hover .overlay-btn:nth-child(1) { transition-delay: 0.02s; }
+.img-card:hover .overlay-btn:nth-child(2) { transition-delay: 0.05s; }
+.img-card:hover .overlay-btn:nth-child(3) { transition-delay: 0.08s; }
+.img-card:hover .overlay-btn:nth-child(4) { transition-delay: 0.11s; }
+.img-card:hover .overlay-btn:nth-child(5) { transition-delay: 0.14s; }
 .overlay-btn svg { width: 12px; height: 12px; }
-.overlay-btn:hover { background: var(--blue); border-color: var(--blue); }
-.overlay-btn.del:hover { background: #ef4444; border-color: #ef4444; }
+.overlay-btn:hover {
+  background: linear-gradient(160deg, var(--blue), #0073e6);
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 4px 12px rgba(0,194,255,0.45), inset 0 1px 0 rgba(255,255,255,0.25);
+  transform: translateY(-2px) scale(1.08) !important;
+}
+.overlay-btn.del:hover { background: linear-gradient(160deg, #ff6b6b, #ef4444); box-shadow: 0 4px 12px rgba(239,68,68,0.45), inset 0 1px 0 rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.35); }
 .overlay-btn.rsh-quick {
   background: linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);
-  border-color: #c9962f; color: #1a1206;
-  box-shadow: 0 2px 10px rgba(201,150,47,0.55), 0 0 0 1px rgba(255,255,255,0.15) inset;
+  border-color: rgba(255,255,255,0.3); color: #1a1206;
+  box-shadow: 0 2px 10px rgba(201,150,47,0.55), inset 0 1px 0 rgba(255,255,255,0.25);
 }
-.overlay-btn.rsh-quick:hover { background: linear-gradient(135deg,#fff2c0,#e0a83a 55%,#a06f00); border-color:#e0a83a; transform: scale(1.08); }
+.overlay-btn.rsh-quick:hover { background: linear-gradient(135deg,#fff2c0,#e0a83a 55%,#a06f00); border-color: rgba(255,255,255,0.4); box-shadow: 0 4px 14px rgba(224,168,58,0.55), inset 0 1px 0 rgba(255,255,255,0.3); transform: translateY(-2px) scale(1.08) !important; }
 .img-info { padding: 10px 12px; }
 .img-name { font-size: 11px; font-weight: 600; truncate: ellipsis; white-space: nowrap; overflow: hidden; }
 .img-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
@@ -2256,14 +2282,32 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
    ─── never jumps just to peek at a tool. Preference persists per browser. ─── */
 .pdfed-appbar { position: relative; }
 .pdfed-appbar-row2 {
-  transition: height 0.28s cubic-bezier(.4,0,.2,1), opacity 0.18s ease, box-shadow 0.18s ease;
+  border-bottom: 1px solid transparent; /* animatable stand-in for the visible 1px border below, so it fades in/out in step with height/opacity instead of vanishing the instant collapse starts */
+  /* OPENING (this rule governs the transition back to normal, i.e. the target
+     state when the .ribbon-collapsed class is removed). 0s — no transition,
+     no delay. People open the ribbon because they need a tool right now;
+     it's there and clickable the same frame as the click. */
+  transition: height 0s, opacity 0s, border-color 0s, box-shadow 0s;
 }
 .pdfed-appbar.ribbon-collapsed .pdfed-appbar-row2 {
   height: 0;
   opacity: 0;
   pointer-events: none;
   overflow: hidden;
-  border-bottom: none;
+  border-bottom-color: transparent;
+  /* COLLAPSING (this rule governs the transition into this state, i.e. when
+     .ribbon-collapsed is added). This is the "premium" side — 0.75s, slow and
+     deliberate, because closing/hiding something is the motion people
+     actually watch (opening they just want done; closing they want to feel
+     graceful). Opacity clears early (0.3s, no delay) so the icons are long
+     gone before the container finishes shrinking — nothing looks squashed.
+     Height then follows a steep ease-in (almost all the motion happens in the
+     final third) so the ribbon holds its shape, then tucks itself away with a
+     slow, confident close instead of shrinking at a constant rate. */
+  transition: height 0.75s cubic-bezier(.7,0,.84,0),
+              opacity 0.3s ease-in,
+              border-color 0.3s ease-in,
+              box-shadow 0.3s ease-in;
 }
 .pdfed-appbar.ribbon-collapsed .pdfed-appbar-row2.ribbon-peek {
   position: absolute;
@@ -2275,7 +2319,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   overflow-y: hidden;
   z-index: 40;
   background: var(--pdfed-toolbar-bg);
-  border-bottom: 1px solid var(--pdfed-toolbar-border);
+  border-bottom-color: var(--pdfed-toolbar-border);
   box-shadow: 0 12px 24px -6px rgba(0,0,0,0.35);
 }
 .pdfed-ribbon-peek-handle {
@@ -2290,7 +2334,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .pdfed-appbar.ribbon-collapsed .pdfed-ribbon-peek-handle { display: flex; }
 .pdfed-ribbon-peek-handle:hover { color: var(--pdfed-accent); }
-.pdfed-ribbon-toggle-btn svg { transition: transform 0.2s ease; }
+.pdfed-ribbon-toggle-btn svg { transition: transform 0.32s cubic-bezier(.25,.1,.25,1); }
 .pdfed-appbar.ribbon-collapsed .pdfed-ribbon-toggle-btn svg { transform: rotate(180deg); }
 .pdfed-appbar.ribbon-collapsed .pdfed-ribbon-toggle-btn { color: var(--pdfed-accent); }
 
@@ -5794,7 +5838,6 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 }
 
 /* export button 2 hidden initially */
-#pdfedExportBtn2 { display: none; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -6995,7 +7038,11 @@ th:hover .da-th-del { opacity:1; }
   border:1px solid var(--pdfed-toolbar-border); border-radius:12px;
   background:var(--pdfed-toolbar-bg); padding:0 8px; overflow-x:auto; overflow-y:hidden;
   box-shadow:var(--shadow-nav);
-  transition: height 0.24s cubic-bezier(.4,0,.2,1), opacity 0.16s ease, padding 0.2s ease, border-color 0.2s ease;
+  /* OPENING (this rule governs the transition back to normal, i.e. the target
+     state when .dg-ribbon-collapsed is removed). 0s — no delay at all. Opening
+     the tool bar means the user wants a tool right now; it's there and
+     clickable the same frame as the click. */
+  transition: height 0s, opacity 0s, padding 0s, border-color 0s;
 }
 /* Collapsed: shrink the whole bar to a slim clickable strip instead of hiding it,
    so it still reads as "there are tools here" for people who like the toolbar minimal. */
@@ -7006,6 +7053,17 @@ th:hover .da-th-del { opacity:1; }
   cursor: pointer;
   overflow: hidden;
   border-style: dashed;
+  /* COLLAPSING (this rule governs the transition into this state, i.e. when
+     .dg-ribbon-collapsed is added) — the "premium" side, matching the PDF
+     editor ribbon: 0.75s, slow and deliberate, because closing is the motion
+     people actually watch. Opacity/padding/border settle quickly (0.3s) so
+     nothing looks squashed mid-collapse; height follows a steep ease-in
+     (almost all motion happens in the final third) so the bar holds, then
+     tucks itself down to the slim strip with a confident, unhurried close. */
+  transition: height 0.75s cubic-bezier(.7,0,.84,0),
+              opacity 0.3s ease-in,
+              padding 0.3s ease-in,
+              border-color 0.3s ease-in;
 }
 .dg-ribbon-bar.dg-ribbon-collapsed:hover { opacity: 0.9; }
 .dg-ribbon-bar.dg-ribbon-collapsed > * { visibility: hidden; }
@@ -8227,9 +8285,8 @@ button.dg-show-chip.active { background:var(--blue); }
         <div class="page-header">
           <div>
             <h2>Extract Images</h2>
-            <p>Upload a PDF to instantly detect and extract every visual asset within it</p>
+            <p>Upload a PDF — every image inside it appears instantly, ready to pick and choose</p>
           </div>
-          <button class="btn-primary" id="processBtn" onclick="startProcessing()" style="display:none"><span class="btn-icon-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg> Extract All</span></button>
         </div>
 
         <!-- Loaded file banner -->
@@ -8241,8 +8298,9 @@ button.dg-show-chip.active { background:var(--blue); }
           <button class="btn-secondary" onclick="clearAllImages()" style="padding:5px 14px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.35);flex-shrink:0"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear Images</span></button>
         </div>
 
-        <!-- Pipeline -->
-        <div class="pipeline" id="pipeline">
+        <!-- Pipeline (legacy step visual, superseded by instant extraction — kept in DOM
+             in case a future feature needs staged feedback, but hidden by default) -->
+        <div class="pipeline" id="pipeline" style="display:none">
           <div class="pipe-step" id="pipe-upload"><div class="pipe-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div><div class="pipe-label">Upload</div></div>
           <div class="pipe-step" id="pipe-scan"><div class="pipe-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><div class="pipe-label">Scan</div></div>
           <div class="pipe-step" id="pipe-detect"><div class="pipe-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div><div class="pipe-label">Detect</div></div>
@@ -8313,27 +8371,6 @@ button.dg-show-chip.active { background:var(--blue); }
           <div class="progress-sub" id="progressSub">Initializing...</div>
         </div>
 
-        <!-- Page Thumbnails -->
-        <div class="page-thumbnails" id="pageThumbs" style="display:none"></div>
-
-        <!-- Extract Options -->
-        <div class="extract-opts" id="extractOpts" style="display:none">
-          <div class="opt-card selected" onclick="selectOpt(this,'all')">
-            <div class="opt-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-            <div class="opt-name">All Images</div>
-            <div class="opt-desc">Extract every visual element</div>
-          </div>
-          <div class="opt-card" onclick="selectOpt(this,'pages')">
-            <div class="opt-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-            <div class="opt-name">Page Renders</div>
-            <div class="opt-desc">Each page as a high-res image</div>
-          </div>
-          <div class="opt-card" onclick="selectOpt(this,'logos')">
-            <div class="opt-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></div>
-            <div class="opt-name">Logos & Icons</div>
-            <div class="opt-desc">Brand assets only</div>
-          </div>
-        </div>
 
         <!-- Gallery -->
         <div id="galleryWrap" style="display:none">
@@ -10255,10 +10292,10 @@ button.dg-show-chip.active { background:var(--blue); }
             style="padding:5px 14px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
             Map
           </button>
-          <button type="button" class="dg-ribbon-toggle-btn" id="dgRibbonToggleBtn" onclick="dgToggleRibbon()" title="Collapse toolbar"
+          <button type="button" class="dg-ribbon-toggle-btn" id="dgRibbonToggleBtn" onclick="dgToggleRibbon()" title="Collapse Tool Bar"
             style="margin-left:auto;display:flex;align-items:center;gap:5px;padding:5px 10px;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="dgRibbonToggleIcon" style="transition:transform .2s ease"><polyline points="18 15 12 9 6 15"/></svg>
-            <span>Toolbar</span>
+            <span>Tool Bar</span>
           </button>
         </div>
 
@@ -12487,31 +12524,6 @@ button.dg-show-chip.active { background:var(--blue); }
   </div>
 </div>
 
-<!-- Make Forms: translate-language confirm modal — a real in-app modal
-     instead of window.confirm(), which some embedded/preview browser
-     contexts silently block or auto-dismiss without ever showing anything
-     to the user (that silent failure is exactly what made language
-     switching look like it "did nothing"). -->
-<div class="pdfed-insert-modal-overlay" id="mfLangConfirmOverlay" onmousedown="if(event.target===this)mfLangConfirmCancel()">
-  <div class="sarvarc-pw-modal">
-    <div class="pdfed-export-head">
-      <div>
-        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Translate Form</h3>
-      </div>
-      <button type="button" class="pdfed-export-close" onclick="mfLangConfirmCancel()" aria-label="Close">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="sarvarc-pw-modal-body">
-      <div id="mfLangConfirmMsg" style="font-size:12px;color:var(--text2);line-height:1.6"></div>
-    </div>
-    <div class="pdfed-export-footer">
-      <button class="btn-secondary" onclick="mfLangConfirmCancel()" style="padding:9px 18px;font-size:12px">Cancel</button>
-      <button class="pdfed-export-download-btn" onclick="mfLangConfirmOk()">Translate</button>
-    </div>
-  </div>
-</div>
-
 <!-- SHARED "ENTER PDF PASSWORD" PROMPT — the unlock companion to the
      password-protect prompt above. Every PDF load path in the app (Extract
      Images, PDF Editor, PDF Editor's "Merge PDF Into Document", Data
@@ -13435,8 +13447,6 @@ function smToggleDesc() {
   clearTimeout(smDescHideTimer);
   desc.classList.toggle('sm-desc-hidden');
 }
-
-function setMode(m) { state.extractMode = m; }
 
 // ─── MORE TOOLS DROPDOWN ───
 function toggleMoreTools() {
@@ -14641,8 +14651,6 @@ async function processFile(file) {
   state.pdfFile = file;
   toast(file.name + ' loaded', 'success');
   document.getElementById('uploadZone').classList.add('scanning');
-  document.getElementById('processBtn').style.display = 'flex';
-  document.getElementById('extractOpts').style.display = 'grid';
   // Show loaded file banner
   const banner = document.getElementById('extractLoadedBanner');
   document.getElementById('extractLoadedName').textContent = file.name;
@@ -14678,17 +14686,22 @@ async function loadPDF(file) {
     updateStats();
     toast('PDF loaded, ' + state.pdfDoc.numPages + ' pages', 'success');
     await renderPageThumbs();
+    // Straight to results — no "Extract All" click required, every image is
+    // just there the moment the file is ready.
+    await instantExtract();
   } catch(e) {
     if (e && e.message === 'Password entry cancelled') { toast('Unlock cancelled', 'info'); return; }
     toast('Failed to load PDF: ' + e.message, 'error');
   }
 }
 
+// Renders each PDF page to a dataUrl for internal use (Cinema fullscreen
+// preview, the live preview panel) — no longer builds a visible thumbnail
+// strip in the page, since the gallery right below already shows every page
+// larger, labeled, and ready to act on. Rendering the same thing twice was
+// just noise.
 async function renderPageThumbs() {
   if(!state.pdfDoc) return;
-  const container = document.getElementById('pageThumbs');
-  container.innerHTML = '';
-  container.style.display = 'flex';
   state.previewPages = [];
   for(let i = 1; i <= state.pdfDoc.numPages; i++) {
     const page = await state.pdfDoc.getPage(i);
@@ -14698,11 +14711,6 @@ async function renderPageThumbs() {
     await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
     const dataUrl = canvas.toDataURL();
     state.previewPages.push({ dataUrl, label: 'Page ' + i });
-    const thumb = document.createElement('div');
-    thumb.className = 'page-thumb';
-    thumb.innerHTML = '<div class="thumb-label">Page ' + i + '</div>';
-    thumb.prepend(canvas);
-    container.appendChild(thumb);
   }
   showDirectPreview();
   setupCinemaPreview(state.pdfFile && state.pdfFile.name);
@@ -14731,6 +14739,10 @@ function showDirectPreview() {
 }
 
 // ─── CINEMA FULLSCREEN PAGE PREVIEW (side-by-side pairs, subtle fade, auto-advance) ───
+// Builds the pairs and wires up the "Fullscreen Preview" button, but no longer
+// auto-launches on upload — extraction is instant now, so the gallery is the
+// thing the user should land on, not a slideshow blocking it. Cinema mode is
+// still available on demand via the button.
 function setupCinemaPreview(fileName) {
   if (!state.pdfDoc || state.previewPages.length === 0) return;
   const total = state.previewPages.length;
@@ -14745,9 +14757,6 @@ function setupCinemaPreview(fileName) {
 
   const btn = document.getElementById('cinemaOpenBtn');
   if (btn) btn.style.display = 'flex';
-
-  // Auto-launch the cinematic full-screen review right after pages are ready
-  openCinemaPreview();
 }
 
 async function ensureCinemaHiRes(pageNum) {
@@ -14897,46 +14906,20 @@ function cinemaKeyHandler(e) {
   else if (e.key === ' ') { e.preventDefault(); cinemaTogglePlay(); }
 }
 
-// ─── PROCESSING / EXTRACTION ───
-async function startProcessing() {
-  if(!state.pdfFile) { toast('No file loaded', 'error'); return; }
+// ─── INSTANT EXTRACTION ───
+// Runs the moment a PDF finishes loading (and again if the user switches
+// extract mode) — no button to click, no artificial step-by-step delay.
+// Every image is just there the instant the file is ready, so the user goes
+// straight to picking what they want instead of waiting on a "process" step.
+async function instantExtract() {
+  if(!state.pdfDoc) return;
   state.extractedImages = [];
   state.selectedImages.clear();
-
-  const prog = document.getElementById('progressWrap');
-  prog.classList.add('visible');
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('galleryWrap').style.display = 'none';
 
-  const steps = [
-    { id: 'pipe-upload', label: 'Uploading file...', pct: 10 },
-    { id: 'pipe-scan', label: 'Scanning document...', pct: 25 },
-    { id: 'pipe-detect', label: 'Detecting images...', pct: 45 },
-    { id: 'pipe-extract', label: 'Extracting assets...', pct: 70 },
-    { id: 'pipe-enhance', label: 'Enhancing quality...', pct: 88 },
-    { id: 'pipe-export', label: 'Finalising...', pct: 100 },
-  ];
+  await extractPageImages();
 
-  for(let i = 0; i < steps.length; i++) {
-    const s = steps[i];
-    if(i > 0) document.getElementById(steps[i-1].id).classList.remove('active');
-    document.getElementById(s.id).classList.add('active');
-    if(i > 0) document.getElementById(steps[i-1].id).classList.add('done');
-    setProgress(s.pct, s.label, s.label);
-    await sleep(400);
-  }
-  // Mark last done
-  document.getElementById('pipe-export').classList.remove('active');
-  document.getElementById('pipe-export').classList.add('done');
-
-  // Actually extract
-  if(state.pdfDoc) {
-    if(state.extractMode === 'pages' || state.extractMode === 'all') {
-      await extractPageImages();
-    }
-  }
-
-  prog.classList.remove('visible');
   state.stats.imgs += state.extractedImages.length;
   updateStats();
 
@@ -14945,8 +14928,7 @@ async function startProcessing() {
     toast('No images found in this PDF', 'info');
   } else {
     renderGallery();
-    toast('Extracted ' + state.extractedImages.length + ' images!', 'success');
-    // update badge
+    toast(state.extractedImages.length + ' image' + (state.extractedImages.length !== 1 ? 's' : '') + ' ready — hover any image to extract it', 'success');
     const badge = document.getElementById('imgCountBadge');
     badge.style.display = 'inline-block';
     badge.textContent = state.extractedImages.length;
@@ -14958,12 +14940,13 @@ async function startProcessing() {
   }
 }
 
+// Kept as an alias so anything still calling the old name keeps working.
+async function startProcessing() { await instantExtract(); }
+
 // ─── COLLAPSE/EXPAND UPLOAD AREA (keeps results in view, no extra scrolling) ───
 function collapseUploadArea() {
   document.querySelector('.extract-split').classList.add('is-collapsed');
   document.getElementById('pipeline').classList.add('is-collapsed');
-  document.getElementById('extractOpts').classList.add('is-collapsed');
-  document.getElementById('pageThumbs').classList.add('is-collapsed');
   const btn = document.getElementById('toggleUploadAreaBtn');
   if(btn) btn.innerHTML = '<span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Upload Another</span>';
 }
@@ -14971,8 +14954,6 @@ function collapseUploadArea() {
 function expandUploadArea() {
   document.querySelector('.extract-split').classList.remove('is-collapsed');
   document.getElementById('pipeline').classList.remove('is-collapsed');
-  if(state.pdfFile) document.getElementById('extractOpts').classList.remove('is-collapsed');
-  if(state.pdfDoc) document.getElementById('pageThumbs').classList.remove('is-collapsed');
   const btn = document.getElementById('toggleUploadAreaBtn');
   if(btn) btn.innerHTML = '<span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Close</span>';
   document.querySelector('.extract-split').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -15089,7 +15070,7 @@ function renderGallery() {
       <div class="img-overlay">
         <div class="overlay-btn" onclick="openPreview(${idx},event)" title="Preview"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z'/><circle cx='12' cy='12' r='3'/></svg></div>
         <div class="overlay-btn pdfed-opacity-btn" onclick="pdfedOpenOpacityPopover(event,'galleryImage',${idx},null)" title="Opacity"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2'><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></div>
-        <div class="overlay-btn" onclick="downloadSingle(${idx},event)" title="Download"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg></div>
+        <div class="overlay-btn" onclick="downloadSingle(${idx},event)" title="Extract this image"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg></div>
         <div class="overlay-btn rsh-quick" onclick="openReshapeForIndex(${idx},event)" title="Reshape (Premium)"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2a10 10 0 1 0 10 10'/><path d='M12 2v10l7 4'/><circle cx='18' cy='6' r='3' fill='currentColor' stroke='none'/></svg></div>
         <div class="overlay-btn" onclick="pushImageToPdfEditor(${idx},event)" title="Push to Workspace"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="overlay-btn del" onclick="deleteImage(${idx},event)" title="Delete"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg></div>
@@ -15799,13 +15780,6 @@ function extractToggleExportPassword() {
 
 function extractExportPasswordChanged() {
   document.getElementById('exportPasswordError').style.display = 'none';
-}
-
-// ─── OPTS ───
-function selectOpt(el, mode) {
-  document.querySelectorAll('.opt-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  state.extractMode = mode;
 }
 
 
@@ -17760,11 +17734,22 @@ function pdfedApplyZoom() {
   canvas.style.height = displayH + 'px';
   wrap.style.width    = displayW + 'px';
   wrap.style.height   = displayH + 'px';
-  // Scale text overlay identically
+  // Scale text overlay identically. Its un-transformed box must stay pinned
+  // to the canvas's RAW pixel size (canvas.width/height), because every text
+  // block inside it is positioned (left/top) in those same raw canvas-pixel
+  // units — see pdfedStartTextEdit/pdfedRenderTextLayer, which both size the
+  // overlay off canvas.width/height and scale it by zoom*density-normalize.
+  // This used to resize the box to displayW/displayH (already zoom+density
+  // scaled) and THEN transform-scale it by pdfed.zoom alone: the zoom got
+  // applied twice and the DPI-density correction got dropped entirely, so
+  // every text block drifted away from the real glyphs underneath it the
+  // moment the zoom level changed after opening the Text Editor — worse the
+  // farther a block sat from the top-left corner and the farther zoom was
+  // from 100%, producing the doubled/offset "ghost text" look.
   if (overlay) {
-    overlay.style.width  = displayW + 'px';
-    overlay.style.height = displayH + 'px';
-    teSetOverlayZoom(overlay, pdfed.zoom);
+    overlay.style.width  = canvas.width  + 'px';
+    overlay.style.height = canvas.height + 'px';
+    teSetOverlayZoom(overlay, pdfed.zoom * pdfedZoomNormalize);
     overlay.style.transformOrigin = 'top left';
   }
   // Scale search-highlight overlay identically
@@ -33967,12 +33952,6 @@ function removePdfFromExtract() {
   if (cinemaBtn) cinemaBtn.style.display = 'none';
   document.getElementById('extractLoadedBanner').style.display = 'none';
   document.getElementById('uploadZone').style.display = '';
-  document.getElementById('processBtn').style.display = 'none';
-  document.getElementById('extractOpts').style.display = 'none';
-  document.getElementById('extractOpts').classList.remove('is-collapsed');
-  document.getElementById('pageThumbs').style.display = 'none';
-  document.getElementById('pageThumbs').classList.remove('is-collapsed');
-  document.getElementById('pageThumbs').innerHTML = '';
   document.getElementById('galleryWrap').style.display = 'none';
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('uploadZone').classList.remove('scanning');
@@ -47313,7 +47292,7 @@ async function rdxInsertIntoWorkspace(mode) {
     bar.classList.toggle('dg-ribbon-collapsed', collapsed);
     bar.classList.remove('dg-ribbon-peek');
     btn.classList.toggle('active', collapsed);
-    btn.title = collapsed ? 'Show toolbar' : 'Collapse toolbar';
+    btn.title = collapsed ? 'Show Tool Bar' : 'Collapse Tool Bar';
     try { localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0'); } catch (e) {}
   }
 
@@ -48388,7 +48367,6 @@ function mfOpenEditor(id) {
   mfRenderLogoThumb();
   mfRenderAccentSwatches();
   mfRenderWatermarkControls();
-  mfRenderLangControls();
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
@@ -48566,241 +48544,6 @@ const MF_LANG_NAMES = {
 // flags — one feature can never block the other.
 let mfFormLangBusy = false;   // field-based Make Forms (mfSwitchFormLanguage)
 let mfCanvasLangBusy = false; // canvas Make Forms (mfcSwitchLanguage)
-let _mfLangConfirmResolve = null;
-function mfAskLangConfirm(message) {
-  return new Promise(resolve => {
-    _mfLangConfirmResolve = resolve;
-    const msgEl = document.getElementById('mfLangConfirmMsg');
-    if (msgEl) msgEl.textContent = message;
-    const ov = document.getElementById('mfLangConfirmOverlay');
-    if (ov) ov.classList.add('open'); else resolve(true); // modal missing — don't hard-block the feature
-  });
-}
-function mfLangConfirmCancel() {
-  const ov = document.getElementById('mfLangConfirmOverlay');
-  if (ov) ov.classList.remove('open');
-  if (_mfLangConfirmResolve) { const r = _mfLangConfirmResolve; _mfLangConfirmResolve = null; r(false); }
-}
-function mfLangConfirmOk() {
-  const ov = document.getElementById('mfLangConfirmOverlay');
-  if (ov) ov.classList.remove('open');
-  if (_mfLangConfirmResolve) { const r = _mfLangConfirmResolve; _mfLangConfirmResolve = null; r(true); }
-}
-
-function mfRenderLangControls() {
-  const f = mfGetCurrentForm();
-  const sel = document.getElementById('mfLangSelect');
-  const translateBtn = document.getElementById('mfLangTranslateBtn');
-  const retBtn = document.getElementById('mfLangRetranslateBtn');
-  const saveBtn = document.getElementById('mfLangSaveNewBtn');
-  const status = document.getElementById('mfLangStatus');
-  if (!f || !sel) return;
-  sel.value = f.activeLang || 'original';
-  const isTranslated = (f.activeLang && f.activeLang !== 'original');
-  if (translateBtn) translateBtn.disabled = !!mfFormLangBusy;
-  if (retBtn) retBtn.style.display = isTranslated ? 'inline-block' : 'none';
-  if (saveBtn) saveBtn.style.display = isTranslated ? 'inline-block' : 'none';
-  if (status && !mfFormLangBusy) {
-    status.className = 'mf-lang-status';
-    status.textContent = isTranslated
-      ? `Showing ${MF_LANG_NAMES[f.activeLang] || f.activeLang} translation — editing on the left still edits the original`
-      : '';
-  }
-}
-
-// Dropdown's onchange still auto-translates (picking a language IS the
-// opt-in), but a lot of users don't notice a <select> firing a background
-// action — they expect to press something. The explicit Translate button
-// below is the reliable, unmissable way to trigger it: it always re-runs
-// the translation for whatever language is currently selected (even
-// "Original", which just switches back with no network call, and even a
-// language that's already active, which forces a fresh Re-translate) and
-// scrolls/flashes the live preview so the result is impossible to miss.
-function mfLangSelectChanged(val) {
-  mfSwitchFormLanguage(val);
-}
-function mfTranslateClick() {
-  const sel = document.getElementById('mfLangSelect');
-  if (!sel) return;
-  // The #1 way this button looks "dead": the dropdown is still sitting on
-  // "Original" (its default) and the user clicks Translate expecting
-  // something to happen. Switching to "original" when you're already on
-  // "original" is correctly a no-op — but silently doing nothing looks
-  // exactly like a broken button. Catch it here and tell the user what to
-  // do instead of leaving them guessing.
-  if (sel.value === 'original') {
-    toast('Pick a language from the dropdown first, then hit Translate', 'info');
-    sel.focus();
-    return;
-  }
-  const f = mfGetCurrentForm();
-  const alreadyOnThisLang = f && f.activeLang === sel.value;
-  mfSwitchFormLanguage(sel.value, alreadyOnThisLang);
-}
-
-// Makes sure the Live Preview panel is actually on-screen and gives it a
-// brief highlight flash so a just-completed translation is unmissable —
-// this is what "click Translate and see it happen with live preview in
-// visibility" means in practice.
-function mfFlashPreviewIntoView() {
-  const panel = document.getElementById('mfPreviewPanel');
-  if (!panel) return;
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  panel.classList.remove('mf-lang-flash');
-  void panel.offsetWidth; // restart the animation if it's already mid-flash
-  panel.classList.add('mf-lang-flash');
-  setTimeout(() => panel.classList.remove('mf-lang-flash'), 900);
-}
-
-// Walks a form's translatable strings (title, description, every field's
-// label, and every dropdown's options — headings and signatures only have
-// a label, checkboxes/text/number/date/paragraph fields just a label) and
-// returns a flat list the caller can translate one at a time.
-function mfCollectTranslatableStrings(f) {
-  const items = [{ path: 'title', text: f.title || '' }];
-  if (f.desc) items.push({ path: 'desc', text: f.desc });
-  (f.fields || []).forEach(fl => {
-    if (fl.label) items.push({ path: 'field:' + fl.id + ':label', text: fl.label });
-    if ((fl.type === 'select' || fl.type === 'mcq') && Array.isArray(fl.options)) {
-      fl.options.forEach((opt, idx) => {
-        if (opt) items.push({ path: 'field:' + fl.id + ':option:' + idx, text: opt });
-      });
-    }
-  });
-  return items;
-}
-
-async function mfSwitchFormLanguage(lang, force) {
-  const f = mfGetCurrentForm(); if (!f) return;
-  const sel = document.getElementById('mfLangSelect');
-  if (lang === 'original') {
-    f.activeLang = 'original';
-    mfTouch(f);
-    mfRenderLangControls();
-    mfRenderPreview();
-    mfFlashPreviewIntoView();
-    return;
-  }
-  if (!force && f.translations && f.translations[lang]) {
-    // Already translated once — just switch to the cached version, no
-    // network calls needed.
-    f.activeLang = lang;
-    mfTouch(f);
-    mfRenderLangControls();
-    mfRenderPreview();
-    mfFlashPreviewIntoView();
-    return;
-  }
-  if (mfFormLangBusy) { toast('Already translating — please wait for it to finish', 'info'); if (sel) sel.value = f.activeLang || 'original'; return; }
-  const langName = MF_LANG_NAMES[lang] || lang;
-  // Selecting a language from this dropdown IS the opt-in — translating
-  // immediately (instead of pausing on a second confirm dialog) is what
-  // makes "pick a language and the form translates itself" actually true.
-  // A blocking custom-modal confirm here previously risked leaving the
-  // whole flow stuck forever if that modal's promise was ever left
-  // unresolved (e.g. dismissed some other way), which looked exactly like
-  // "nothing happens" — the dropdown shows the new language, but nothing
-  // ever translates and Push/Export silently go out in English.
-  mfFormLangBusy = true;
-  const translateBtn = document.getElementById('mfLangTranslateBtn');
-  if (translateBtn) translateBtn.disabled = true;
-  const status = document.getElementById('mfLangStatus');
-  if (status) { status.className = 'mf-lang-status mf-lang-busy'; status.textContent = `Translating into ${langName}…`; }
-  toast(`Translating form into ${langName}…`, 'info');
-  const items = mfCollectTranslatableStrings(f);
-  const result = { title: f.title || '', desc: f.desc || '', fields: {} };
-  let okCount = 0, errCount = 0;
-  for (const item of items) {
-    let translated = item.text;
-    try {
-      translated = await sarvarcTranslateText(item.text, lang);
-      okCount++;
-    } catch (e) {
-      errCount++; // fall back to original text for this one string
-      console.error('mfSwitchFormLanguage: failed to translate "' + item.path + '":', e);
-    }
-    if (item.path === 'title') result.title = translated;
-    else if (item.path === 'desc') result.desc = translated;
-    else {
-      const m = item.path.match(/^field:(.+):label$/);
-      const mo = item.path.match(/^field:(.+):option:(\d+)$/);
-      if (m) {
-        const fid = m[1];
-        if (!result.fields[fid]) result.fields[fid] = {};
-        result.fields[fid].label = translated;
-      } else if (mo) {
-        const fid = mo[1], idx = Number(mo[2]);
-        if (!result.fields[fid]) result.fields[fid] = {};
-        if (!result.fields[fid].options) result.fields[fid].options = [];
-        result.fields[fid].options[idx] = translated;
-      }
-    }
-    await new Promise(r => setTimeout(r, 350)); // stay well within the free API's rate limit
-  }
-  if (!f.translations) f.translations = {};
-  f.translations[lang] = result;
-  // A total failure (every single string fell back to its original text)
-  // means the form would silently look untouched — same language switched
-  // to, same words on screen — with no visible sign anything went wrong.
-  // Don't leave the user staring at that mystery: back the switcher out to
-  // Original and surface it as a real, unmissable error instead.
-  const totalFailure = items.length > 0 && okCount === 0;
-  if (totalFailure) {
-    f.activeLang = 'original';
-    mfTouch(f);
-    mfFormLangBusy = false;
-    mfRenderLangControls();
-    mfRenderPreview();
-    if (status) { status.className = 'mf-lang-status mf-lang-error'; status.textContent = `Couldn't reach the translation service — nothing was translated`; }
-    if (sel) sel.value = 'original';
-    toast(`Translation into ${langName} failed — the free translation service didn't respond usefully (likely today's free quota, or no internet access right now). Try again in a bit.`, 'error');
-    return;
-  }
-  f.activeLang = lang;
-  mfTouch(f);
-  mfFormLangBusy = false;
-  mfRenderLangControls();
-  mfRenderPreview();
-  mfFlashPreviewIntoView();
-  if (errCount) {
-    if (status) { status.className = 'mf-lang-status mf-lang-error'; status.textContent = `Translated ${okCount}, ${errCount} kept original (retry with Re-translate)`; }
-    toast(`Translated into ${langName} — ${errCount} string(s) kept their original text, try Re-translate`, 'error');
-  } else {
-    toast(`Form translated into ${langName}`, 'success');
-  }
-}
-
-// Bakes the currently-active translation into a brand-new, independent form
-// (its own id, its own English/original fields set to the translated text,
-// no lingering f.translations cache) so it can be edited, filled, and
-// exported on its own without touching the source-language form.
-function mfSaveTranslationAsNewForm() {
-  const f = mfGetCurrentForm();
-  if (!f || !f.activeLang || f.activeLang === 'original') { toast('Select a translated language first', 'error'); return; }
-  const tr = f.translations && f.translations[f.activeLang];
-  if (!tr) { toast('No translation cached for this language yet', 'error'); return; }
-  const langName = MF_LANG_NAMES[f.activeLang] || f.activeLang;
-  const copy = JSON.parse(JSON.stringify(f));
-  copy.id = mfUid('form');
-  copy.title = (tr.title || f.title || 'Untitled Form') + ` (${langName})`;
-  copy.desc = tr.desc != null ? tr.desc : f.desc;
-  copy.fields = copy.fields.map(fl => {
-    const nf = { ...fl, id: mfUid('fld') };
-    const ov = tr.fields && tr.fields[fl.id];
-    if (ov) {
-      if (ov.label) nf.label = ov.label;
-      if (ov.options) nf.options = fl.options.map((o, i) => (ov.options[i] != null ? ov.options[i] : o));
-    }
-    return nf;
-  });
-  copy.activeLang = 'original';
-  copy.translations = {};
-  copy.updatedAt = Date.now();
-  mfState.forms.push(copy);
-  mfPersist();
-  toast(`Saved as new form: "${copy.title}"`, 'success');
-  mfOpenEditor(copy.id);
-}
 
 // ─── LANGUAGE / TRANSLATION — CANVAS FORMS ───
 // Same idea as the field-based form's language switcher above, adapted to
