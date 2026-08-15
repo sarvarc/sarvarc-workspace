@@ -4034,6 +4034,38 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   backdrop-filter: blur(10px);
 }
 .pdfed-insert-modal-overlay.open { display: flex; }
+
+/* ─── Edit lock overlay — appears only at the moment a logged-out guest who
+   has used their free export actually tries to click or type something
+   (see sarvarcEditLockGuard), not the instant that condition becomes true.
+   The backdrop is deliberately light and unblurred so their work stays
+   visible behind the card — seeing exactly what they'd be walking away
+   from is the point, not hiding it. Sits just below the auth modal's
+   z-index so opening "Log In" from here still renders on top of it, and
+   removes itself automatically the moment sign-in succeeds. ─── */
+.sarvarc-editlock-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  z-index: 690; display: none; align-items: center; justify-content: center;
+}
+.sarvarc-editlock-overlay.open { display: flex; }
+.sarvarc-editlock-card {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 32px 30px; width: 94%; max-width: 380px;
+  text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.6), var(--glow-blue);
+}
+.sarvarc-editlock-icon {
+  width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.sarvarc-editlock-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.sarvarc-editlock-sub { font-size: 12.5px; color: var(--text2); line-height: 1.55; margin-bottom: 22px; }
+.sarvarc-editlock-btn {
+  width: 100%; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--blue), #0090c8); color: #06121F;
+  font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700;
+}
+.sarvarc-editlock-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,194,255,0.38); }
 .pdfed-insert-modal {
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: 18px; padding: 0; width: 94%; max-width: 860px;
@@ -12940,6 +12972,26 @@ button.dg-show-chip.active { background:var(--blue); }
   </div>
 </div>
 
+<!-- EDIT LOCK: appears only the moment a logged-out guest who has already
+     used their free export actually tries to click or type something (see
+     sarvarcEditLockGuard) — the background stays visible/unblocked right up
+     until that attempt, so the last thing they saw is the work itself, not
+     a wall. Distinct from the export gate — this blocks further EDITING
+     app-wide, not just exporting again. Removed automatically the instant
+     the person logs in (see sarvarcRefreshEditLockState, called from
+     onAuthStateChange). Not dismissable by clicking the backdrop — the only
+     way past it is to log in. -->
+<div class="sarvarc-editlock-overlay" id="sarvarcEditLockOverlay">
+  <div class="sarvarc-editlock-card">
+    <div class="sarvarc-editlock-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="sarvarc-editlock-title">Log in to keep editing</div>
+    <div class="sarvarc-editlock-sub">You've used your free export. Log in (or sign up free) to keep editing and exporting without limits.</div>
+    <button type="button" class="sarvarc-editlock-btn" onclick="sarvarcAuthOpenModal('login')">Log In / Sign Up</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -16147,20 +16199,36 @@ async function smGetCurrentAuthEmail() {
 }
 
 // Returns { ok: true } if the current session is usable, or
-// { ok: false, ownerEmail } if it's locked to a different/no account.
+// { ok: false, ownerEmail, current } if it's locked to a different/no
+// account. `current` (the email actually signed in right now, or null) lets
+// smShowLockedMessage tell "not logged in" apart from "logged in as the
+// wrong person" and word the message accordingly.
 async function smCheckSessionAccess(rec) {
   if (!rec || !rec.ownerEmail) return { ok: true };
   const current = await smGetCurrentAuthEmail();
   if (current && current.toLowerCase() === String(rec.ownerEmail).toLowerCase()) return { ok: true };
-  return { ok: false, ownerEmail: rec.ownerEmail };
+  return { ok: false, ownerEmail: rec.ownerEmail, current: current || null };
 }
 
 // Shown any time a locked session is touched — whether the click came from
 // a disabled row (belt) or straight through to a core function (suspenders,
 // e.g. a stale second tab). Opens the sign-in modal directly so the person
 // can act on the message immediately instead of hunting for the login button.
-function smShowLockedMessage() {
-  const msg = 'This file is locked. Please log in with the email address you were working with to continue.';
+// `arg` is normally the `access` object from smCheckSessionAccess ({ ownerEmail,
+// current }). The two disabled-row click handlers in the rendered list don't
+// have that object handy — they only know the session's ownerEmail — so `arg`
+// may also be passed as a plain ownerEmail string, in which case the current
+// signed-in email (if any) is looked up here before wording the message.
+async function smShowLockedMessage(arg) {
+  let ownerEmail = null, current = null;
+  if (arg && typeof arg === 'object') { ownerEmail = arg.ownerEmail || null; current = arg.current || null; }
+  else if (typeof arg === 'string') { ownerEmail = arg; current = await smGetCurrentAuthEmail(); }
+
+  let msg = 'This file is locked. Please log in with the email address you used to edit it.';
+  if (current && ownerEmail) {
+    msg = 'This file was not edited by you. It belongs to a different SARVARC account (' +
+      smMaskEmail(ownerEmail) + ') and can\'t be opened or edited from this one.';
+  }
   if (typeof toast === 'function') toast(msg, 'error'); else alert(msg);
   if (typeof sarvarcAuthOpenModal === 'function') sarvarcAuthOpenModal('login');
 }
@@ -16233,7 +16301,7 @@ async function smUpdateSessionSnapshot(id) {
   });
   if (!existing) return null;
   const access = await smCheckSessionAccess(existing);
-  if (!access.ok) { smShowLockedMessage(); return null; }
+  if (!access.ok) { smShowLockedMessage(access); return null; }
 
   const [ls, idb] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv()]);
   const snapshot = { ls, idb };
@@ -16307,7 +16375,7 @@ async function smRenameSession(id, newName) {
     req.onerror = () => resolve(null);
   });
   const access = await smCheckSessionAccess(existingRec);
-  if (!access.ok) { smShowLockedMessage(); smRenderList(); return null; }
+  if (!access.ok) { smShowLockedMessage(access); smRenderList(); return null; }
   const rec = await new Promise((resolve, reject) => {
     const tx = db.transaction('sessions', 'readwrite');
     const store = tx.objectStore('sessions');
@@ -16355,7 +16423,7 @@ async function smDeleteSession(id) {
       req.onerror = () => resolve(null);
     });
     const access = await smCheckSessionAccess(rec0);
-    if (!access.ok) { smShowLockedMessage(); throw new Error('LOCKED'); }
+    if (!access.ok) { smShowLockedMessage(access); throw new Error('LOCKED'); }
   }
   // Clear whatever live module data is currently linked to this exact
   // session BEFORE removing the session record itself — i.e. whatever was
@@ -16412,7 +16480,7 @@ async function smLoadSession(id, moduleKeys, absentModuleKeys) {
   });
   if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
   const access = await smCheckSessionAccess(rec);
-  if (!access.ok) { smShowLockedMessage(); return; }
+  if (!access.ok) { smShowLockedMessage(access); return; }
 
   if (rec.schemaVersion !== SM_SNAPSHOT_SCHEMA_VERSION) {
     // Not fatal — the {ls, idb} shape hasn't changed since this field was
@@ -16512,7 +16580,7 @@ async function smExportSession(id) {
     const rec = await smGetSession(id);
     if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
     const access = await smCheckSessionAccess(rec);
-    if (!access.ok) { smShowLockedMessage(); return; }
+    if (!access.ok) { smShowLockedMessage(access); return; }
     const payload = {
       sarvarcSessionExport: true,
       exportedAt: Date.now(),
@@ -16684,7 +16752,7 @@ async function smExportSW(id) {
     const rec = await smGetSession(id);
     if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
     const access = await smCheckSessionAccess(rec);
-    if (!access.ok) { smShowLockedMessage(); return; }
+    if (!access.ok) { smShowLockedMessage(access); return; }
     const bytes = await smBuildSWBytes(rec);
     const blob = new Blob([bytes], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
@@ -16892,7 +16960,7 @@ async function smRenderList() {
 
     const actionsHtml = isLocked
       ? '<div class="sm-session-actions">' +
-          '<button class="sm-session-unlock-btn" onclick="smShowLockedMessage()">' +
+          '<button class="sm-session-unlock-btn" onclick="smShowLockedMessage(\'' + String(s.ownerEmail).replace(/'/g, "\\'") + '\')">' +
             '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>' +
             '<span>Log in to unlock</span>' +
           '</button>' +
@@ -16913,7 +16981,7 @@ async function smRenderList() {
           : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>') +
         '</div>' +
         (isLocked
-          ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage()">' + safeName + '</span>'
+          ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage(\'' + String(s.ownerEmail).replace(/'/g, "\\'") + '\')">' + safeName + '</span>'
           : '<input class="sm-session-name" value="' + safeName + '" onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">') +
         lockBadge +
         '<div class="sm-session-meta">' + dateStr + ', ' + timeStr + ' · ' + smFormatBytes(s.size) + '</div>' +
@@ -61211,6 +61279,9 @@ if (document.readyState === 'loading') {
       if (typeof toast === 'function') {
         toast('Free export complete — it includes a small SARVARC watermark. Sign up free to export without it next time.', 'info');
       }
+      // The free export is now used up — from this point on, a logged-out
+      // guest can no longer edit either, not just export again.
+      sarvarcUpdateEditLockUI();
       return;
     }
     // Free export already used — gate as before.
@@ -61220,6 +61291,57 @@ if (document.readyState === 'loading') {
     document.getElementById('sarvarcAuthNote').textContent =
       'You\'ve used your free watermarked export — sign up free to keep exporting, watermark-free.';
   }
+
+  // ---- Edit lock: once a guest has used their free export, they can't
+  // keep editing without logging in (separate from the export gate above,
+  // which only stops a SECOND export). Deliberately NOT a wall shown the
+  // instant the condition becomes true — that would hide the work they've
+  // already built the moment it happens, which is a weaker nudge than
+  // letting them keep looking at it. Instead this just tracks a flag; the
+  // interceptor below pops the lock card only at the moment they actually
+  // try to click or type something, so the very last thing they see before
+  // the prompt is the work itself. ----
+  window.sarvarcEditLockActive = false;
+  async function sarvarcRefreshEditLockState() {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    window.sarvarcEditLockActive = !user && sarvarcHasUsedFreeExport();
+    // If logging in just cleared the lock, dismiss the card in case it was
+    // already showing from an earlier blocked attempt.
+    if (!window.sarvarcEditLockActive) {
+      const overlay = document.getElementById('sarvarcEditLockOverlay');
+      if (overlay) overlay.classList.remove('open');
+    }
+  }
+  window.sarvarcUpdateEditLockUI = sarvarcRefreshEditLockState; // kept for existing call sites
+
+  function sarvarcShowEditLockOverlay() {
+    const overlay = document.getElementById('sarvarcEditLockOverlay');
+    if (overlay) overlay.classList.add('open');
+  }
+
+  // Selectors that stay fully interactive even while the lock is active —
+  // the top nav (so they can still get to the login button/menu) and every
+  // login-related overlay itself (so filling in the form isn't blocked by
+  // its own gate).
+  const SARVARC_EDITLOCK_EXEMPT =
+    '#sarvarcTopnav, #sarvarcEditLockOverlay, #sarvarcAuthOverlay, ' +
+    '#sarvarcWelcomeOverlay, #sarvarcRecoveryOverlay, #sarvarcUnlockPromptOverlay';
+
+  function sarvarcEditLockGuard(e) {
+    if (!window.sarvarcEditLockActive) return;
+    const t = e.target;
+    if (t && t.closest && t.closest(SARVARC_EDITLOCK_EXEMPT)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    sarvarcShowEditLockOverlay();
+  }
+  // pointerdown catches clicks, drags, and touch before any canvas/drawing
+  // handler sees them; keydown catches typing into a field that was already
+  // focused before the lock kicked in. Both run in the capture phase so
+  // they fire before the app's own handlers (including inline onclick).
+  document.addEventListener('pointerdown', sarvarcEditLockGuard, true);
+  document.addEventListener('keydown', sarvarcEditLockGuard, true);
 
   function sarvarcRunPendingExportIfAny() {
     if (!sarvarcPendingExportAction) return;
@@ -61409,6 +61531,7 @@ if (document.readyState === 'loading') {
   async function sarvarcAuthEnterWorkspace() {
     sarvarcAuthCloseModal();
     const displayName = await sarvarcAuthUpdateNavUI();
+    sarvarcUpdateEditLockUI();
     if (typeof navigate === 'function' && document.getElementById('sec-pdfeditor')) {
       navigate('pdfeditor');
     }
@@ -61686,38 +61809,67 @@ if (document.readyState === 'loading') {
 
   // Polls the popup rather than relying solely on a 'storage' event, since
   // that keeps this working even if a browser ever changes cross-tab
-  // storage-sync behavior. Two things happen on each tick:
-  //  1. If the popup has navigated back to our own origin (Google finished
-  //     and Supabase's detectSessionInUrl processed the session inside the
-  //     popup), close it automatically after a short grace period so the
-  //     user isn't left with a stray window.
-  //  2. Once the popup is gone (auto-closed above, or the user closed it
-  //     manually — including cancelling), re-check the session once. If one
-  //     exists, finish up exactly like every other login path: close the
-  //     modal, refresh the nav, and fire any pending export.
+  // storage-sync behavior. On every tick we actively check for a session —
+  // that's what actually confirms sign-in succeeded, not a guessed timer.
+  // Two things happen on each tick:
+  //  1. A session check. If one now exists, we're done: close the popup,
+  //     stop polling, and finish up exactly like every other login path.
+  //  2. Only as a backstop, once the popup has been back on our own origin
+  //     for a while with still no session, force-close it — long enough
+  //     that the code/token exchange (a real network round trip to Supabase
+  //     and Google) has had a fair chance to finish first. Closing the
+  //     popup ABORTS that exchange if it's still in flight, so this needs
+  //     real headroom, not a tight guess — too short and the very first
+  //     login silently fails and has to be retried.
   let sarvarcGooglePopupPoll = null;
   function sarvarcAuthWatchGooglePopup(popup) {
     if (sarvarcGooglePopupPoll) clearInterval(sarvarcGooglePopupPoll);
     let sameOriginSince = null;
+    let finished = false;
+
+    const finish = async () => {
+      if (finished) return;
+      finished = true;
+      clearInterval(sarvarcGooglePopupPoll);
+      sarvarcGooglePopupPoll = null;
+      try { if (!popup.closed) popup.close(); } catch (e) {}
+      await sarvarcAuthEnterWorkspace();
+    };
+
     sarvarcGooglePopupPoll = setInterval(async () => {
+      if (finished) return;
+
+      // Check for a session on every tick, popup open or not — whichever
+      // happens first (a session showing up, or the popup closing) decides
+      // the outcome, rather than a fixed sleep-then-check-once.
+      try {
+        const { data: { session } } = await sarvarcSupabase.auth.getSession();
+        if (session) { await finish(); return; }
+      } catch (e) {}
+
       if (popup.closed) {
         clearInterval(sarvarcGooglePopupPoll);
         sarvarcGooglePopupPoll = null;
-        // Tiny delay so the popup's own Supabase client has finished
-        // persisting the session to localStorage before we read it back.
-        await new Promise(r => setTimeout(r, 150));
-        const { data: { session } } = await sarvarcSupabase.auth.getSession();
-        if (session) {
-          await sarvarcAuthEnterWorkspace();
+        // Popup is gone (user closed it, or cancelled) and we still haven't
+        // seen a session. Give the exchange a few more short retries in
+        // case it closed itself right as it was finishing, before treating
+        // this as "no sign-in happened" and simply doing nothing further.
+        for (let i = 0; i < 4 && !finished; i++) {
+          await new Promise(r => setTimeout(r, 350));
+          const { data: { session } } = await sarvarcSupabase.auth.getSession();
+          if (session) { finished = true; await sarvarcAuthEnterWorkspace(); break; }
         }
         return;
       }
+
       try {
         if (popup.location.origin === window.location.origin) {
           if (sameOriginSince === null) sameOriginSince = Date.now();
-          // Give detectSessionInUrl inside the popup ~600ms to finish
-          // exchanging the code/token before we close the window on it.
-          if (Date.now() - sameOriginSince > 600) popup.close();
+          // Backstop only — the session check above normally fires first,
+          // well before this. Give the exchange real time (a few seconds,
+          // not a few hundred ms) before treating a stuck popup as reason
+          // to close it.
+          if (Date.now() - sameOriginSince > 4000) popup.close();
         }
       } catch (e) {
         // Still on accounts.google.com — cross-origin read throws, expected.
@@ -61781,6 +61933,7 @@ if (document.readyState === 'loading') {
     document.getElementById('sarvarcAuthMenu').style.display = 'none';
     await sarvarcSupabase.auth.signOut();
     await sarvarcAuthUpdateNavUI();
+    sarvarcUpdateEditLockUI();
   }
 
   // ---- Reflect logged-in/out state in the nav button. Once a profile row
@@ -61833,6 +61986,7 @@ if (document.readyState === 'loading') {
   //      email link for a session — and opens the set-new-password modal
   //      automatically. ----
   sarvarcAuthUpdateNavUI();
+  sarvarcUpdateEditLockUI();
   (function() {
     // Reuses the already-embedded nav logo image as a faint background
     // watermark in the auth modal (and the welcome overlay below), rather
@@ -61847,6 +62001,10 @@ if (document.readyState === 'loading') {
   })();
   sarvarcSupabase.auth.onAuthStateChange((event, _session) => {
     sarvarcAuthUpdateNavUI();
+    // Keep the edit-lock overlay in sync too — logging in clears it
+    // immediately; logging out re-applies it if the free export was
+    // already used on this browser.
+    sarvarcUpdateEditLockUI();
     // Keep the Saved Sessions list's lock state in sync the moment someone
     // signs in or out — otherwise a file could stay shown as unlocked (or
     // locked) until the page happened to be reopened.
