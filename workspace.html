@@ -16184,6 +16184,27 @@ async function smUpdateSessionSnapshot(id) {
     tx.onerror = () => reject(tx.error);
   });
   smNotifyOtherTabs('update', id);
+  // Best-effort mirror of the refreshed name/content to Drive (see GOOGLE
+  // DRIVE SYNC block near the auth code). Without this, re-saving an
+  // already-linked session via "Save Your Workflow" would only update the
+  // local copy — the Drive copy would stay frozen at whatever it was when
+  // the session was first created, including its original name. Fire-and-
+  // forget — any failure leaves the local update above completely unaffected.
+  try {
+    if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+      const driveFileId = await sarvarcDriveSaveSession(rec);
+      if (!rec.driveFileId) {
+        rec.driveFileId = driveFileId;
+        const db2 = await idbKvOpen();
+        await new Promise((resolve2) => {
+          const tx2 = db2.transaction('sessions', 'readwrite');
+          tx2.objectStore('sessions').put(rec);
+          tx2.oncomplete = resolve2;
+          tx2.onerror = () => resolve2();
+        });
+      }
+    }
+  } catch (e) { console.warn('[Sessions] Drive mirror update skipped', e); }
   return rec;
 }
 
@@ -16211,17 +16232,41 @@ async function smListSessions() {
 
 async function smRenameSession(id, newName) {
   const db = await idbKvOpen();
-  return new Promise((resolve, reject) => {
+  const rec = await new Promise((resolve, reject) => {
     const tx = db.transaction('sessions', 'readwrite');
     const store = tx.objectStore('sessions');
     const getReq = store.get(id);
+    let updated = null;
     getReq.onsuccess = () => {
-      const rec = getReq.result;
-      if (rec) { rec.name = newName.trim() || rec.name; store.put(rec); }
+      const r = getReq.result;
+      if (r) { r.name = newName.trim() || r.name; store.put(r); updated = r; }
     };
-    tx.oncomplete = resolve;
+    tx.oncomplete = () => resolve(updated);
     tx.onerror = () => reject(tx.error);
   });
+  // Best-effort mirror of the new name to Drive (see GOOGLE DRIVE SYNC block
+  // near the auth code). Without this, a rename made here never reaches the
+  // Drive copy, so pulling this session down on another device restores the
+  // OLD name. Fire-and-forget — any failure leaves the local rename above
+  // (already saved) completely unaffected.
+  if (rec) {
+    try {
+      if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+        const driveFileId = await sarvarcDriveSaveSession(rec);
+        if (!rec.driveFileId) {
+          rec.driveFileId = driveFileId;
+          const db2 = await idbKvOpen();
+          await new Promise((resolve2) => {
+            const tx2 = db2.transaction('sessions', 'readwrite');
+            tx2.objectStore('sessions').put(rec);
+            tx2.oncomplete = resolve2;
+            tx2.onerror = () => resolve2();
+          });
+        }
+      }
+    } catch (e) { console.warn('[Sessions] Drive mirror rename skipped', e); }
+  }
+  return rec;
 }
 
 async function smDeleteSession(id) {
