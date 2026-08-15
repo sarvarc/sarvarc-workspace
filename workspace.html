@@ -9622,7 +9622,7 @@ button.dg-show-chip.active { background:var(--blue); }
                        would. All its coordinates are stored/used in raw canvas-px (unscaled
                        by zoom); the wrap's own CSS transform handles the visual scaling. -->
                   <div id="pdfedImgGhost" style="display:none;position:absolute;z-index:99999;border:2px dashed var(--blue);border-radius:4px;box-shadow:0 0 0 4px rgba(0,194,255,0.15);cursor:move;overflow:visible;user-select:none;pointer-events:auto;">
-                    <img id="pdfedImgGhostImg" style="width:100%;height:100%;object-fit:fill;pointer-events:none;">
+                    <img id="pdfedImgGhostImg" alt="" style="width:100%;height:100%;object-fit:fill;pointer-events:none;">
                     <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:4px;padding:5px;background:rgba(8,12,24,0.82);">
                       <button onclick="pdfedBakeImage()" style="flex:1;font-size:10px;font-weight:700;padding:4px;border:none;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer;">Stamp</button>
                       <button onclick="pdfedCancelImgInsert()" style="font-size:10px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text2);cursor:pointer;">✕</button>
@@ -9770,7 +9770,7 @@ button.dg-show-chip.active { background:var(--blue); }
                         Click to upload a signature image<br><span style="font-size:10px;color:var(--text3);">PNG with transparent background works best</span>
                       </div>
                       <input type="file" id="pdfedSigUploadInput" accept="image/*" style="display:none" onchange="pdfedSigUploadFile(event)">
-                      <img id="pdfedSigUploadPreview" style="display:none;max-width:100%;max-height:140px;margin-top:10px;border-radius:8px;border:1px solid var(--border);background:#fff;">
+                      <img id="pdfedSigUploadPreview" alt="Uploaded signature preview" style="display:none;max-width:100%;max-height:140px;margin-top:10px;border-radius:8px;border:1px solid var(--border);background:#fff;">
                     </div>
 
                     <div style="display:flex;gap:10px;margin-top:4px;">
@@ -23387,7 +23387,7 @@ function pdfedLoadInsertImg(file) {
     pdfed.insertImgUrl = ev.target.result;
     const drop = document.getElementById('pdfedImgDrop');
     drop.classList.add('has-img');
-    drop.innerHTML = '<img src="' + ev.target.result + '" style="max-width:100%;max-height:200px;border-radius:6px;display:block;margin:0 auto">';
+    drop.innerHTML = '<img src="' + ev.target.result + '" alt="Selected image preview" style="max-width:100%;max-height:200px;border-radius:6px;display:block;margin:0 auto">';
   };
   r.readAsDataURL(file);
 }
@@ -23552,7 +23552,7 @@ function pdfedRenderMergePicker() {
     card.style.cssText = 'position:relative;border:2px solid ' + (pg.selected ? 'var(--blue)' : 'var(--border)') + ';border-radius:6px;overflow:hidden;cursor:pointer;background:var(--bg2);';
     card.dataset.idx = idx;
     card.innerHTML = `
-      <img src="${pg.thumbUrl}" style="width:100%;display:block;${pg.selected ? '' : 'opacity:0.4'}">
+      <img src="${pg.thumbUrl}" alt="Page ${pg.pageNum} thumbnail" style="width:100%;display:block;${pg.selected ? '' : 'opacity:0.4'}">
       <div style="position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;background:${pg.selected ? 'var(--blue)' : 'rgba(0,0,0,0.4)'};border:1.5px solid #fff">${pg.selected ? '✓' : ''}</div>
       <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);color:#fff;font-size:9px;text-align:center;padding:2px 0">${pg.pageNum}</div>
     `;
@@ -32466,7 +32466,7 @@ function pdfedShowGalleryPicker() {
           <div onclick="pdfedInsertExtractedImg(${i});document.getElementById('pdfedGalleryPickerModal').remove()"
             style="border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:border 0.15s;"
             onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'">
-            <img src="${img.dataUrl}" style="width:100%;height:80px;object-fit:cover;display:block;">
+            <img src="${img.dataUrl}" alt="${img.name}" style="width:100%;height:80px;object-fit:cover;display:block;">
             <div style="font-size:9px;padding:4px 6px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${img.name}</div>
           </div>
         `).join('')}
