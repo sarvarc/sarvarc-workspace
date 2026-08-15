@@ -16132,6 +16132,22 @@ async function smSaveSession(name) {
     tx.onerror = () => reject(tx.error);
   });
   smNotifyOtherTabs('save', rec.id);
+  // Best-effort mirror to Google Drive (see GOOGLE DRIVE SYNC block near the
+  // auth code). Fire-and-forget: if this fails or the user isn't Drive-
+  // connected, the local save above already succeeded and is unaffected.
+  try {
+    if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+      const driveFileId = await sarvarcDriveSaveSession(rec);
+      rec.driveFileId = driveFileId;
+      const db2 = await idbKvOpen();
+      await new Promise((resolve) => {
+        const tx = db2.transaction('sessions', 'readwrite');
+        tx.objectStore('sessions').put(rec);
+        tx.oncomplete = resolve;
+        tx.onerror = () => resolve();
+      });
+    }
+  } catch (e) { console.warn('[Sessions] Drive mirror save skipped', e); }
   return rec;
 }
 
@@ -16225,12 +16241,24 @@ async function smDeleteSession(id) {
   }
 
   const db = await idbKvOpen();
+  const existingRec = await new Promise((resolve) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
   await new Promise((resolve, reject) => {
     const tx = db.transaction('sessions', 'readwrite');
     tx.objectStore('sessions').delete(id);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
+  // Best-effort: also remove the mirrored copy from Drive, if one exists.
+  try {
+    if (existingRec && existingRec.driveFileId && typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+      await sarvarcDriveDeleteSession(existingRec.driveFileId);
+    }
+  } catch (e) { console.warn('[Sessions] Drive mirror delete skipped', e); }
   smNotifyOtherTabs('delete', id);
   // Returns true if any live data was cleared, so the caller knows a reload
   // is needed to reflect it.
@@ -60817,6 +60845,159 @@ if (document.readyState === 'loading') {
   const SARVARC_SUPABASE_ANON_KEY = 'sb_publishable_wuiOlGoSu1E3_N7m8r8frg_eA6MKlTa';
   const sarvarcSupabase = window.supabase.createClient(SARVARC_SUPABASE_URL, SARVARC_SUPABASE_ANON_KEY);
 
+  // ============== GOOGLE DRIVE SYNC (optional, opt-in, additive) ==============
+  // Saved sessions already work fully offline via this browser's IndexedDB
+  // (see smSaveSession/smListSessions/etc. above) — that path is untouched
+  // and always keeps working, logged in or not. This layer is a best-effort
+  // MIRROR on top of it: if the user signed in with Google and granted the
+  // drive.file scope, sessions are also written as JSON files inside one
+  // app-created Drive folder, using the user's own OAuth token straight from
+  // their browser. SARVARC's servers never see the file content — it never
+  // passes through anything but Google's API and this browser. Any Drive
+  // failure (no token, offline, API not enabled yet) is swallowed silently
+  // so it can never block or break the local save/load path.
+  const SARVARC_DRIVE_FOLDER_NAME = 'SARVARC Workspace Files';
+  let sarvarcDriveFolderId = null;
+
+  async function sarvarcDriveGetToken() {
+    try {
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      // provider_token is Google's own access token, handed back by Supabase
+      // right after a Google sign-in. It's short-lived (~1hr) and Supabase
+      // does not silently refresh it in the background — once it expires,
+      // Drive sync just quietly stops until the next Google sign-in. Local
+      // saves are completely unaffected either way.
+      return (session && session.provider_token) || null;
+    } catch (e) { return null; }
+  }
+
+  async function sarvarcDriveAvailable() {
+    return !!(await sarvarcDriveGetToken());
+  }
+
+  async function sarvarcDriveFetch(path, opts = {}) {
+    const token = await sarvarcDriveGetToken();
+    if (!token) throw new Error('NO_DRIVE_TOKEN');
+    const res = await fetch('https://www.googleapis.com/drive/v3/' + path, {
+      ...opts,
+      headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('DRIVE_API_' + res.status);
+    return res;
+  }
+
+  async function sarvarcDriveEnsureFolder() {
+    if (sarvarcDriveFolderId) return sarvarcDriveFolderId;
+    const q = encodeURIComponent(
+      `name='${SARVARC_DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    );
+    const listRes = await sarvarcDriveFetch(`files?q=${q}&fields=files(id,name)&spaces=drive`);
+    const listData = await listRes.json();
+    if (listData.files && listData.files.length) {
+      sarvarcDriveFolderId = listData.files[0].id;
+      return sarvarcDriveFolderId;
+    }
+    const token = await sarvarcDriveGetToken();
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: SARVARC_DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+    });
+    if (!createRes.ok) throw new Error('DRIVE_FOLDER_CREATE_' + createRes.status);
+    const createData = await createRes.json();
+    sarvarcDriveFolderId = createData.id;
+    return sarvarcDriveFolderId;
+  }
+
+  // Create-or-update a session record as one JSON file in the app's Drive
+  // folder. rec.driveFileId (if already known) is passed in so repeat saves
+  // of the same session update the same Drive file instead of duplicating it.
+  async function sarvarcDriveSaveSession(rec) {
+    const folderId = await sarvarcDriveEnsureFolder();
+    const isUpdate = !!rec.driveFileId;
+    const metadata = isUpdate
+      ? { appProperties: { sarvarcSessionId: rec.id, sarvarcSessionName: rec.name } }
+      : { name: rec.id + '.json', parents: [folderId],
+          appProperties: { sarvarcSessionId: rec.id, sarvarcSessionName: rec.name } };
+    const boundary = 'sarvarcDrive' + Date.now();
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(rec)}\r\n` +
+      `--${boundary}--`;
+    const token = await sarvarcDriveGetToken();
+    if (!token) throw new Error('NO_DRIVE_TOKEN');
+    const url = isUpdate
+      ? `https://www.googleapis.com/upload/drive/v3/files/${rec.driveFileId}?uploadType=multipart`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+    const res = await fetch(url, {
+      method: isUpdate ? 'PATCH' : 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (!res.ok) throw new Error('DRIVE_SAVE_' + res.status);
+    const data = await res.json();
+    return data.id;
+  }
+
+  // Lists every session file currently in the app's Drive folder — this is
+  // what makes saved files "follow the login": whichever Google account is
+  // signed in, this only ever sees files inside its own Drive.
+  async function sarvarcDriveListSessions() {
+    const folderId = await sarvarcDriveEnsureFolder();
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const res = await sarvarcDriveFetch(
+      `files?q=${q}&fields=files(id,appProperties,modifiedTime)&spaces=drive&pageSize=1000`
+    );
+    const data = await res.json();
+    return (data.files || []).map(f => ({
+      id: (f.appProperties && f.appProperties.sarvarcSessionId) || f.id,
+      driveFileId: f.id,
+      name: (f.appProperties && f.appProperties.sarvarcSessionName) || 'Untitled',
+      savedAt: new Date(f.modifiedTime).getTime()
+    }));
+  }
+
+  async function sarvarcDriveLoadSession(driveFileId) {
+    const res = await sarvarcDriveFetch(`files/${driveFileId}?alt=media`);
+    return res.json();
+  }
+
+  async function sarvarcDriveDeleteSession(driveFileId) {
+    await sarvarcDriveFetch(`files/${driveFileId}`, { method: 'DELETE' });
+  }
+
+  // Pulls any Drive session not already present in this browser's local
+  // IndexedDB down into it (matched by id), so the EXISTING smListSessions/
+  // smLoadSession code (untouched, still reads only from IndexedDB) picks
+  // them up automatically — no changes needed to how sessions are displayed
+  // or opened. Runs once after login; safe to call repeatedly. Anything that
+  // fails here (offline, Drive API not yet enabled on the project, etc.) is
+  // swallowed — local sessions remain fully usable either way.
+  async function sarvarcDriveSyncDown() {
+    try {
+      if (!(await sarvarcDriveAvailable())) return;
+      const [driveSessions, db] = await Promise.all([sarvarcDriveListSessions(), idbKvOpen()]);
+      for (const ds of driveSessions) {
+        const existing = await new Promise((resolve) => {
+          const tx = db.transaction('sessions', 'readonly');
+          const req = tx.objectStore('sessions').get(ds.id);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+        if (existing) continue; // already local — local copy wins, no overwrite
+        try {
+          const full = await sarvarcDriveLoadSession(ds.driveFileId);
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction('sessions', 'readwrite');
+            tx.objectStore('sessions').put(full);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+          });
+        } catch (e) { console.warn('[Drive sync] could not pull session', ds.id, e); }
+      }
+    } catch (e) { console.warn('[Drive sync] skipped', e); }
+  }
+
   let sarvarcAuthMode = 'login'; // 'login' | 'signup'
   let sarvarcAuthBusy = false;
 
@@ -61068,6 +61249,11 @@ if (document.readyState === 'loading') {
     }
     sarvarcShowWelcome(displayName);
     sarvarcRunPendingExportIfAny();
+    // Best-effort: pull down any sessions already saved to this account's
+    // Drive on another device/browser. Runs in the background — never
+    // blocks entering the workspace, and silently no-ops for anyone who
+    // didn't sign in via Google or declined Drive access.
+    if (typeof sarvarcDriveSyncDown === 'function') sarvarcDriveSyncDown();
   }
 
   function sarvarcAuthSwitchTab(mode) {
@@ -61308,7 +61494,15 @@ if (document.readyState === 'loading') {
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        skipBrowserRedirect: true
+        skipBrowserRedirect: true,
+        // drive.file: lets this app read/write ONLY the files it creates itself
+        // inside the user's Drive — never their whole Drive. This is what
+        // powers "saved files follow your login" without SARVARC ever storing
+        // file content on its own servers. access_type+prompt=consent so
+        // Google actually returns a token with this scope attached (silent
+        // re-logins otherwise skip the consent screen and omit it).
+        scopes: 'https://www.googleapis.com/auth/drive.file',
+        queryParams: { access_type: 'offline', prompt: 'consent' }
       }
     });
     if (error || !data || !data.url) {
