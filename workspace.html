@@ -13116,6 +13116,24 @@ button.dg-show-chip.active { background:var(--blue); }
   width: 15px; height: 15px; flex-shrink: 0; color: var(--text3);
   display: flex; align-items: center; justify-content: center;
 }
+
+/* Thumbnail preview of the saved session's first PDF page, so the list
+   reads like a document browser instead of a plain log of filenames — the
+   person can recognize what they're opening at a glance instead of relying
+   on the name alone. Falls back to the plain document/lock glyph (via
+   .sm-session-icon above) for sessions with no PDF page to render from
+   (e.g. a session saved from Data Arrangement or Diagrams only). */
+.sm-session-thumb {
+  width: 128px; height: 96px; flex-shrink: 0; border-radius: 7px;
+  overflow: hidden; background: var(--surface2, rgba(127,127,127,0.08));
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.sm-session-thumb img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  pointer-events: none;
+}
+.sm-session-row.sm-session-locked .sm-session-thumb { opacity: .55; filter: grayscale(0.3); }
 .sm-session-name {
   font-size: 12.5px; font-weight: 600; color: var(--text);
   background: none; border: none; padding: 3px 5px; margin: -3px -5px;
@@ -16244,9 +16262,226 @@ function smMaskEmail(email) {
   return user.slice(0, 2) + '***' + user.slice(-1) + domain;
 }
 
+// Which modules currently have data, using the exact same per-module
+// `check` functions that already power the module pills further down in
+// each row — keeps "what counts as present" defined in exactly one place.
+function smPresentModules(snapshot) {
+  return SM_MODULE_MANIFEST.filter(function (m) { return m.check(snapshot || {}).present; }).map(function (m) { return m.key; });
+}
+
+// Used only as a background behind a short label when a module has no real
+// preview image available (Data Arrangement and Make Forms today — both
+// are DOM-rendered rather than canvas-based, and that DOM only exists while
+// their own section tab is the one currently open, so it can't reliably be
+// captured at save time from a different tab).
+const SM_MODULE_TILE_COLOR = {
+  workspace: '#2f6fed', dataarrange: '#1f9d63', makeforms: '#8b5cf6',
+  diagrams: '#e08a2c', extract: '#00b3c6', redact: '#e0473f'
+};
+const SM_MODULE_TILE_LABEL = {
+  workspace: 'PDF', dataarrange: 'TABLE', makeforms: 'FORM',
+  diagrams: 'CHART', extract: 'IMAGE', redact: 'REDACT'
+};
+
+// Synthesizes a small preview of a table straight from its real headers and
+// rows — used for Data Arrangement, which renders into the DOM rather than
+// a canvas, so there's nothing to screenshot from a tab that isn't
+// currently open. Drawing it fresh from the actual data (not a generic
+// icon) means the collage tile still shows real column names/values.
+function smBuildTableTileCanvas(w, h, headers, rows) {
+  const can = document.createElement('canvas');
+  can.width = w; can.height = h;
+  const ctx = can.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+
+  const cols = Math.max(1, Math.min(headers.length || 1, 5));
+  const headerH = Math.round(h * 0.16);
+  const displayRows = rows.slice(0, 6);
+  const rowH = Math.round((h - headerH) / Math.max(1, displayRows.length || 1));
+  const colW = w / cols;
+
+  ctx.fillStyle = SM_MODULE_TILE_COLOR.dataarrange;
+  ctx.fillRect(0, 0, w, headerH);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '600 ' + Math.max(9, Math.round(headerH * 0.5)) + 'px sans-serif';
+  ctx.textBaseline = 'middle';
+  for (let c = 0; c < cols; c++) {
+    ctx.fillText(String(headers[c] == null ? '' : headers[c]).slice(0, 12), c * colW + 6, headerH / 2, colW - 10);
+  }
+
+  ctx.font = Math.max(8, Math.round(rowH * 0.42)) + 'px sans-serif';
+  displayRows.forEach((row, r) => {
+    const y = headerH + r * rowH;
+    ctx.fillStyle = r % 2 === 0 ? '#f4f6f8' : '#ffffff';
+    ctx.fillRect(0, y, w, rowH);
+    ctx.fillStyle = '#333333';
+    for (let c = 0; c < cols; c++) {
+      const val = row && row[c];
+      ctx.fillText(String(val == null ? '' : val).slice(0, 12), c * colW + 6, y + rowH / 2, colW - 10);
+    }
+  });
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  for (let c = 1; c < cols; c++) { ctx.beginPath(); ctx.moveTo(c * colW, 0); ctx.lineTo(c * colW, h); ctx.stroke(); }
+  return can.toDataURL('image/jpeg', 0.85);
+}
+
+// Same idea for Make Forms — draws the real form title plus one bar per
+// field (labelled with that field's actual label), instead of a generic
+// icon, from the form's stored JSON rather than its DOM preview.
+function smBuildFormTileCanvas(w, h, title, fields) {
+  const can = document.createElement('canvas');
+  can.width = w; can.height = h;
+  const ctx = can.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = SM_MODULE_TILE_COLOR.makeforms;
+  const titleH = Math.round(h * 0.16);
+  ctx.fillRect(0, 0, w, titleH);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '600 ' + Math.max(10, Math.round(titleH * 0.42)) + 'px sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(title || 'Form').slice(0, 30), 10, titleH / 2, w - 20);
+
+  const pad = 12, gap = 8;
+  const rows = fields.slice(0, 6);
+  const rowH = Math.max(18, Math.round((h - titleH - pad * 2 - gap * Math.max(0, rows.length - 1)) / Math.max(1, rows.length || 1)));
+  ctx.font = Math.max(8, Math.round(rowH * 0.4)) + 'px sans-serif';
+  rows.forEach((f, i) => {
+    const y = titleH + pad + i * (rowH + gap);
+    ctx.fillStyle = 'rgba(139,92,246,0.10)';
+    ctx.fillRect(pad, y, w - pad * 2, rowH);
+    ctx.strokeStyle = 'rgba(139,92,246,0.35)';
+    ctx.strokeRect(pad, y, w - pad * 2, rowH);
+    ctx.fillStyle = '#4c1d95';
+    ctx.fillText(String((f && f.label) || 'Field ' + (i + 1)).slice(0, 26), pad + 8, y + rowH / 2, w - pad * 2 - 16);
+  });
+  if (fields.length > rows.length) {
+    ctx.fillStyle = '#8b5cf6';
+    ctx.font = '600 ' + Math.max(9, Math.round(rowH * 0.4)) + 'px sans-serif';
+    ctx.fillText('+' + (fields.length - rows.length) + ' more fields', pad + 4, h - 12);
+  }
+  return can.toDataURL('image/jpeg', 0.85);
+}
+
+// Best-effort real preview image for one module, read straight from
+// whatever's already live in memory for it — this is why it works
+// regardless of which section tab happens to be open when the person hits
+// save. Canvas-backed modules (PDF Editor pages, Diagrams' chart canvas,
+// Redact's per-page canvases) keep their drawn bitmap even while their
+// section is hidden, so those capture reliably. Data Arrangement and Make
+// Forms build their live preview straight into the DOM instead, and that
+// DOM is only laid out while their tab is active — so instead of risking a
+// blank capture, those two are synthesized fresh from their real stored
+// data (headers/rows, form title/fields) via the canvas builders above.
+async function smModuleTileImage(key) {
+  try {
+    if (key === 'workspace' && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length) {
+      const idx = (typeof pdfed.active === 'number' && pdfed.pages[pdfed.active]) ? pdfed.active : 0;
+      return await pdfedComposeThumb(pdfed.pages[idx], idx);
+    }
+    if (key === 'extract' && typeof state !== 'undefined' && state.extractedImages && state.extractedImages.length) {
+      return state.extractedImages[0].dataUrl || null;
+    }
+    if (key === 'redact' && typeof rdxState !== 'undefined' && rdxState.docs && rdxState.docs.length) {
+      const pg = rdxState.docs[0].pages && rdxState.docs[0].pages[0];
+      if (pg && pg.canvas) return pg.canvas.toDataURL('image/jpeg', 0.8);
+    }
+    if (key === 'diagrams') {
+      const cv = document.getElementById('dgCanvas');
+      if (cv && cv.width && cv.height) return cv.toDataURL('image/jpeg', 0.8);
+    }
+    if (key === 'dataarrange' && typeof daState !== 'undefined' && daState.datasets && daState.datasets.length) {
+      const ds = (daState.activeId && daState.datasets.find(d => d.id === daState.activeId)) || daState.datasets[0];
+      if (ds && ds.headers && ds.headers.length) return smBuildTableTileCanvas(320, 240, ds.headers, ds.rows || []);
+    }
+    if (key === 'makeforms') {
+      const parsed = smSafeParse(localStorage.getItem('sarvarcForms'));
+      const forms = Array.isArray(parsed) ? parsed : [];
+      if (forms.length && forms[0] && Array.isArray(forms[0].fields)) {
+        return smBuildFormTileCanvas(320, 240, forms[0].title, forms[0].fields);
+      }
+    }
+  } catch (e) { console.warn('[Sessions] tile capture skipped for', key, e); }
+  return null;
+}
+
+// Draws one module's tile — its real preview image if smModuleTileImage
+// found one, otherwise a flat colour rectangle with a short label — into
+// (ctx) at (x, y, w, h). Images are cover-cropped so every tile fills its
+// slot cleanly regardless of the source's own aspect ratio.
+async function smDrawTile(ctx, key, x, y, w, h) {
+  const url = await smModuleTileImage(key);
+  if (url) {
+    try {
+      const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+      const ir = img.naturalWidth / img.naturalHeight, tr = w / h;
+      let sx, sy, sw, sh;
+      if (ir > tr) { sh = img.naturalHeight; sw = sh * tr; sx = (img.naturalWidth - sw) / 2; sy = 0; }
+      else { sw = img.naturalWidth; sh = sw / tr; sx = 0; sy = (img.naturalHeight - sh) / 2; }
+      ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+      return;
+    } catch (e) { /* image failed to decode — fall through to placeholder */ }
+  }
+  ctx.fillStyle = SM_MODULE_TILE_COLOR[key] || '#666';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = '600 ' + Math.max(11, Math.round(h * 0.16)) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(SM_MODULE_TILE_LABEL[key] || key, x + w / 2, y + h / 2);
+}
+
+// Builds the Saved Sessions list thumbnail for one session. A session with
+// data in only one module gets a full-frame preview of that module; a
+// session spanning several modules gets a collage, so the row shows
+// everything that's actually in that checkpoint at a glance instead of
+// just whichever module happened to be open when it was saved.
+async function smComposeThumbnail(presentModules) {
+  if (!presentModules.length) return null;
+  const W = 320, H = 240;
+  const can = document.createElement('canvas');
+  can.width = W; can.height = H;
+  const ctx = can.getContext('2d');
+  ctx.fillStyle = '#e9edf2';
+  ctx.fillRect(0, 0, W, H);
+
+  const mods = presentModules.slice(0, 4);
+  if (mods.length === 1) {
+    await smDrawTile(ctx, mods[0], 0, 0, W, H);
+  } else if (mods.length === 2) {
+    await smDrawTile(ctx, mods[0], 0, 0, W / 2 - 1, H);
+    await smDrawTile(ctx, mods[1], W / 2 + 1, 0, W / 2 - 1, H);
+  } else if (mods.length === 3) {
+    await smDrawTile(ctx, mods[0], 0, 0, W / 2 - 1, H);
+    await smDrawTile(ctx, mods[1], W / 2 + 1, 0, W / 2 - 1, H / 2 - 1);
+    await smDrawTile(ctx, mods[2], W / 2 + 1, H / 2 + 1, W / 2 - 1, H / 2 - 1);
+  } else {
+    await smDrawTile(ctx, mods[0], 0, 0, W / 2 - 1, H / 2 - 1);
+    await smDrawTile(ctx, mods[1], W / 2 + 1, 0, W / 2 - 1, H / 2 - 1);
+    await smDrawTile(ctx, mods[2], 0, H / 2 + 1, W / 2 - 1, H / 2 - 1);
+    await smDrawTile(ctx, mods[3], W / 2 + 1, H / 2 + 1, W / 2 - 1, H / 2 - 1);
+  }
+
+  if (presentModules.length > 4) {
+    const extra = presentModules.length - 4, bw = 34, bh = 20;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(W - bw - 6, H - bh - 6, bw, bh, 4); ctx.fill(); }
+    else { ctx.fillRect(W - bw - 6, H - bh - 6, bw, bh); }
+    ctx.fillStyle = '#fff';
+    ctx.font = '600 11px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('+' + extra, W - bw / 2 - 6, H - bh / 2 - 6);
+  }
+
+  return can.toDataURL('image/jpeg', 0.78);
+}
+
 async function smSaveSession(name) {
   const [ls, idb, ownerEmail] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv(), smGetCurrentAuthEmail()]);
   const snapshot = { ls, idb };
+  const thumb = await smComposeThumbnail(smPresentModules(snapshot));
   let size = 0;
   try { size = JSON.stringify(snapshot).length; } catch (e) {}
   const rec = {
@@ -16256,6 +16491,7 @@ async function smSaveSession(name) {
     size,
     schemaVersion: SM_SNAPSHOT_SCHEMA_VERSION,
     ownerEmail: ownerEmail || null,
+    thumb: thumb || null,
     snapshot
   };
   const db = await idbKvOpen();
@@ -16305,12 +16541,18 @@ async function smUpdateSessionSnapshot(id) {
 
   const [ls, idb] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv()]);
   const snapshot = { ls, idb };
+  const presentModules = smPresentModules(snapshot);
+  const thumb = await smComposeThumbnail(presentModules);
   let size = 0;
   try { size = JSON.stringify(snapshot).length; } catch (e) {}
   const rec = Object.assign({}, existing, {
     savedAt: Date.now(),
     size,
     schemaVersion: SM_SNAPSHOT_SCHEMA_VERSION,
+    // Keep the previous thumbnail if this checkpoint had nothing in any
+    // module to build a preview from, rather than blanking out a thumbnail
+    // that was already there.
+    thumb: thumb || existing.thumb || null,
     snapshot
   });
   await new Promise((resolve, reject) => {
@@ -16988,11 +17230,15 @@ async function smRenderList() {
           '<button class="sm-session-btn danger icon-only" title="Delete session" onclick="smOnDeleteClick(\'' + s.id + '\', \'' + safeName + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
         '</div>';
 
+    const thumbInner = s.thumb
+      ? '<img src="' + s.thumb + '" alt="" loading="lazy">'
+      : (isLocked
+          ? '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+          : '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>');
+    const thumbColorStyle = s.thumb ? '' : ' style="color:var(--text3)"';
+
     return '<div class="sm-session-row' + (isLocked ? ' sm-session-locked' : '') + '" data-id="' + s.id + '" data-name="' + searchName + '">' +
-        '<div class="sm-session-icon">' + (isLocked
-          ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
-          : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>') +
-        '</div>' +
+        '<div class="sm-session-thumb"' + thumbColorStyle + '>' + thumbInner + '</div>' +
         (isLocked
           ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage(\'' + String(s.ownerEmail).replace(/'/g, "\\'") + '\')">' + safeName + '</span>'
           : '<input class="sm-session-name" value="' + safeName + '" onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">') +
