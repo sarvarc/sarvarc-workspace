@@ -16932,6 +16932,22 @@ async function smRenderList() {
   try { sessions = await smListSessions(); }
   catch (e) { console.warn('[Sessions] could not list sessions', e); }
 
+  // Resolved once per render so every row checks against the same signed-in
+  // state instead of racing separate auth calls per row.
+  const currentEmail = await smGetCurrentAuthEmail();
+
+  // Ownership filter: a session with no ownerEmail is a local/guest file and
+  // always shows. A session WITH an ownerEmail only shows when the currently
+  // signed-in email matches it — signed out, or signed in as someone else,
+  // and it simply isn't in the list at all (not shown-but-locked). This is
+  // what makes files "disappear" on logout and "reappear" on login: nothing
+  // is deleted, the row is just filtered out of this render until the
+  // signed-in email matches again. smCheckSessionAccess (called on save/
+  // open/rename/delete) remains the backstop against any path that isn't
+  // this list — e.g. a save already in flight when a logout happens.
+  sessions = sessions.filter(s => !s.ownerEmail ||
+    (currentEmail && currentEmail.toLowerCase() === String(s.ownerEmail).toLowerCase()));
+
   if (!sessions.length) {
     listEl.innerHTML = '<div class="sm-session-empty">' +
       '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' +
@@ -16939,9 +16955,6 @@ async function smRenderList() {
     '</div>';
     return;
   }
-  // Resolved once per render so every row checks against the same signed-in
-  // state instead of racing separate auth calls per row.
-  const currentEmail = await smGetCurrentAuthEmail();
   const countLabel = sessions.length === 1 ? '1 saved session' : sessions.length + ' saved sessions';
   listEl.innerHTML = '<div class="sm-session-count">' + countLabel + '</div>' + sessions.map(s => {
     const dt = new Date(s.savedAt);
@@ -61210,6 +61223,7 @@ if (document.readyState === 'loading') {
     try {
       if (!(await sarvarcDriveAvailable())) return;
       const [driveSessions, db] = await Promise.all([sarvarcDriveListSessions(), idbKvOpen()]);
+      let pulledAny = false;
       for (const ds of driveSessions) {
         const existing = await new Promise((resolve) => {
           const tx = db.transaction('sessions', 'readonly');
@@ -61226,7 +61240,17 @@ if (document.readyState === 'loading') {
             tx.oncomplete = resolve;
             tx.onerror = () => reject(tx.error);
           });
+          pulledAny = true;
         } catch (e) { console.warn('[Drive sync] could not pull session', ds.id, e); }
+      }
+      // The SIGNED_IN auth event already re-renders the Saved Sessions list
+      // once, but that happens before this fire-and-forget pull has finished
+      // — so on a fresh device (nothing local yet), that first render shows
+      // an empty/incomplete list. Re-render again now that new sessions have
+      // actually landed in IndexedDB, so they appear without the person
+      // needing to click anything.
+      if (pulledAny && document.getElementById('smSessionList') && typeof smRenderList === 'function') {
+        smRenderList();
       }
     } catch (e) { console.warn('[Drive sync] skipped', e); }
   }
