@@ -478,6 +478,34 @@ html, body {
   height: 16px;
   opacity: 0.75;
 }
+
+/* ── Push-flight micro-interaction: comet-trail dot + sidebar arrival pulse ── */
+.sarvarc-dot-fx {
+  position: fixed; top: 0; left: 0;
+  width: 8px; height: 8px; border-radius: 50%;
+  pointer-events: none; z-index: 99999;
+  background: var(--cyan, #00C2FF);
+  box-shadow: 0 0 0 4px rgba(0,194,255,0.16), 0 0 14px 2px rgba(0,194,255,0.55);
+}
+.sarvarc-dot-fx.ghost { box-shadow: none; }
+.nav-item.sarvarc-push-hit {
+  background: rgba(0,194,255,0.14) !important;
+  color: var(--blue) !important;
+}
+.nav-item.sarvarc-push-hit::after {
+  content: '';
+  position: absolute; inset: -2px;
+  border-radius: 11px;
+  border: 2px solid var(--cyan, #00C2FF);
+  opacity: 0;
+  pointer-events: none;
+  animation: sarvarcRingPulse 0.6s ease-out;
+}
+@keyframes sarvarcRingPulse {
+  0%   { opacity: 0.9; transform: scale(0.85); }
+  70%  { opacity: 0.25; }
+  100% { opacity: 0; transform: scale(1.35); }
+}
 .nav-item.active .nav-icon,
 .nav-item:hover .nav-icon { opacity: 1; }
 a.nav-item,
@@ -8217,7 +8245,7 @@ button.dg-show-chip.active { background:var(--blue); }
     <div class="nav-item" onclick="navigate('dashboard')" title="Dashboard">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span> Dashboard
     </div>
-    <div class="nav-item active" onclick="navigate('pdfeditor')" title="Workspace">
+    <div class="nav-item active" id="navIcon-workspace" onclick="navigate('pdfeditor')" title="Workspace">
       <span class="nav-icon" style="color:#0073E6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span> Workspace
       <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(0,115,230,0.2);color:#0073E6;margin-left:auto;letter-spacing:0.3px">APP</span>
     </div>
@@ -8231,7 +8259,7 @@ button.dg-show-chip.active { background:var(--blue); }
     <div class="nav-item" onclick="navigate('makeforms')" title="Make Forms">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></span> Make Forms
     </div>
-    <div class="nav-item" onclick="navigate('diagrams')" title="Diagrams &amp; Graphs">
+    <div class="nav-item" id="navIcon-diagrams" onclick="navigate('diagrams')" title="Diagrams &amp; Graphs">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Diagrams &amp; Graphs
     </div>
     <div class="nav-item" onclick="navigate('export')" title="Export Center">
@@ -10328,7 +10356,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
               <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
-              <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams()" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
+              <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams(this)" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
             </div>
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
@@ -11588,14 +11616,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <p id="dgMultiPushChoiceSub">Choose where these charts should go</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmMultiPushChoice('new')">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmMultiPushChoice('new', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add New Page for Every Chart</h4>
           <p>Each chart becomes its own brand-new Workspace page, one after another.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmMultiPushChoice('live')">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmMultiPushChoice('live', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add All to Live Canvas</h4>
@@ -11669,14 +11697,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <p>Choose where you'd like this redacted page to go</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="rdxConfirmPushChoice('new')">
+      <button type="button" class="dg-push-choice-card" onclick="rdxConfirmPushChoice('new', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Create New Page in Workspace</h4>
           <p>Adds the redacted page as a brand-new page in your Workspace document.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="rdxConfirmPushChoice('live')">
+      <button type="button" class="dg-push-choice-card" onclick="rdxConfirmPushChoice('live', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add to Live Page on Workspace</h4>
@@ -11697,14 +11725,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <p>Choose where you'd like this chart to go</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmPushChoice('new')">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmPushChoice('new', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Create New Page in Workspace</h4>
           <p>Adds this chart as a brand-new page in your Workspace document.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmPushChoice('live')">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmPushChoice('live', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add to Live Page on Workspace</h4>
@@ -11726,14 +11754,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <p>Choose where you'd like this written analysis to go</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmAnalysisPushChoice('new')">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmAnalysisPushChoice('new', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Create New Page in Workspace</h4>
           <p>Adds this analysis as a text block on a brand-new page in your Workspace document.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmAnalysisPushChoice('live')">
+      <button type="button" class="dg-push-choice-card" onclick="dgConfirmAnalysisPushChoice('live', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add to Live Page on Workspace</h4>
@@ -11755,21 +11783,21 @@ button.dg-show-chip.active { background:var(--blue); }
       <p>Choose where you'd like this table to go</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="daConfirmPushChoice('new')">
+      <button type="button" class="dg-push-choice-card" onclick="daConfirmPushChoice('new', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Create New Page in Workspace</h4>
           <p>Adds this table as brand-new page(s), each sized to fit its rows.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="daConfirmPushChoice('live')">
+      <button type="button" class="dg-push-choice-card" onclick="daConfirmPushChoice('live', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add to Live Page on Workspace</h4>
           <p>Drops the table onto the page currently open in the Workspace.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" id="daPushAllCard" style="display:none" onclick="daConfirmPushAllChoice()">
+      <button type="button" class="dg-push-choice-card" id="daPushAllCard" style="display:none" onclick="daConfirmPushAllChoice(this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
         <div class="dg-push-choice-text">
           <h4 id="daPushAllCardTitle">Push All Tables (Smart Layout)</h4>
@@ -11791,14 +11819,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <p>Choose what to do with the chart that's currently open there</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="daResolveDiagramPush('saveNew')">
+      <button type="button" class="dg-push-choice-card" onclick="daResolveDiagramPush('saveNew', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Save Current Chart &amp; Create New</h4>
           <p>Keeps the existing chart in the History panel, then builds a new one from this table.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="daResolveDiagramPush('replace')">
+      <button type="button" class="dg-push-choice-card" onclick="daResolveDiagramPush('replace', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Replace Without Saving</h4>
@@ -11820,14 +11848,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <p>Choose where you'd like this form to go</p>
     </div>
     <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" onclick="mfcConfirmPushChoice('new')">
+      <button type="button" class="dg-push-choice-card" onclick="mfcConfirmPushChoice('new', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Create New Page in Workspace</h4>
           <p>Adds this form as brand-new page(s), each sized to match the canvas.</p>
         </div>
       </button>
-      <button type="button" class="dg-push-choice-card" onclick="mfcConfirmPushChoice('live')">
+      <button type="button" class="dg-push-choice-card" onclick="mfcConfirmPushChoice('live', this)">
         <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="11"/><polyline points="9 14 12 11 15 14"/></svg></div>
         <div class="dg-push-choice-text">
           <h4>Add to Live Page on Workspace</h4>
@@ -15368,6 +15396,9 @@ async function pushImageToPdfEditor(idx, e) {
   const img = state.extractedImages[idx];
   if(!img) { toast('Image not found', 'error'); return; }
 
+  if (e && e.currentTarget && typeof sarvarcAnimatedPush === 'function') {
+    sarvarcAnimatedPush(e.currentTarget, 'navIcon-workspace');
+  }
   navigate('pdfeditor');
 
   const bakedUrl = await pdfedApplyOpacityToDataUrl(img.dataUrl, pdfedGetOpacity(img));
@@ -39828,6 +39859,68 @@ const DA_PUSH_PXMM = 3.7795;
 // ── Push-to-Workspace: destination choice modal ──
 // Before pushing a table, ask the user whether it should become brand-new
 // page(s) in the Workspace, or be dropped onto the page currently open there.
+// ── Push-flight micro-interaction ──
+// Fires a short comet-trail dot from a clicked push button to a sidebar nav
+// icon, then pulses the icon on arrival. Purely cosmetic and fire-and-forget:
+// it never blocks or delays the real push logic that runs right after it's
+// called, and since the whole app lives in one DOM (navigate() just toggles
+// section visibility), the fixed-position dot keeps flying happily over
+// whatever section becomes visible mid-flight.
+function sarvarcFlyDot(fromEl, toEl, onArrive) {
+  if (!fromEl || !toEl) { if (onArrive) onArrive(); return; }
+  const s = fromEl.getBoundingClientRect();
+  const e = toEl.getBoundingClientRect();
+  const sx = s.left + s.width / 2, sy = s.top + s.height / 2;
+  const ex = e.left + e.width / 2, ey = e.top + e.height / 2;
+  // Bow the path outward/upward for an organic arc rather than a straight line.
+  const cx = (sx + ex) / 2 - 40;
+  const cy = Math.min(sy, ey) - 60;
+  const pathStr = `path('M ${sx} ${sy} Q ${cx} ${cy} ${ex} ${ey}')`;
+  const DURATION = 520;
+
+  function fly(delay, scale, opacity, ghost) {
+    setTimeout(() => {
+      const dot = document.createElement('div');
+      dot.className = 'sarvarc-dot-fx' + (ghost ? ' ghost' : '');
+      dot.style.opacity = opacity;
+      dot.style.offsetPath = pathStr;
+      dot.style.offsetRotate = '0deg';
+      document.body.appendChild(dot);
+      const anim = dot.animate(
+        [
+          { offsetDistance: '0%',   opacity: opacity, transform: `scale(${scale})` },
+          { offsetDistance: '55%',  opacity: opacity, transform: `scale(${scale * 1.05})` },
+          { offsetDistance: '100%', opacity: 0,        transform: `scale(${scale * 0.4})` }
+        ],
+        { duration: DURATION - delay, easing: 'cubic-bezier(.3,.7,.4,1)', fill: 'forwards' }
+      );
+      anim.onfinish = () => {
+        dot.remove();
+        if (!ghost) {
+          toEl.classList.remove('sarvarc-push-hit');
+          void toEl.offsetWidth; // restart the CSS pulse animation if it's already mid-run
+          toEl.classList.add('sarvarc-push-hit');
+          setTimeout(() => toEl.classList.remove('sarvarc-push-hit'), 480);
+          if (onArrive) onArrive();
+        }
+      };
+    }, delay);
+  }
+
+  fly(0, 1, 1, false);
+  fly(40, 0.75, 0.45, true);
+  fly(80, 0.55, 0.25, true);
+}
+
+// onArrive lets a caller delay the actual navigation/section-switch until the
+// dot has visibly landed, instead of navigating the instant it launches —
+// otherwise the source screen (and the flight itself) gets cut off mid-air.
+function sarvarcAnimatedPush(buttonEl, targetNavId, onArrive) {
+  const target = document.getElementById(targetNavId);
+  if (!target || !buttonEl) { if (onArrive) onArrive(); return; }
+  sarvarcFlyDot(buttonEl, target, onArrive);
+}
+
 function daOpenPushChoiceModal() {
   const ds = daGetActive();
   if (!ds) { toast('Upload a file first', 'info'); return; }
@@ -39851,11 +39944,13 @@ function daClosePushChoice() {
   const overlay = document.getElementById('daPushChoiceOverlay');
   if (overlay) overlay.classList.remove('open');
 }
-function daConfirmPushChoice(mode) {
+function daConfirmPushChoice(mode, cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   daClosePushChoice();
   daPushToWorkflow(mode);
 }
-function daConfirmPushAllChoice() {
+function daConfirmPushAllChoice(cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   daClosePushChoice();
   daPushAllToWorkflow();
 }
@@ -39868,7 +39963,7 @@ function daConfirmPushAllChoice() {
 // — no separate code path to keep in sync.
 let daPendingDiagramPush = null;
 
-function daPushToDiagrams() {
+function daPushToDiagrams(triggerEl) {
   const ds = daGetActive();
   if (!ds) { toast('Upload a file first', 'info'); return; }
   if (!ds.headers || !ds.headers.length) { toast('Nothing to push yet', 'info'); return; }
@@ -39890,6 +39985,19 @@ function daPushToDiagrams() {
     return;
   }
 
+  // No conflict to resolve — this click is the actual push. Wait for the
+  // dot to visibly land on the sidebar icon before switching sections, so
+  // the flight plays out fully over the still-visible table instead of
+  // getting cut off the instant navigate() swaps the screen.
+  if (triggerEl) {
+    sarvarcAnimatedPush(triggerEl, 'navIcon-diagrams', () => {
+      navigate('diagrams');
+      dgOnUploadParsed(aoa, name);
+      if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
+    });
+    return;
+  }
+
   navigate('diagrams');
   dgOnUploadParsed(aoa, name);
   // Record the pushed chart in history right away — this is what makes it
@@ -39904,19 +40012,29 @@ function daCancelDiagramPush() {
   if (overlay) overlay.classList.remove('open');
 }
 
-function daResolveDiagramPush(mode) {
+function daResolveDiagramPush(mode, cardEl) {
   const overlay = document.getElementById('daDiagramConflictOverlay');
   if (overlay) overlay.classList.remove('open');
   if (!daPendingDiagramPush) return;
   const { aoa, name } = daPendingDiagramPush;
   daPendingDiagramPush = null;
 
-  if (mode === 'saveNew' && typeof dgSaveCurrentToHistory === 'function') {
-    dgSaveCurrentToHistory();
+  function commit() {
+    if (mode === 'saveNew' && typeof dgSaveCurrentToHistory === 'function') {
+      dgSaveCurrentToHistory();
+    }
+    navigate('diagrams');
+    dgOnUploadParsed(aoa, name);
+    if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
   }
-  navigate('diagrams');
-  dgOnUploadParsed(aoa, name);
-  if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
+
+  // Same principle as the direct push: let the dot finish its visible
+  // flight from the clicked card before the section actually switches.
+  if (cardEl) {
+    sarvarcAnimatedPush(cardEl, 'navIcon-diagrams', commit);
+  } else {
+    commit();
+  }
 }
 
 // ── Auto Format: professional report styling, computed straight from the
@@ -47658,7 +47776,8 @@ function rdxClosePushChoice() {
   const overlay = document.getElementById('rdxPushChoiceOverlay');
   if (overlay) overlay.classList.remove('open');
 }
-function rdxConfirmPushChoice(mode) {
+function rdxConfirmPushChoice(mode, cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   rdxClosePushChoice();
   rdxInsertIntoWorkspace(mode);
 }
@@ -50582,6 +50701,7 @@ async function mfPushToWorkspace() {
   if (typeof pdfed === 'undefined' || typeof navigate !== 'function') { toast('Workspace editor is unavailable right now', 'error'); return; }
   mfPushInFlight = true;
   const pushBtn = document.getElementById('mfPushBtn');
+  if (pushBtn) sarvarcAnimatedPush(pushBtn, 'navIcon-workspace');
   const btnPrevHtml = pushBtn ? pushBtn.innerHTML : null;
   if (pushBtn) { pushBtn.disabled = true; pushBtn.innerHTML = '<span class="mf-btn-spinner"></span>Pushing…'; }
   toast('Pushing form to Workspace…', 'info');
@@ -51485,7 +51605,8 @@ function mfcClosePushChoice() {
   const overlay = document.getElementById('mfcPushChoiceOverlay');
   if (overlay) overlay.classList.remove('open');
 }
-function mfcConfirmPushChoice(mode) {
+function mfcConfirmPushChoice(mode, cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   mfcClosePushChoice();
   mfcPushToWorkspace(mode);
 }
@@ -55645,7 +55766,8 @@ function dgCloseMultiPushChoice() {
   const overlay = document.getElementById('dgMultiPushChoiceOverlay');
   if (overlay) overlay.classList.remove('open');
 }
-function dgConfirmMultiPushChoice(mode) {
+function dgConfirmMultiPushChoice(mode, cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   dgCloseMultiPushChoice();
   dgPushAllMultiCharts(mode);
 }
@@ -57411,7 +57533,8 @@ function dgCloseAnalysisPushChoice() {
   const overlay = document.getElementById('dgAnalysisPushChoiceOverlay');
   if (overlay) overlay.classList.remove('open');
 }
-function dgConfirmAnalysisPushChoice(mode) {
+function dgConfirmAnalysisPushChoice(mode, cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   dgCloseAnalysisPushChoice();
   dgInsertAnalysisIntoWorkspace(mode);
 }
@@ -59052,7 +59175,8 @@ function dgClosePushChoice() {
   const overlay = document.getElementById('dgPushChoiceOverlay');
   if (overlay) overlay.classList.remove('open');
 }
-function dgConfirmPushChoice(mode) {
+function dgConfirmPushChoice(mode, cardEl) {
+  if (cardEl) sarvarcAnimatedPush(cardEl, 'navIcon-workspace');
   dgClosePushChoice();
   if (dgPendingPushImage) {
     const pending = dgPendingPushImage;
@@ -59218,11 +59342,6 @@ function dgRenderStatesToCanvas(geojson, countryName) {
 // GeoJSON (dgRenderStatesToCanvas above) sidesteps tile images entirely, so
 // there's nothing left to taint the canvas.
 async function dgMapxOpenPushChoiceModal() {
-  // TEMPORARY DIAGNOSTIC — will be removed once we confirm the click is
-  // reaching this function. Fires unconditionally, before any guard check,
-  // so we can see for certain whether the handler runs at all and what
-  // state the map/layer are in at the moment of the click.
-  alert('DEBUG push clicked\nmap=' + !!dgMapx.map + '\nstatesOn=' + dgMapx.statesOn + '\nstatesLayer=' + !!dgMapx.statesLayer + '\npdfed=' + (typeof pdfed) + '\nnavigate=' + (typeof navigate));
   // Whole function wrapped in try/catch (not just the render step) so literally
   // no failure mode here — including a guard-clause reference throwing, or
   // dgCountryIso3/getElementById returning something unexpected — can ever fail
