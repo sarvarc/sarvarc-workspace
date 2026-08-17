@@ -13022,7 +13022,7 @@ button.dg-show-chip.active { background:var(--blue); }
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
     <div class="sarvarc-editlock-title">Log in to keep editing</div>
-    <div class="sarvarc-editlock-sub">You've used your free export. Log in (or sign up free) to keep editing and exporting without limits.</div>
+    <div class="sarvarc-editlock-sub" id="sarvarcEditLockSub">You've used your free export. Log in (or sign up free) to keep editing and exporting without limits.</div>
     <button type="button" class="sarvarc-editlock-btn" onclick="sarvarcAuthOpenModal('login')">Log In / Sign Up</button>
   </div>
 </div>
@@ -16745,7 +16745,12 @@ async function smSaveSession(name) {
         tx.onerror = () => resolve();
       });
     }
-  } catch (e) { console.warn('[Sessions] Drive mirror save skipped', e); }
+  } catch (e) {
+    console.warn('[Sessions] Drive mirror save skipped', e);
+    if (ownerEmail && typeof toast === 'function') {
+      toast('Saved on this device. Couldn\u2019t sync to your account yet \u2014 it\u2019ll retry next time you sign in.', 'info');
+    }
+  }
   return rec;
 }
 
@@ -61952,12 +61957,22 @@ if (document.readyState === 'loading') {
 
   async function sarvarcDriveGetToken() {
     try {
-      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      let { data: { session } } = await sarvarcSupabase.auth.getSession();
       // provider_token is Google's own access token, handed back by Supabase
       // right after a Google sign-in. It's short-lived (~1hr) and Supabase
-      // does not silently refresh it in the background — once it expires,
-      // Drive sync just quietly stops until the next Google sign-in. Local
-      // saves are completely unaffected either way.
+      // does not automatically hand back a fresh one just because the
+      // Supabase session itself got refreshed. Best-effort mitigation: if
+      // the token looks missing/stale, force one refreshSession() call —
+      // free, no extra auth, and if Supabase happens to have a live
+      // provider_refresh_token for this session it can come back with a
+      // renewed provider_token. If not, this is a harmless no-op and we
+      // fall through to "no Drive this time" exactly as before.
+      if (!session || !session.provider_token) {
+        try {
+          const { data: refreshed } = await sarvarcSupabase.auth.refreshSession();
+          if (refreshed && refreshed.session) session = refreshed.session;
+        } catch (e) { /* ignore — fall back to whatever we already have */ }
+      }
       return (session && session.provider_token) || null;
     } catch (e) { return null; }
   }
@@ -62100,6 +62115,50 @@ if (document.readyState === 'loading') {
     } catch (e) { console.warn('[Drive sync] skipped', e); }
   }
 
+  // Companion to sarvarcDriveSyncDown: pushes UP any session that's sitting
+  // in local IndexedDB but never made it to Drive (rec.driveFileId is
+  // missing) — e.g. it was saved while the Google token had expired, so the
+  // fire-and-forget mirror in smSaveSession quietly skipped it. Runs right
+  // after sign-in, when the token is freshest, so a session created on PC A
+  // while offline-from-Drive gets a second chance to reach the account
+  // before the person even opens PC B. Same "never blocks, never breaks
+  // local data" guarantee as the rest of this file.
+  async function sarvarcDriveSyncUp() {
+    try {
+      if (!(await sarvarcDriveAvailable())) return;
+      const db = await idbKvOpen();
+      const local = await new Promise((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readonly');
+        const req = tx.objectStore('sessions').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      const pending = local.filter(function (rec) {
+        return rec && rec.ownerEmail && !rec.driveFileId;
+      });
+      let pushedAny = false;
+      for (const rec of pending) {
+        try {
+          const driveFileId = await sarvarcDriveSaveSession(rec);
+          if (driveFileId) {
+            rec.driveFileId = driveFileId;
+            await new Promise((resolve) => {
+              const tx = db.transaction('sessions', 'readwrite');
+              tx.objectStore('sessions').put(rec);
+              tx.oncomplete = resolve;
+              tx.onerror = () => resolve();
+            });
+            pushedAny = true;
+          }
+        } catch (e) { console.warn('[Drive sync] could not push pending session', rec.id, e); }
+      }
+      if (pushedAny) {
+        if (typeof toast === 'function') toast('Caught up ' + pending.length + ' session(s) to your account.', 'success');
+        if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+      }
+    } catch (e) { console.warn('[Drive sync up] skipped', e); }
+  }
+
   let sarvarcAuthMode = 'login'; // 'login' | 'signup'
   let sarvarcAuthBusy = false;
 
@@ -62171,9 +62230,48 @@ if (document.readyState === 'loading') {
   // try to click or type something, so the very last thing they see before
   // the prompt is the work itself. ----
   window.sarvarcEditLockActive = false;
+  window.sarvarcEditLockReason = null; // 'freeExport' | 'signedOutOwned'
+  // Whether the content CURRENTLY loaded into the live modules (Workspace,
+  // Data Arrangement, etc.) was pulled from a session that belongs to an
+  // account (has ownerEmail) — i.e. someone signed in, opened/edited a
+  // project, then signed out without leaving. Checked against the same
+  // active-link map used by smCheckSessionAccess for the Saved Sessions
+  // list, so "this project belongs to an account" means the same thing
+  // everywhere in the app.
+  async function sarvarcCurrentLoadIsOwned() {
+    try {
+      const links = smGetActiveLinks(); // { moduleKey: sessionId }
+      const ids = Array.from(new Set(Object.values(links || {}).filter(Boolean)));
+      for (const id of ids) {
+        const rec = await smGetSession(id);
+        if (rec && rec.ownerEmail) return true;
+      }
+    } catch (e) { /* if we can't tell, don't lock on a guess */ }
+    return false;
+  }
+  const SARVARC_EDITLOCK_MESSAGES = {
+    freeExport: 'You\u2019ve used your free export. Log in (or sign up free) to keep editing and exporting without limits.',
+    signedOutOwned: 'This project belongs to a signed-in account. Log back in as that account to keep editing it on this device.'
+  };
   async function sarvarcRefreshEditLockState() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
-    window.sarvarcEditLockActive = !user && sarvarcHasUsedFreeExport();
+    if (user) {
+      window.sarvarcEditLockActive = false;
+      window.sarvarcEditLockReason = null;
+    } else {
+      // Locked out for either of two reasons: the free watermarked export
+      // was already used up (existing behavior), OR — the fix here —
+      // what's currently on screen belongs to someone's account and this
+      // browser is no longer signed in as that person, e.g. logging out
+      // on a shared/office PC after editing a project pulled in that
+      // morning. Same overlay/interceptor mechanism, different message.
+      const ownedAndSignedOut = await sarvarcCurrentLoadIsOwned();
+      const freeExportUsed = sarvarcHasUsedFreeExport();
+      window.sarvarcEditLockActive = freeExportUsed || ownedAndSignedOut;
+      window.sarvarcEditLockReason = ownedAndSignedOut ? 'signedOutOwned' : (freeExportUsed ? 'freeExport' : null);
+      const sub = document.getElementById('sarvarcEditLockSub');
+      if (sub && window.sarvarcEditLockReason) sub.textContent = SARVARC_EDITLOCK_MESSAGES[window.sarvarcEditLockReason];
+    }
     // If logging in just cleared the lock, dismiss the card in case it was
     // already showing from an earlier blocked attempt.
     if (!window.sarvarcEditLockActive) {
@@ -62411,6 +62509,7 @@ if (document.readyState === 'loading') {
     // blocks entering the workspace, and silently no-ops for anyone who
     // didn't sign in via Google or declined Drive access.
     if (typeof sarvarcDriveSyncDown === 'function') sarvarcDriveSyncDown();
+    if (typeof sarvarcDriveSyncUp === 'function') sarvarcDriveSyncUp();
   }
 
   function sarvarcAuthSwitchTab(mode) {
