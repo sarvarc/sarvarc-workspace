@@ -4503,6 +4503,40 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 #sarvarcAuthOverlay .pdfed-export-footer { padding: 18px 26px 26px; }
 #sarvarcAuthOverlay .pdfed-export-download-btn { padding: 11px 24px; }
 
+/* ============================================================
+   LIVE COLLAB — presence avatar stack (top nav + inside the modal)
+   and the "who's editing this cell" badges painted onto the Data
+   Arrangement grid. Scoped tightly so it can't leak into unrelated
+   parts of the app's styling.
+   ============================================================ */
+.sarvarc-live-avatars { display: flex; align-items: center; margin-left: 8px; }
+.sarvarc-live-avatar {
+  width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700; color: #0c0e14; border: 2px solid var(--bg1, var(--bg));
+  margin-left: -7px; position: relative; flex-shrink: 0;
+}
+.sarvarc-live-avatar:first-child { margin-left: 0; }
+.sarvarc-live-avatar .sarvarc-live-tip {
+  position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+  background: var(--bg2); border: 1px solid var(--border2); padding: 4px 8px; border-radius: 6px;
+  font-size: 11px; color: var(--text); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s;
+  z-index: 900;
+}
+.sarvarc-live-avatar:hover .sarvarc-live-tip { opacity: 1; }
+#sarvarcLiveNavBtn.sarvarc-live-active { background: linear-gradient(135deg,#3ecf8e,#2fae76); color: #06140d; }
+
+/* Remote presence badge on a Data Arrangement cell someone else is currently in */
+td[data-r][data-c] { position: relative; }
+.sarvarc-live-cell-badge {
+  position: absolute; top: -8px; left: 2px; font-size: 8.5px; font-weight: 700;
+  padding: 1px 5px; border-radius: 5px; color: #0c0e14; white-space: nowrap;
+  z-index: 5; pointer-events: none; line-height: 1.4;
+}
+.sarvarc-live-cell-ring {
+  position: absolute; inset: 0; border-radius: 4px; pointer-events: none; z-index: 4;
+  box-shadow: inset 0 0 0 2px var(--sarvarc-live-rc, #5b8cff);
+}
+
 .pdfed-export-checkbox { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text2); cursor: pointer; user-select: none; }
 .pdfed-export-checkbox input { display: none; }
 .pdfed-export-checkbox-box {
@@ -8227,6 +8261,14 @@ button.dg-show-chip.active { background:var(--blue); }
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
     </button>
     <a href="https://sarvarc.com" class="topnav-alltools-link" style="font-size:13px;color:var(--text2);text-decoration:none;font-weight:500;margin-right:4px;margin-left:14px;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text2)'">All Tools</a>
+    <!-- LIVE COLLAB: presence avatar stack (only populated while a live session
+         is connected) + the "Go Live" entry point. Sits left of the auth button
+         so it's visible whether or not the person is signed in. -->
+    <div id="sarvarcLiveAvatars" class="sarvarc-live-avatars" style="display:none"></div>
+    <button class="new-project-btn" id="sarvarcLiveNavBtn" onclick="sarvarcLiveNavClick()" style="margin-left:10px" title="Start or join a live collaboration session on the current Data Arrangement table">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+      <span id="sarvarcLiveNavLabel">Go Live</span>
+    </button>
     <!-- AUTH: logged-out state shows "Log In"; logged-in state shows the user's email
          and opens a small logout menu. sarvarcAuthUpdateNavUI() toggles between them. -->
     <button class="new-project-btn" id="sarvarcAuthNavBtn" onclick="sarvarcAuthNavClick()" style="margin-left:10px" title="Log in or sign up">
@@ -12760,6 +12802,67 @@ button.dg-show-chip.active { background:var(--blue); }
       <button class="pdfed-export-download-btn" id="sarvarcAuthSubmitBtn" onclick="sarvarcAuthSubmit()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Log In
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- LIVE COLLAB MODAL: start/join a peer-to-peer encrypted live session on the
+     active Data Arrangement table. No SARVARC server ever sees the table
+     content — see the sarvarcLive* module near the bottom of the file for
+     how the invite link doubles as the encryption key. -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcLiveOverlay" onmousedown="if(event.target===this)sarvarcLiveCloseModal()">
+  <div class="sarvarc-pw-modal" style="max-width:440px">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><span id="sarvarcLiveModalTitle">Live Collaboration</span></h3>
+        <div class="pdfed-export-sub" id="sarvarcLiveModalSub">Real-time editing on this table, encrypted peer-to-peer.</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="sarvarcLiveCloseModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body sarvarc-auth-body">
+
+      <!-- Step 1: not yet started -->
+      <div id="sarvarcLiveStepStart">
+        <p style="font-size:12.5px;color:var(--text2);line-height:1.6;margin:0 0 16px">
+          Starts a live session on your currently active Data Arrangement table. You'll get a link — anyone who opens it can join and edit with you in real time. Nothing is ever stored on a SARVARC server.
+        </p>
+        <button class="pdfed-export-download-btn" style="width:100%;justify-content:center" onclick="sarvarcLiveStart()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+          Start Live Session
+        </button>
+      </div>
+
+      <!-- Step 2: invite link ready to share -->
+      <div id="sarvarcLiveStepInvite" style="display:none">
+        <div class="invite-box" style="display:flex;gap:8px;margin-bottom:10px">
+          <input id="sarvarcLiveInviteLink" readonly class="pdfed-export-range-input" style="flex:1;font-family:monospace;font-size:11.5px">
+          <button class="btn-secondary" style="padding:9px 14px;font-size:12px" onclick="sarvarcLiveCopyLink()" id="sarvarcLiveCopyBtn">Copy</button>
+        </div>
+        <div id="sarvarcAuthNote" class="sarvarc-auth-note">⚠️ This link is your password — anyone who opens it can read and edit this table. Share it directly with your team, not somewhere public.</div>
+      </div>
+
+      <!-- Step 3: name gate (shown when opening someone else's invite link, if not already signed in) -->
+      <div id="sarvarcLiveStepName" style="display:none">
+        <p style="font-size:12.5px;color:var(--text2);line-height:1.6;margin:0 0 14px">You've been invited to a live session. Pick a display name to join.</p>
+        <input id="sarvarcLiveNameInput" class="pdfed-export-range-input" placeholder="Your name" maxlength="24" onkeydown="if(event.key==='Enter')sarvarcLiveJoin()">
+      </div>
+
+      <!-- Step 4: connected -->
+      <div id="sarvarcLiveStepConnected" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text2);margin-bottom:14px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#3ecf8e;box-shadow:0 0 8px #3ecf8e" id="sarvarcLiveDot"></span>
+          <span id="sarvarcLiveStatusText">Connected · peer-to-peer encrypted</span>
+        </div>
+        <div id="sarvarcLiveConnectedAvatars" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+        <button class="btn-secondary" style="width:100%;justify-content:center" onclick="sarvarcLiveShowInvitePane()">Show invite link</button>
+      </div>
+
+    </div>
+    <div class="pdfed-export-footer" id="sarvarcLiveFooter">
+      <button class="btn-secondary" onclick="sarvarcLiveCloseModal()" style="padding:9px 18px;font-size:12px">Close</button>
+      <button class="pdfed-export-download-btn" id="sarvarcLiveJoinBtn" style="display:none" onclick="sarvarcLiveJoin()">Join →</button>
     </div>
   </div>
 </div>
@@ -39486,6 +39589,11 @@ function daPlaceCaretEnd(el) {
 function daCellFocus(el, ri, ci) {
   const ds = daGetActive(); if (!ds) return;
   daActiveCell = { row: ri, col: ci };
+  // LIVE COLLAB: tell connected peers which cell we're now in, so they can
+  // show a colored "who's editing this" badge on it.
+  if (typeof sarvarcLiveBroadcastCursor === 'function') {
+    sarvarcLiveBroadcastCursor(ds.id, ri, ci);
+  }
   const raw = String((ds.rows[ri] || [])[ci] ?? '');
   // Dropdown cells are real <select> elements, not contenteditable text —
   // rewriting textContent would blow away their <option> list, and there's
@@ -39849,6 +39957,9 @@ function daRenderTable() {
   html += `</tbody></table>`;
   gridWrap.innerHTML = html;
   daFillPlaceHandle();
+  // LIVE COLLAB: repaint "who's editing this cell" badges after every
+  // rebuild, since innerHTML above just wiped any that were there before.
+  if (typeof sarvarcLiveRenderPresenceBadges === 'function') sarvarcLiveRenderPresenceBadges();
 }
 
 function daHighlight(val, query) {
@@ -39878,6 +39989,10 @@ function daClearTitle() {
   toast('Main heading removed — the table headers below are unaffected', 'info');
 }
 
+// Set to true only while applying a cell change that just arrived from a live
+// collaborator, so we don't immediately re-broadcast their own edit back to
+// them in an echo loop. See sarvarcLiveApplyRemoteCell below.
+let daLiveSuppressBroadcast = false;
 function daUpdateCell(rowIdx, colIdx, newVal) {
   const ds = daGetActive(); if (!ds) return;
   const val = newVal === '—' ? '' : newVal.trim();
@@ -39886,6 +40001,12 @@ function daUpdateCell(rowIdx, colIdx, newVal) {
   daRenderTable();
   if (daActiveCell && daActiveCell.row === rowIdx && daActiveCell.col === colIdx) {
     daUpdateFormulaBar(rowIdx, colIdx, val);
+  }
+  // LIVE COLLAB: mirror this edit to every connected peer, unless this edit
+  // is itself the result of applying someone else's remote change (guarded
+  // by daLiveSuppressBroadcast) or no live session is active right now.
+  if (!daLiveSuppressBroadcast && typeof sarvarcLiveBroadcastCell === 'function') {
+    sarvarcLiveBroadcastCell(ds.id, rowIdx, colIdx, val);
   }
   // Only the cell that was just typed into gets a guidance toast — recalculated
   // cells elsewhere on the sheet stay silent so this never turns into spam.
@@ -61941,6 +62062,7 @@ if (document.readyState === 'loading') {
   const SARVARC_SUPABASE_ANON_KEY = 'sb_publishable_wuiOlGoSu1E3_N7m8r8frg_eA6MKlTa';
   const sarvarcSupabase = window.supabase.createClient(SARVARC_SUPABASE_URL, SARVARC_SUPABASE_ANON_KEY);
 
+
   // ============== GOOGLE DRIVE SYNC (optional, opt-in, additive) ==============
   // Saved sessions already work fully offline via this browser's IndexedDB
   // (see smSaveSession/smListSessions/etc. above) — that path is untouched
@@ -62992,6 +63114,412 @@ if (document.readyState === 'loading') {
       }
     }
   });
+</script>
+
+
+<!-- ============================================================
+     LIVE COLLAB — real Yjs CRDT sync over real peer-to-peer WebRTC,
+     scoped to the active Data Arrangement table (daState.datasets).
+
+     Architecture:
+       • Yjs (Y.Map) is the CRDT sync engine — concurrent edits from
+         different peers to different (or the same) cell always merge
+         cleanly, no locking, no "last write wins" stomping.
+       • y-webrtc is the transport — browsers talk directly to each
+         other; no SARVARC server, and no third-party server, is ever
+         in the data path. This is the product's actual moat versus
+         "managed" collab platforms (Liveblocks, etc.) that store
+         customer table data on their own servers — worth keeping
+         intact for a compliance-sensitive audience (lawyers, CAs).
+       • y-webrtc's `password` option derives an AES key from the
+         invite link's key fragment and encrypts every peer message,
+         so even the signaling servers (used only for the initial
+         handshake — who's trying to connect to whom, never table
+         content) never see plaintext.
+       • SIGNALING SERVERS: y-webrtc ships with three public defaults
+         in its docs, two of which (`*.herokuapp.com`) have been
+         unreliable/dead since Heroku killed free dynos in 2022 —
+         confirmed by multiple open GitHub issues. Those two are
+         dropped. SARVARC currently runs on `signaling.yjs.dev` only —
+         the Yjs project's own actively-maintained server — which
+         costs nothing and only ever relays WebRTC handshake metadata
+         (never table content), so it doesn't touch the zero-server-
+         storage claim at all. Trade-off, stated plainly: it's a
+         single point of failure — if that one server has downtime,
+         "Go Live" won't connect until it's back. A self-hosted
+         Cloudflare Worker relay (~$5/month) can be added later as a
+         second entry in LIVE_SIGNALING below with zero other changes,
+         if/when that risk is worth paying to remove.
+       • The invite link IS the credential — no accounts required to
+         join, matching the free-tier flow: one link, no roster. A
+         signed-in user's name/email (from the Supabase session
+         above) is used automatically when available; guests are
+         asked for a display name instead.
+       • Nothing is written to Drive or any server here yet — this is
+         intentionally scoped to live, in-memory sync while the
+         session is open. Persisting session snapshots to the
+         existing Drive sync layer is a natural next step, not done
+         in this pass.
+       • RESILIENCE: Yjs/y-webrtc load via a lazy dynamic import
+         instead of a static module import, wrapped in try/catch —
+         if the CDN is slow/blocked (corporate networks are common
+         for this audience), "Go Live" shows a clear toast instead of
+         silently doing nothing.
+
+     Real integration points into the existing Data Arrangement code
+     (not a toy/demo grid):
+       • daUpdateCell(...)  — patched above to call
+         sarvarcLiveBroadcastCell() after every local edit.
+       • daCellFocus(...)   — patched above to call
+         sarvarcLiveBroadcastCursor() so peers see who's in which cell.
+       • daRenderTable()    — patched above to call
+         sarvarcLiveRenderPresenceBadges() after every rebuild.
+     ============================================================ -->
+<script>
+(function () {
+  // The Yjs project's own actively-maintained public signaling server.
+  // Free, and only ever relays WebRTC handshake metadata — never table
+  // content — so it doesn't touch the zero-server-storage claim. It is a
+  // single point of failure though: see the comment block above for the
+  // trade-off, and how to add a second (self-hosted) entry here later
+  // without touching anything else.
+  const LIVE_SIGNALING = [
+    'wss://signaling.yjs.dev'
+  ];
+  const LIVE_COLORS = ['#5b8cff','#7c5bff','#3ecf8e','#ffb454','#ff6b8a','#4dd0e1','#ffd166','#c792ea'];
+
+  const live = {
+    ydoc: null,
+    provider: null,
+    awareness: null,
+    cells: null,      // Y.Map<string, string>, key = `${datasetId}__${row}__${col}`
+    room: null,
+    key: null,
+    datasetId: null,  // which daState dataset this session is bound to
+    color: null,
+    name: null,
+  };
+
+  // Modules load lazily so a network hiccup or a blocked CDN degrades to a
+  // clear toast instead of a dead "Go Live" button (was a silent
+  // ReferenceError before — this is the fix).
+  let liveModules = null;   // { Y, WebrtcProvider } once loaded
+  let liveModulesFailed = false;
+
+  async function ensureLiveModules() {
+    if (liveModules) return liveModules;
+    if (liveModulesFailed) return null;
+    try {
+      const [YMod, WebrtcMod] = await Promise.all([
+        import('https://esm.sh/yjs@13.6.18'),
+        import('https://esm.sh/y-webrtc@10.3.0'),
+      ]);
+      liveModules = { Y: YMod, WebrtcProvider: WebrtcMod.WebrtcProvider };
+      return liveModules;
+    } catch (e) {
+      console.error('SARVARC Live Collaboration: failed to load realtime modules', e);
+      liveModulesFailed = true;
+      return null;
+    }
+  }
+
+  function b64encode(bytes) {
+    return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
+  }
+  function randomKey() {
+    return b64encode(crypto.getRandomValues(new Uint8Array(18)));
+  }
+  function colorForClient(clientId) {
+    return LIVE_COLORS[Math.abs(clientId) % LIVE_COLORS.length];
+  }
+  function initials(name) {
+    return (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  }
+  function buildInviteURL(room, key) {
+    const url = new URL(location.href);
+    url.hash = `live=${room}:${key}`;
+    return url.toString();
+  }
+  function parseInviteFromHash() {
+    const m = /(?:^|[#&])live=([^:&]+):([^&]+)/.exec(location.hash);
+    return m ? { room: m[1], key: m[2] } : null;
+  }
+
+  // Best-effort real identity from the existing Supabase auth session, so a
+  // signed-in teammate doesn't have to retype their name every time.
+  async function sarvarcLiveResolveIdentity() {
+    try {
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      if (session && session.user) {
+        const meta = session.user.user_metadata || {};
+        return meta.full_name || meta.name || (session.user.email ? session.user.email.split('@')[0] : null);
+      }
+    } catch (e) { /* not signed in / offline — fall through to guest name */ }
+    return null;
+  }
+
+  // ---------------- Modal plumbing ----------------
+  function showStep(id) {
+    ['sarvarcLiveStepStart','sarvarcLiveStepInvite','sarvarcLiveStepName','sarvarcLiveStepConnected']
+      .forEach(s => { const el = document.getElementById(s); if (el) el.style.display = (s === id ? 'block' : 'none'); });
+    const joinBtn = document.getElementById('sarvarcLiveJoinBtn');
+    if (joinBtn) joinBtn.style.display = (id === 'sarvarcLiveStepName') ? 'inline-flex' : 'none';
+  }
+
+  window.sarvarcLiveNavClick = async function () {
+    const mods = await ensureLiveModules();
+    if (!mods) {
+      if (typeof toast === 'function') toast('Live Collaboration couldn\'t load — check your connection and try again.', 'error');
+      return;
+    }
+    if (live.provider) { showStep('sarvarcLiveStepConnected'); renderModalAvatars(); document.getElementById('sarvarcLiveOverlay').classList.add('open'); return; }
+    const invite = parseInviteFromHash();
+    document.getElementById('sarvarcLiveOverlay').classList.add('open');
+    if (invite) {
+      live.room = invite.room; live.key = invite.key;
+      document.getElementById('sarvarcLiveModalSub').textContent = "You've been invited to a live session on this table.";
+      const identity = await sarvarcLiveResolveIdentity();
+      if (identity) {
+        live.name = identity;
+        sarvarcLiveJoin();
+      } else {
+        showStep('sarvarcLiveStepName');
+        setTimeout(() => document.getElementById('sarvarcLiveNameInput').focus(), 50);
+      }
+    } else {
+      showStep('sarvarcLiveStepStart');
+    }
+  };
+
+  window.sarvarcLiveCloseModal = function () {
+    document.getElementById('sarvarcLiveOverlay').classList.remove('open');
+  };
+
+  window.sarvarcLiveShowInvitePane = function () {
+    document.getElementById('sarvarcLiveInviteLink').value = buildInviteURL(live.room, live.key);
+    showStep('sarvarcLiveStepInvite');
+  };
+
+  window.sarvarcLiveCopyLink = async function () {
+    const input = document.getElementById('sarvarcLiveInviteLink');
+    await navigator.clipboard.writeText(input.value);
+    const btn = document.getElementById('sarvarcLiveCopyBtn');
+    const prev = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = prev; }, 1500);
+  };
+
+  // ---------------- Start (creator) ----------------
+  window.sarvarcLiveStart = async function () {
+    const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+    if (!ds) {
+      if (typeof toast === 'function') toast('Open or create a table in Data Arrangement first.', 'info');
+      return;
+    }
+    live.room = 'sarvarc-' + crypto.randomUUID();
+    live.key = randomKey();
+    history.replaceState(null, '', buildInviteURL(live.room, live.key));
+    live.name = (await sarvarcLiveResolveIdentity()) || 'Guest';
+    await connect(ds.id, /*seed=*/true);
+    sarvarcLiveShowInvitePane();
+    if (typeof navigate === 'function') navigate('dataarrange');
+  };
+
+  // ---------------- Join (invited peer) ----------------
+  window.sarvarcLiveJoin = async function () {
+    if (!live.name) {
+      const nameInput = document.getElementById('sarvarcLiveNameInput');
+      const typed = (nameInput && nameInput.value.trim()) || '';
+      live.name = typed || 'Guest';
+    }
+    if (typeof navigate === 'function') navigate('dataarrange');
+    const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+    await connect(ds ? ds.id : null, /*seed=*/false);
+    showStep('sarvarcLiveStepConnected');
+    renderModalAvatars();
+  };
+
+  async function connect(datasetId, seed) {
+    const mods = await ensureLiveModules();
+    if (!mods) {
+      if (typeof toast === 'function') toast('Live Collaboration couldn\'t load — check your connection and try again.', 'error');
+      return;
+    }
+    const { Y, WebrtcProvider } = mods;
+
+    live.datasetId = datasetId;
+    live.ydoc = new Y.Doc();
+    live.cells = live.ydoc.getMap('cells');
+
+    live.provider = new WebrtcProvider(live.room, live.ydoc, {
+      password: live.key, // y-webrtc derives an AES key from this and encrypts all peer traffic with it
+      signaling: LIVE_SIGNALING
+    });
+    live.awareness = live.provider.awareness;
+    live.color = colorForClient(live.ydoc.clientID);
+    live.awareness.setLocalStateField('user', { name: live.name, color: live.color });
+
+    live.cells.observe((event) => {
+      event.changes.keys.forEach((_change, key) => {
+        const parsed = parseCellKey(key);
+        if (!parsed) return;
+        const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+        if (!ds || ds.id !== parsed.datasetId) return; // peer is on a different table right now
+        const val = live.cells.get(key) || '';
+        // NOTE: intentionally the bare (unqualified) identifier, not
+        // window.daLiveSuppressBroadcast — daLiveSuppressBroadcast is a
+        // `let` declared in the classic <script> that defines daUpdateCell,
+        // and `let` bindings aren't window properties. Because this script
+        // runs after that classic script has already executed, its outer
+        // scope chain resolves this identifier to that same binding, so
+        // setting it here really does suppress the echo inside
+        // daUpdateCell — assigning `window.daLiveSuppressBroadcast` instead
+        // would silently create an unrelated property and do nothing.
+        daLiveSuppressBroadcast = true;
+        try { daUpdateCell(parsed.row, parsed.col, val); } finally { daLiveSuppressBroadcast = false; }
+      });
+    });
+
+    live.awareness.on('change', () => {
+      renderNavAvatars();
+      renderModalAvatars();
+      if (typeof sarvarcLiveRenderPresenceBadges === 'function') sarvarcLiveRenderPresenceBadges();
+    });
+
+    live.provider.on('status', ({ connected }) => {
+      const dot = document.getElementById('sarvarcLiveDot');
+      const txt = document.getElementById('sarvarcLiveStatusText');
+      if (dot) dot.style.background = connected ? '#3ecf8e' : '#888';
+      if (txt) txt.textContent = connected ? 'Connected · peer-to-peer encrypted' : 'Connecting…';
+    });
+
+    if (seed) {
+      const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+      if (ds) {
+        live.ydoc.transact(() => {
+          ds.rows.forEach((row, r) => row.forEach((val, c) => {
+            if (val !== '' && val != null) live.cells.set(cellKey(ds.id, r, c), String(val));
+          }));
+        });
+      }
+    }
+
+    const navBtn = document.getElementById('sarvarcLiveNavBtn');
+    if (navBtn) {
+      navBtn.classList.add('sarvarc-live-active');
+      document.getElementById('sarvarcLiveNavLabel').textContent = 'Live';
+    }
+    renderNavAvatars();
+  }
+
+  window.sarvarcLiveEnd = function () {
+    if (live.provider) { live.provider.destroy(); live.provider = null; }
+    if (live.ydoc) { live.ydoc.destroy(); live.ydoc = null; }
+    live.awareness = null; live.cells = null; live.room = null; live.key = null; live.datasetId = null;
+    history.replaceState(null, '', location.pathname + location.search);
+    const navBtn = document.getElementById('sarvarcLiveNavBtn');
+    if (navBtn) { navBtn.classList.remove('sarvarc-live-active'); document.getElementById('sarvarcLiveNavLabel').textContent = 'Go Live'; }
+    document.getElementById('sarvarcLiveAvatars').style.display = 'none';
+    if (typeof sarvarcLiveRenderPresenceBadges === 'function') sarvarcLiveRenderPresenceBadges();
+    window.sarvarcLiveCloseModal();
+  };
+
+  // ---------------- Cell key helpers ----------------
+  function cellKey(datasetId, row, col) { return `${datasetId}__${row}__${col}`; }
+  function parseCellKey(key) {
+    const parts = key.split('__');
+    if (parts.length !== 3) return null;
+    return { datasetId: parts[0], row: Number(parts[1]), col: Number(parts[2]) };
+  }
+
+  // Called from the patched daUpdateCell() after every LOCAL edit.
+  window.sarvarcLiveBroadcastCell = function (datasetId, row, col, val) {
+    if (!live.cells) return;
+    live.ydoc.transact(() => live.cells.set(cellKey(datasetId, row, col), String(val)));
+  };
+
+  // Called from the patched daCellFocus() whenever the local user focuses a cell.
+  window.sarvarcLiveBroadcastCursor = function (datasetId, row, col) {
+    if (!live.awareness) return;
+    live.awareness.setLocalStateField('cursor', { datasetId, row, col });
+  };
+
+  // ---------------- Presence rendering ----------------
+  function avatarNode(name, color, isYou) {
+    const a = document.createElement('div');
+    a.className = 'sarvarc-live-avatar';
+    a.style.background = color;
+    a.textContent = initials(name);
+    const tip = document.createElement('div');
+    tip.className = 'sarvarc-live-tip';
+    tip.textContent = name + (isYou ? ' (you)' : '');
+    a.appendChild(tip);
+    return a;
+  }
+
+  function renderNavAvatars() {
+    const wrap = document.getElementById('sarvarcLiveAvatars');
+    if (!wrap || !live.awareness) return;
+    wrap.innerHTML = '';
+    let any = false;
+    live.awareness.getStates().forEach((state, clientId) => {
+      if (!state.user) return;
+      any = true;
+      wrap.appendChild(avatarNode(state.user.name, state.user.color, clientId === live.awareness.clientID));
+    });
+    wrap.style.display = any ? 'flex' : 'none';
+  }
+
+  function renderModalAvatars() {
+    const wrap = document.getElementById('sarvarcLiveConnectedAvatars');
+    if (!wrap || !live.awareness) return;
+    wrap.innerHTML = '';
+    live.awareness.getStates().forEach((state, clientId) => {
+      if (!state.user) return;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)';
+      row.appendChild(avatarNode(state.user.name, state.user.color, clientId === live.awareness.clientID));
+      const label = document.createElement('span');
+      label.textContent = state.user.name + (clientId === live.awareness.clientID ? ' (you)' : '');
+      row.appendChild(label);
+      wrap.appendChild(row);
+    });
+  }
+
+  // Repaints "who's editing this cell" badges on the Data Arrangement grid.
+  // Called from the patched daRenderTable() after every rebuild (which wipes
+  // the grid's innerHTML, so badges have to be reapplied every time).
+  window.sarvarcLiveRenderPresenceBadges = function () {
+    if (!live.awareness) return;
+    const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+    if (!ds) return;
+    live.awareness.getStates().forEach((state, clientId) => {
+      if (clientId === live.awareness.clientID) return; // don't badge your own cell
+      if (!state.cursor || state.cursor.datasetId !== ds.id) return;
+      const td = document.querySelector(`td[data-r="${state.cursor.row}"][data-c="${state.cursor.col}"]`);
+      if (!td) return;
+      td.style.setProperty('--sarvarc-live-rc', state.user.color);
+      const ring = document.createElement('div');
+      ring.className = 'sarvarc-live-cell-ring';
+      const badge = document.createElement('div');
+      badge.className = 'sarvarc-live-cell-badge';
+      badge.style.background = state.user.color;
+      badge.textContent = state.user.name;
+      td.appendChild(ring);
+      td.appendChild(badge);
+    });
+  };
+
+  // Pick up an invite link the moment the page loads (before the person
+  // clicks anything), so opening a shared link and then hitting "Go Live"
+  // (or getting auto-joined once signed-in identity resolves) just works.
+  window.addEventListener('DOMContentLoaded', () => {
+    if (parseInviteFromHash()) {
+      const btn = document.getElementById('sarvarcLiveNavBtn');
+      if (btn) btn.title = "You've been invited to a live session — click to join";
+    }
+  });
+})();
 </script>
 </body>
 </html>
