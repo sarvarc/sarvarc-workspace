@@ -11325,6 +11325,13 @@ button.dg-show-chip.active { background:var(--blue); }
                 <span id="rdxPageIndicator">1 / 1</span>
                 <button class="rdx-btn" onclick="rdxNextPage()" style="padding:6px 9px">›</button>
               </div>
+              <button class="rdx-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)" style="padding:6px 9px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+              </button>
+              <button class="rdx-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)" style="padding:6px 9px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+              </button>
+              <div class="rdx-toolbar-sep"></div>
               <button class="rdx-btn danger" onclick="rdxReset()" title="Discard this document and start over">Start Over</button>
               <div class="pdfed-rbn-zoom" title="Zoom (Ctrl/Cmd + scroll also works)">
                 <button class="pdfed-rbn-zoom-btn" onclick="rdxZoom(-0.1)">−</button>
@@ -13332,22 +13339,32 @@ let state = {
 // every feature (extracted-image gallery, PDF Editor pages, etc.), not just one panel.
 let appHistory = [];
 let appRedoStack = [];
+// Single shared clock every undo-capable subsystem stamps into. Nothing
+// about "wall time" matters here — it's just a strictly-increasing counter
+// so unifiedUndo()/unifiedRedo() can ask "which of these five independent
+// history stacks changed most recently?" and always act on that one,
+// instead of a fixed priority order that ignores real recency.
+let historyClock = 0;
+function nextHistoryTick() { return ++historyClock; }
 function pushAppHistory(action) {
+  action._t = nextHistoryTick();
   appHistory.push(action);
   if (appHistory.length > 50) appHistory.shift();
   appRedoStack = [];
 }
-function appUndo() {
+async function appUndo() {
   if (appHistory.length === 0) { toast('Nothing to undo', 'info'); return; }
   const action = appHistory.pop();
+  action._t = nextHistoryTick(); // stamp "when this was undone" for redo ordering
   appRedoStack.push(action);
-  action.undo();
+  await action.undo();
 }
-function appRedo() {
+async function appRedo() {
   if (appRedoStack.length === 0) { toast('Nothing to redo', 'info'); return; }
   const action = appRedoStack.pop();
+  action._t = nextHistoryTick();
   appHistory.push(action);
-  action.redo();
+  await action.redo();
 }
 
 // ─── PER-MODULE SNAPSHOT UNDO/REDO ───
@@ -13363,6 +13380,7 @@ function appRedo() {
 // re-opens) are automatically no-ops.
 function createModuleHistory(getSnap, restoreSnap, cap) {
   const undoStack = [], redoStack = [];
+  const undoTimes = [], redoTimes = [];
   let last = null, restoring = false;
   cap = cap || 60;
   return {
@@ -13373,8 +13391,9 @@ function createModuleHistory(getSnap, restoreSnap, cap) {
       if (last === null) { last = cur; return; }
       if (cur !== last) {
         undoStack.push(last);
-        if (undoStack.length > cap) undoStack.shift();
-        redoStack.length = 0;
+        undoTimes.push(nextHistoryTick());
+        if (undoStack.length > cap) { undoStack.shift(); undoTimes.shift(); }
+        redoStack.length = 0; redoTimes.length = 0;
         last = cur;
       }
     },
@@ -13382,7 +13401,8 @@ function createModuleHistory(getSnap, restoreSnap, cap) {
       if (!undoStack.length) return false;
       let cur; try { cur = getSnap(); } catch (e) { cur = last; }
       redoStack.push(cur);
-      const prev = undoStack.pop();
+      redoTimes.push(nextHistoryTick());
+      const prev = undoStack.pop(); undoTimes.pop();
       restoring = true;
       try { restoreSnap(prev); } finally { restoring = false; }
       last = prev;
@@ -13392,14 +13412,85 @@ function createModuleHistory(getSnap, restoreSnap, cap) {
       if (!redoStack.length) return false;
       let cur; try { cur = getSnap(); } catch (e) { cur = last; }
       undoStack.push(cur);
-      const next = redoStack.pop();
+      undoTimes.push(nextHistoryTick());
+      const next = redoStack.pop(); redoTimes.pop();
       restoring = true;
       try { restoreSnap(next); } finally { restoring = false; }
       last = next;
       return true;
     },
     hasUndo() { return undoStack.length > 0; },
-    hasRedo() { return redoStack.length > 0; }
+    hasRedo() { return redoStack.length > 0; },
+    // Timestamp of the most recent unconsumed undo/redo entry, or -1 if none —
+    // lets unifiedUndo()/unifiedRedo() compare this module's recency against
+    // every other undo source instead of assuming it always wins its section.
+    lastUndoTime() { return undoTimes.length ? undoTimes[undoTimes.length - 1] : -1; },
+    lastRedoTime() { return redoTimes.length ? redoTimes[redoTimes.length - 1] : -1; }
+  };
+}
+
+// Same idea as createModuleHistory, but for modules whose snapshots can't be
+// restored synchronously — e.g. Redact PII, where each "page" is a live
+// <canvas> with real burned-in pixel data. Flattening a page to a data URL
+// for the snapshot is cheap and synchronous (canvas.toDataURL()), but
+// rebuilding a canvas FROM a data URL has to wait on an Image element's
+// load event, so restoreSnap here is async and undo()/redo() return
+// Promises. getSnap still runs synchronously at checkpoint time so the
+// historyClock timestamp reflects the exact moment the edit happened, not
+// whenever some later await resolves.
+function createAsyncModuleHistory(getSnap, restoreSnap, cap) {
+  const undoStack = [], redoStack = [];
+  const undoTimes = [], redoTimes = [];
+  let last = null, lastKey = null, restoring = false;
+  cap = cap || 20;
+  return {
+    checkpoint() {
+      if (restoring) return;
+      let cur, key;
+      try { cur = getSnap(); key = JSON.stringify(cur); } catch (e) { return; }
+      if (last === null) { last = cur; lastKey = key; return; }
+      if (key !== lastKey) {
+        undoStack.push(last);
+        undoTimes.push(nextHistoryTick());
+        if (undoStack.length > cap) { undoStack.shift(); undoTimes.shift(); }
+        redoStack.length = 0; redoTimes.length = 0;
+        last = cur; lastKey = key;
+      }
+    },
+    async undo() {
+      if (!undoStack.length) return false;
+      let cur; try { cur = getSnap(); } catch (e) { cur = last; }
+      redoStack.push(cur);
+      redoTimes.push(nextHistoryTick());
+      const prev = undoStack.pop(); undoTimes.pop();
+      restoring = true;
+      try { await restoreSnap(prev); } finally { restoring = false; }
+      last = prev; lastKey = JSON.stringify(prev);
+      return true;
+    },
+    async redo() {
+      if (!redoStack.length) return false;
+      let cur; try { cur = getSnap(); } catch (e) { cur = last; }
+      undoStack.push(cur);
+      undoTimes.push(nextHistoryTick());
+      const next = redoStack.pop(); redoTimes.pop();
+      restoring = true;
+      try { await restoreSnap(next); } finally { restoring = false; }
+      last = next; lastKey = JSON.stringify(next);
+      return true;
+    },
+    hasUndo() { return undoStack.length > 0; },
+    hasRedo() { return redoStack.length > 0; },
+    lastUndoTime() { return undoTimes.length ? undoTimes[undoTimes.length - 1] : -1; },
+    lastRedoTime() { return redoTimes.length ? redoTimes[redoTimes.length - 1] : -1; },
+    // Wipes both stacks with no undo-of-the-wipe — used when the person
+    // explicitly discards the whole batch (Start Over), so a later Ctrl+Z
+    // can't resurrect a document they deliberately threw away.
+    reset() {
+      undoStack.length = 0; redoStack.length = 0;
+      undoTimes.length = 0; redoTimes.length = 0;
+      last = null; lastKey = null;
+    }
   };
 }
 
@@ -13463,6 +13554,68 @@ const mfHistory = createModuleHistory(
 function mfUndo() { if (!mfHistory.undo()) toast('Nothing to undo', 'info'); }
 function mfRedo() { if (!mfHistory.redo()) toast('Nothing to redo', 'info'); }
 
+// Redact PII — snapshots the WHOLE batch (every doc's pages + detections),
+// not just the doc on screen. "Redact All" / batch grid-redact burn pixels
+// into every document in the queue in a single pass, so a checkpoint taken
+// only from the active doc would leave those other documents' redactions
+// permanently un-undoable. rdxPageToStorable/rdxStorableToPage (canvas <->
+// data URL) are the exact same helpers rdxPersist() already uses for
+// IndexedDB, so undo/redo and persistence can never drift apart.
+function rdxSnapshotBatch() {
+  if (typeof rdxCaptureActiveDoc === 'function') rdxCaptureActiveDoc();
+  return {
+    activeDoc: rdxState.activeDoc,
+    docs: rdxState.docs.map(doc => ({
+      fileName: doc.fileName,
+      fileType: doc.fileType,
+      pages: doc.pages.map(rdxPageToStorable),
+      detections: doc.detections,
+      currentPage: doc.currentPage,
+      nextId: doc.nextId,
+      scanned: doc.scanned,
+      exportEnabled: doc.exportEnabled,
+      docType: doc.docType || null,
+      docTypeLabel: doc.docTypeLabel || null
+    }))
+  };
+}
+async function rdxRestoreBatch(snap) {
+  const docs = await Promise.all(snap.docs.map(async d => ({
+    fileName: d.fileName,
+    fileType: d.fileType,
+    pages: await Promise.all(d.pages.map(rdxStorableToPage)),
+    detections: d.detections,
+    currentPage: d.currentPage,
+    nextId: d.nextId,
+    scanned: d.scanned,
+    exportEnabled: d.exportEnabled,
+    docType: d.docType,
+    docTypeLabel: d.docTypeLabel
+  })));
+  rdxState.docs = docs;
+  rdxState.activeDoc = docs.length ? Math.min(Math.max(snap.activeDoc, 0), docs.length - 1) : -1;
+  if (rdxState.activeDoc >= 0) rdxApplyDocToWorking(docs[rdxState.activeDoc]);
+  const nav = document.getElementById('rdxPageNav');
+  if (nav) nav.style.display = rdxState.pages.length > 1 ? 'flex' : 'none';
+  if (typeof rdxRenderPage === 'function') rdxRenderPage();
+  if (typeof rdxRenderThumbs === 'function') rdxRenderThumbs();
+  if (typeof rdxRenderSidebarList === 'function') rdxRenderSidebarList();
+  if (typeof rdxRenderDocQueue === 'function') rdxRenderDocQueue();
+  const exportBtn = document.getElementById('rdxExportBtn');
+  if (exportBtn) exportBtn.disabled = !rdxState.exportEnabled;
+  if (!docs.length) {
+    const empty = document.getElementById('rdxEmptyState');
+    const note = document.getElementById('rdxPrivacyNote');
+    const work = document.getElementById('rdxWorkspace');
+    if (empty) empty.style.display = 'flex';
+    if (note) note.style.display = 'flex';
+    if (work) work.style.display = 'none';
+  }
+}
+const rdxHistory = createAsyncModuleHistory(rdxSnapshotBatch, rdxRestoreBatch, 20);
+async function rdxUndo() { if (!(await rdxHistory.undo())) toast('Nothing to undo', 'info'); }
+async function rdxRedo() { if (!(await rdxHistory.redo())) toast('Nothing to redo', 'info'); }
+
 // Single global handler for Ctrl+Z (undo) / Ctrl+Y or Ctrl+Shift+Z (redo).
 // Inside the PDF Editor, annotation strokes take priority (so brush/shape undo still
 // feels instant); everywhere else, and once stroke history is empty, it falls
@@ -13474,33 +13627,77 @@ function unifiedActiveSection() {
   const el = document.querySelector('.section.active');
   return el ? el.id.replace(/^sec-/, '') : '';
 }
-function unifiedUndo() {
+// Every undo-capable subsystem (global app actions, the PDF editor's per-page
+// stroke history, Style Specific Text, and each data-heavy module's snapshot
+// history) keeps its OWN stack for good reason — they're structurally very
+// different (pixel snapshots vs. JSON state vs. discrete action objects) and
+// each already restores its own domain correctly. What used to be wrong was
+// the ROUTING: a fixed priority order (strokes always beat app actions,
+// whichever module tab happened to be open always won its section) instead
+// of picking whichever stack's last change actually happened most recently.
+// This asks every candidate stack "how long ago was your last change?" (via
+// the shared historyClock every push/undo/redo stamps into) and always acts
+// on the most recent one — so Ctrl+Z always undoes your literal last action,
+// full stop, the way it does in Canva/Figma/Docs, regardless which panel
+// it happened in.
+let unifiedUndoRedoBusy = false;
+function unifiedUndoCandidates() {
+  const out = [];
   const pdfedSection = document.getElementById('sec-pdfeditor');
   const inPdfEditor = !!(pdfedSection && pdfedSection.classList.contains('active'));
-  if (inPdfEditor && typeof teFafUndoStack !== 'undefined' && teFafUndoStack.length) { teFafUndo(); return; }
-  if (inPdfEditor && typeof pdfed !== 'undefined' && pdfed.active >= 0 && typeof pdfedAnnotState !== 'undefined') {
-    const idx = pdfed.active;
-    if (pdfedStrokesFor(idx).length > 0) { pdfedUndo(); return; }
+  if (appHistory.length) out.push({ t: appHistory[appHistory.length - 1]._t, run: appUndo });
+  if (inPdfEditor) {
+    if (typeof teFafUndoStack !== 'undefined' && teFafUndoStack.length) {
+      out.push({ t: teFafUndoStack[teFafUndoStack.length - 1]._t, run: teFafUndo });
+    }
+    if (typeof pdfed !== 'undefined' && pdfed.active >= 0 && typeof pdfedAnnotState !== 'undefined') {
+      const times = pdfedStrokeTimesFor(pdfed.active);
+      if (times.length) out.push({ t: times[times.length - 1], run: pdfedUndo });
+    }
   }
   const sec = unifiedActiveSection();
-  if (sec === 'dataarrange' && daHistory.hasUndo()) { daUndo(); return; }
-  if (sec === 'diagrams' && dgHistory.hasUndo()) { dgUndo(); return; }
-  if (sec === 'makeforms' && mfHistory.hasUndo()) { mfUndo(); return; }
-  appUndo();
+  if (sec === 'dataarrange' && daHistory.hasUndo()) out.push({ t: daHistory.lastUndoTime(), run: daUndo });
+  if (sec === 'diagrams' && dgHistory.hasUndo()) out.push({ t: dgHistory.lastUndoTime(), run: dgUndo });
+  if (sec === 'makeforms' && mfHistory.hasUndo()) out.push({ t: mfHistory.lastUndoTime(), run: mfUndo });
+  if (sec === 'redact' && rdxHistory.hasUndo()) out.push({ t: rdxHistory.lastUndoTime(), run: rdxUndo });
+  return out;
 }
-function unifiedRedo() {
+function unifiedRedoCandidates() {
+  const out = [];
   const pdfedSection = document.getElementById('sec-pdfeditor');
   const inPdfEditor = !!(pdfedSection && pdfedSection.classList.contains('active'));
-  if (inPdfEditor && typeof teFafRedoStack !== 'undefined' && teFafRedoStack.length) { teFafRedo(); return; }
-  if (inPdfEditor && typeof pdfed !== 'undefined' && pdfed.active >= 0 && typeof pdfedAnnotState !== 'undefined') {
-    const idx = pdfed.active;
-    if (pdfedRedoStrokesFor(idx).length > 0) { pdfedRedo(); return; }
+  if (appRedoStack.length) out.push({ t: appRedoStack[appRedoStack.length - 1]._t, run: appRedo });
+  if (inPdfEditor) {
+    if (typeof teFafRedoStack !== 'undefined' && teFafRedoStack.length) {
+      out.push({ t: teFafRedoStack[teFafRedoStack.length - 1]._t, run: teFafRedo });
+    }
+    if (typeof pdfed !== 'undefined' && pdfed.active >= 0 && typeof pdfedAnnotState !== 'undefined') {
+      const times = pdfedRedoStrokeTimesFor(pdfed.active);
+      if (times.length) out.push({ t: times[times.length - 1], run: pdfedRedo });
+    }
   }
   const sec = unifiedActiveSection();
-  if (sec === 'dataarrange' && daHistory.hasRedo()) { daRedo(); return; }
-  if (sec === 'diagrams' && dgHistory.hasRedo()) { dgRedo(); return; }
-  if (sec === 'makeforms' && mfHistory.hasRedo()) { mfRedo(); return; }
-  appRedo();
+  if (sec === 'dataarrange' && daHistory.hasRedo()) out.push({ t: daHistory.lastRedoTime(), run: daRedo });
+  if (sec === 'diagrams' && dgHistory.hasRedo()) out.push({ t: dgHistory.lastRedoTime(), run: dgRedo });
+  if (sec === 'makeforms' && mfHistory.hasRedo()) out.push({ t: mfHistory.lastRedoTime(), run: mfRedo });
+  if (sec === 'redact' && rdxHistory.hasRedo()) out.push({ t: rdxHistory.lastRedoTime(), run: rdxRedo });
+  return out;
+}
+async function unifiedUndo() {
+  if (unifiedUndoRedoBusy) return; // ignore rapid repeats while an async undo/redo is still settling
+  const candidates = unifiedUndoCandidates();
+  if (!candidates.length) { toast('Nothing to undo', 'info'); return; }
+  candidates.sort((a, b) => b.t - a.t);
+  unifiedUndoRedoBusy = true;
+  try { await candidates[0].run(); } finally { unifiedUndoRedoBusy = false; }
+}
+async function unifiedRedo() {
+  if (unifiedUndoRedoBusy) return;
+  const candidates = unifiedRedoCandidates();
+  if (!candidates.length) { toast('Nothing to redo', 'info'); return; }
+  candidates.sort((a, b) => b.t - a.t);
+  unifiedUndoRedoBusy = true;
+  try { await candidates[0].run(); } finally { unifiedUndoRedoBusy = false; }
 }
 function onGlobalUndoRedoKeydown(e) {
   const tag = (e.target && e.target.tagName) || '';
@@ -17708,6 +17905,7 @@ function rdxStorableToPage(sp) {
 }
 
 function rdxPersist() {
+  if (typeof rdxHistory !== 'undefined') rdxHistory.checkpoint();
   clearTimeout(rdxPersistTimer);
   rdxPersistTimer = setTimeout(async () => {
     if (rdxPersisting) { rdxPersist(); return; } // a save is already running — try again shortly
@@ -21183,6 +21381,7 @@ function teFafRestoreChanges(changes, useBefore) {
 function teFafUndo() {
   if (!teFafUndoStack.length) return false;
   const changes = teFafUndoStack.pop();
+  changes._t = nextHistoryTick();
   teFafRedoStack.push(changes);
   teFafRestoreChanges(changes, true);
   toast('↶ Style Specific Text change undone', 'info');
@@ -21192,6 +21391,7 @@ function teFafUndo() {
 function teFafRedo() {
   if (!teFafRedoStack.length) return false;
   const changes = teFafRedoStack.pop();
+  changes._t = nextHistoryTick();
   teFafUndoStack.push(changes);
   teFafRestoreChanges(changes, false);
   toast('↷ Style Specific Text change redone', 'info');
@@ -21324,6 +21524,7 @@ async function teFafApply() {
   }
 
   if (changes.length) {
+    changes._t = nextHistoryTick();
     teFafUndoStack.push(changes);
     if (teFafUndoStack.length > TE_FAF_UNDO_CAP) teFafUndoStack.shift();
     teFafRedoStack.length = 0;
@@ -26189,6 +26390,23 @@ function pdfedClearRedoStrokesFor(idx) {
   const pg = pdfed.pages[idx];
   if (pg) pg.annotRedoStrokes = [];
 }
+// Parallel timestamp arrays (kept alongside, never read by anything else that
+// touches annotStrokes/annotRedoStrokes) so the unified Ctrl+Z router can
+// compare "when did this page's stroke history last change" against every
+// other undo source (global actions, module snapshots, Style Specific Text)
+// and always undo whichever one is truly most recent — see unifiedUndo().
+function pdfedStrokeTimesFor(idx) {
+  const pg = pdfed.pages[idx];
+  if (!pg) return [];
+  if (!pg._annotStrokeTimes) pg._annotStrokeTimes = [];
+  return pg._annotStrokeTimes;
+}
+function pdfedRedoStrokeTimesFor(idx) {
+  const pg = pdfed.pages[idx];
+  if (!pg) return [];
+  if (!pg._annotRedoStrokeTimes) pg._annotRedoStrokeTimes = [];
+  return pg._annotRedoStrokeTimes;
+}
 
 // Returns the annotation canvas (always sized to match page canvas)
 function pdfedGetAnnotCanvas() {
@@ -26960,7 +27178,7 @@ function pdfedRenderPlacedBorders(idx) {
 function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
   let dragging = false, resizing = false, resizeDir = null;
   let ox = 0, oy = 0, startRect = null;
-  let startX = 0, startY = 0, snapTargets = null;
+  let startX = 0, startY = 0, snapTargets = null, beforeSnap = null;
   // Whether this resize interaction already locked the x/y axis onto the
   // page boundary (hard clamp) or a smart-snap target. When true, the
   // release-time grid-snap below must leave that axis alone — otherwise
@@ -26983,6 +27201,7 @@ function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
       dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
       snapTargets = pdfedCollectSnapTargets(item.id);
     } else { return; }
+    beforeSnap = { x: item.x, y: item.y, w: item.w, h: item.h };
     document.querySelectorAll('.pdfed-placed-border.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
     e.preventDefault(); e.stopPropagation();
@@ -27117,6 +27336,27 @@ function pdfedAttachPlacedBorderDragHandlers(el, item, idx, handles, canvasEl) {
       pdfedRedrawBorderCanvas(canvasEl, item);
     }
     if (dragging || resizing) pdfedMarkModified(idx);
+    if ((dragging || resizing) && beforeSnap) {
+      const before = beforeSnap;
+      const after = { x: item.x, y: item.y, w: item.w, h: item.h };
+      if (before.x !== after.x || before.y !== after.y || before.w !== after.w || before.h !== after.h) {
+        const gIdx = idx;
+        pushAppHistory({
+          label: resizing ? 'Resize border' : 'Move border',
+          undo: () => {
+            item.x = before.x; item.y = before.y; item.w = before.w; item.h = before.h;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedBorders(gIdx);
+          },
+          redo: () => {
+            item.x = after.x; item.y = after.y; item.w = after.w; item.h = after.h;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedBorders(gIdx);
+          }
+        });
+      }
+    }
+    beforeSnap = null;
     dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
     edgeLockedX = false; edgeLockedY = false;
     const guideV = document.getElementById('pdfedSmartGuideV');
@@ -27452,7 +27692,7 @@ function pdfedRenderPlacedShapes(idx) {
 function pdfedAttachPlacedShapeDragHandlers(el, item, idx, handles, canvasEl) {
   let dragging = false, resizing = false, resizeDir = null;
   let ox = 0, oy = 0, startRect = null;
-  let startX = 0, startY = 0, snapTargets = null;
+  let startX = 0, startY = 0, snapTargets = null, beforeSnap = null;
   let edgeLockedX = false, edgeLockedY = false;
   let rotating = false, centerX = 0, centerY = 0, prevAngle = 0;
   const pc = document.getElementById('pdfedPageCanvas');
@@ -27483,6 +27723,7 @@ function pdfedAttachPlacedShapeDragHandlers(el, item, idx, handles, canvasEl) {
       dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
       snapTargets = pdfedCollectSnapTargets(item.id);
     } else { return; }
+    beforeSnap = { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation || 0 };
     document.querySelectorAll('.pdfed-placed-shape.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
     e.preventDefault(); e.stopPropagation();
@@ -27631,6 +27872,27 @@ function pdfedAttachPlacedShapeDragHandlers(el, item, idx, handles, canvasEl) {
       document.body.style.userSelect = '';
       if (handles.rotate) { handles.rotate.classList.remove('is-rotating'); handles.rotate.style.transform = ''; }
     }
+    if ((dragging || resizing || rotating) && beforeSnap) {
+      const before = beforeSnap;
+      const after = { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation || 0 };
+      if (before.x !== after.x || before.y !== after.y || before.w !== after.w || before.h !== after.h || before.rotation !== after.rotation) {
+        const gIdx = idx;
+        pushAppHistory({
+          label: rotating ? 'Rotate shape' : resizing ? 'Resize shape' : 'Move shape',
+          undo: () => {
+            item.x = before.x; item.y = before.y; item.w = before.w; item.h = before.h; item.rotation = before.rotation;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedShapes(gIdx);
+          },
+          redo: () => {
+            item.x = after.x; item.y = after.y; item.w = after.w; item.h = after.h; item.rotation = after.rotation;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedShapes(gIdx);
+          }
+        });
+      }
+    }
+    beforeSnap = null;
     dragging = false; resizing = false; resizeDir = null; startRect = null; snapTargets = null;
     edgeLockedX = false; edgeLockedY = false;
     rotating = false; centerX = 0; centerY = 0; prevAngle = 0;
@@ -28058,26 +28320,32 @@ function pdfedAnnotPushUndo() {
   const idx = pdfed.active;
   if (idx < 0) return;
   const stack = pdfedStrokesFor(idx);
+  const times = pdfedStrokeTimesFor(idx);
   const ac = pdfedGetAnnotCanvas();
   stack.push(ac.toDataURL());
+  times.push(nextHistoryTick());
   // cap at 20 undos per page
-  if (stack.length > 20) stack.shift();
+  if (stack.length > 20) { stack.shift(); times.shift(); }
   // a new action invalidates any previous redo history for this page
   pdfedClearRedoStrokesFor(idx);
+  pdfedRedoStrokeTimesFor(idx).length = 0;
 }
 
 function pdfedUndo() {
   const idx = pdfed.active;
   if (idx < 0) return;
   const stack = pdfedStrokesFor(idx);
+  const times = pdfedStrokeTimesFor(idx);
   if (!stack || stack.length === 0) { toast('Nothing to undo', 'info'); return; }
   const ac = pdfedGetAnnotCanvas();
   const ctx = ac.getContext('2d');
   // stash the current (pre-undo) state into the redo stack
   const redoStack = pdfedRedoStrokesFor(idx);
+  const redoTimes = pdfedRedoStrokeTimesFor(idx);
   redoStack.push(ac.toDataURL());
-  if (redoStack.length > 20) redoStack.shift();
-  stack.pop(); // remove current
+  redoTimes.push(nextHistoryTick());
+  if (redoStack.length > 20) { redoStack.shift(); redoTimes.shift(); }
+  stack.pop(); times.pop(); // remove current
   ctx.clearRect(0, 0, ac.width, ac.height);
   if (stack.length > 0) {
     const img = new Image();
@@ -28091,13 +28359,16 @@ function pdfedRedo() {
   const idx = pdfed.active;
   if (idx < 0) return;
   const redoStack = pdfedRedoStrokesFor(idx);
+  const redoTimes = pdfedRedoStrokeTimesFor(idx);
   if (!redoStack || redoStack.length === 0) { toast('Nothing to redo', 'info'); return; }
   const ac = pdfedGetAnnotCanvas();
   const ctx = ac.getContext('2d');
-  const dataUrl = redoStack.pop();
+  const dataUrl = redoStack.pop(); redoTimes.pop();
   const stack = pdfedStrokesFor(idx);
+  const times = pdfedStrokeTimesFor(idx);
   stack.push(dataUrl);
-  if (stack.length > 20) stack.shift();
+  times.push(nextHistoryTick());
+  if (stack.length > 20) { stack.shift(); times.shift(); }
   ctx.clearRect(0, 0, ac.width, ac.height);
   const img = new Image();
   img.onload = () => ctx.drawImage(img, 0, 0);
@@ -31390,7 +31661,7 @@ function pdfedBestSnap(myVals, targets, SNAP) {
 function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
   let dragging = false, resizing = false, resizeDir = null;
   let ox = 0, oy = 0, ofs = 0, startX = 0, startY = 0, initialW = 0, initialX = 0, initialH = 0, initialY = 0;
-  let moved = false, wasSelectedOnTapStart = false, snapTargets = null;
+  let moved = false, wasSelectedOnTapStart = false, snapTargets = null, beforeSnap = null;
   const SNAP = 10; // canvas-px snap threshold
   const TAP_THRESHOLD = 4; // px of mouse movement still counted as a tap, not a drag
 
@@ -31402,6 +31673,7 @@ function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
       ox = e.clientX; oy = e.clientY; ofs = item.fontSize;
       initialW = item.w || el.offsetWidth; initialX = item.x;
       initialH = el.offsetHeight; initialY = item.y;
+      beforeSnap = { x: item.x, y: item.y, w: item.w, fontSize: item.fontSize };
       pdfedShowPtxtToolbar(item, idx, content, el);
       e.preventDefault(); e.stopPropagation();
       return;
@@ -31425,6 +31697,7 @@ function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
     moved = false;
     dragging = true; ox = e.clientX; oy = e.clientY; startX = item.x; startY = item.y;
     snapTargets = pdfedCollectSnapTargets(item.id);
+    beforeSnap = { x: item.x, y: item.y, w: item.w, fontSize: item.fontSize };
     pdfedShowPtxtToolbar(item, idx, content, el);
     e.preventDefault(); e.stopPropagation();
   });
@@ -31513,6 +31786,29 @@ function pdfedAttachPlacedTextDragHandlers(el, content, item, idx, handles) {
     }
     if (dragging || resizing) pdfedMarkModified(idx);
     const wasTap = dragging && !moved;
+    // One undo step for the whole drag/resize gesture, skipped for a plain
+    // tap that never actually moved anything.
+    if ((dragging || resizing) && !wasTap && beforeSnap) {
+      const before = beforeSnap;
+      const after = { x: item.x, y: item.y, w: item.w, fontSize: item.fontSize };
+      if (before.x !== after.x || before.y !== after.y || before.w !== after.w || before.fontSize !== after.fontSize) {
+        const gIdx = idx;
+        pushAppHistory({
+          label: resizing ? 'Resize text' : 'Move text',
+          undo: () => {
+            item.x = before.x; item.y = before.y; item.w = before.w; item.fontSize = before.fontSize;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedTexts(gIdx);
+          },
+          redo: () => {
+            item.x = after.x; item.y = after.y; item.w = after.w; item.fontSize = after.fontSize;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedTexts(gIdx);
+          }
+        });
+      }
+    }
+    beforeSnap = null;
     dragging = false; resizing = false; resizeDir = null; snapTargets = null;
     const guideV = document.getElementById('pdfedSmartGuideV');
     const guideH = document.getElementById('pdfedSmartGuideH');
@@ -32212,12 +32508,39 @@ function pdfedStartTableDrag(el, item, idx, e) {
     }
     moved = true;
   };
+  const beforeSnap = { x: ox, y: oy, ltx, lty };
   const mu = () => {
     if (moved) pdfedMarkModified(idx);
     if (guideV) guideV.style.display = 'none';
     if (guideH) guideH.style.display = 'none';
     document.removeEventListener('mousemove', mm);
     document.removeEventListener('mouseup', mu);
+    if (moved && (item.x !== beforeSnap.x || item.y !== beforeSnap.y)) {
+      const before = beforeSnap;
+      const after = { x: item.x, y: item.y, ltx: linkedText ? linkedText.x : 0, lty: linkedText ? linkedText.y : 0 };
+      const gIdx = idx, titleId = item.linkedTitleId;
+      pushAppHistory({
+        label: 'Move table',
+        undo: () => {
+          item.x = before.x; item.y = before.y;
+          const pgN = pdfed.pages[gIdx];
+          const lt = titleId && pgN && pgN.placedTexts ? pgN.placedTexts.find(t => t.id === titleId) : null;
+          if (lt) { lt.x = before.ltx; lt.y = before.lty; }
+          pdfedMarkModified(gIdx);
+          pdfedRenderPlacedTables(gIdx);
+          if (lt) pdfedRenderPlacedTexts(gIdx);
+        },
+        redo: () => {
+          item.x = after.x; item.y = after.y;
+          const pgN = pdfed.pages[gIdx];
+          const lt = titleId && pgN && pgN.placedTexts ? pgN.placedTexts.find(t => t.id === titleId) : null;
+          if (lt) { lt.x = after.ltx; lt.y = after.lty; }
+          pdfedMarkModified(gIdx);
+          pdfedRenderPlacedTables(gIdx);
+          if (lt) pdfedRenderPlacedTexts(gIdx);
+        }
+      });
+    }
   };
   document.addEventListener('mousemove', mm);
   document.addEventListener('mouseup', mu);
@@ -32280,6 +32603,24 @@ function pdfedAttachPlacedTableResizeHandler(el, item, idx, resizeHandle, grid, 
       pdfedRenderPlacedTables(idx); // commit: rebuild once for pixel-exact handles/state
       document.removeEventListener('mousemove', mm);
       document.removeEventListener('mouseup', mu);
+      const before = { colWidths: initialColWidths, rowHeights: initialRowHeights, fontSize: initialFontSize };
+      const after = { colWidths: item.colWidths.slice(), rowHeights: item.rowHeights.slice(), fontSize: item.fontSize };
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        const gIdx = idx;
+        pushAppHistory({
+          label: 'Resize table',
+          undo: () => {
+            item.colWidths = before.colWidths.slice(); item.rowHeights = before.rowHeights.slice(); item.fontSize = before.fontSize;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedTables(gIdx);
+          },
+          redo: () => {
+            item.colWidths = after.colWidths.slice(); item.rowHeights = after.rowHeights.slice(); item.fontSize = after.fontSize;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedTables(gIdx);
+          }
+        });
+      }
     };
     document.addEventListener('mousemove', mm);
     document.addEventListener('mouseup', mu);
@@ -34113,6 +34454,10 @@ function pdfedAttachPlacedDragHandlers(el, item, idx, handles) {
       drag.startX = item.x; drag.startY = item.y;
       drag.snapTargets = pdfedCollectSnapTargets(item.id);
     } else { return; }
+    // Snapshot of every field this gesture might touch, taken once at the
+    // very start — mouseup diffs against this to build one undo step for
+    // the whole drag/resize/rotate, not per animation frame.
+    drag.beforeSnap = { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation || 0 };
     drag.el = el; drag.item = item; drag.idx = idx; drag.pc = pc; drag.handles = handles;
     document.querySelectorAll('.pdfed-placed-img.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
@@ -34302,8 +34647,32 @@ function pdfedEnsurePlacedImgDragListeners() {
       document.body.style.userSelect = '';
       if (drag.handles && drag.handles.rotate) { drag.handles.rotate.classList.remove('is-rotating'); drag.handles.rotate.style.transform = ''; }
     }
+    // One undo step for the whole gesture (drag / resize / rotate), only if
+    // something actually moved — a plain click that opens the selection
+    // shouldn't create a no-op history entry.
+    if (drag.mode && item && drag.beforeSnap) {
+      const before = drag.beforeSnap;
+      const after = { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation || 0 };
+      const gestureLabel = drag.mode === 'rotate' ? 'Rotate image' : drag.mode === 'resize' ? 'Resize image' : 'Move image';
+      if (before.x !== after.x || before.y !== after.y || before.w !== after.w || before.h !== after.h || before.rotation !== after.rotation) {
+        const gIdx = idx;
+        pushAppHistory({
+          label: gestureLabel,
+          undo: () => {
+            item.x = before.x; item.y = before.y; item.w = before.w; item.h = before.h; item.rotation = before.rotation;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedImages(gIdx);
+          },
+          redo: () => {
+            item.x = after.x; item.y = after.y; item.w = after.w; item.h = after.h; item.rotation = after.rotation;
+            pdfedMarkModified(gIdx);
+            pdfedRenderPlacedImages(gIdx);
+          }
+        });
+      }
+    }
     drag.mode = null; drag.el = null; drag.item = null; drag.idx = null; drag.pc = null; drag.handles = null;
-    drag.resizeDir = null; drag.startRect = null; drag.snapTargets = null;
+    drag.resizeDir = null; drag.startRect = null; drag.snapTargets = null; drag.beforeSnap = null;
     drag.edgeLockedX = false; drag.edgeLockedY = false;
     drag.centerX = 0; drag.centerY = 0; drag.prevAngle = 0;
     document.body.style.cursor = '';
@@ -45097,6 +45466,7 @@ function rdxResetSilent() {
   rdxState.docTypeLabel = null;
   rdxState.docQueueFilter = null;
   rdxState.gridSelected = new Set();
+  if (typeof rdxHistory !== 'undefined') rdxHistory.reset();
 }
 function rdxReset() {
   rdxResetSilent();
