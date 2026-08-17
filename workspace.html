@@ -30524,6 +30524,31 @@ function pdfedParseHtmlTableClipboard(html) {
   //     two real columns into one.
   const headerLen = rows[0].length;
   const moneyPairRe = /^(\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})$/;
+
+  // Figure out, once and up front, whether one specific column position is
+  // blank across every over-length data row. That's the real signature of
+  // a hidden spacer/icon column baked into the source markup with no
+  // header counterpart — it's empty everywhere because it's genuinely not
+  // a data column. A per-row "just delete the first empty cell I find"
+  // guess is only safe when it happens to land on that same phantom column
+  // every time; if a particular row's genuinely-empty cell is a real field
+  // that just happens to be blank (an unset Employees count, a blank
+  // Notes entry), deleting it removes real data and shifts everything
+  // after it one slot left, corrupting the rest of that row. Cross-
+  // checking against every over-length row first lets us target the
+  // actual phantom column with confirmation instead of guessing per row.
+  const overLenRowIdx = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].length > headerLen) overLenRowIdx.push(i);
+  }
+  let phantomCol = -1;
+  if (overLenRowIdx.length) {
+    const maxLen = Math.max(...overLenRowIdx.map(i => rows[i].length));
+    for (let c = 0; c < maxLen; c++) {
+      if (overLenRowIdx.every(i => !String(rows[i][c] ?? '').trim())) { phantomCol = c; break; }
+    }
+  }
+
   for (let i = 1; i < rows.length; i++) {
     // Always split any cell holding two run-together amounts first, before
     // even looking at the row's overall length — a real column should
@@ -30535,11 +30560,19 @@ function pdfedParseHtmlTableClipboard(html) {
       const m = moneyPairRe.exec(String(rows[i][j] || '').trim());
       if (m) { rows[i].splice(j, 1, m[1], m[2]); break; }
     }
-    // Then reconcile any remaining excess length by dropping empty cells
-    // (a hidden icon/status cell with no header counterpart) until the row
-    // lines up with the header.
+    // Then reconcile any remaining excess length by dropping the confirmed
+    // phantom column identified above, if this row actually has a blank
+    // cell there. Only fall back to "first empty cell in this row" when no
+    // consistent phantom column could be identified across all over-length
+    // rows — that fallback is an unconfirmed guess, so it's a last resort,
+    // not the default path.
     while (rows[i].length > headerLen) {
-      const emptyIdx = rows[i].findIndex(c => !String(c ?? '').trim());
+      let emptyIdx = -1;
+      if (phantomCol !== -1 && phantomCol < rows[i].length && !String(rows[i][phantomCol] ?? '').trim()) {
+        emptyIdx = phantomCol;
+      } else {
+        emptyIdx = rows[i].findIndex(c => !String(c ?? '').trim());
+      }
       if (emptyIdx === -1) break;
       rows[i].splice(emptyIdx, 1);
     }
@@ -37506,7 +37539,15 @@ function daFindDate(v) {
 function daFindAmount(v) {
   const t = v.trim();
   if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return { match: t, remainder: '' };
-  const m = /\$\s?\d[\d,.\s]*|\d[\d,]*\.\d+/.exec(t);
+  // Recognize ₹ (Rupee) alongside $ — an Indian-formatted amount like
+  // "₹18,50,000" matched NEITHER branch here before, so this column always
+  // failed to claim its own cell and went hunting elsewhere in the row
+  // instead, typically grabbing the leading digits off a percentage cell
+  // (e.g. "14.2" out of "14.2%") because that also satisfies the bare
+  // decimal-amount pattern below. The `(?!\s*%)` guard on that pattern
+  // closes that specific hole even in a row this fix doesn't otherwise
+  // reach (a header whose name doesn't happen to hint "percent").
+  const m = /[$₹]\s?\d[\d,.\s]*|\d[\d,]*\.\d+(?!\s*%)/.exec(t);
   if (m) {
     const match = m[0].trim();
     const remainder = (t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length)).trim();
@@ -37522,7 +37563,8 @@ function daFindAmount(v) {
   // exactly why this only fires as a last resort — Amount is always
   // resolved after ID/Age in header order, so by the time this runs those
   // columns have already claimed whatever numbers were actually theirs.
-  if (/^-?\d+(\.\d+)?$/.test(DA_OCR_DIGIT_LENIENT(t))) return { match: t, remainder: '' };
+  // A trailing '%' rules this out too — that's a rate, never an amount.
+  if (/^-?\d+(\.\d+)?$/.test(DA_OCR_DIGIT_LENIENT(t)) && !/%\s*$/.test(t)) return { match: t, remainder: '' };
   return null;
 }
 // ID/Age/quantity-style columns are just plain integers — but plain digits
@@ -37532,6 +37574,46 @@ function daFindAmount(v) {
 function daFindNumber(v) {
   const t = v.trim();
   return /^-?\d+$/.test(DA_OCR_DIGIT_LENIENT(t)) ? { match: t, remainder: '' } : null;
+}
+// A dedicated ID finder, distinct from daFindNumber above, because real ID
+// columns are just as often alphanumeric codes ("C001", "INV-2024-08") as
+// they are plain integers — but the old code ran ID through the plain-
+// integer finder, which rejects any letter. That meant an alphanumeric ID
+// already sitting correctly in its own column NEVER matched itself, so
+// Pass 1 fell through to searching the rest of the row and happily walked
+// off with the first purely-numeric cell it found (most commonly an
+// Employees/Age/Qty count), corrupting both columns at once.
+// The fix is asymmetric on purpose: when checking the cell ALREADY in the
+// ID column (isSelf), accept almost anything shaped like a single code
+// token (no inner whitespace) — a real ID is never spread across words, so
+// this can't be confused with a Company/Region/free-text cell. When
+// searching a DIFFERENT cell for a stray ID value, stay strict (digits
+// only) so this never reaches into another numeric column and steals it.
+function daFindId(v, isSelf) {
+  const t = String(v || '').trim();
+  if (!t) return null;
+  if (isSelf) {
+    return (!/\s/.test(t) && t.length <= 24) ? { match: t, remainder: '' } : null;
+  }
+  return /^-?\d+$/.test(DA_OCR_DIGIT_LENIENT(t)) ? { match: t, remainder: '' } : null;
+}
+// Percentage/growth/rate columns ("Growth %", "Conversion Rate") were
+// previously left untyped ('text'), which meant nothing protected them
+// from the Amount finder reaching in and pulling out their leading number
+// (see daFindAmount above). Recognizing them as their own type lets them
+// claim their own cell first, before Amount ever gets a turn.
+function daFindPercent(v) {
+  const t = String(v || '').trim();
+  if (!t) return null;
+  const m = /(-?\d[\d,]*\.?\d*)\s*%/.exec(t);
+  if (m) {
+    const remainder = (t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length)).trim();
+    return { match: m[0].replace(/\s+/g, ''), remainder };
+  }
+  // A bare number with no '%' sign is only accepted if the WHOLE cell is
+  // just that number — otherwise it's too ambiguous with Amount/ID/Age to
+  // safely claim from inside a longer string.
+  return /^-?\d[\d,]*\.?\d*$/.test(t) ? { match: t, remainder: '' } : null;
 }
 
 // ── Format normalization ──────────────────────────────────────────────────
@@ -37574,10 +37656,24 @@ function daNormalizeDateValue(raw) {
 function daNormalizeAmountValue(raw) {
   const t = raw.trim();
   if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return 'N/A';
-  const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$,\s]/g, '');
+  // Preserve whichever currency the value actually came in as, instead of
+  // hardcoding '$' onto every amount — a ₹-formatted figure was previously
+  // reformatted as a dollar amount here even after being correctly
+  // identified, which is its own silent-corruption bug on top of the
+  // matching one above.
+  const symbol = /₹/.test(t) ? '₹' : '$';
+  const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$₹,\s]/g, '');
   const num = parseFloat(cleaned);
   if (isNaN(num)) return raw;
-  return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const locale = symbol === '₹' ? 'en-IN' : 'en-US';
+  return symbol + num.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function daNormalizePercentValue(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return raw;
+  const cleaned = t.replace(/\s+/g, '');
+  return /%$/.test(cleaned) ? cleaned : (cleaned + '%');
 }
 
 function daNormalizeEmailValue(raw) {
@@ -37594,15 +37690,29 @@ const DA_TYPE_NORMALIZERS = {
   amount: daNormalizeAmountValue,
   email: daNormalizeEmailValue,
   number: daNormalizeNumberValue,
+  percent: daNormalizePercentValue,
+  // id intentionally has no normalizer — a code like "C001" shouldn't be
+  // reformatted at all, just matched to the right column.
 };
 
-const DA_TYPE_FINDERS = { email: daFindEmail, date: daFindDate, amount: daFindAmount, number: daFindNumber };
+const DA_TYPE_FINDERS = { email: daFindEmail, date: daFindDate, amount: daFindAmount, number: daFindNumber, id: daFindId, percent: daFindPercent };
 
 const DA_HEADER_TYPE_HINTS = [
-  { type: 'email', re: /e[- ]?ma[i1]l|^em|mail/i },
+  // Was previously `/e[- ]?ma[i1]l|^em|mail/i` — the bare `^em` matched any
+  // header merely starting with "em" (Employees, Embarked, Employer...),
+  // silently mistyping it as an email column and breaking every other
+  // type's matching for that row as a result. `e[- ]?ma[i1]l` alone
+  // already covers "Email"/"E-mail"/"E Mail", so the overbroad prefix
+  // check is dropped rather than narrowed.
+  { type: 'email', re: /e[- ]?ma[i1]l|\bmail\b/i },
   { type: 'date', re: /date|dob|\bday\b/i },
+  { type: 'percent', re: /%|percent|\bgrowth\b|\brate\b/i },
   { type: 'amount', re: /amount|price|salary|cost|total|revenue|\bpay\b/i },
-  { type: 'number', re: /\bid\b|\bage\b|qty|quantity|\bcount\b|no\.?$|number|\bnum\b/i },
+  // 'id' split out from the generic 'number' hint below — an ID column
+  // needs the asymmetric self-vs-elsewhere matching in daFindId, not the
+  // strict digits-only daFindNumber used for Age/Qty/Count.
+  { type: 'id', re: /\bid\b/i },
+  { type: 'number', re: /\bage\b|qty|quantity|\bcount\b|no\.?$|number|\bnum\b/i },
 ];
 
 function daGuessHeaderType(header) {
@@ -37638,7 +37748,7 @@ function daSmartTypeRealign(headers, rows) {
       const order = [i, ...cells.map((_, j) => j).filter(j => j !== i)];
       for (const j of order) {
         if (used[j] || !cells[j]) continue;
-        const found = finder(cells[j]);
+        const found = finder(cells[j], j === i);
         if (!found) continue;
         result[i] = found.match;
         used[j] = true;
