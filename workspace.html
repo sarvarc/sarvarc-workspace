@@ -4516,6 +4516,9 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   margin-left: -7px; position: relative; flex-shrink: 0;
 }
 .sarvarc-live-avatar:first-child { margin-left: 0; }
+.sarvarc-live-avatar img {
+  width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;
+}
 .sarvarc-live-avatar .sarvarc-live-tip {
   position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
   background: var(--bg2); border: 1px solid var(--border2); padding: 4px 8px; border-radius: 6px;
@@ -12806,16 +12809,16 @@ button.dg-show-chip.active { background:var(--blue); }
   </div>
 </div>
 
-<!-- LIVE COLLAB MODAL: start/join a peer-to-peer encrypted live session on the
-     active Data Arrangement table. No SARVARC server ever sees the table
-     content — see the sarvarcLive* module near the bottom of the file for
-     how the invite link doubles as the encryption key. -->
+<!-- LIVE COLLAB MODAL: start/join a live session on the active Data
+     Arrangement table, synced via Liveblocks. See the sarvarcLive*
+     module near the bottom of the file for the invite-link/session
+     model and its data-residency notes. -->
 <div class="pdfed-insert-modal-overlay" id="sarvarcLiveOverlay" onmousedown="if(event.target===this)sarvarcLiveCloseModal()">
   <div class="sarvarc-pw-modal" style="max-width:440px">
     <div class="pdfed-export-head">
       <div>
         <h3><span id="sarvarcLiveModalTitle">Live Collaboration</span></h3>
-        <div class="pdfed-export-sub" id="sarvarcLiveModalSub">Real-time editing on this table, encrypted peer-to-peer.</div>
+        <div class="pdfed-export-sub" id="sarvarcLiveModalSub">Real-time editing on this table.</div>
       </div>
       <button type="button" class="pdfed-export-close" onclick="sarvarcLiveCloseModal()" aria-label="Close">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -12826,7 +12829,7 @@ button.dg-show-chip.active { background:var(--blue); }
       <!-- Step 1: not yet started -->
       <div id="sarvarcLiveStepStart">
         <p style="font-size:12.5px;color:var(--text2);line-height:1.6;margin:0 0 16px">
-          Starts a live session on your currently active Data Arrangement table. You'll get a link — anyone who opens it can join and edit with you in real time. Nothing is ever stored on a SARVARC server.
+          Starts a live session on your currently active Data Arrangement table. You'll get a link — anyone who opens it can join and edit with you in real time.
         </p>
         <button class="pdfed-export-download-btn" style="width:100%;justify-content:center" onclick="sarvarcLiveStart()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
@@ -12852,15 +12855,17 @@ button.dg-show-chip.active { background:var(--blue); }
       <!-- Step 4: connected -->
       <div id="sarvarcLiveStepConnected" style="display:none">
         <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text2);margin-bottom:14px">
-          <span style="width:8px;height:8px;border-radius:50%;background:#3ecf8e;box-shadow:0 0 8px #3ecf8e" id="sarvarcLiveDot"></span>
-          <span id="sarvarcLiveStatusText">Connected · peer-to-peer encrypted</span>
+          <span style="width:8px;height:8px;border-radius:50%;background:#888" id="sarvarcLiveDot"></span>
+          <span id="sarvarcLiveStatusText">Connecting…</span>
         </div>
-        <div id="sarvarcLiveConnectedAvatars" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
-        <button class="btn-secondary" style="width:100%;justify-content:center" onclick="sarvarcLiveShowInvitePane()">Show invite link</button>
+        <div id="sarvarcLiveConnectedAvatars" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+        <button class="btn-secondary" style="width:100%;justify-content:center;margin-bottom:8px" onclick="sarvarcLiveShowInvitePane()">Show invite link</button>
+        <button class="btn-secondary" id="sarvarcLiveEndAllBtn" style="width:100%;justify-content:center;display:none;color:#ff6b6b;border-color:#ff6b6b55" onclick="sarvarcLiveEndForEveryone()">End session for everyone</button>
       </div>
 
     </div>
     <div class="pdfed-export-footer" id="sarvarcLiveFooter">
+      <button class="btn-secondary" id="sarvarcLiveLeaveBtn" style="display:none;padding:9px 18px;font-size:12px" onclick="sarvarcLiveLeave()">Leave session</button>
       <button class="btn-secondary" onclick="sarvarcLiveCloseModal()" style="padding:9px 18px;font-size:12px">Close</button>
       <button class="pdfed-export-download-btn" id="sarvarcLiveJoinBtn" style="display:none" onclick="sarvarcLiveJoin()">Join →</button>
     </div>
@@ -63118,56 +63123,74 @@ if (document.readyState === 'loading') {
 
 
 <!-- ============================================================
-     LIVE COLLAB — real Yjs CRDT sync over real peer-to-peer WebRTC,
-     scoped to the active Data Arrangement table (daState.datasets).
+     LIVE COLLAB — real Yjs CRDT sync over a managed Liveblocks
+     transport, scoped to the active Data Arrangement table
+     (daState.datasets).
 
      Architecture:
-       • Yjs (Y.Map) is the CRDT sync engine — concurrent edits from
-         different peers to different (or the same) cell always merge
-         cleanly, no locking, no "last write wins" stomping.
-       • y-webrtc is the transport — browsers talk directly to each
-         other; no SARVARC server, and no third-party server, is ever
-         in the data path. This is the product's actual moat versus
-         "managed" collab platforms (Liveblocks, etc.) that store
-         customer table data on their own servers — worth keeping
-         intact for a compliance-sensitive audience (lawyers, CAs).
-       • y-webrtc's `password` option derives an AES key from the
-         invite link's key fragment and encrypts every peer message,
-         so even the signaling servers (used only for the initial
-         handshake — who's trying to connect to whom, never table
-         content) never see plaintext.
-       • SIGNALING SERVERS: y-webrtc ships with three public defaults
-         in its docs, two of which (`*.herokuapp.com`) have been
-         unreliable/dead since Heroku killed free dynos in 2022 —
-         confirmed by multiple open GitHub issues. Those two are
-         dropped. SARVARC currently runs on `signaling.yjs.dev` only —
-         the Yjs project's own actively-maintained server — which
-         costs nothing and only ever relays WebRTC handshake metadata
-         (never table content), so it doesn't touch the zero-server-
-         storage claim at all. Trade-off, stated plainly: it's a
-         single point of failure — if that one server has downtime,
-         "Go Live" won't connect until it's back. A self-hosted
-         Cloudflare Worker relay (~$5/month) can be added later as a
-         second entry in LIVE_SIGNALING below with zero other changes,
-         if/when that risk is worth paying to remove.
-       • The invite link IS the credential — no accounts required to
-         join, matching the free-tier flow: one link, no roster. A
-         signed-in user's name/email (from the Supabase session
-         above) is used automatically when available; guests are
-         asked for a display name instead.
-       • Nothing is written to Drive or any server here yet — this is
-         intentionally scoped to live, in-memory sync while the
-         session is open. Persisting session snapshots to the
-         existing Drive sync layer is a natural next step, not done
-         in this pass.
-       • RESILIENCE: Yjs/y-webrtc load via a lazy dynamic import
-         instead of a static module import, wrapped in try/catch —
-         if the CDN is slow/blocked (corporate networks are common
-         for this audience), "Go Live" shows a clear toast instead of
-         silently doing nothing.
+       • Yjs (Y.Map) is the CRDT sync engine — unchanged from the
+         original design. Concurrent edits from different peers to
+         different (or the same) cell always merge cleanly, no
+         locking, no "last write wins" stomping.
+       • TRANSPORT CHANGE (was: y-webrtc + wss://signaling.yjs.dev):
+         the public y-webrtc signaling server was unreliable — public
+         WebSocket refusals in production, a known-flaky free service
+         with a multi-year history of outages (see yjs/y-webrtc GitHub
+         issues #43, #55) and no uptime guarantee. Swapped the
+         transport for Liveblocks' managed Yjs provider
+         (@liveblocks/yjs), keeping the Y.Doc/Y.Map/awareness model
+         100% intact — this is a transport swap, not a data-model
+         change. daUpdateCell/daCellFocus/daRenderTable integration
+         points below are unaffected.
+       • COMPLIANCE POSITIONING CHANGE — READ THIS: the previous
+         y-webrtc setup's real selling point was "no server, ever, in
+         the data path" (peer-to-peer only, signaling server saw only
+         handshake metadata). Liveblocks is a managed service — Yjs
+         document updates ARE now stored on Liveblocks' infrastructure
+         (encrypted in transit via TLS, encrypted at rest per their
+         SOC 2 program, but not end-to-end encrypted from the browser
+         the way the old `password` option was). Liveblocks is
+         SOC 2-reported and offers a HIPAA BAA on request, which
+         covers most enterprise compliance conversations — but if
+         SARVARC's marketing to lawyers/CAs has been making a literal
+         "zero-server-storage" claim, that claim needs updating to
+         "encrypted, SOC 2-audited managed storage" before this ships.
+         This is a product-copy task, not a code task — flagging so
+         it isn't missed.
+       • DATA RESIDENCY: Liveblocks default hosting is US/EU; India-
+         region hosting requires their Enterprise plan. Not a blocker
+         for launch, but worth knowing if a customer ever asks where
+         their table data physically sits.
+       • AUTH MODE: using a publicApiKey (client-side only, no backend
+         required) rather than a secret-key + auth-endpoint setup.
+         This matches the existing "invite link is the credential, no
+         accounts" model — see LIVEBLOCKS_PUBLIC_KEY below — but it
+         means anyone who has both halves of the invite link (room id
+         + key, exactly as before) can join that room; there's no
+         server-side permission check. Fine for the current free-tier,
+         no-roster flow. If per-user access control is ever needed,
+         that requires adding a Liveblocks secret key + a Supabase
+         Edge Function to mint scoped tokens — a real architecture
+         change, not a config flag.
+       • The invite link IS still the credential — no accounts
+         required to join. A signed-in user's name/email (from the
+         Supabase session above) is used automatically when available;
+         guests are asked for a display name instead.
+       • Nothing is written to the existing Drive sync layer here —
+         this is still scoped to live sync while the session is open,
+         now durably persisted by Liveblocks itself between reconnects
+         within a room's retention window (a free upgrade over the old
+         in-memory-only WebRTC behavior, which lost all state the
+         instant every peer disconnected).
+       • RESILIENCE: Liveblocks client/provider load via a lazy dynamic
+         import wrapped in try/catch — if the CDN is slow/blocked, "Go
+         Live" shows a clear toast instead of silently doing nothing.
+         Liveblocks' own client handles reconnection/backoff
+         automatically; no custom signaling-server-list fallback logic
+         is needed anymore.
 
      Real integration points into the existing Data Arrangement code
-     (not a toy/demo grid):
+     (not a toy/demo grid) — UNCHANGED by this transport swap:
        • daUpdateCell(...)  — patched above to call
          sarvarcLiveBroadcastCell() after every local edit.
        • daCellFocus(...)   — patched above to call
@@ -63177,44 +63200,55 @@ if (document.readyState === 'loading') {
      ============================================================ -->
 <script>
 (function () {
-  // The Yjs project's own actively-maintained public signaling server.
-  // Free, and only ever relays WebRTC handshake metadata — never table
-  // content — so it doesn't touch the zero-server-storage claim. It is a
-  // single point of failure though: see the comment block above for the
-  // trade-off, and how to add a second (self-hosted) entry here later
-  // without touching anything else.
-  const LIVE_SIGNALING = [
-    'wss://signaling.yjs.dev'
-  ];
+  // Get a free key at https://liveblocks.io/dashboard (Free tier: no
+  // credit card, ~500 monthly active rooms). A publicApiKey is safe to
+  // ship in client code by design — it does not grant secret-level
+  // access, it just identifies the Liveblocks project. Swap this for
+  // your own key before shipping; the placeholder below will fail
+  // auth and "Go Live" will show a clear error toast rather than a
+  // silent hang.
+  const LIVEBLOCKS_PUBLIC_KEY = 'pk_prod_REPLACE_ME';
   const LIVE_COLORS = ['#5b8cff','#7c5bff','#3ecf8e','#ffb454','#ff6b8a','#4dd0e1','#ffd166','#c792ea'];
 
   const live = {
     ydoc: null,
     provider: null,
+    room: null,        // Liveblocks Room instance (distinct from live.roomId below)
+    leaveRoom: null,   // fn returned by client.enterRoom(); call to disconnect/cleanup
     awareness: null,
     cells: null,      // Y.Map<string, string>, key = `${datasetId}__${row}__${col}`
-    room: null,
+    meta: null,        // Y.Map<string, any> — durable session state (e.g. 'ended')
+    roomId: null,      // invite-link room slug (was `room` under y-webrtc)
     key: null,
     datasetId: null,  // which daState dataset this session is bound to
     color: null,
     name: null,
+    avatarUrl: null,   // Google display picture (from Supabase user_metadata), if the
+                        // signed-in user has one — undefined/null just falls back to initials
+    isHost: false,     // true only in the browser tab that clicked "Start Live Session"
   };
 
   // Modules load lazily so a network hiccup or a blocked CDN degrades to a
   // clear toast instead of a dead "Go Live" button (was a silent
   // ReferenceError before — this is the fix).
-  let liveModules = null;   // { Y, WebrtcProvider } once loaded
+  let liveModules = null;   // { Y, createClient, LiveblocksYjsProvider } once loaded
   let liveModulesFailed = false;
+  let liveblocksClient = null; // singleton — one client per page, many rooms
 
   async function ensureLiveModules() {
     if (liveModules) return liveModules;
     if (liveModulesFailed) return null;
     try {
-      const [YMod, WebrtcMod] = await Promise.all([
+      const [YMod, LBClientMod, LBYjsMod] = await Promise.all([
         import('https://esm.sh/yjs@13.6.18'),
-        import('https://esm.sh/y-webrtc@10.3.0'),
+        import('https://esm.sh/@liveblocks/client@2.24.4'),
+        import('https://esm.sh/@liveblocks/yjs@2.24.4?deps=yjs@13.6.18'),
       ]);
-      liveModules = { Y: YMod, WebrtcProvider: WebrtcMod.WebrtcProvider };
+      liveModules = {
+        Y: YMod,
+        createClient: LBClientMod.createClient,
+        LiveblocksYjsProvider: LBYjsMod.LiveblocksYjsProvider,
+      };
       return liveModules;
     } catch (e) {
       console.error('SARVARC Live Collaboration: failed to load realtime modules', e);
@@ -63246,13 +63280,21 @@ if (document.readyState === 'loading') {
   }
 
   // Best-effort real identity from the existing Supabase auth session, so a
-  // signed-in teammate doesn't have to retype their name every time.
+  // signed-in teammate doesn't have to retype their name every time. Also
+  // pulls the Google account's display picture (Supabase mirrors it onto
+  // user_metadata as avatar_url when signing in via Google) so it can ride
+  // along on the presence avatar instead of falling back to initials.
   async function sarvarcLiveResolveIdentity() {
     try {
       const { data: { session } } = await sarvarcSupabase.auth.getSession();
       if (session && session.user) {
         const meta = session.user.user_metadata || {};
-        return meta.full_name || meta.name || (session.user.email ? session.user.email.split('@')[0] : null);
+        const name = meta.full_name || meta.name || (session.user.email ? session.user.email.split('@')[0] : null);
+        // Google's OAuth payload exposes the photo as `avatar_url` (Supabase's
+        // normalized field) or `picture` (the raw Google claim), depending on
+        // provider/version — check both.
+        const avatarUrl = meta.avatar_url || meta.picture || null;
+        return name ? { name, avatarUrl } : null;
       }
     } catch (e) { /* not signed in / offline — fall through to guest name */ }
     return null;
@@ -63264,6 +63306,10 @@ if (document.readyState === 'loading') {
       .forEach(s => { const el = document.getElementById(s); if (el) el.style.display = (s === id ? 'block' : 'none'); });
     const joinBtn = document.getElementById('sarvarcLiveJoinBtn');
     if (joinBtn) joinBtn.style.display = (id === 'sarvarcLiveStepName') ? 'inline-flex' : 'none';
+    const leaveBtn = document.getElementById('sarvarcLiveLeaveBtn');
+    if (leaveBtn) leaveBtn.style.display = (id === 'sarvarcLiveStepConnected' || id === 'sarvarcLiveStepInvite') ? 'inline-flex' : 'none';
+    const endAllBtn = document.getElementById('sarvarcLiveEndAllBtn');
+    if (endAllBtn) endAllBtn.style.display = (id === 'sarvarcLiveStepConnected' && live.isHost) ? 'flex' : 'none';
   }
 
   window.sarvarcLiveNavClick = async function () {
@@ -63276,11 +63322,12 @@ if (document.readyState === 'loading') {
     const invite = parseInviteFromHash();
     document.getElementById('sarvarcLiveOverlay').classList.add('open');
     if (invite) {
-      live.room = invite.room; live.key = invite.key;
+      live.roomId = invite.room; live.key = invite.key;
       document.getElementById('sarvarcLiveModalSub').textContent = "You've been invited to a live session on this table.";
       const identity = await sarvarcLiveResolveIdentity();
       if (identity) {
-        live.name = identity;
+        live.name = identity.name;
+        live.avatarUrl = identity.avatarUrl;
         sarvarcLiveJoin();
       } else {
         showStep('sarvarcLiveStepName');
@@ -63296,7 +63343,7 @@ if (document.readyState === 'loading') {
   };
 
   window.sarvarcLiveShowInvitePane = function () {
-    document.getElementById('sarvarcLiveInviteLink').value = buildInviteURL(live.room, live.key);
+    document.getElementById('sarvarcLiveInviteLink').value = buildInviteURL(live.roomId, live.key);
     showStep('sarvarcLiveStepInvite');
   };
 
@@ -63316,10 +63363,12 @@ if (document.readyState === 'loading') {
       if (typeof toast === 'function') toast('Open or create a table in Data Arrangement first.', 'info');
       return;
     }
-    live.room = 'sarvarc-' + crypto.randomUUID();
+    live.roomId = 'sarvarc-' + crypto.randomUUID();
     live.key = randomKey();
-    history.replaceState(null, '', buildInviteURL(live.room, live.key));
-    live.name = (await sarvarcLiveResolveIdentity()) || 'Guest';
+    history.replaceState(null, '', buildInviteURL(live.roomId, live.key));
+    const hostIdentity = await sarvarcLiveResolveIdentity();
+    live.name = (hostIdentity && hostIdentity.name) || 'Guest';
+    live.avatarUrl = hostIdentity ? hostIdentity.avatarUrl : null;
     await connect(ds.id, /*seed=*/true);
     sarvarcLiveShowInvitePane();
     if (typeof navigate === 'function') navigate('dataarrange');
@@ -63345,19 +63394,134 @@ if (document.readyState === 'loading') {
       if (typeof toast === 'function') toast('Live Collaboration couldn\'t load — check your connection and try again.', 'error');
       return;
     }
-    const { Y, WebrtcProvider } = mods;
+    live.isHost = !!seed; // creator of the session; gates the "End for everyone" / kick UI below
+    const { Y, createClient, LiveblocksYjsProvider } = mods;
+
+    if (LIVEBLOCKS_PUBLIC_KEY === 'pk_prod_REPLACE_ME') {
+      if (typeof toast === 'function') {
+        toast('Live Collaboration isn\'t configured yet — add a Liveblocks public key.', 'error');
+      }
+      console.error('SARVARC Live Collaboration: LIVEBLOCKS_PUBLIC_KEY is still the placeholder. Get a free key at https://liveblocks.io/dashboard.');
+      return;
+    }
 
     live.datasetId = datasetId;
     live.ydoc = new Y.Doc();
     live.cells = live.ydoc.getMap('cells');
+    live.meta = live.ydoc.getMap('meta'); // durable session-level flags: 'ended', 'endedByName'
 
-    live.provider = new WebrtcProvider(live.room, live.ydoc, {
-      password: live.key, // y-webrtc derives an AES key from this and encrypts all peer traffic with it
-      signaling: LIVE_SIGNALING
+    if (!liveblocksClient) {
+      liveblocksClient = createClient({ publicApiKey: LIVEBLOCKS_PUBLIC_KEY });
+    }
+
+    // The invite link's two halves (roomId + key) are BOTH required to
+    // reconstruct this exact Liveblocks room name. Under public-key auth,
+    // Liveblocks lets anyone connect to any room name they know — there's
+    // no server-side permission check — so folding the secret `key` into
+    // the room name itself (rather than just the roomId) is what keeps
+    // "the invite link is the credential" true here, same as it was under
+    // y-webrtc's separate password option.
+    const effectiveRoomName = `${live.roomId}::${live.key}`;
+
+    const { room, leave } = liveblocksClient.enterRoom(effectiveRoomName, {
+      initialPresence: {},
     });
+    live.room = room;
+    live.leaveRoom = leave;
+
+    live.provider = new LiveblocksYjsProvider(room, live.ydoc);
     live.awareness = live.provider.awareness;
     live.color = colorForClient(live.ydoc.clientID);
-    live.awareness.setLocalStateField('user', { name: live.name, color: live.color });
+    live.awareness.setLocalStateField('user', { name: live.name, color: live.color, avatarUrl: live.avatarUrl || null });
+
+    // The modal's "connected" step ships with a static "Connecting…" label
+    // (see HTML) — reset to that state explicitly here too, in case this is
+    // a reconnect and the dot/text were left in a stale state from before.
+    const dot0 = document.getElementById('sarvarcLiveDot');
+    const txt0 = document.getElementById('sarvarcLiveStatusText');
+    if (dot0) dot0.style.background = '#888';
+    if (txt0) txt0.textContent = 'Connecting…';
+
+    function setStatusUI(connected, label) {
+      const dot = document.getElementById('sarvarcLiveDot');
+      const txt = document.getElementById('sarvarcLiveStatusText');
+      if (dot) dot.style.background = connected ? '#3ecf8e' : '#888';
+      if (txt) txt.textContent = label;
+    }
+
+    // Liveblocks' client owns reconnection/backoff — unlike the old
+    // y-webrtc setup there's no custom multi-server fallback list to
+    // manage, and status is a real connection state to Liveblocks'
+    // servers, not "a peer happened to show up."
+    room.subscribe('status', (status) => {
+      // status: 'initial' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+      if (status === 'connected') setStatusUI(true, 'Connected · synced via Liveblocks');
+      else if (status === 'reconnecting') setStatusUI(false, 'Reconnecting…');
+      else if (status === 'disconnected') setStatusUI(false, 'Disconnected — retrying…');
+      else setStatusUI(false, 'Connecting…');
+    });
+
+    room.subscribe('error', (err) => {
+      console.error('SARVARC Live Collaboration: room error', err);
+      // Auth errors (bad/placeholder key) surface here distinctly from a
+      // network hiccup, so the toast can be specific.
+      const authError = err && (err.code === 4001 || /auth/i.test(err.message || ''));
+      setStatusUI(false, authError ? 'Auth failed — check Liveblocks key' : 'Connection error');
+      if (typeof toast === 'function') {
+        toast(authError
+          ? 'Live Collaboration: authentication failed — check the Liveblocks public key.'
+          : 'Live Collaboration: connection error. Check your network or try again shortly.',
+          'error');
+      }
+    });
+
+    // A hard deadline as a backstop only — Liveblocks normally resolves
+    // 'connected' within a second or two. If it's still stuck after 10s
+    // (e.g. the CDN loaded but the WebSocket itself is blocked by a
+    // corporate firewall), say so plainly instead of leaving a spinner.
+    setTimeout(() => {
+      if (room.getStatus && room.getStatus() === 'connected') return;
+      const txt = document.getElementById('sarvarcLiveStatusText');
+      if (txt && txt.textContent !== 'Connected · synced via Liveblocks') {
+        setStatusUI(false, 'Still connecting — check network/firewall');
+      }
+    }, 10000);
+
+    // ---- End-for-everyone / kick ----
+    // IMPORTANT CAVEAT (public-key auth, no backend — see header comment):
+    // there is no server-side enforcement here. "Host" is just a local flag
+    // in the browser tab that clicked "Start"; ending a session or kicking
+    // someone is a cooperative signal that well-behaved SARVARC clients act
+    // on, not an access-control boundary. A participant running their own
+    // code could ignore a kick and keep syncing. That's an inherent limit
+    // of the no-backend / public-key architecture, not a bug in this logic
+    // — real enforcement would require a Liveblocks secret key + a token-
+    // minting backend (see header comment above).
+    room.subscribe('event', (message) => {
+      const payload = (message && typeof message === 'object' && 'event' in message) ? message.event : message;
+      if (!payload || !payload.type) return;
+      if (payload.type === 'sarvarc-session-ended') {
+        sarvarcLiveEnd('ended-by-host', payload.endedByName);
+      } else if (payload.type === 'sarvarc-kick' && payload.targetClientId === live.ydoc.clientID) {
+        sarvarcLiveEnd('kicked', payload.kickedByName);
+      }
+    });
+
+    // Durable check: catches the case where "End for everyone" was set
+    // while this client was offline/reconnecting, or when someone opens a
+    // stale invite link to a session that already ended — the ephemeral
+    // broadcast above only reaches clients connected at that exact moment,
+    // but this Y.Map value is persisted by Liveblocks and syncs to anyone
+    // who joins later.
+    function checkEndedFlag() {
+      if (live.meta.get('ended')) {
+        sarvarcLiveEnd('ended-by-host', live.meta.get('endedByName'));
+        return true;
+      }
+      return false;
+    }
+    live.provider.on('sync', (isSynced) => { if (isSynced) checkEndedFlag(); });
+    live.meta.observe(() => { checkEndedFlag(); });
 
     live.cells.observe((event) => {
       event.changes.keys.forEach((_change, key) => {
@@ -63386,13 +63550,6 @@ if (document.readyState === 'loading') {
       if (typeof sarvarcLiveRenderPresenceBadges === 'function') sarvarcLiveRenderPresenceBadges();
     });
 
-    live.provider.on('status', ({ connected }) => {
-      const dot = document.getElementById('sarvarcLiveDot');
-      const txt = document.getElementById('sarvarcLiveStatusText');
-      if (dot) dot.style.background = connected ? '#3ecf8e' : '#888';
-      if (txt) txt.textContent = connected ? 'Connected · peer-to-peer encrypted' : 'Connecting…';
-    });
-
     if (seed) {
       const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
       if (ds) {
@@ -63412,16 +63569,59 @@ if (document.readyState === 'loading') {
     renderNavAvatars();
   }
 
-  window.sarvarcLiveEnd = function () {
+  window.sarvarcLiveEnd = function (reason, actorName) {
     if (live.provider) { live.provider.destroy(); live.provider = null; }
+    if (live.leaveRoom) { live.leaveRoom(); live.leaveRoom = null; } // disconnects from Liveblocks' servers
     if (live.ydoc) { live.ydoc.destroy(); live.ydoc = null; }
-    live.awareness = null; live.cells = null; live.room = null; live.key = null; live.datasetId = null;
+    live.awareness = null; live.cells = null; live.meta = null; live.room = null; live.roomId = null; live.key = null; live.datasetId = null; live.isHost = false;
     history.replaceState(null, '', location.pathname + location.search);
     const navBtn = document.getElementById('sarvarcLiveNavBtn');
     if (navBtn) { navBtn.classList.remove('sarvarc-live-active'); document.getElementById('sarvarcLiveNavLabel').textContent = 'Go Live'; }
     document.getElementById('sarvarcLiveAvatars').style.display = 'none';
     if (typeof sarvarcLiveRenderPresenceBadges === 'function') sarvarcLiveRenderPresenceBadges();
     window.sarvarcLiveCloseModal();
+
+    if (typeof toast === 'function') {
+      if (reason === 'ended-by-host') {
+        toast(actorName ? `${actorName} ended the live session.` : 'The live session was ended.', 'info');
+      } else if (reason === 'kicked') {
+        toast(actorName ? `You were removed from the session by ${actorName}.` : 'You were removed from the session.', 'info');
+      }
+      // reason === 'you-left' or undefined (normal self-initiated leave): no toast needed, the UI change is feedback enough
+    }
+  };
+
+  // Host-only: end the session for every connected (and future) participant.
+  // Sets a durable flag on the Yjs doc (so late joiners/reconnects see it
+  // too) and broadcasts an immediate signal to anyone connected right now.
+  window.sarvarcLiveEndForEveryone = function () {
+    if (!live.isHost || !live.meta || !live.room) return;
+    live.meta.set('ended', true);
+    live.meta.set('endedByName', live.name || 'Host');
+    try { live.room.broadcastEvent({ type: 'sarvarc-session-ended', endedByName: live.name || 'Host' }); } catch (e) { /* best-effort */ }
+    sarvarcLiveEnd(); // no reason string — this browser already knows it did the ending
+    if (typeof toast === 'function') toast('Live session ended for everyone.', 'success');
+  };
+
+  // Host-only: remove one participant. Cooperative signal only — see the
+  // caveat comment above room.subscribe('event', ...) in connect().
+  window.sarvarcLiveKick = function (targetClientId) {
+    if (!live.isHost || !live.room) return;
+    try {
+      live.room.broadcastEvent({ type: 'sarvarc-kick', targetClientId, kickedByName: live.name || 'Host' });
+    } catch (e) {
+      if (typeof toast === 'function') toast('Couldn\'t remove that participant — try again.', 'error');
+      return;
+    }
+    if (typeof toast === 'function') toast('Removed from session.', 'success');
+    // The kicked client removes itself from awareness on receiving the
+    // event; refresh optimistically too so the host's own list feels instant.
+    setTimeout(renderModalAvatars, 300);
+  };
+
+  // Leave the session yourself without ending it for anyone else.
+  window.sarvarcLiveLeave = function () {
+    sarvarcLiveEnd('you-left');
   };
 
   // ---------------- Cell key helpers ----------------
@@ -63445,11 +63645,27 @@ if (document.readyState === 'loading') {
   };
 
   // ---------------- Presence rendering ----------------
-  function avatarNode(name, color, isYou) {
+  function avatarNode(name, color, isYou, avatarUrl) {
     const a = document.createElement('div');
     a.className = 'sarvarc-live-avatar';
-    a.style.background = color;
-    a.textContent = initials(name);
+    if (avatarUrl) {
+      // Google display picture is present — show it, and fall back to the
+      // usual initials-on-color badge if it 404s/fails to load (e.g. the
+      // Google photo URL expired or the account has since removed it).
+      const img = document.createElement('img');
+      img.src = avatarUrl;
+      img.alt = name;
+      img.referrerPolicy = 'no-referrer'; // Google avatar URLs can 403 without this
+      img.onerror = () => {
+        img.remove();
+        a.style.background = color;
+        a.textContent = initials(name);
+      };
+      a.appendChild(img);
+    } else {
+      a.style.background = color;
+      a.textContent = initials(name);
+    }
     const tip = document.createElement('div');
     tip.className = 'sarvarc-live-tip';
     tip.textContent = name + (isYou ? ' (you)' : '');
@@ -63465,7 +63681,7 @@ if (document.readyState === 'loading') {
     live.awareness.getStates().forEach((state, clientId) => {
       if (!state.user) return;
       any = true;
-      wrap.appendChild(avatarNode(state.user.name, state.user.color, clientId === live.awareness.clientID));
+      wrap.appendChild(avatarNode(state.user.name, state.user.color, clientId === live.awareness.clientID, state.user.avatarUrl));
     });
     wrap.style.display = any ? 'flex' : 'none';
   }
@@ -63476,12 +63692,30 @@ if (document.readyState === 'loading') {
     wrap.innerHTML = '';
     live.awareness.getStates().forEach((state, clientId) => {
       if (!state.user) return;
+      const isYou = clientId === live.awareness.clientID;
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)';
-      row.appendChild(avatarNode(state.user.name, state.user.color, clientId === live.awareness.clientID));
+      row.appendChild(avatarNode(state.user.name, state.user.color, isYou, state.user.avatarUrl));
       const label = document.createElement('span');
-      label.textContent = state.user.name + (clientId === live.awareness.clientID ? ' (you)' : '');
+      label.style.flex = '1';
+      label.textContent = state.user.name + (isYou ? ' (you)' : '');
       row.appendChild(label);
+      // Host can remove anyone but themselves. See the caveat comment in
+      // connect() above room.subscribe('event', ...) — this is a
+      // cooperative UI signal, not a security boundary (no backend to
+      // enforce it), which is an inherent trade-off of the public-key,
+      // no-accounts architecture SARVARC Live Collab uses.
+      if (live.isHost && !isYou) {
+        const kickBtn = document.createElement('button');
+        kickBtn.type = 'button';
+        kickBtn.title = 'Remove ' + state.user.name;
+        kickBtn.style.cssText = 'background:none;border:none;color:var(--text2);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:.6';
+        kickBtn.onmouseenter = () => { kickBtn.style.opacity = '1'; kickBtn.style.color = '#ff6b6b'; };
+        kickBtn.onmouseleave = () => { kickBtn.style.opacity = '.6'; kickBtn.style.color = 'var(--text2)'; };
+        kickBtn.textContent = '✕';
+        kickBtn.onclick = () => sarvarcLiveKick(clientId);
+        row.appendChild(kickBtn);
+      }
       wrap.appendChild(row);
     });
   }
