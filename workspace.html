@@ -13217,6 +13217,7 @@ button.dg-show-chip.active { background:var(--blue); }
    background sync reads as "something is actively happening" rather than a
    generic loading state. */
 .sm-drive-sync-ring {
+  display: inline-block;
   position: relative;
   width: 40px; height: 40px;
 }
@@ -16382,6 +16383,12 @@ async function sarvarcAssetSave(type, dataUrl, name) {
   if (!dataUrl) return null;
   try {
     const db = await idbKvOpen();
+    // Tagged with whoever is signed in right now, exactly like sessions
+    // (see smSaveSession's ownerEmail) — without this, every asset lives in
+    // one shared local IndexedDB store with no account boundary at all, so
+    // signing out and having a different person sign in on the same browser
+    // would show them everything the previous account ever uploaded.
+    const ownerEmail = (typeof smGetCurrentAuthEmail === 'function') ? await smGetCurrentAuthEmail() : null;
     const rec = {
       id: sarvarcAssetUid('asset'),
       type, // 'image' | 'logo' | 'signature'
@@ -16389,6 +16396,7 @@ async function sarvarcAssetSave(type, dataUrl, name) {
       dataUrl,
       createdAt: Date.now(),
       checked: false, // currently only meaningful for signatures — behavior TBD
+      ownerEmail: ownerEmail || null,
       driveFileId: null
     };
     await new Promise((resolve, reject) => {
@@ -16405,6 +16413,16 @@ async function sarvarcAssetSave(type, dataUrl, name) {
   } catch (e) { console.warn('[Assets] could not save', e); return null; }
 }
 
+// Same ownership rule as smCheckSessionAccess: an asset with no ownerEmail
+// was created while signed out and is a local/guest asset — always visible.
+// An asset WITH an ownerEmail is only visible while that exact account is
+// the one currently signed in.
+async function sarvarcAssetAccessOk(rec) {
+  if (!rec || !rec.ownerEmail) return true;
+  const current = (typeof smGetCurrentAuthEmail === 'function') ? await smGetCurrentAuthEmail() : null;
+  return !!(current && current.toLowerCase() === String(rec.ownerEmail).toLowerCase());
+}
+
 async function sarvarcAssetList(type) {
   try {
     const db = await idbKvOpen();
@@ -16414,11 +16432,19 @@ async function sarvarcAssetList(type) {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
-    return type ? all.filter(a => a.type === type) : all;
+    const currentEmail = (typeof smGetCurrentAuthEmail === 'function') ? await smGetCurrentAuthEmail() : null;
+    const visible = all.filter(a => !a.ownerEmail ||
+      (currentEmail && currentEmail.toLowerCase() === String(a.ownerEmail).toLowerCase()));
+    return type ? visible.filter(a => a.type === type) : visible;
   } catch (e) { return []; }
 }
 
-async function sarvarcAssetGet(id) {
+// Raw fetch, deliberately WITHOUT the ownership filter above — used only by
+// internal plumbing (Drive sync's "do we already have this one locally?"
+// dedupe check) that needs to see every local record regardless of which
+// account it's tagged to, not just what the current account is allowed to
+// see. UI-facing lookups should keep going through sarvarcAssetGet below.
+async function sarvarcAssetGetRaw(id) {
   try {
     const db = await idbKvOpen();
     return await new Promise((resolve) => {
@@ -16428,6 +16454,17 @@ async function sarvarcAssetGet(id) {
       req.onerror = () => resolve(null);
     });
   } catch (e) { return null; }
+}
+
+// Public-facing lookup: same as sarvarcAssetGetRaw but fails closed (returns
+// null) if the record belongs to a different signed-in account than the one
+// currently active — a "suspenders" backstop alongside the panel already
+// only ever rendering ids the current account is allowed to see, in case
+// something ever calls this with an id from elsewhere (stale tab, etc.).
+async function sarvarcAssetGet(id) {
+  const rec = await sarvarcAssetGetRaw(id);
+  if (!(await sarvarcAssetAccessOk(rec))) return null;
+  return rec;
 }
 
 async function sarvarcAssetPut(rec) {
@@ -62600,15 +62637,26 @@ if (document.readyState === 'loading') {
     try {
       if (!(await sarvarcDriveAvailable())) return;
       const driveAssets = await sarvarcDriveListAssets();
+      const ownerEmail = (typeof smGetCurrentAuthEmail === 'function') ? await smGetCurrentAuthEmail() : null;
       let pulledAny = false;
       for (const da of driveAssets) {
-        const existing = await sarvarcAssetGet(da.id);
+        // Raw (un-gated) lookup for the dedupe check — this only asks "is
+        // this id already in local storage at all", not "can the current
+        // account see it", so it can't be tricked into re-pulling/duplicating
+        // a record that's already there under a (theoretically impossible,
+        // since ids are unique per creation) different owner.
+        const existing = await sarvarcAssetGetRaw(da.id);
         if (existing) continue;
         try {
           const dataUrl = await sarvarcDriveLoadAsset(da.driveFileId);
           await sarvarcAssetPut({
             id: da.id, type: da.type, name: da.name, dataUrl,
-            createdAt: da.savedAt, checked: false, driveFileId: da.driveFileId
+            createdAt: da.savedAt, checked: false,
+            // Tag with the account whose Drive folder this came from, so it
+            // stays scoped to that account locally too — matching how a
+            // pulled-down session gets its ownerEmail preserved from Drive.
+            ownerEmail: ownerEmail || null,
+            driveFileId: da.driveFileId
           });
           pulledAny = true;
         } catch (e) { console.warn('[Drive sync] could not pull asset', da.id, e); }
@@ -63452,6 +63500,11 @@ if (document.readyState === 'loading') {
     // signs in or out — otherwise a file could stay shown as unlocked (or
     // locked) until the page happened to be reopened.
     if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    // Same idea for the Assets library: re-filter by the newly-current
+    // account right away, so switching accounts on the same browser can't
+    // leave the previous account's images/logos/signatures on screen until
+    // the Assets panel happens to be closed and reopened.
+    if (document.getElementById('sarvarcAssetsGrid') && typeof sarvarcAssetsRenderPanel === 'function') sarvarcAssetsRenderPanel();
     if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('sarvarcRecoveryOverlay').classList.add('open');
       setTimeout(() => document.getElementById('sarvarcRecoveryNewPw').focus(), 50);
