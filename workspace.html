@@ -2689,7 +2689,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 
 .pdfeditor-layout {
   display: grid;
-  grid-template-columns: 200px 1fr 240px;
+  grid-template-columns: 200px 1fr 280px;
   gap: 0;
   align-items: stretch;
   flex: 1;
@@ -2702,7 +2702,7 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   grid-template-columns: 200px 1fr 0px;
 }
 .pdfeditor-layout.left-collapsed {
-  grid-template-columns: 0px 1fr 240px;
+  grid-template-columns: 0px 1fr 280px;
 }
 .pdfeditor-layout.left-collapsed.right-collapsed {
   grid-template-columns: 0px 1fr 0px;
@@ -3930,28 +3930,88 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   gap: 6px;
 }
 
-/* ─── Notes tab bar (top of right panel, always visible) ─── */
+/* ─── Assets library (right panel) ───
+   Folder-style browser for auto-stored images/logos/signatures. Mirrors the
+   Canvas Color section's collapsible header pattern. */
+.sarvarc-assets-tabbar {
+  display: flex; gap: 4px; margin-bottom: 10px;
+  background: var(--bg3); border-radius: 7px; padding: 3px;
+}
+.sarvarc-assets-tab {
+  flex: 1; border: none; background: transparent; color: var(--text2);
+  font-size: 10.5px; font-weight: 600; padding: 6px 4px; border-radius: 5px;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.sarvarc-assets-tab:hover { color: var(--text); }
+.sarvarc-assets-tab.active { background: var(--pdfed-panel-bg, #fff); color: var(--blue); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.sarvarc-assets-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  max-height: 260px; overflow-y: auto; padding-right: 2px;
+}
+.sarvarc-asset-tile {
+  position: relative; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden;
+  background: #fff; border: 1px solid var(--border); cursor: pointer;
+}
+.sarvarc-asset-tile img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
+.sarvarc-asset-del {
+  position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(20,20,25,.65); color: #fff; border: none; display: flex;
+  align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity .12s;
+}
+.sarvarc-asset-tile:hover .sarvarc-asset-del { opacity: 1; }
+.sarvarc-asset-check {
+  position: absolute; top: 3px; left: 3px; z-index: 2; width: 15px; height: 15px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.sarvarc-asset-check input { accent-color: var(--blue); width: 13px; height: 13px; cursor: pointer; margin: 0; }
+
+/* ─── Right panel tabbar: icon-only, title reveals on hover ───
+   Compact, icon-first tabs (Panel / Assets / My Notes). The active tab keeps
+   its label visible as a quiet anchor; every tab expands with a smooth
+   slide + fade on hover, with a gentle icon lift for a premium feel. */
 .pdfed-right-tabbar {
   display: flex; gap: 6px; padding: 10px 12px 0 12px; flex-shrink: 0;
 }
 .pdfed-right-tab {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+  flex: 0 0 auto; display: flex; align-items: center; gap: 0;
   font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.3px; padding: 7px 8px; border-radius: 7px 7px 0 0;
-  background: transparent; border: 1px solid var(--pdfed-section-border);
+  letter-spacing: 0.3px; padding: 8px 9px; border-radius: 8px 8px 0 0;
+  background: transparent; border: 1px solid transparent;
   border-bottom: none; color: var(--text3); cursor: pointer;
-  transition: color .15s, background .15s;
+  transition: color .2s ease, background .25s ease, border-color .25s ease, padding .3s cubic-bezier(.4,0,.2,1);
 }
-.pdfed-right-tab:hover { color: var(--text2); }
+.pdfed-right-tab-icon {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.pdfed-right-tab-label {
+  display: inline-block; max-width: 0; opacity: 0; overflow: hidden;
+  white-space: nowrap; margin-left: 0;
+  transition: max-width .32s cubic-bezier(.4,0,.2,1), opacity .2s ease .04s, margin-left .32s cubic-bezier(.4,0,.2,1);
+}
+.pdfed-right-tab:hover {
+  color: var(--text2); background: var(--pdfed-section-bg); border-color: var(--pdfed-section-border);
+}
+.pdfed-right-tab:hover .pdfed-right-tab-icon { transform: translateY(-1px) scale(1.08); }
+.pdfed-right-tab:hover .pdfed-right-tab-label,
+.pdfed-right-tab.active .pdfed-right-tab-label {
+  max-width: 110px; opacity: 1; margin-left: 6px;
+}
 .pdfed-right-tab.active {
   color: var(--cyan); background: var(--pdfed-section-bg);
   border-color: var(--pdfed-section-border);
+}
+.pdfed-notes-dot {
+  position: absolute; top: -3px; right: -5px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--pdfed-accent, #ff5c5c);
+  box-shadow: 0 0 0 2px var(--pdfed-panel-bg, #fff);
+  display: none;
 }
 .pdfed-notes-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 16px; height: 16px; padding: 0 5px; border-radius: 20px;
   background: var(--pdfed-accent-bg); color: var(--pdfed-accent);
-  font-size: 9.5px; font-weight: 700;
+  font-size: 9.5px; font-weight: 700; margin-left: 5px; vertical-align: middle;
 }
 .pdfed-notes-badge:empty { display: none; }
 
@@ -9852,13 +9912,19 @@ button.dg-show-chip.active { background:var(--blue); }
             </button>
             <div class="pdfed-right-tabbar">
               <button class="pdfed-right-tab active" id="pdfedTabInfoBtn" onclick="pdfedShowRightTab('info')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                Panel
+                <span class="pdfed-right-tab-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+                <span class="pdfed-right-tab-label">Panel</span>
+              </button>
+              <button class="pdfed-right-tab" id="pdfedTabAssetsBtn" onclick="pdfedShowRightTab('assets')">
+                <span class="pdfed-right-tab-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+                <span class="pdfed-right-tab-label">Assets</span>
               </button>
               <button class="pdfed-right-tab" id="pdfedTabNotesBtn" onclick="pdfedShowRightTab('notes')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                My Notes
-                <span class="pdfed-notes-badge" id="pdfedNotesBadge"></span>
+                <span class="pdfed-right-tab-icon">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  <span class="pdfed-notes-dot" id="pdfedNotesDot"></span>
+                </span>
+                <span class="pdfed-right-tab-label">My Notes<span class="pdfed-notes-badge" id="pdfedNotesBadge"></span></span>
               </button>
             </div>
             <div class="pdfed-right-scroll">
@@ -10229,6 +10295,23 @@ button.dg-show-chip.active { background:var(--blue); }
               </div>
 
               </div><!-- /pdfedRightDefaultSections -->
+
+              <!-- ASSETS, its own top-level tab — every image, logo, and
+                   signature uploaded anywhere in the app is auto-stored here,
+                   so it's one click to reuse instead of re-uploading. Cross-PC
+                   via the same opt-in Google Drive mirror Saved Sessions uses
+                   (see GOOGLE DRIVE SYNC — ASSETS). Signature tiles show a
+                   checkbox — final behavior still being decided, currently
+                   just persists on/off. -->
+              <div class="pdfed-panel-section" id="pdfedAssetsPanel" style="display:none">
+                <h5 style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Assets</h5>
+                <div class="sarvarc-assets-tabbar">
+                  <button type="button" class="sarvarc-assets-tab active" id="sarvarcAssetsTab_image" onclick="sarvarcAssetsShowTab('image')">Images</button>
+                  <button type="button" class="sarvarc-assets-tab" id="sarvarcAssetsTab_logo" onclick="sarvarcAssetsShowTab('logo')">Logos</button>
+                  <button type="button" class="sarvarc-assets-tab" id="sarvarcAssetsTab_signature" onclick="sarvarcAssetsShowTab('signature')">Signatures</button>
+                </div>
+                <div class="sarvarc-assets-grid" id="sarvarcAssetsGrid"></div>
+              </div>
 
               <!-- MY NOTES, private task list, browser-only, NEVER included in exported PDF -->
               <div class="pdfed-panel-section" id="pdfedNotesPanel" style="display:none">
@@ -16236,18 +16319,192 @@ const pdfed = {
 function idbKvOpen() {
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
-    // v2 adds a 'sessions' store (see Saved Sessions manager below) alongside
-    // the original 'kv' store — bumping the version runs onupgradeneeded once,
-    // which adds the missing store without touching anything already in 'kv'.
-    const req = indexedDB.open('sarvarcKV', 2);
+    // v3 adds an 'assets' store (see Assets Library below) on top of the v2
+    // 'sessions' store — bumping the version runs onupgradeneeded once, which
+    // adds whatever's missing without touching anything already saved.
+    const req = indexedDB.open('sarvarcKV', 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
       if (!db.objectStoreNames.contains('sessions')) db.createObjectStore('sessions', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets', { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+// ─── Assets Library ─────────────────────────────────────────────────────
+// A single, permanent local library of every image, logo, and signature the
+// person has ever uploaded, so they never have to dig up the same file
+// twice. Every upload point across the app (Insert Image, Add Logo, Add
+// Signature) writes here automatically — nothing new for the person to do.
+// Lives in IndexedDB (see idbKvOpen above) alongside sessions, and mirrors
+// to the same opt-in Google Drive layer used for sessions (see GOOGLE DRIVE
+// SYNC — ASSETS, further down) so it follows a signed-in account across PCs.
+function sarvarcAssetUid(prefix) {
+  return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+async function sarvarcAssetSave(type, dataUrl, name) {
+  if (!dataUrl) return null;
+  try {
+    const db = await idbKvOpen();
+    const rec = {
+      id: sarvarcAssetUid('asset'),
+      type, // 'image' | 'logo' | 'signature'
+      name: name || (type.charAt(0).toUpperCase() + type.slice(1) + ' — ' + new Date().toLocaleDateString()),
+      dataUrl,
+      createdAt: Date.now(),
+      checked: false, // currently only meaningful for signatures — behavior TBD
+      driveFileId: null
+    };
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('assets', 'readwrite');
+      tx.objectStore('assets').put(rec);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    sarvarcAssetsRenderPanel();
+    // Best-effort mirror to Drive — never blocks the local save, silently
+    // no-ops if the person isn't signed in with Google / hasn't granted Drive.
+    if (typeof sarvarcDriveSaveAsset === 'function') sarvarcDriveSaveAsset(rec).catch(() => {});
+    return rec;
+  } catch (e) { console.warn('[Assets] could not save', e); return null; }
+}
+
+async function sarvarcAssetList(type) {
+  try {
+    const db = await idbKvOpen();
+    const all = await new Promise((resolve, reject) => {
+      const tx = db.transaction('assets', 'readonly');
+      const req = tx.objectStore('assets').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    return type ? all.filter(a => a.type === type) : all;
+  } catch (e) { return []; }
+}
+
+async function sarvarcAssetGet(id) {
+  try {
+    const db = await idbKvOpen();
+    return await new Promise((resolve) => {
+      const tx = db.transaction('assets', 'readonly');
+      const req = tx.objectStore('assets').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) { return null; }
+}
+
+async function sarvarcAssetPut(rec) {
+  try {
+    const db = await idbKvOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('assets', 'readwrite');
+      tx.objectStore('assets').put(rec);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('[Assets] could not update', e); }
+}
+
+async function sarvarcAssetDelete(id) {
+  try {
+    const rec = await sarvarcAssetGet(id);
+    const db = await idbKvOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('assets', 'readwrite');
+      tx.objectStore('assets').delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    sarvarcAssetsRenderPanel();
+    if (rec && rec.driveFileId && typeof sarvarcDriveDeleteAsset === 'function') {
+      sarvarcDriveDeleteAsset(rec.driveFileId).catch(() => {});
+    }
+  } catch (e) { console.warn('[Assets] could not delete', e); }
+}
+
+// Checkbox is currently shown only on signature tiles — what it should
+// actually control (default signature, bulk-select, per-item Drive sync…)
+// is still being decided, so for now it just persists its own on/off state.
+async function sarvarcAssetToggleChecked(id, checked) {
+  const rec = await sarvarcAssetGet(id);
+  if (!rec) return;
+  rec.checked = checked;
+  await sarvarcAssetPut(rec);
+}
+
+let sarvarcAssetsActiveTab = 'image';
+
+function sarvarcAssetsShowTab(type) {
+  sarvarcAssetsActiveTab = type;
+  ['image', 'logo', 'signature'].forEach(t => {
+    const btn = document.getElementById('sarvarcAssetsTab_' + t);
+    if (btn) btn.classList.toggle('active', t === type);
+  });
+  sarvarcAssetsRenderPanel();
+}
+
+async function sarvarcAssetsRenderPanel() {
+  const grid = document.getElementById('sarvarcAssetsGrid');
+  if (!grid) return; // panel not open / not in this view
+  const items = await sarvarcAssetList(sarvarcAssetsActiveTab);
+  if (!items.length) {
+    const label = sarvarcAssetsActiveTab === 'image' ? 'images' : sarvarcAssetsActiveTab + 's';
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:18px 8px;color:var(--text3);font-size:11px;line-height:1.6">
+      No ${label} saved yet<br>They'll land here automatically the next time you upload one
+    </div>`;
+    return;
+  }
+  items.sort((a, b) => b.createdAt - a.createdAt);
+  grid.innerHTML = items.map(a => `
+    <div class="sarvarc-asset-tile" title="${(a.name || '').replace(/"/g, '&quot;')}">
+      ${a.type === 'signature' ? `<label class="sarvarc-asset-check" onclick="event.stopPropagation()" title="Checkbox — behavior coming soon">
+        <input type="checkbox" ${a.checked ? 'checked' : ''} onchange="sarvarcAssetToggleChecked('${a.id}', this.checked)">
+      </label>` : ''}
+      <img src="${a.dataUrl}" alt="${(a.name || '').replace(/"/g, '&quot;')}" onclick="sarvarcAssetUse('${a.id}')">
+      <button type="button" class="sarvarc-asset-del" title="Delete" onclick="event.stopPropagation(); sarvarcAssetDelete('${a.id}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+// Reuses an asset from the library — routed to whichever placement pipeline
+// already handles that asset type, so drag/resize/stamp/lock/export all work
+// exactly the same as a fresh upload would.
+async function sarvarcAssetUse(id) {
+  const rec = await sarvarcAssetGet(id);
+  if (!rec) return;
+  if (rec.type === 'logo' && typeof mfGetCurrentForm === 'function') {
+    const f = mfGetCurrentForm();
+    if (f) {
+      f.logoDataUrl = rec.dataUrl;
+      if (f.watermarkOn == null) f.watermarkOn = true;
+      if (f.watermarkOpacity == null) f.watermarkOpacity = 8;
+      mfTouch(f);
+      if (typeof mfRenderLogoThumb === 'function') mfRenderLogoThumb();
+      if (typeof mfRenderWatermarkControls === 'function') mfRenderWatermarkControls();
+      if (typeof mfRenderAccentSwatches === 'function') mfRenderAccentSwatches();
+      if (typeof mfRenderPreview === 'function') mfRenderPreview();
+      if (typeof toast === 'function') toast('Logo applied from Assets', 'success');
+      return;
+    }
+  }
+  if (rec.type === 'signature' && typeof pdfedActivateImgGhost === 'function') {
+    pdfedActivateImgGhost(rec.dataUrl);
+    if (typeof toast === 'function') toast('Position your signature, then click Stamp to place it', 'info');
+    return;
+  }
+  // Plain image: drop onto the open page, or open it as its own page.
+  if (typeof pdfed !== 'undefined' && pdfed.active >= 0 && pdfed.pages[pdfed.active] && typeof pdfedActivateImgGhost === 'function') {
+    pdfedActivateImgGhost(rec.dataUrl);
+  } else if (typeof pdfedOpenImageAsPage === 'function') {
+    pdfedOpenImageAsPage(rec.dataUrl, null);
+  }
 }
 
 // ─── Saved Sessions manager ───────────────────────────────────────────────
@@ -23166,24 +23423,23 @@ function pdfedNotesSave() {
 }
 
 function pdfedShowRightTab(tab) {
-  const infoWrap   = document.getElementById('pdfedRightDefaultSections');
-  const notesPanel = document.getElementById('pdfedNotesPanel');
-  const infoBtn    = document.getElementById('pdfedTabInfoBtn');
-  const notesBtn   = document.getElementById('pdfedTabNotesBtn');
-  if (!infoWrap || !notesPanel) return;
+  const infoWrap    = document.getElementById('pdfedRightDefaultSections');
+  const assetsPanel = document.getElementById('pdfedAssetsPanel');
+  const notesPanel  = document.getElementById('pdfedNotesPanel');
+  const infoBtn     = document.getElementById('pdfedTabInfoBtn');
+  const assetsBtn   = document.getElementById('pdfedTabAssetsBtn');
+  const notesBtn    = document.getElementById('pdfedTabNotesBtn');
+  if (!infoWrap || !notesPanel || !assetsPanel) return;
 
-  if (tab === 'notes') {
-    infoWrap.style.display = 'none';
-    notesPanel.style.display = '';
-    notesBtn.classList.add('active');
-    infoBtn.classList.remove('active');
-    pdfedNotesRender();
-  } else {
-    infoWrap.style.display = 'flex';
-    notesPanel.style.display = 'none';
-    infoBtn.classList.add('active');
-    notesBtn.classList.remove('active');
-  }
+  infoWrap.style.display    = tab === 'info'   ? 'flex'  : 'none';
+  assetsPanel.style.display = tab === 'assets' ? ''      : 'none';
+  notesPanel.style.display  = tab === 'notes'  ? ''      : 'none';
+  infoBtn.classList.toggle('active', tab === 'info');
+  assetsBtn.classList.toggle('active', tab === 'assets');
+  notesBtn.classList.toggle('active', tab === 'notes');
+
+  if (tab === 'notes') pdfedNotesRender();
+  if (tab === 'assets' && typeof sarvarcAssetsRenderPanel === 'function') sarvarcAssetsRenderPanel();
 }
 
 function pdfedNoteInputKeydown(e) {
@@ -23230,11 +23486,13 @@ function pdfedNotesRender() {
   const footEl = document.getElementById('pdfedNotesFooter');
   const countEl = document.getElementById('pdfedNotesCountLabel');
   const badgeEl = document.getElementById('pdfedNotesBadge');
+  const dotEl = document.getElementById('pdfedNotesDot');
   if (!listEl) return;
 
   const list = pdfedNotesState.list;
   const pending = list.filter(n => !n.done).length;
   badgeEl.textContent = pending > 0 ? String(pending) : '';
+  if (dotEl) dotEl.style.display = pending > 0 ? '' : 'none';
 
   if (list.length === 0) {
     listEl.innerHTML = `<div class="pdfed-notes-empty">
@@ -33320,6 +33578,9 @@ function pdfedSigConfirm() {
 
   pdfedCloseSignatureModal();
   pdfedActivateImgGhost(dataUrl);
+  // Auto-store in the Assets library (right panel), however it was made —
+  // drawn, typed, or uploaded — so it's ready to reuse next time.
+  if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('signature', dataUrl);
   toast('Position your signature, then click Stamp to place it', 'info');
 }
 
@@ -33788,6 +34049,9 @@ async function pdfedLoadInsertImage(e) {
   const reader = new FileReader();
   reader.onload = async ev => {
     const dataUrl = ev.target.result;
+    // Auto-store in the Assets library (right panel) so this image can be
+    // reused on other pages/documents without re-uploading the file.
+    if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('image', dataUrl, file.name);
     if (pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
       // No document open — open the image directly as a page at its own
       // real pixel dimensions, instead of forcing it onto a blank A4 sheet.
@@ -49945,6 +50209,9 @@ function mfHandleLogoUpload(input) {
       f.logoDataUrl = c.toDataURL('image/png');
       if (f.watermarkOn == null) f.watermarkOn = true;
       if (f.watermarkOpacity == null) f.watermarkOpacity = 8;
+      // Auto-store in the Assets library (right panel) so this logo can be
+      // reused on other forms/documents without re-uploading the file.
+      if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('logo', f.logoDataUrl, file.name);
 
       // Auto-theme the form to the logo's own brand color — same extraction
       // Refine Report uses for headings/tables — so the accent divider,
@@ -62159,6 +62426,147 @@ if (document.readyState === 'loading') {
     } catch (e) { console.warn('[Drive sync up] skipped', e); }
   }
 
+  // ============== GOOGLE DRIVE SYNC — ASSETS (optional, opt-in, additive) ==
+  // Same guarantees as the session sync above: purely a mirror on top of the
+  // local IndexedDB 'assets' store, using the signed-in user's own OAuth
+  // token, and any failure here is swallowed so the local Assets library
+  // (images/logos/signatures in the right panel) always keeps working even
+  // offline or logged out. Files live in their own "SARVARC Assets" folder
+  // nested inside the same app folder sessions use.
+  const SARVARC_ASSETS_FOLDER_NAME = 'SARVARC Assets';
+  let sarvarcAssetsDriveFolderId = null;
+
+  async function sarvarcDriveEnsureAssetsFolder() {
+    if (sarvarcAssetsDriveFolderId) return sarvarcAssetsDriveFolderId;
+    const parentId = await sarvarcDriveEnsureFolder();
+    const q = encodeURIComponent(
+      `name='${SARVARC_ASSETS_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+    );
+    const listRes = await sarvarcDriveFetch(`files?q=${q}&fields=files(id,name)&spaces=drive`);
+    const listData = await listRes.json();
+    if (listData.files && listData.files.length) {
+      sarvarcAssetsDriveFolderId = listData.files[0].id;
+      return sarvarcAssetsDriveFolderId;
+    }
+    const token = await sarvarcDriveGetToken();
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: SARVARC_ASSETS_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
+    });
+    if (!createRes.ok) throw new Error('DRIVE_ASSETS_FOLDER_CREATE_' + createRes.status);
+    const createData = await createRes.json();
+    sarvarcAssetsDriveFolderId = createData.id;
+    return sarvarcAssetsDriveFolderId;
+  }
+
+  function sarvarcDataUrlToBlob(dataUrl) {
+    const [meta, b64] = dataUrl.split(',');
+    const mime = (meta.match(/data:(.*?);base64/) || [, 'image/png'])[1] || 'image/png';
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  // Create-or-update one asset (image/logo/signature) as an actual image
+  // file in the app's Drive Assets folder — viewable in Drive itself, not
+  // just JSON. rec.driveFileId (if already known) updates that same file
+  // instead of duplicating it. On success, writes the returned driveFileId
+  // back onto the local IndexedDB record so repeat saves stay in place.
+  async function sarvarcDriveSaveAsset(rec) {
+    const folderId = await sarvarcDriveEnsureAssetsFolder();
+    const isUpdate = !!rec.driveFileId;
+    const blob = sarvarcDataUrlToBlob(rec.dataUrl);
+    const ext = ((blob.type.split('/')[1] || 'png').split('+')[0]) || 'png';
+    const metadata = isUpdate
+      ? { appProperties: { sarvarcAssetId: rec.id, sarvarcAssetType: rec.type, sarvarcAssetName: rec.name } }
+      : { name: rec.id + '.' + ext, parents: [folderId],
+          appProperties: { sarvarcAssetId: rec.id, sarvarcAssetType: rec.type, sarvarcAssetName: rec.name } };
+    const token = await sarvarcDriveGetToken();
+    if (!token) throw new Error('NO_DRIVE_TOKEN');
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob);
+    const url = isUpdate
+      ? `https://www.googleapis.com/upload/drive/v3/files/${rec.driveFileId}?uploadType=multipart`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+    const res = await fetch(url, { method: isUpdate ? 'PATCH' : 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+    if (!res.ok) throw new Error('DRIVE_ASSET_SAVE_' + res.status);
+    const data = await res.json();
+    if (!isUpdate && typeof sarvarcAssetPut === 'function') {
+      rec.driveFileId = data.id;
+      sarvarcAssetPut(rec);
+    }
+    return data.id;
+  }
+
+  async function sarvarcDriveListAssets() {
+    const folderId = await sarvarcDriveEnsureAssetsFolder();
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const res = await sarvarcDriveFetch(`files?q=${q}&fields=files(id,appProperties,modifiedTime)&spaces=drive&pageSize=1000`);
+    const data = await res.json();
+    return (data.files || []).map(f => ({
+      id: (f.appProperties && f.appProperties.sarvarcAssetId) || f.id,
+      driveFileId: f.id,
+      type: (f.appProperties && f.appProperties.sarvarcAssetType) || 'image',
+      name: (f.appProperties && f.appProperties.sarvarcAssetName) || 'Untitled',
+      savedAt: new Date(f.modifiedTime).getTime()
+    }));
+  }
+
+  async function sarvarcDriveLoadAsset(driveFileId) {
+    const res = await sarvarcDriveFetch(`files/${driveFileId}?alt=media`);
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function sarvarcDriveDeleteAsset(driveFileId) {
+    await sarvarcDriveFetch(`files/${driveFileId}`, { method: 'DELETE' });
+  }
+
+  // Pulls down any Drive asset not already present locally (matched by id) —
+  // this is what makes the Assets library "follow the login" the same way
+  // Saved Sessions does. Local copies always win; nothing is overwritten.
+  async function sarvarcAssetsSyncDown() {
+    try {
+      if (!(await sarvarcDriveAvailable())) return;
+      const driveAssets = await sarvarcDriveListAssets();
+      let pulledAny = false;
+      for (const da of driveAssets) {
+        const existing = await sarvarcAssetGet(da.id);
+        if (existing) continue;
+        try {
+          const dataUrl = await sarvarcDriveLoadAsset(da.driveFileId);
+          await sarvarcAssetPut({
+            id: da.id, type: da.type, name: da.name, dataUrl,
+            createdAt: da.savedAt, checked: false, driveFileId: da.driveFileId
+          });
+          pulledAny = true;
+        } catch (e) { console.warn('[Drive sync] could not pull asset', da.id, e); }
+      }
+      if (pulledAny && typeof sarvarcAssetsRenderPanel === 'function') sarvarcAssetsRenderPanel();
+    } catch (e) { console.warn('[Drive sync] assets skipped', e); }
+  }
+
+  // Companion to sarvarcAssetsSyncDown: pushes up any locally-saved asset
+  // that never made it to Drive (e.g. saved while offline or token expired).
+  async function sarvarcAssetsSyncUp() {
+    try {
+      if (!(await sarvarcDriveAvailable())) return;
+      const local = await sarvarcAssetList();
+      for (const rec of local) {
+        if (rec.driveFileId) continue;
+        try { await sarvarcDriveSaveAsset(rec); } catch (e) { /* best-effort, ignore */ }
+      }
+    } catch (e) { console.warn('[Drive sync] assets up skipped', e); }
+  }
+
   let sarvarcAuthMode = 'login'; // 'login' | 'signup'
   let sarvarcAuthBusy = false;
 
@@ -62510,6 +62918,10 @@ if (document.readyState === 'loading') {
     // didn't sign in via Google or declined Drive access.
     if (typeof sarvarcDriveSyncDown === 'function') sarvarcDriveSyncDown();
     if (typeof sarvarcDriveSyncUp === 'function') sarvarcDriveSyncUp();
+    // Same best-effort pull/push for the Assets library (images/logos/
+    // signatures), so it follows a signed-in account across PCs too.
+    if (typeof sarvarcAssetsSyncDown === 'function') sarvarcAssetsSyncDown();
+    if (typeof sarvarcAssetsSyncUp === 'function') sarvarcAssetsSyncUp();
   }
 
   function sarvarcAuthSwitchTab(mode) {
