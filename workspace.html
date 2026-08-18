@@ -1660,6 +1660,16 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .pdfed-design-preset.premium.active .pdfed-design-label { color: #ffc65c; }
 
+/* Cosmic tier — same restrained-until-selected treatment as Premium, but a
+   soft violet accent instead of gold, so it reads as its own distinct set
+   rather than a variant of the cinematic tier. */
+.pdfed-design-preset.cosmic:hover .pdfed-design-swatch { color: #b388ff; }
+.pdfed-design-preset.cosmic.active .pdfed-design-swatch {
+  color: #b388ff;
+  outline: 1.5px solid #b388ff; outline-offset: 2px;
+}
+.pdfed-design-preset.cosmic.active .pdfed-design-label { color: #b388ff; }
+
 /* Saved gradients / colours — user's own presets, persisted in localStorage */
 .pdfed-ctint-save-btn {
   display: inline-flex; align-items: center; gap: 4px;
@@ -10187,6 +10197,12 @@ button.dg-show-chip.active { background:var(--blue); }
                   </label>
                   <div class="pdfed-design-grid" id="pdfedDesignPremiumGrid"></div>
 
+                  <label class="pdfed-ctint-label" style="margin-top:12px;display:flex;align-items:center;gap:4px">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="color:#b388ff"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><circle cx="19" cy="17" r="1.2" fill="currentColor" stroke="none"/><circle cx="5" cy="6" r="1" fill="currentColor" stroke="none"/></svg>
+                    Cosmic
+                  </label>
+                  <div class="pdfed-design-grid" id="pdfedDesignCosmicGrid"></div>
+
                   <div class="pdfed-ctint-slider-row" style="margin-top:12px">
                     <label>Strength</label>
                     <span class="val"><span id="pdfedDesignStrengthVal">50</span>%</span>
@@ -14613,6 +14629,10 @@ const PDFED_DESIGN_PRESETS = [
     icon: '<path d="M12 4v12"/><path d="M6 12l6 6 6-6"/>' },
   { id: 'fadeOut',   name: 'Fade Out',
     icon: '<path d="M12 20V8"/><path d="M6 12l6-6 6 6"/>' },
+  { id: 'fadeLeft',  name: 'Fade Left',
+    icon: '<path d="M4 12h12"/><path d="M12 6l-6 6 6 6"/>' },
+  { id: 'fadeRight', name: 'Fade Right',
+    icon: '<path d="M20 12H8"/><path d="M12 6l6 6-6 6"/>' },
   { id: 'filmstrip', name: 'Film Strip',
     icon: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M3.5 8.5h17M3.5 15.5h17"/>' },
   { id: 'diagonal',  name: 'Diagonal',
@@ -14631,7 +14651,29 @@ const PDFED_DESIGN_PRESETS = [
   { id: 'chromaPulse', name: 'Chroma Edge', premium: true,
     icon: '<circle cx="9.2" cy="12" r="5.3"/><circle cx="14.8" cy="12" r="5.3"/>' },
   { id: 'noirGrain', name: 'Film Noir', premium: true,
-    icon: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>' }
+    icon: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>' },
+  // ── Cosmic tier ─────────────────────────────────────────────────────
+  // Space/night-sky looks aimed at freelancers and graphic designers —
+  // event posters, album art, social headers, portfolio covers. Same
+  // gradient + blend-mode + per-pixel-noise toolkit as the tier above,
+  // just built around cool violet/teal/indigo palettes and a couple of
+  // new primitives (star specks, a corona ring) rather than orange/gold.
+  { id: 'nebulaGlow', name: 'Nebula Glow', cosmic: true,
+    icon: '<circle cx="9" cy="10" r="6" opacity="0.55"/><circle cx="15.5" cy="14.5" r="6" opacity="0.55"/>' },
+  { id: 'galaxyGrade', name: 'Galaxy Grade', cosmic: true,
+    icon: '<path d="M12 4a8 8 0 1 0 8 8"/><path d="M12 8a4 4 0 1 0 4 4"/><circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none"/>' },
+  { id: 'aurora', name: 'Aurora', cosmic: true,
+    icon: '<path d="M3 9c3-3 6 3 9 0s6-3 9 0"/><path d="M3 15c3-3 6 3 9 0s6-3 9 0"/>' },
+  { id: 'starfield', name: 'Starfield', cosmic: true,
+    icon: '<path d="M12 3.5l1.5 3.8 3.8 1.5-3.8 1.5-1.5 3.8-1.5-3.8L6.7 8.8l3.8-1.5z"/><circle cx="18.5" cy="17" r="1.1" fill="currentColor" stroke="none"/><circle cx="5.5" cy="16" r="1" fill="currentColor" stroke="none"/>' },
+  { id: 'deepSpaceVignette', name: 'Deep Space', cosmic: true,
+    icon: '<circle cx="12" cy="12" r="9" opacity="0.6"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>' },
+  { id: 'eclipseRing', name: 'Eclipse Ring', cosmic: true,
+    icon: '<circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="7.8"/>' },
+  { id: 'timeBend', name: 'Time Bend', cosmic: true,
+    icon: '<path d="M4 12a8 8 0 1 1 8 8"/><path d="M8 12a4 4 0 1 1 4 4"/><circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none"/>' },
+  { id: 'timeStretch', name: 'Time Stretch', cosmic: true,
+    icon: '<path d="M4 4l5.5 5.5"/><path d="M20 4l-5.5 5.5"/><path d="M4 20l5.5-5.5"/><path d="M20 20l-5.5-5.5"/><circle cx="12" cy="12" r="1.7"/>' }
 ];
 let pdfedDesignState = { preset: 'feather', strength: 50 };
 
@@ -14687,6 +14729,65 @@ function pdfedDesignFilmGrain(ctx, w, h, intensity) {
   ctx.putImageData(id, 0, 0);
 }
 
+// Genuine per-pixel spatial warp — bends the image around its own centre,
+// like light curving around a gravity well — rather than a gradient/blend
+// trick like every filter above. For every destination pixel we rotate
+// its offset from centre by an angle that grows toward the middle
+// (falloff*falloff so the outer edge stays nearly untouched and the twist
+// concentrates near the core), then nearest-neighbour-sample the source at
+// that rotated position. `amount` is the max twist in radians at dead
+// centre. Used by Time Bend.
+function pdfedDesignSwirl(ctx, w, h, amount) {
+  const src = ctx.getImageData(0, 0, w, h);
+  const sd = src.data;
+  const dst = ctx.createImageData(w, h);
+  const dd = dst.data;
+  const cx = w / 2, cy = h / 2;
+  const maxR = Math.sqrt(cx * cx + cy * cy) || 1;
+  for (let y = 0; y < h; y++) {
+    const dy0 = y - cy;
+    for (let x = 0; x < w; x++) {
+      const dx0 = x - cx;
+      const r = Math.sqrt(dx0 * dx0 + dy0 * dy0);
+      const falloff = Math.max(0, 1 - r / maxR);
+      const angle = amount * falloff * falloff;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+      let sx = Math.round(cx + dx0 * cosA - dy0 * sinA);
+      let sy = Math.round(cy + dx0 * sinA + dy0 * cosA);
+      if (sx < 0) sx = 0; else if (sx >= w) sx = w - 1;
+      if (sy < 0) sy = 0; else if (sy >= h) sy = h - 1;
+      const si = (sy * w + sx) * 4, di = (y * w + x) * 4;
+      dd[di] = sd[si]; dd[di + 1] = sd[si + 1]; dd[di + 2] = sd[si + 2]; dd[di + 3] = sd[si + 3];
+    }
+  }
+  ctx.putImageData(dst, 0, 0);
+}
+
+// Real radial zoom-streak: many progressively larger copies of the current
+// canvas layered back onto itself around its own centre at low opacity —
+// the same trick behind a genuine long-exposure "light speed" shot, not a
+// static motion-blur texture. `strengthFrac` (0-1) controls both how far
+// the streak reaches and how visible it is. Used by Time Stretch.
+function pdfedDesignRadialStreak(ctx, w, h, strengthFrac) {
+  const cx = w / 2, cy = h / 2;
+  const src = document.createElement('canvas');
+  src.width = w; src.height = h;
+  src.getContext('2d').drawImage(ctx.canvas, 0, 0);
+  const steps = 16;
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.16, 0.04 + strengthFrac * 0.13);
+  for (let i = 1; i <= steps; i++) {
+    const scale = 1 + (i / steps) * strengthFrac * 0.6;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+    ctx.drawImage(src, 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 // strength (0-100) controls how far the fade reaches in from the edge,
 // as a fraction of the image's own dimensions.
 function pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength) {
@@ -14715,6 +14816,12 @@ function pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength) {
       break;
     case 'fadeOut':
       pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 1.5);
+      break;
+    case 'fadeLeft':
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 1.5, 0);
+      break;
+    case 'fadeRight':
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 1.5, 0);
       break;
     case 'filmstrip':
       pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t);
@@ -14841,19 +14948,199 @@ function pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength) {
       pdfedDesignFilmGrain(ctx, w, h, 0.06 + (strength / 100) * 0.09);
       break;
     }
+
+    // ── Cosmic tier ──────────────────────────────────────────────────
+    case 'nebulaGlow': {
+      // Two soft colour blooms (violet + teal) screened in from opposite
+      // corners so light gathers at the edges instead of the vignette's
+      // usual dark falloff — plus a light edge feather so it still reads
+      // as a designed frame rather than a smear.
+      ctx.globalCompositeOperation = 'screen';
+      const rOuter = Math.sqrt(w * w + h * h) / 2;
+      const g1 = ctx.createRadialGradient(w * 0.15, h * 0.15, 0, w * 0.15, h * 0.15, rOuter * (0.55 + t * 0.5));
+      g1.addColorStop(0, 'rgba(168,85,247,0.55)');
+      g1.addColorStop(1, 'rgba(168,85,247,0)');
+      ctx.fillStyle = g1; ctx.fillRect(0, 0, w, h);
+      const g2 = ctx.createRadialGradient(w * 0.85, h * 0.85, 0, w * 0.85, h * 0.85, rOuter * (0.55 + t * 0.5));
+      g2.addColorStop(0, 'rgba(45,212,191,0.5)');
+      g2.addColorStop(1, 'rgba(45,212,191,0)');
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 0.18, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 0.18, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 0.18);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 0.18);
+      break;
+    }
+    case 'galaxyGrade': {
+      // Cinematic cool grade: shadows pushed toward deep indigo (radial
+      // multiply from a bright centre), highlights lifted with a gentle
+      // icy-cyan screen wash — the same two-pass trick as Golden Hour,
+      // just cool instead of warm.
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'multiply';
+      const g = ctx.createRadialGradient(cx, cy, rOuter * (1 - t) * 0.5, cx, cy, rOuter * (1 - t * 0.1));
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(1, 'rgba(76,29,149,0.85)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'screen';
+      const g2 = ctx.createRadialGradient(cx, cy, 0, cx, cy, rOuter * 0.6);
+      g2.addColorStop(0, 'rgba(103,232,249,0.2)');
+      g2.addColorStop(1, 'rgba(103,232,249,0)');
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 0.2, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 0.2, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 0.2);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 0.2);
+      break;
+    }
+    case 'aurora': {
+      // Flowing green -> cyan -> violet light band screened across the
+      // top of the frame, fading to nothing by its own last colour stop
+      // so it blends into the untouched image below without a hard edge.
+      const bandH = h * (0.35 + (strength / 100) * 0.35);
+      ctx.globalCompositeOperation = 'screen';
+      const g = ctx.createLinearGradient(0, 0, w, bandH * 0.6);
+      g.addColorStop(0, 'rgba(64,255,180,0.55)');
+      g.addColorStop(0.35, 'rgba(80,200,255,0.45)');
+      g.addColorStop(0.65, 'rgba(150,110,255,0.5)');
+      g.addColorStop(1, 'rgba(150,110,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, bandH);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'starfield': {
+      // Deep-navy night-sky tint (radial multiply) with genuine per-pixel
+      // bright specks scattered on top — see pdfedDesignStarSpecks.
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'multiply';
+      const gn = ctx.createRadialGradient(cx, cy, rOuter * 0.3, cx, cy, rOuter);
+      gn.addColorStop(0, 'rgba(255,255,255,1)');
+      gn.addColorStop(1, 'rgba(10,12,40,0.55)');
+      ctx.fillStyle = gn; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignStarSpecks(ctx, w, h, 0.0006 + (strength / 100) * 0.0018);
+      break;
+    }
+    case 'deepSpaceVignette': {
+      // Much harder, near-black falloff than the standard Vignette, with
+      // a faint blue-violet tint screened in right at the boundary so
+      // the subject reads as floating against open space.
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'destination-in';
+      const g = ctx.createRadialGradient(cx, cy, rOuter * (1 - t) * 0.4, cx, cy, rOuter * (1 - t * 0.2));
+      g.addColorStop(0, 'rgba(0,0,0,1)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'screen';
+      const g2 = ctx.createRadialGradient(cx, cy, rOuter * 0.5, cx, cy, rOuter * 0.95);
+      g2.addColorStop(0, 'rgba(0,0,0,0)');
+      g2.addColorStop(1, 'rgba(76,29,149,0.35)');
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'eclipseRing': {
+      // Darkens everything beyond a ring radius (multiply), then screens
+      // in a warm glowing corona band right at that boundary — the
+      // classic solar-eclipse silhouette-and-halo look.
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      const ringR = rOuter * (0.5 + t * 0.15);
+      ctx.globalCompositeOperation = 'multiply';
+      const gd = ctx.createRadialGradient(cx, cy, ringR, cx, cy, rOuter);
+      gd.addColorStop(0, 'rgba(255,255,255,1)');
+      gd.addColorStop(1, 'rgba(10,8,20,0.92)');
+      ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'screen';
+      const gr = ctx.createRadialGradient(cx, cy, ringR * 0.85, cx, cy, ringR * 1.15);
+      gr.addColorStop(0, 'rgba(255,225,170,0)');
+      gr.addColorStop(0.5, 'rgba(255,225,170,0.65)');
+      gr.addColorStop(1, 'rgba(255,225,170,0)');
+      ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'timeBend': {
+      // Genuine per-pixel spatial warp (pdfedDesignSwirl) — pixels bend
+      // around the centre like light curving around a gravity well, real
+      // displacement rather than a gradient/blend trick. Strength sets how
+      // many radians of twist build up toward the core. A violet core glow
+      // plus a darker multiply pass at the rim finishes it as a deliberate
+      // "gravity well" rather than a raw distortion filter.
+      const amount = 0.5 + (strength / 100) * 2.6;
+      pdfedDesignSwirl(ctx, w, h, amount);
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'screen';
+      const gcore = ctx.createRadialGradient(cx, cy, 0, cx, cy, rOuter * 0.35);
+      gcore.addColorStop(0, 'rgba(180,140,255,0.35)');
+      gcore.addColorStop(1, 'rgba(180,140,255,0)');
+      ctx.fillStyle = gcore; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'multiply';
+      const gedge = ctx.createRadialGradient(cx, cy, rOuter * 0.55, cx, cy, rOuter);
+      gedge.addColorStop(0, 'rgba(255,255,255,1)');
+      gedge.addColorStop(1, 'rgba(20,10,40,0.75)');
+      ctx.fillStyle = gedge; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'timeStretch': {
+      // Real radial zoom-streak (pdfedDesignRadialStreak) — many scaled
+      // copies of the frame layered around its own centre at low opacity,
+      // the same technique behind an actual long-exposure "light speed"
+      // photo. A warm core fading to cool at the rim sells it as light
+      // stretching outward from a bright origin, plus a light edge feather
+      // to keep it from reading as an unbounded texture.
+      pdfedDesignRadialStreak(ctx, w, h, strength / 100);
+      const cx = w / 2, cy = h / 2, rOuter = Math.sqrt(cx * cx + cy * cy);
+      ctx.globalCompositeOperation = 'screen';
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rOuter * 0.5);
+      g.addColorStop(0, 'rgba(255,235,200,0.4)');
+      g.addColorStop(1, 'rgba(120,170,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, w * t * 0.15, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, w, 0, w - w * t * 0.15, 0);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, 0, 0, h * t * 0.15);
+      pdfedDesignEdgeGradient(ctx, w, h, 0, h, 0, h - h * t * 0.15);
+      break;
+    }
   }
+}
+
+// Scatters genuine per-pixel bright specks across the image (skipping
+// fully-transparent pixels, same guard as film grain) — used by Starfield.
+// `density` is the fraction of total pixels turned into a speck; strength
+// only affects how many specks appear, never uniform brightness, so it
+// reads as sparse sparkle rather than a brightness/exposure change.
+function pdfedDesignStarSpecks(ctx, w, h, density) {
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+  const total = w * h;
+  const count = Math.round(total * density);
+  for (let i = 0; i < count; i++) {
+    const idx = (Math.floor(Math.random() * total)) * 4;
+    if (d[idx + 3] === 0) continue;
+    const b = 170 + Math.random() * 85;
+    d[idx]     = Math.min(255, d[idx] + b);
+    d[idx + 1] = Math.min(255, d[idx + 1] + b);
+    d[idx + 2] = Math.min(255, d[idx + 2] + b);
+  }
+  ctx.putImageData(id, 0, 0);
 }
 
 function pdfedDesignRenderGrid() {
   const grid = document.getElementById('pdfedDesignGrid');
   const premGrid = document.getElementById('pdfedDesignPremiumGrid');
+  const cosmicGrid = document.getElementById('pdfedDesignCosmicGrid');
   const tile = (p) =>
-    `<button type="button" class="pdfed-design-preset${p.premium ? ' premium' : ''} ${p.id === pdfedDesignState.preset ? 'active' : ''}" data-preset="${p.id}" title="${p.name}" onclick="pdfedDesignPickPreset('${p.id}', this)">` +
+    `<button type="button" class="pdfed-design-preset${p.premium ? ' premium' : ''}${p.cosmic ? ' cosmic' : ''} ${p.id === pdfedDesignState.preset ? 'active' : ''}" data-preset="${p.id}" title="${p.name}" onclick="pdfedDesignPickPreset('${p.id}', this)">` +
       `<span class="pdfed-design-swatch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p.icon}</svg></span>` +
       `<span class="pdfed-design-label">${p.name}</span>` +
     `</button>`;
-  if (grid) grid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => !p.premium).map(tile).join('');
+  if (grid) grid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => !p.premium && !p.cosmic).map(tile).join('');
   if (premGrid) premGrid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => p.premium).map(tile).join('');
+  if (cosmicGrid) cosmicGrid.innerHTML = PDFED_DESIGN_PRESETS.filter(p => p.cosmic).map(tile).join('');
 }
 
 function pdfedDesignPickPreset(id, el) {
@@ -14875,23 +15162,61 @@ function pdfedDesignSetStrength(val) {
 // image(s) on the canvas the instant a filter tile is clicked or the
 // strength slider is dragged — without touching item.dataUrl. Nothing is
 // actually committed until "Apply Fade" is pressed (which recomputes from
-// the same untouched item.dataUrl and bakes the result for real). Every
-// preview always starts fresh from item.dataUrl, so switching presets or
-// dragging the slider back and forth never compounds/double-applies an
-// effect on top of a previous preview.
+// the same untouched item.dataUrl and bakes the result for real, full-res —
+// see pdfedDesignApplyFade). Every preview always starts fresh from
+// item.dataUrl, so switching presets or dragging the slider back and forth
+// never compounds/double-applies an effect on top of a previous preview.
+//
+// Two things used to make strength-dragging feel glitchy and both are
+// fixed below:
+//  1) Every tick re-decoded the full-res source image from its base64
+//     dataUrl from scratch (a fresh `new Image()` + browser decode), then
+//     ran the filter and re-encoded a full-res PNG via toDataURL — all of
+//     that at the image's real pixel dimensions, which can be huge. Now
+//     the decoded Image is cached per item (pdfedDesignPreviewImgCache)
+//     so repeat ticks skip the decode entirely, and the working canvas is
+//     downscaled to PDFED_DESIGN_PREVIEW_MAX px on its long edge, so the
+//     gradient math, blend passes, and PNG re-encode all run on a small
+//     canvas regardless of the source resolution. Every filter's math is
+//     expressed as a fraction of width/height, so the look is identical at
+//     preview scale — the commit path still bakes at true full resolution.
+//  2) The old preview always reverted the image back to its unfiltered
+//     original *before* computing the next frame, so every drag tick
+//     flashed unfiltered -> filtered -> unfiltered -> filtered. Now a
+//     revert only happens when the selection itself changes (an image
+//     leaves the preview set); a same-selection preset/strength tweak
+//     leaves the current frame on screen until the next one is ready and
+//     swaps directly, so dragging just glides between filtered frames.
+const PDFED_DESIGN_PREVIEW_MAX = 900; // px, long-edge cap for the live-preview canvas only
 let pdfedDesignPreviewIds = new Set(); // ids of placed images currently showing an uncommitted preview
 let pdfedDesignPreviewToken = 0;       // invalidates in-flight image loads from an older preview request
 let pdfedDesignPreviewKey = '';        // last (items+preset+strength) combo already rendered, to skip redundant recompute
 let pdfedDesignPreviewScheduled = false;
+let pdfedDesignPreviewImgCache = new Map(); // item id -> { url, img } decoded-image cache, invalidated per-item when dataUrl changes
 
 function pdfedDesignFindImgEl(id) {
   const wrap = document.querySelector('#pdfedPlacedImagesLayer .pdfed-placed-img[data-id="' + id + '"]');
   return wrap ? wrap.querySelector('img') : null;
 }
 
+// Resolves the decoded <img> for an item's *current* dataUrl, reusing the
+// cached decode when nothing has changed since the last preview frame —
+// this is what lets slider drags skip the (relatively slow) base64 decode
+// on every tick and only redo the actual filter math.
+function pdfedDesignGetCachedImg(item) {
+  const cached = pdfedDesignPreviewImgCache.get(item.id);
+  if (cached && cached.url === item.dataUrl) return Promise.resolve(cached.img);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => { pdfedDesignPreviewImgCache.set(item.id, { url: item.dataUrl, img }); resolve(img); };
+    img.onerror = reject;
+    img.src = item.dataUrl;
+  });
+}
+
 // Restores every previewed image back to its real, unmodified item.dataUrl —
-// called before rendering a new preview and whenever the selection/panel
-// goes empty, so an unsaved preview never lingers on screen.
+// called whenever the preview set goes fully empty (panel closed / nothing
+// selected), so an unsaved preview never lingers on screen.
 function pdfedDesignRevertLivePreview() {
   if (pdfedDesignPreviewIds.size === 0) return;
   const pg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
@@ -14915,16 +15240,32 @@ function pdfedDesignRefreshLivePreview() {
   const key = items.map(it => it.id).join(',') + '|' + pdfedDesignState.preset + '|' + pdfedDesignState.strength;
   if (items.length && key === pdfedDesignPreviewKey) return; // identical to what's already showing, nothing to do
   pdfedDesignPreviewKey = key;
-  pdfedDesignRevertLivePreview();
-  if (items.length === 0) return;
+
+  if (items.length === 0) { pdfedDesignRevertLivePreview(); return; }
+
+  // Only revert images that dropped OUT of the current selection — a
+  // same-selection preset/strength change never reverts anything, so the
+  // currently-shown filtered frame just stays put until its replacement
+  // is ready (no flash back to the unfiltered original mid-drag).
+  const newIds = new Set(items.map(it => it.id));
+  const pg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
+  const list = (pg && pg.placedImages) || [];
+  pdfedDesignPreviewIds.forEach(id => {
+    if (newIds.has(id)) return;
+    const item = list.find(it => it.id === id);
+    const el = pdfedDesignFindImgEl(id);
+    if (item && el && el.src !== item.dataUrl) el.src = item.dataUrl;
+    pdfedDesignPreviewIds.delete(id);
+  });
 
   const preset = pdfedDesignState.preset, strength = pdfedDesignState.strength;
   const token = ++pdfedDesignPreviewToken;
   items.forEach(item => {
-    const img = new Image();
-    img.onload = () => {
+    pdfedDesignGetCachedImg(item).then(img => {
       if (token !== pdfedDesignPreviewToken) return; // a newer preset/strength/selection change superseded this one
-      const w = img.naturalWidth, h = img.naturalHeight;
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      const scale = Math.min(1, PDFED_DESIGN_PREVIEW_MAX / Math.max(nw, nh));
+      const w = Math.max(1, Math.round(nw * scale)), h = Math.max(1, Math.round(nh * scale));
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
       const ctx = c.getContext('2d');
@@ -14932,8 +15273,7 @@ function pdfedDesignRefreshLivePreview() {
       pdfedDesignApplyPresetToCtx(ctx, w, h, preset, strength);
       const el = pdfedDesignFindImgEl(item.id);
       if (el) { el.src = c.toDataURL('image/png'); pdfedDesignPreviewIds.add(item.id); }
-    };
-    img.src = item.dataUrl; // always the untouched original — never a previous preview frame
+    }).catch(() => {});
   });
 }
 
@@ -34863,7 +35203,14 @@ let pdfedPlacedImgDragListenersBound = false;
 function pdfedEnsurePlacedImgDragListeners() {
   if (pdfedPlacedImgDragListenersBound) return;
   pdfedPlacedImgDragListenersBound = true;
-  const SNAP = 10;
+  // Widened from 10 -> 18 canvas-px. At 10px, a manual drag/resize that was
+  // "close enough" to the page edge by eye (but a little past the old
+  // threshold) would miss the snap entirely and get hard-clamped to
+  // wherever the cursor happened to be — leaving a thin, easy-to-miss white
+  // gap between the image and the actual page boundary instead of landing
+  // flush. 18px gives a much more forgiving catch radius while still being
+  // small enough to never snap unintentionally.
+  const SNAP = 18;
 
   document.addEventListener('mousemove', (e) => {
     const drag = pdfedPlacedImgDrag;
