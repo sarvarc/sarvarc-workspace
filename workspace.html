@@ -109,6 +109,9 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', 'G-RN93D87JZH');
+  function swTrack(eventName, params) {
+    try { gtag('event', eventName, params || {}); } catch(e) {}
+  }
 </script>
 <style>
 :root {
@@ -13902,6 +13905,7 @@ function cancelSectionAutoCollapse() {
 function navigate(sec) {
   const target = document.getElementById('sec-' + sec);
   if (!target) return; // unknown/removed section, fail safe instead of throwing
+  swTrack('module_open', { module: sec });
   try { localStorage.setItem('sarvarcLastSection', sec); } catch(e) {}
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   target.classList.add('active');
@@ -14601,6 +14605,7 @@ function applyReshapeConfirm() {
       });
     }
 
+    swTrack('image_shaper_used', { module: 'pdf_editor', shape: shape.id, bevel: !!reshape.bevel });
     closeReshape();
     toast('Shape applied, ' + shape.name, 'success');
   };
@@ -15335,6 +15340,12 @@ function pdfedDesignApplyFade() {
         pdfedRenderPlacedImages(pageIdx);
         toast(presetMeta.name + ' applied', 'success');
       }
+    });
+    swTrack('design_preset_applied', {
+      module: 'pdf_editor',
+      preset: presetMeta.id,
+      tier: presetMeta.cosmic ? 'cosmic' : (presetMeta.premium ? 'premium' : 'basic'),
+      strength: strength
     });
     toast(presetMeta.name + ' applied' + (results.length > 1 ? ' to ' + results.length + ' images' : ''), 'success');
   }).catch(() => toast('Could not apply that fade', 'error'));
@@ -16145,7 +16156,7 @@ async function downloadImages(imgs) {
     a.click();
     state.stats.exports += imgs.length;
     updateStats();
-    completeExportOverlay(imgs.length + ' images zipped');
+    completeExportOverlay(imgs.length + ' images zipped', { module: 'extract_images', format: 'zip' });
     toast('ZIP downloaded, ' + imgs.length + ' images', 'success');
   } catch(e) {
     hideExportOverlay();
@@ -16563,7 +16574,7 @@ async function exportAsPdf(imgs, password) {
     pdf.save(sarvarcBrandFilename('extractly-ai-export.pdf'));
     state.stats.exports += imgs.length;
     updateStats();
-    completeExportOverlay(total + ' page' + (total > 1 ? 's' : '') + ' exported');
+    completeExportOverlay(total + ' page' + (total > 1 ? 's' : '') + ' exported', { module: 'extract_images', format: 'pdf' });
     toast('PDF exported, ' + imgs.length + ' page' + (imgs.length > 1 ? 's' : '') + (password ? ' (password protected)' : ''), 'success');
   } catch(err) {
     hideExportOverlay();
@@ -22961,6 +22972,7 @@ async function pdfedApplyFilter() {
   pg.dataUrl = c.toDataURL('image/png');
   pg.modified = true;
   pg.edits.filters = {bright, contrast, sat};
+  swTrack('filter_applied', { module: 'pdf_editor', bright, contrast, sat });
   await pdfedGoto(pdfed.active);
   await pdfedBuildStrip();
   toast('Adjustments applied', 'success');
@@ -25301,7 +25313,7 @@ async function pdfedExport(pageIndices, password, suffixOverride, successLabel) 
     pdf.save(sarvarcBrandFilename(fname));
     state.stats.exports++;
     updateStats();
-    completeExportOverlay(total + (total > 1 ? ' pages exported' : ' page exported'));
+    completeExportOverlay(total + (total > 1 ? ' pages exported' : ' page exported'), { module: 'pdf_editor', format: 'pdf' });
     toast(successLabel || ('Exported ' + total + ' pages' + (password ? ' (password protected)' : '')), 'success');
     pdfedQueueAutoContinueAfter();
   } catch(e) {
@@ -25842,7 +25854,7 @@ async function pdfedExportImages(pageIndices) {
       pdfedDownloadBlob(blob, base + '_page' + (i + 1) + '.png');
       state.stats.exports++;
       updateStats();
-      completeExportOverlay('1 page exported');
+      completeExportOverlay('1 page exported', { module: 'pdf_editor', format: 'image' });
       toast('Exported 1 image', 'success');
     } else {
       const zip = new JSZip();
@@ -25863,7 +25875,7 @@ async function pdfedExportImages(pageIndices) {
       pdfedDownloadBlob(blob, base + '_pages.zip');
       state.stats.exports += total;
       updateStats();
-      completeExportOverlay(total + ' pages exported');
+      completeExportOverlay(total + ' pages exported', { module: 'pdf_editor', format: 'image' });
       toast('Exported ' + total + ' images', 'success');
     }
     pdfedQueueAutoContinueAfter();
@@ -26026,7 +26038,7 @@ async function pdfedExportCSV(indices) {
     pdfedDownloadBlob(blob, fname);
     state.stats.exports++;
     updateStats();
-    completeExportOverlay('CSV exported');
+    completeExportOverlay('CSV exported', { module: 'pdf_editor', format: 'csv' });
     toast('Exported ' + allRows.length + ' rows to CSV' + (skippedPages ? ` (${skippedPages} image page(s) skipped)` : ''), 'success');
   } catch (e) {
     hideExportOverlay();
@@ -26344,7 +26356,7 @@ async function pdfedExportXLSX(indices) {
     pdfedDownloadBlob(blob, fname);
     state.stats.exports++;
     updateStats();
-    completeExportOverlay('Excel file exported');
+    completeExportOverlay('Excel file exported', { module: 'pdf_editor', format: 'xlsx' });
     toast('Exported ' + dataRowCount + ' row(s)' + (drawings.length ? ` + ${drawings.length} image(s)` : '') + ' to Excel' + (skippedPages ? ` (${skippedPages} page(s) skipped)` : ''), 'success');
   } catch (e) {
     hideExportOverlay();
@@ -26995,7 +27007,7 @@ async function pdfedExportDOCX(indices) {
     pdfedDownloadBlob(blob, fname);
     state.stats.exports++;
     updateStats();
-    completeExportOverlay('Word document exported');
+    completeExportOverlay('Word document exported', { module: 'pdf_editor', format: 'docx' });
     const logoNote = logoExtracted ? ', logo extracted with background removed' : '';
     toast('Exported to Word' + logoNote + (skippedPages ? ` (${skippedPages} page(s) embedded as image, no text layer)` : ''), 'success');
   } catch (e) {
@@ -35821,7 +35833,8 @@ function updateExportProgress(pct, sub) {
   }
 }
 
-function completeExportOverlay(sub) {
+function completeExportOverlay(sub, meta) {
+  swTrack('export_completed', { label: sub || 'export', module: (meta && meta.module) || 'unknown', format: (meta && meta.format) || 'unknown' });
   updateExportProgress(100, sub || 'Done!');
   const ov = document.getElementById('exportOverlay');
   ov.classList.add('success');
@@ -44851,6 +44864,16 @@ async function pdfedApplyReportRefinement(opts) {
 }
 
 async function pdfedRunRefineReportFromModal() {
+  swTrack('refine_report_run', {
+    theme: pdfedRefineState.theme || 'general',
+    align: pdfedRefineState.align || 'left',
+    autoFit: !!document.getElementById('pdfedRefineAutoFit')?.checked,
+    syncHeadings: !!document.getElementById('pdfedRefineSyncHeadings')?.checked,
+    sectionIcons: !!document.getElementById('pdfedRefineSectionIcons')?.checked,
+    logoUsed: !!pdfedRefineState.logoDataUrl,
+    watermarkUsed: !!pdfedRefineState.watermarkEnabled,
+    footerUsed: !!pdfedRefineState.footerEnabled
+  });
   const opts = {
     theme: pdfedRefineState.theme || 'general',
     align: pdfedRefineState.align || 'left',
@@ -48779,7 +48802,7 @@ async function rdxExportPDF() {
     if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(rdxOutputName('pdf')));
     if (typeof state !== 'undefined' && state.stats) { state.stats.exports = (state.stats.exports || 0) + 1; if (typeof updateStats === 'function') updateStats(); }
-    completeExportOverlay(rdxState.pages.length + (rdxState.pages.length > 1 ? ' pages exported' : ' page exported'));
+    completeExportOverlay(rdxState.pages.length + (rdxState.pages.length > 1 ? ' pages exported' : ' page exported'), { module: 'redact_pii', format: 'pdf' });
     toast('Redacted document exported to PDF.' + (password ? ' (password protected)' : ''), 'success');
   } catch (err) {
     hideExportOverlay();
@@ -48804,7 +48827,7 @@ async function rdxExportImages() {
       const blob = await new Promise(res => outCanvas.toBlob(res, 'image/png'));
       updateExportProgress(95, 'Saving file…');
       pdfedDownloadBlob(blob, base + '-redacted.png');
-      completeExportOverlay('1 page exported');
+      completeExportOverlay('1 page exported', { module: 'redact_pii', format: 'image' });
       toast('Exported redacted image.', 'success');
     } else {
       if (typeof JSZip === 'undefined') { hideExportOverlay(); toast('Zip engine failed to load, check your connection', 'error'); return; }
@@ -48819,7 +48842,7 @@ async function rdxExportImages() {
         updateExportProgress(80 + metadata.percent * 0.18, `Compressing… ${Math.round(metadata.percent)}%`);
       });
       pdfedDownloadBlob(blob, base + '-redacted-pages.zip');
-      completeExportOverlay(rdxState.pages.length + ' pages exported');
+      completeExportOverlay(rdxState.pages.length + ' pages exported', { module: 'redact_pii', format: 'image' });
       toast('Exported ' + rdxState.pages.length + ' images.', 'success');
     }
     if (typeof state !== 'undefined' && state.stats) { state.stats.exports = (state.stats.exports || 0) + rdxState.pages.length; if (typeof updateStats === 'function') updateStats(); }
@@ -48893,7 +48916,7 @@ async function rdxExportDOCX() {
     const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     pdfedDownloadBlob(blob, rdxOutputName('docx'));
     if (typeof state !== 'undefined' && state.stats) { state.stats.exports = (state.stats.exports || 0) + 1; if (typeof updateStats === 'function') updateStats(); }
-    completeExportOverlay('Word document exported');
+    completeExportOverlay('Word document exported', { module: 'redact_pii', format: 'docx' });
     toast('Redacted document exported to Word.', 'success');
   } catch (e) {
     hideExportOverlay();
@@ -51709,7 +51732,7 @@ async function mfExportDOCX() {
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.docx';
     pdfedDownloadBlob(blob, sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    completeExportOverlay('Word document exported');
+    completeExportOverlay('Word document exported', { module: 'make_forms', format: 'docx' });
     toast(fieldCount ? `Form exported as Word document — ${fieldCount} field${fieldCount === 1 ? '' : 's'} ready to fill in` : 'Form exported as Word document', 'success');
   } catch (e) {
     console.error(e);
@@ -51739,7 +51762,7 @@ async function mfExportImages() {
       const blob = await new Promise(res => slices[0].toBlob(res, 'image/png'));
       updateExportProgress(95, 'Saving file…');
       pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '.png'));
-      completeExportOverlay('1 page exported');
+      completeExportOverlay('1 page exported', { module: 'make_forms', format: 'image' });
       toast('Form exported as image', 'success');
     } else {
       if (typeof JSZip === 'undefined') { hideExportOverlay(); toast('Zip engine failed to load, check your connection', 'error'); return; }
@@ -51753,7 +51776,7 @@ async function mfExportImages() {
         updateExportProgress(80 + metadata.percent * 0.18, `Compressing… ${Math.round(metadata.percent)}%`);
       });
       pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '-pages.zip'));
-      completeExportOverlay(slices.length + ' pages exported');
+      completeExportOverlay(slices.length + ' pages exported', { module: 'make_forms', format: 'image' });
       toast('Exported ' + slices.length + ' images', 'success');
     }
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
@@ -51843,7 +51866,7 @@ async function mfExportPDF() {
     if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    completeExportOverlay(totalPages + (totalPages > 1 ? ' pages exported' : ' page exported'));
+    completeExportOverlay(totalPages + (totalPages > 1 ? ' pages exported' : ' page exported'), { module: 'make_forms', format: 'pdf' });
     toast('Form exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch(e) {
     console.error(e);
@@ -52652,7 +52675,7 @@ async function mfcExportDOCX() {
     const fname = (f.title || 'canvas_form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.docx';
     pdfedDownloadBlob(blob, sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    completeExportOverlay('Word document exported');
+    completeExportOverlay('Word document exported', { module: 'make_forms_canvas', format: 'docx' });
     toast(`Form exported as Word document — ${boxCount} box${boxCount === 1 ? '' : 'es'} ready to edit`, 'success');
   } catch (e) {
     console.error(e);
@@ -52687,7 +52710,7 @@ async function mfcExportImages() {
       const blob = await res.blob();
       updateExportProgress(95, 'Saving file…');
       pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '.png'));
-      completeExportOverlay('1 page exported');
+      completeExportOverlay('1 page exported', { module: 'make_forms_canvas', format: 'image' });
       toast('Form exported as image', 'success');
     } else {
       if (typeof JSZip === 'undefined') { hideExportOverlay(); toast('Zip engine failed to load, check your connection', 'error'); return; }
@@ -52700,7 +52723,7 @@ async function mfcExportImages() {
         updateExportProgress(80 + metadata.percent * 0.18, `Compressing… ${Math.round(metadata.percent)}%`);
       });
       pdfedDownloadBlob(blob, sarvarcBrandFilename(base + '-pages.zip'));
-      completeExportOverlay(shots.length + ' pages exported');
+      completeExportOverlay(shots.length + ' pages exported', { module: 'make_forms_canvas', format: 'image' });
       toast('Exported ' + shots.length + ' images', 'success');
     }
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
@@ -52746,7 +52769,7 @@ async function mfcExportPDF() {
     if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    completeExportOverlay(pageEls.length + (pageEls.length > 1 ? ' pages exported' : ' page exported'));
+    completeExportOverlay(pageEls.length + (pageEls.length > 1 ? ' pages exported' : ' page exported'), { module: 'make_forms_canvas', format: 'pdf' });
     toast('Form exported as PDF' + (password ? ' (password protected)' : ''), 'success');
   } catch (e) {
     console.error(e);
@@ -63364,6 +63387,7 @@ if (document.readyState === 'loading') {
   async function sarvarcAuthEnterWorkspace() {
     sarvarcAuthCloseModal();
     const displayName = await sarvarcAuthUpdateNavUI();
+    swTrack('account_active', { name: displayName ? 'named' : 'unnamed' });
     sarvarcUpdateEditLockUI();
     if (typeof navigate === 'function' && document.getElementById('sec-pdfeditor')) {
       navigate('pdfeditor');
