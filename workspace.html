@@ -13211,6 +13211,38 @@ button.dg-show-chip.active { background:var(--blue); }
 }
 .sm-session-empty svg { opacity: .45; }
 
+/* Premium buffering ring shown in the Saved Sessions list while a Drive
+   pull is in flight (see sarvarcDriveSyncPending) — a soft two-tone arc
+   with a trailing glow, not the flat utility .spinner used elsewhere, so a
+   background sync reads as "something is actively happening" rather than a
+   generic loading state. */
+.sm-drive-sync-ring {
+  position: relative;
+  width: 40px; height: 40px;
+}
+.sm-drive-sync-ring::before,
+.sm-drive-sync-ring::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+}
+.sm-drive-sync-ring::before {
+  border: 2.5px solid transparent;
+  border-top-color: var(--blue, #00C2FF);
+  border-right-color: rgba(0,194,255,0.35);
+  filter: drop-shadow(0 0 6px rgba(0,194,255,0.45));
+  animation: smDriveSyncSpin 0.9s cubic-bezier(.5,.05,.5,.95) infinite;
+}
+.sm-drive-sync-ring::after {
+  border: 2.5px solid rgba(0,194,255,0.1);
+}
+@keyframes smDriveSyncSpin { to { transform: rotate(360deg); } }
+.sm-drive-sync-label {
+  font-size: 12.5px; font-weight: 600; color: var(--text2, var(--text3));
+  letter-spacing: .02em;
+}
+.sm-drive-sync-sub {
+  font-size: 11px; color: var(--text3); opacity: .8;
+}
+
 /* ── log-line row ── */
 .sm-session-row {
   position: relative;
@@ -17681,6 +17713,17 @@ async function smRenderList() {
     (currentEmail && currentEmail.toLowerCase() === String(s.ownerEmail).toLowerCase()));
 
   if (!sessions.length) {
+    // A signed-in account may have sessions sitting on Drive that just
+    // haven't finished pulling down yet (2-3s round trip) — show that
+    // explicitly instead of "No saved sessions yet", so it reads as "still
+    // checking" rather than "your files are gone".
+    if (window.sarvarcDriveSyncPending) {
+      listEl.innerHTML = '<div class="sm-session-empty">' +
+        '<span class="sm-drive-sync-ring"></span>' +
+        '<span class="sm-drive-sync-label">Loading Your Files</span>' +
+      '</div>';
+      return;
+    }
     listEl.innerHTML = '<div class="sm-session-empty">' +
       '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' +
       'No saved sessions yet. Use the Save Your Workflow button in the top bar to create your first one.' +
@@ -62346,7 +62389,19 @@ if (document.readyState === 'loading') {
   // or opened. Runs once after login; safe to call repeatedly. Anything that
   // fails here (offline, Drive API not yet enabled on the project, etc.) is
   // swallowed — local sessions remain fully usable either way.
+  // Set for the duration of a sync pull so the Saved Sessions page can tell
+  // "genuinely nothing saved yet" apart from "still checking Drive" — without
+  // this, a fresh device with sessions waiting on the account would flash an
+  // empty "No saved sessions yet" state for the 2-3s the Drive round-trip
+  // takes, which reads as "my files are gone" even though nothing was lost.
+  window.sarvarcDriveSyncPending = false;
+
   async function sarvarcDriveSyncDown() {
+    // Flip the flag and repaint immediately (still synchronous at this point,
+    // before the first await below) so the very first render after sign-in
+    // already shows "checking Drive" instead of the empty state.
+    window.sarvarcDriveSyncPending = true;
+    if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
     try {
       if (!(await sarvarcDriveAvailable())) return;
       const [driveSessions, db] = await Promise.all([sarvarcDriveListSessions(), idbKvOpen()]);
@@ -62380,6 +62435,14 @@ if (document.readyState === 'loading') {
         smRenderList();
       }
     } catch (e) { console.warn('[Drive sync] skipped', e); }
+    finally {
+      // Always clear + repaint, whether the pull found new sessions, found
+      // none, or failed outright — otherwise "checking Drive" could get
+      // stuck on screen, and a genuinely-empty account would never fall
+      // through to the real "No saved sessions yet" message.
+      window.sarvarcDriveSyncPending = false;
+      if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    }
   }
 
   // Companion to sarvarcDriveSyncDown: pushes UP any session that's sitting
