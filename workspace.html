@@ -63123,30 +63123,58 @@ if (document.readyState === 'loading') {
   // Whether the content CURRENTLY loaded into the live modules (Workspace,
   // Data Arrangement, etc.) was pulled from a session that belongs to an
   // account (has ownerEmail) — i.e. someone signed in, opened/edited a
-  // project, then signed out without leaving. Checked against the same
-  // active-link map used by smCheckSessionAccess for the Saved Sessions
-  // list, so "this project belongs to an account" means the same thing
-  // everywhere in the app.
-  async function sarvarcCurrentLoadIsOwned() {
+  // project, then signed out without leaving, OR is still signed in but as
+  // a DIFFERENT account than the one that owns this content (e.g. switched
+  // Google accounts on the same browser without logging the original
+  // owner's project out first). Checked against the same active-link map
+  // used by smCheckSessionAccess for the Saved Sessions list, so "this
+  // project belongs to an account" means the same thing everywhere in the
+  // app. `currentEmail` is the email of whoever is signed in right now (or
+  // null/omitted if signed out): pass it so a session owned by SOMEONE is
+  // only flagged as a problem when it's owned by someone ELSE — an owned
+  // session that happens to belong to the person currently signed in is
+  // fine and must not lock. Returns the owner's email (for the "wrong
+  // account" message) or false.
+  async function sarvarcCurrentLoadIsOwned(currentEmail) {
     try {
       const links = smGetActiveLinks(); // { moduleKey: sessionId }
       const ids = Array.from(new Set(Object.values(links || {}).filter(Boolean)));
       for (const id of ids) {
         const rec = await smGetSession(id);
-        if (rec && rec.ownerEmail) return true;
+        if (!rec || !rec.ownerEmail) continue;
+        if (currentEmail && currentEmail.toLowerCase() === String(rec.ownerEmail).toLowerCase()) continue;
+        return rec.ownerEmail;
       }
     } catch (e) { /* if we can't tell, don't lock on a guess */ }
     return false;
   }
   const SARVARC_EDITLOCK_MESSAGES = {
     freeExport: 'You\u2019ve used your free export. Log in (or sign up free) to keep editing and exporting without limits.',
-    signedOutOwned: 'This project belongs to a signed-in account. Log back in as that account to keep editing it on this device.'
+    signedOutOwned: 'This project belongs to a signed-in account. Log back in as that account to keep editing it on this device.',
+    wrongAccount: 'This project belongs to a different SARVARC account. Log back in as that account to keep editing it on this device.'
   };
   async function sarvarcRefreshEditLockState() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
     if (user) {
-      window.sarvarcEditLockActive = false;
-      window.sarvarcEditLockReason = null;
+      // Being logged in is not by itself enough — it must be the SAME
+      // account that owns whatever's currently loaded. Without this check,
+      // switching to a second account on a browser that still has someone
+      // else's project live (pulled in earlier under the first account)
+      // would silently hand over full edit access to that other person's
+      // work, since "a user is signed in" used to be treated as "this
+      // user is allowed to edit this".
+      const ownedByOther = await sarvarcCurrentLoadIsOwned(user.email);
+      window.sarvarcEditLockActive = !!ownedByOther;
+      window.sarvarcEditLockReason = ownedByOther ? 'wrongAccount' : null;
+      const sub = document.getElementById('sarvarcEditLockSub');
+      if (sub && window.sarvarcEditLockReason) {
+        let msg = SARVARC_EDITLOCK_MESSAGES[window.sarvarcEditLockReason];
+        if (window.sarvarcEditLockReason === 'wrongAccount' && typeof smMaskEmail === 'function') {
+          msg = 'This project belongs to a different SARVARC account (' + smMaskEmail(ownedByOther) +
+            ') and can\'t be edited from this one. Log back in as that account to keep editing it on this device.';
+        }
+        sub.textContent = msg;
+      }
     } else {
       // Locked out for either of two reasons: the free watermarked export
       // was already used up (existing behavior), OR — the fix here —
@@ -63154,7 +63182,7 @@ if (document.readyState === 'loading') {
       // browser is no longer signed in as that person, e.g. logging out
       // on a shared/office PC after editing a project pulled in that
       // morning. Same overlay/interceptor mechanism, different message.
-      const ownedAndSignedOut = await sarvarcCurrentLoadIsOwned();
+      const ownedAndSignedOut = !!(await sarvarcCurrentLoadIsOwned(null));
       const freeExportUsed = sarvarcHasUsedFreeExport();
       window.sarvarcEditLockActive = freeExportUsed || ownedAndSignedOut;
       window.sarvarcEditLockReason = ownedAndSignedOut ? 'signedOutOwned' : (freeExportUsed ? 'freeExport' : null);
