@@ -18335,6 +18335,43 @@ window.smSaveWorkflow = smSaveWorkflow;
 // themselves are never touched by this — it only resets what's currently
 // on screen, the same live storage smClearModulesLinkedTo() already knows
 // how to wipe.
+// Shared low-level clear: wipes every module's localStorage + IndexedDB keys
+// and drops the active-session links, with no confirm dialog and no button
+// UI of its own. Used by smNewProject() (user-initiated, asks first) and by
+// sarvarcAutoClearOwnedContent() (system-initiated on account switch, asks
+// no one — see that function for why). Kept as one implementation so the
+// two never drift on which keys/modules actually count as "current work."
+async function smClearAllModuleStorageSilently() {
+  const allModuleKeys = Object.keys(SM_MODULE_STORAGE);
+  let lsKeys = [], idbKeys = [];
+  allModuleKeys.forEach(function (mk) {
+    const s = SM_MODULE_STORAGE[mk];
+    if (!s) return;
+    if (s.ls) lsKeys = lsKeys.concat(s.ls);
+    if (s.idb) idbKeys = idbKeys.concat(s.idb);
+  });
+
+  lsKeys.forEach(function (k) { localStorage.removeItem(k); });
+
+  if (idbKeys.length) {
+    const db = await idbKvOpen();
+    await new Promise(function (resolve, reject) {
+      const tx = db.transaction('kv', 'readwrite');
+      const store = tx.objectStore('kv');
+      idbKeys.forEach(function (k) { store.delete(k); });
+      tx.oncomplete = resolve;
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+
+  // None of these modules are linked to any saved session anymore — this
+  // is a fresh, unsaved project.
+  const map = smGetActiveLinks();
+  allModuleKeys.forEach(function (mk) { delete map[mk]; });
+  smSetActiveLinks(map);
+}
+window.smClearAllModuleStorageSilently = smClearAllModuleStorageSilently;
+
 async function smNewProject() {
   const proceed = confirm(
     'Start a new project?\n\n' +
@@ -18351,34 +18388,7 @@ async function smNewProject() {
   }
 
   try {
-    const allModuleKeys = Object.keys(SM_MODULE_STORAGE);
-    let lsKeys = [], idbKeys = [];
-    allModuleKeys.forEach(function (mk) {
-      const s = SM_MODULE_STORAGE[mk];
-      if (!s) return;
-      if (s.ls) lsKeys = lsKeys.concat(s.ls);
-      if (s.idb) idbKeys = idbKeys.concat(s.idb);
-    });
-
-    lsKeys.forEach(function (k) { localStorage.removeItem(k); });
-
-    if (idbKeys.length) {
-      const db = await idbKvOpen();
-      await new Promise(function (resolve, reject) {
-        const tx = db.transaction('kv', 'readwrite');
-        const store = tx.objectStore('kv');
-        idbKeys.forEach(function (k) { store.delete(k); });
-        tx.oncomplete = resolve;
-        tx.onerror = function () { reject(tx.error); };
-      });
-    }
-
-    // None of these modules are linked to any saved session anymore — this
-    // is a fresh, unsaved project.
-    const map = smGetActiveLinks();
-    allModuleKeys.forEach(function (mk) { delete map[mk]; });
-    smSetActiveLinks(map);
-
+    await smClearAllModuleStorageSilently();
     if (typeof toast === 'function') toast('Started a new project.', 'success');
     setTimeout(() => location.reload(), 400);
   } catch (e) {
@@ -63119,7 +63129,7 @@ if (document.readyState === 'loading') {
   // try to click or type something, so the very last thing they see before
   // the prompt is the work itself. ----
   window.sarvarcEditLockActive = false;
-  window.sarvarcEditLockReason = null; // 'freeExport' | 'signedOutOwned'
+  window.sarvarcEditLockReason = null; // only 'freeExport' now — ownership mismatches auto-clear instead of locking
   // Whether the content CURRENTLY loaded into the live modules (Workspace,
   // Data Arrangement, etc.) was pulled from a session that belongs to an
   // account (has ownerEmail) — i.e. someone signed in, opened/edited a
@@ -63149,11 +63159,44 @@ if (document.readyState === 'loading') {
     return false;
   }
   const SARVARC_EDITLOCK_MESSAGES = {
-    freeExport: 'You\u2019ve used your free export. Log in (or sign up free) to keep editing and exporting without limits.',
-    signedOutOwned: 'This project belongs to a signed-in account. Log back in as that account to keep editing it on this device.',
-    wrongAccount: 'This project belongs to a different SARVARC account. Log back in as that account to keep editing it on this device.'
+    freeExport: 'You\u2019ve used your free export. Log in (or sign up free) to keep editing and exporting without limits.'
   };
+
+  // ---- Auto-clear on account mismatch ----
+  // Older behavior locked the screen but left the OTHER account's document
+  // fully readable underneath the overlay (page thumbnails, body text) —
+  // fine for stopping edits, not fine for a product handling PAN/Aadhaar/
+  // GST documents, where a locked-but-visible client file on a shared
+  // device is itself the problem. Instead of locking, we now wipe the live
+  // workspace back to empty the moment a mismatch is detected — the same
+  // storage-clear smNewProject() does, just triggered automatically instead
+  // of by a button. Nothing is lost: the project is already saved under its
+  // owner's account and reappears in Saved Sessions the moment that account
+  // logs back in (the list already filters by ownerEmail — see smRenderList
+  // around line 18099). One-shot per page life via sarvarcAutoClearDone so
+  // the several onAuthStateChange/init call sites below can't double-clear
+  // or double-reload each other.
+  window.sarvarcAutoClearDone = false;
+  async function sarvarcAutoClearOwnedContent(ownerEmail, reason) {
+    if (window.sarvarcAutoClearDone) return;
+    window.sarvarcAutoClearDone = true;
+    try {
+      await smClearAllModuleStorageSilently();
+    } catch (e) {
+      console.warn('[Auto-clear] could not clear previous account\'s work', e);
+    }
+    if (typeof toast === 'function') {
+      const masked = (typeof smMaskEmail === 'function') ? smMaskEmail(ownerEmail) : 'another account';
+      const msg = reason === 'wrongAccount'
+        ? 'Workspace cleared — that project belongs to ' + masked + '. Log in as that account and reopen it from Saved Sessions to continue.'
+        : 'Workspace cleared — that project belongs to a signed-in account (' + masked + '). Log back in to reopen it from Saved Sessions.';
+      toast(msg, 'info');
+    }
+    setTimeout(() => location.reload(), 900);
+  }
+
   async function sarvarcRefreshEditLockState() {
+    if (window.sarvarcAutoClearDone) return; // already clearing/reloading — nothing left to check
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
     if (user) {
       // Being logged in is not by itself enough — it must be the SAME
@@ -63162,30 +63205,32 @@ if (document.readyState === 'loading') {
       // else's project live (pulled in earlier under the first account)
       // would silently hand over full edit access to that other person's
       // work, since "a user is signed in" used to be treated as "this
-      // user is allowed to edit this".
+      // user is allowed to edit this". Now, rather than locking that
+      // content in place, we clear it — see sarvarcAutoClearOwnedContent.
       const ownedByOther = await sarvarcCurrentLoadIsOwned(user.email);
-      window.sarvarcEditLockActive = !!ownedByOther;
-      window.sarvarcEditLockReason = ownedByOther ? 'wrongAccount' : null;
-      const sub = document.getElementById('sarvarcEditLockSub');
-      if (sub && window.sarvarcEditLockReason) {
-        let msg = SARVARC_EDITLOCK_MESSAGES[window.sarvarcEditLockReason];
-        if (window.sarvarcEditLockReason === 'wrongAccount' && typeof smMaskEmail === 'function') {
-          msg = 'This project belongs to a different SARVARC account (' + smMaskEmail(ownedByOther) +
-            ') and can\'t be edited from this one. Log back in as that account to keep editing it on this device.';
-        }
-        sub.textContent = msg;
+      if (ownedByOther) {
+        await sarvarcAutoClearOwnedContent(ownedByOther, 'wrongAccount');
+        return;
       }
+      window.sarvarcEditLockActive = false;
+      window.sarvarcEditLockReason = null;
     } else {
-      // Locked out for either of two reasons: the free watermarked export
-      // was already used up (existing behavior), OR — the fix here —
-      // what's currently on screen belongs to someone's account and this
-      // browser is no longer signed in as that person, e.g. logging out
-      // on a shared/office PC after editing a project pulled in that
-      // morning. Same overlay/interceptor mechanism, different message.
-      const ownedAndSignedOut = !!(await sarvarcCurrentLoadIsOwned(null));
+      // Two different lock reasons, handled differently:
+      // - the free watermarked export was already used up → still shows the
+      //   old lock overlay, since that's a monetization gate, not a leaked-
+      //   content problem.
+      // - what's currently on screen belongs to someone's account and this
+      //   browser is no longer signed in as that person (e.g. logging out
+      //   on a shared/office PC) → auto-clear instead of lock, so no one
+      //   else's document sits visible on screen after logout.
+      const ownedAndSignedOut = await sarvarcCurrentLoadIsOwned(null);
+      if (ownedAndSignedOut) {
+        await sarvarcAutoClearOwnedContent(ownedAndSignedOut, 'signedOutOwned');
+        return;
+      }
       const freeExportUsed = sarvarcHasUsedFreeExport();
-      window.sarvarcEditLockActive = freeExportUsed || ownedAndSignedOut;
-      window.sarvarcEditLockReason = ownedAndSignedOut ? 'signedOutOwned' : (freeExportUsed ? 'freeExport' : null);
+      window.sarvarcEditLockActive = freeExportUsed;
+      window.sarvarcEditLockReason = freeExportUsed ? 'freeExport' : null;
       const sub = document.getElementById('sarvarcEditLockSub');
       if (sub && window.sarvarcEditLockReason) sub.textContent = SARVARC_EDITLOCK_MESSAGES[window.sarvarcEditLockReason];
     }
