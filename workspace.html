@@ -63177,6 +63177,16 @@ if (document.readyState === 'loading') {
   // the several onAuthStateChange/init call sites below can't double-clear
   // or double-reload each other.
   window.sarvarcAutoClearDone = false;
+  // Guards against auto-clearing on a false "signed out" reading before
+  // Supabase has actually finished restoring the session on this page load.
+  // getUser() is a network call, not a local read — on a slow connection it
+  // can resolve `user: null` for a moment even though a valid session is
+  // about to come back, purely because the round trip hasn't returned yet.
+  // Wiping someone's own live project because of that timing gap would be
+  // far worse than the lock overlay it replaced, so the clear-on-signed-out
+  // path stays off until the auth client has told us the real state at
+  // least once (see the sarvarcAuthReady flag set below).
+  window.sarvarcAuthReady = false;
   async function sarvarcAutoClearOwnedContent(ownerEmail, reason) {
     if (window.sarvarcAutoClearDone) return;
     window.sarvarcAutoClearDone = true;
@@ -63223,7 +63233,7 @@ if (document.readyState === 'loading') {
       //   browser is no longer signed in as that person (e.g. logging out
       //   on a shared/office PC) → auto-clear instead of lock, so no one
       //   else's document sits visible on screen after logout.
-      const ownedAndSignedOut = await sarvarcCurrentLoadIsOwned(null);
+      const ownedAndSignedOut = window.sarvarcAuthReady && await sarvarcCurrentLoadIsOwned(null);
       if (ownedAndSignedOut) {
         await sarvarcAutoClearOwnedContent(ownedAndSignedOut, 'signedOutOwned');
         return;
@@ -63920,8 +63930,13 @@ if (document.readyState === 'loading') {
   //      fired once Supabase exchanges the token from a "Forgot password"
   //      email link for a session — and opens the set-new-password modal
   //      automatically. ----
-  sarvarcAuthUpdateNavUI();
-  sarvarcUpdateEditLockUI();
+  sarvarcAuthUpdateNavUI().finally(() => {
+    // By the time this first getUser() call has resolved (success or
+    // failure), Supabase has told us the real signed-in state at least
+    // once — safe to trust a "signed out" reading from here on.
+    window.sarvarcAuthReady = true;
+    sarvarcUpdateEditLockUI();
+  });
   (function() {
     // Reuses the already-embedded nav logo image as a faint background
     // watermark in the auth modal (and the welcome overlay below), rather
@@ -63935,6 +63950,7 @@ if (document.readyState === 'loading') {
     if (wwm) wwm.src = src;
   })();
   sarvarcSupabase.auth.onAuthStateChange((event, _session) => {
+    window.sarvarcAuthReady = true;
     sarvarcAuthUpdateNavUI();
     // Keep the edit-lock overlay in sync too — logging in clears it
     // immediately; logging out re-applies it if the free export was
