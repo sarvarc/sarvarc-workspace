@@ -63413,25 +63413,134 @@ if (document.readyState === 'loading') {
   const SARVARC_DRIVE_FOLDER_NAME = 'SARVARC Workspace Files';
   let sarvarcDriveFolderId = null;
 
+  // Google's OAuth Client ID for this app — the SAME client ID configured
+  // under Supabase Dashboard → Authentication → Providers → Google. Needed
+  // only for the silent-refresh fallback below (Google Identity Services);
+  // everything else (sign-in itself, the cached-token fast path) works
+  // without it. Grab it from Supabase's Google provider settings, or from
+  // Google Cloud Console → APIs & Services → Credentials → OAuth 2.0
+  // Client IDs (the "Web client" one). Leave blank to disable the fallback
+  // — the cached-token layer alone already covers the vast majority of
+  // "reload within the hour" cases.
+  const SARVARC_GOOGLE_CLIENT_ID = '1006350110670-rop2aggtfijk7ucuv9t7tktvel1qg42n.apps.googleusercontent.com';
+
+  // ---- provider_token cache -------------------------------------------
+  // Supabase hands back Google's Drive access token (session.provider_token)
+  // ONLY at the moment of the actual OAuth exchange — a page reload restores
+  // the Supabase session fine but drops provider_token, which is what made
+  // the status panel read "Not connected" for someone who never signed out.
+  // Mirroring it into localStorage the instant we do have it means a reload
+  // within the token's ~1hr life still finds a usable one immediately, no
+  // network round trip required.
+  function sarvarcDriveCacheToken(token, expiresInSec) {
+    try {
+      // 2-minute safety buffer so we never hand back something that expires
+      // mid-request.
+      const ttlSec = Math.max(60, (expiresInSec || 3300) - 120);
+      localStorage.setItem('sarvarcDriveProviderToken', token);
+      localStorage.setItem('sarvarcDriveProviderTokenExp', String(Date.now() + ttlSec * 1000));
+    } catch (e) { /* ignore — cache is a pure optimization */ }
+  }
+  function sarvarcDriveReadCachedToken() {
+    try {
+      const tok = localStorage.getItem('sarvarcDriveProviderToken');
+      const exp = parseInt(localStorage.getItem('sarvarcDriveProviderTokenExp') || '0', 10);
+      if (tok && exp && Date.now() < exp) return tok;
+    } catch (e) {}
+    return null;
+  }
+  function sarvarcDriveClearCachedToken() {
+    try {
+      localStorage.removeItem('sarvarcDriveProviderToken');
+      localStorage.removeItem('sarvarcDriveProviderTokenExp');
+    } catch (e) {}
+  }
+
+  // ---- Google Identity Services silent refresh (fallback) --------------
+  // Only reached once the cache above is empty/expired AND Supabase's own
+  // refreshSession() didn't come back with a fresh provider_token. Asks
+  // Google directly, in the same browser, for a new Drive-scoped access
+  // token with prompt:'' — silent if this Google account already granted
+  // the drive.file scope (it did, at original sign-in), so this normally
+  // resolves with no visible UI at all. Best-effort like everything else in
+  // this file: any failure just falls through to "no Drive this time."
+  let sarvarcGisReadyPromise = null;
+  let sarvarcGisTokenClient = null;
+  function sarvarcLoadGis() {
+    if (sarvarcGisReadyPromise) return sarvarcGisReadyPromise;
+    sarvarcGisReadyPromise = new Promise((resolve, reject) => {
+      if (window.google && window.google.accounts && window.google.accounts.oauth2) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true; s.defer = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('GIS_LOAD_FAILED'));
+      document.head.appendChild(s);
+    });
+    return sarvarcGisReadyPromise;
+  }
+  async function sarvarcSilentDriveTokenRefresh(hintEmail) {
+    if (!SARVARC_GOOGLE_CLIENT_ID) return null;
+    try { await sarvarcLoadGis(); } catch (e) { return null; }
+    return new Promise((resolve) => {
+      try {
+        if (!sarvarcGisTokenClient) {
+          sarvarcGisTokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: SARVARC_GOOGLE_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/drive.file',
+            callback: () => {} // overwritten per-call just below
+          });
+        }
+        sarvarcGisTokenClient.callback = (resp) => {
+          if (resp && resp.access_token) {
+            sarvarcDriveCacheToken(resp.access_token, resp.expires_in);
+            resolve(resp.access_token);
+          } else {
+            resolve(null);
+          }
+        };
+        sarvarcGisTokenClient.error_callback = () => resolve(null);
+        sarvarcGisTokenClient.requestAccessToken({ prompt: '', hint: hintEmail || undefined });
+      } catch (e) { resolve(null); }
+    });
+  }
+
   async function sarvarcDriveGetToken() {
     try {
       let { data: { session } } = await sarvarcSupabase.auth.getSession();
-      // provider_token is Google's own access token, handed back by Supabase
-      // right after a Google sign-in. It's short-lived (~1hr) and Supabase
-      // does not automatically hand back a fresh one just because the
-      // Supabase session itself got refreshed. Best-effort mitigation: if
-      // the token looks missing/stale, force one refreshSession() call —
-      // free, no extra auth, and if Supabase happens to have a live
-      // provider_refresh_token for this session it can come back with a
-      // renewed provider_token. If not, this is a harmless no-op and we
-      // fall through to "no Drive this time" exactly as before.
-      if (!session || !session.provider_token) {
-        try {
-          const { data: refreshed } = await sarvarcSupabase.auth.refreshSession();
-          if (refreshed && refreshed.session) session = refreshed.session;
-        } catch (e) { /* ignore — fall back to whatever we already have */ }
+      if (!session) { sarvarcDriveClearCachedToken(); return null; }
+
+      // A fresh provider_token straight from Supabase is always the source
+      // of truth — this is the one moment it's actually handed back, so
+      // cache it now for the next reload.
+      if (session.provider_token) {
+        sarvarcDriveCacheToken(session.provider_token, session.provider_token_expires_at
+          ? (session.provider_token_expires_at - Math.floor(Date.now() / 1000))
+          : 3300);
+        return session.provider_token;
       }
-      return (session && session.provider_token) || null;
+
+      // Fast path: a still-valid token cached from earlier this session.
+      const cached = sarvarcDriveReadCachedToken();
+      if (cached) return cached;
+
+      // provider_token is missing — try Supabase's own refresh once (free,
+      // harmless no-op if it doesn't come back with one).
+      try {
+        const { data: refreshed } = await sarvarcSupabase.auth.refreshSession();
+        if (refreshed && refreshed.session && refreshed.session.provider_token) {
+          sarvarcDriveCacheToken(refreshed.session.provider_token, refreshed.session.provider_token_expires_at
+            ? (refreshed.session.provider_token_expires_at - Math.floor(Date.now() / 1000))
+            : 3300);
+          return refreshed.session.provider_token;
+        }
+      } catch (e) { /* ignore — fall through to the silent-refresh fallback */ }
+
+      // Last resort: ask Google directly for a fresh Drive-scoped token.
+      const silent = await sarvarcSilentDriveTokenRefresh(session.user && session.user.email);
+      if (silent) return silent;
+
+      return null;
     } catch (e) { return null; }
   }
 
@@ -64818,9 +64927,22 @@ if (document.readyState === 'loading') {
     var wwm = document.getElementById('sarvarcWelcomeWatermark');
     if (wwm) wwm.src = src;
   })();
-  sarvarcSupabase.auth.onAuthStateChange((event, _session) => {
+  sarvarcSupabase.auth.onAuthStateChange((event, session) => {
     window.sarvarcAuthReady = true;
     sarvarcAuthUpdateNavUI();
+    // Mirror provider_token into the cache the instant Supabase hands one
+    // back (sign-in, or an occasional refresh that happens to include it) —
+    // don't wait for something to lazily call sarvarcDriveGetToken() first.
+    if (session && session.provider_token && typeof sarvarcDriveCacheToken === 'function') {
+      sarvarcDriveCacheToken(session.provider_token, session.provider_token_expires_at
+        ? (session.provider_token_expires_at - Math.floor(Date.now() / 1000))
+        : 3300);
+    }
+    // Signing out drops Drive access with it — clear the cached token so a
+    // stale one can't make the status panel lie about being connected.
+    if (event === 'SIGNED_OUT' && typeof sarvarcDriveClearCachedToken === 'function') {
+      sarvarcDriveClearCachedToken();
+    }
     // Keep the edit-lock overlay in sync too — logging in clears it
     // immediately; logging out re-applies it if the free export was
     // already used on this browser.
