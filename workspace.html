@@ -13557,16 +13557,23 @@ button.dg-show-chip.active { background:var(--blue); }
   .sm-page-header-icon { width: 36px; height: 36px; }
   .sm-page-desc { max-width: none; }
 
-  /* Sidebar stacks below the session list instead of sitting in a fixed
-     248px sticky column — sticky-while-wrapped is what caused it to
-     float oddly over content on narrow screens. */
-  .sm-layout { gap: 18px; }
-  .sm-side { width: 100%; flex: 1 1 100%; position: static; }
+  /* Sidebar: on desktop this sits pinned to the side so the connection
+     status is always visible at a glance. On mobile there's no side column
+     to pin it to, and with a full session list below, stacking it after
+     the list the naive way buried it past everything else — a 14-session
+     list meant scrolling right past "Connected"/"Not connected" without
+     ever seeing it. `order: -1` puts it first instead, so it's the first
+     thing on screen, same "at a glance" intent as the desktop sidebar.
+     Trust badges hidden here — useful context on first visit, but not
+     worth pushing the actual session list further down every time. */
+  .sm-layout { gap: 14px; }
+  .sm-side { width: 100%; flex: 1 1 100%; position: static; order: -1; gap: 10px; }
+  .sm-trust-panel { display: none; }
 
   /* Search/import/refresh bar: wrap instead of squeezing three buttons
      and a text input onto one unbreakable row, and drop button text so
      the icons stay tappable at full size. */
-  .sm-save-card { padding: 8px; }
+  .sm-save-card { padding: 8px; margin-bottom: 16px; }
   .sm-save-row { flex-wrap: wrap; row-gap: 8px; }
   .sm-save-row input { flex-basis: 100%; padding: 8px 4px; }
   .sm-save-row .sm-session-btn span { display: none; }
@@ -64718,6 +64725,24 @@ if (document.readyState === 'loading') {
     });
     if (error || !data || !data.url) {
       sarvarcAuthShowError((error && error.message) || 'Could not start Google sign-in. Try again.');
+      return;
+    }
+    // On mobile (and in-app browsers), window.open() after an `await` is
+    // unreliable: the "was this a real tap" user-activation window that lets
+    // window.open() bypass popup blockers expires across an await on most
+    // mobile browsers (notably iOS Safari and in-app webviews). That means
+    // window.open() either returns null (fine, caught below) OR returns a
+    // dead/blank window object that never navigates and is never caught —
+    // the popup-watcher then polls a broken window forever and login just
+    // silently never completes. Rather than trying to detect that broken
+    // state after the fact, skip the popup path entirely on mobile and do a
+    // plain full-page redirect, which always works. Auto-resuming a pending
+    // export won't survive a full-page redirect, same tradeoff as the
+    // popup-blocked fallback already accepted below.
+    const sarvarcIsMobileForAuth = sm_isMobileViewport() ||
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (sarvarcIsMobileForAuth) {
+      window.location.href = data.url;
       return;
     }
     const popup = window.open(data.url, 'sarvarcGoogleLogin', 'width=480,height=640');
