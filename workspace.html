@@ -11386,6 +11386,19 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
 
           <aside class="sm-side">
+            <!-- Always-visible Drive connection status — separate from the
+                 transient pull-to-refresh strip above the list, this stays
+                 on screen permanently so the connection state and staleness
+                 of the last sync are always at a glance, not just during an
+                 active pull. Driven by sarvarcSetDriveStatus() (Drive sync
+                 script) + smRenderDriveStatusPanel() (below). -->
+            <div class="sm-drive-status-panel" id="smDriveStatusPanel" data-state="checking">
+              <div class="sm-drive-status-row">
+                <span class="sm-drive-status-dot" id="smDriveStatusDot"></span>
+                <span class="sm-drive-status-text" id="smDriveStatusText">Checking connection…</span>
+              </div>
+              <div class="sm-drive-status-sub" id="smDriveStatusSub">—</div>
+            </div>
             <div class="sm-trust-panel">
               <div class="sm-trust-item">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -13302,6 +13315,50 @@ button.dg-show-chip.active { background:var(--blue); }
 }
 .sm-trust-item:last-child { border-bottom: none; }
 .sm-trust-item svg { flex-shrink: 0; color: var(--text3); }
+
+/* Always-on Drive connection status card. Distinct from the transient
+   .sm-ptr strip: that one only appears during an active pull; this one is
+   always visible so "are we connected, and how stale is the data" is a
+   glance away, not something you have to trigger a refresh to find out. */
+.sm-drive-status-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 5px;
+}
+.sm-drive-status-row { display: flex; align-items: center; gap: 8px; }
+.sm-drive-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text3);
+  transition: background .2s ease, box-shadow .2s ease;
+}
+.sm-drive-status-text { font-size: 12px; font-weight: 600; color: var(--text2); }
+.sm-drive-status-sub { font-size: 10.5px; color: var(--text3); padding-left: 16px; }
+/* checking — neutral, waiting on the first status check */
+.sm-drive-status-panel[data-state="checking"] .sm-drive-status-dot {
+  background: var(--text3); animation: smDriveDotPulse 1.8s ease-in-out infinite;
+}
+/* syncing — active pull in flight */
+.sm-drive-status-panel[data-state="syncing"] .sm-drive-status-dot {
+  background: var(--blue, #00C2FF); box-shadow: 0 0 0 2px rgba(0,194,255,0.12);
+  animation: smDriveDotPulse 1.8s ease-in-out infinite;
+}
+.sm-drive-status-panel[data-state="syncing"] .sm-drive-status-text { color: var(--blue, #00C2FF); }
+/* connected — token good, resting state between syncs */
+.sm-drive-status-panel[data-state="connected"] .sm-drive-status-dot {
+  background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.1);
+}
+.sm-drive-status-panel[data-state="connected"] .sm-drive-status-text { color: #22c55e; }
+/* offline — browser has no network at all */
+.sm-drive-status-panel[data-state="offline"] .sm-drive-status-dot { background: #f59e0b; }
+.sm-drive-status-panel[data-state="offline"] .sm-drive-status-text { color: #f59e0b; }
+/* not_connected — no Google/Drive token; sessions stay local-only */
+.sm-drive-status-panel[data-state="not_connected"] .sm-drive-status-dot { background: var(--text3); }
+/* error — last sync attempt failed, will retry automatically */
+.sm-drive-status-panel[data-state="error"] .sm-drive-status-dot { background: #ef4444; }
+.sm-drive-status-panel[data-state="error"] .sm-drive-status-text { color: #ef4444; }
+/* Subtle breathing opacity, not a blink — same restrained language as the
+   rest of the app's status affordances. No box-shadow animation: the halo
+   stays a fixed, quiet ring rather than pulsing in sync with the dot. */
+@keyframes smDriveDotPulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 .sm-save-card {
   display: flex; margin: 0 0 22px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -13341,29 +13398,18 @@ button.dg-show-chip.active { background:var(--blue); }
 }
 .sm-session-empty svg { opacity: .45; }
 
-/* Premium buffering ring shown in the Saved Sessions list while a Drive
-   pull is in flight (see sarvarcDriveSyncPending) — a soft two-tone arc
-   with a trailing glow, not the flat utility .spinner used elsewhere, so a
-   background sync reads as "something is actively happening" rather than a
-   generic loading state. */
+/* Buffering ring shown in the Saved Sessions list while a Drive pull is in
+   flight (see sarvarcDriveSyncPending). Same flat two-tone border spinner
+   idiom as .da-spinner / .rdx-progress-spinner elsewhere in the app — no
+   glow, no eased spin — so every "loading" affordance in the product reads
+   as one consistent language instead of this one standing out. */
 .sm-drive-sync-ring {
   display: inline-block;
-  position: relative;
-  width: 40px; height: 40px;
-}
-.sm-drive-sync-ring::before,
-.sm-drive-sync-ring::after {
-  content: ''; position: absolute; inset: 0; border-radius: 50%;
-}
-.sm-drive-sync-ring::before {
-  border: 2.5px solid transparent;
+  width: 28px; height: 28px;
+  border: 2.5px solid var(--border2, rgba(127,127,127,0.2));
   border-top-color: var(--blue, #00C2FF);
-  border-right-color: rgba(0,194,255,0.35);
-  filter: drop-shadow(0 0 6px rgba(0,194,255,0.45));
-  animation: smDriveSyncSpin 0.9s cubic-bezier(.5,.05,.5,.95) infinite;
-}
-.sm-drive-sync-ring::after {
-  border: 2.5px solid rgba(0,194,255,0.1);
+  border-radius: 50%;
+  animation: smDriveSyncSpin 0.8s linear infinite;
 }
 @keyframes smDriveSyncSpin { to { transform: rotate(360deg); } }
 .sm-drive-sync-label {
@@ -13498,6 +13544,48 @@ button.dg-show-chip.active { background:var(--blue); }
   display: inline-flex; align-items: center; gap: 5px; transition: all .12s ease; white-space: nowrap;
 }
 .sm-session-unlock-btn:hover { background: rgba(239,68,68,0.14); border-color: #ef4444; }
+
+/* ── Mobile (same 768px shell breakpoint as the rest of the app) ──
+   Saved Sessions previously had no dedicated mobile pass — the fixed
+   248px sticky sidebar, the 128×96 thumbnail, and the icon-only action
+   buttons (26×26px, below the ~44px touch target guideline) all held
+   their desktop sizing on phones. This block reflows the page to a
+   single column and makes Load/Open reachable and tappable without
+   touching desktop layout at all. */
+@media (max-width: 768px) {
+  .sm-page { padding: 16px 14px 40px; }
+  .sm-page-header-icon { width: 36px; height: 36px; }
+  .sm-page-desc { max-width: none; }
+
+  /* Sidebar stacks below the session list instead of sitting in a fixed
+     248px sticky column — sticky-while-wrapped is what caused it to
+     float oddly over content on narrow screens. */
+  .sm-layout { gap: 18px; }
+  .sm-side { width: 100%; flex: 1 1 100%; position: static; }
+
+  /* Search/import/refresh bar: wrap instead of squeezing three buttons
+     and a text input onto one unbreakable row, and drop button text so
+     the icons stay tappable at full size. */
+  .sm-save-card { padding: 8px; }
+  .sm-save-row { flex-wrap: wrap; row-gap: 8px; }
+  .sm-save-row input { flex-basis: 100%; padding: 8px 4px; }
+  .sm-save-row .sm-session-btn span { display: none; }
+  .sm-save-row .sm-session-btn { padding: 8px; }
+  .sm-save-row #smManualRefreshBtn { margin-left: auto; }
+
+  /* Session rows: smaller thumbnail so it doesn't eat the whole row on a
+     narrow screen, and bigger tap targets on every action button —
+     "Load all" most of all, since that's the one that matters most. */
+  .sm-session-row { padding: 10px 12px; gap: 10px; }
+  .sm-session-thumb { width: 64px; height: 48px; }
+  .sm-session-name { flex-basis: 100%; min-width: 0; }
+  .sm-session-divider { display: none; }
+  .sm-mod-row { flex-basis: 100%; }
+  .sm-session-actions { flex-basis: 100%; justify-content: flex-end; gap: 8px; }
+  .sm-session-btn, .sm-session-unlock-btn { padding: 9px 13px; font-size: 12px; }
+  .sm-session-btn.icon-only { padding: 9px 11px; }
+  .sm-session-load-btn { flex: 1 1 auto; justify-content: center; }
+}
 </style>
 
 <!-- ─── CINEMA FULLSCREEN PAGE PREVIEW ─── -->
@@ -18358,7 +18446,11 @@ async function smRunDriveRefresh(opts) {
       return;
     }
     const before = smCountSessionRows();
-    if (typeof sarvarcDriveSyncDown === 'function') await sarvarcDriveSyncDown();
+    // A manual trigger (drag/button, opts.silent falsy) forces a full Drive
+    // listing rather than the delta cursor — a deliberate reconcile safety
+    // net the person can always fall back on. Background/auto passes
+    // (poll, tab-focus, opts.silent true) stay on the efficient delta path.
+    if (typeof sarvarcDriveSyncDown === 'function') await sarvarcDriveSyncDown({ forceFull: !opts.silent });
     const gained = Math.max(0, smCountSessionRows() - before);
     if (gained > 0) {
       smPtrSetState('found', gained);
@@ -18444,6 +18536,109 @@ function smPtrCollapse() {
   ptr.classList.remove('sm-ptr-armed', 'sm-ptr-refreshing', 'sm-ptr-done');
   ptr.style.setProperty('--sm-ptr-h', '0px');
 }
+
+// ─── Always-on Drive connection status panel ───────────────────────────────
+// window.sarvarcDriveStatus is the single source of truth: { state, lastSyncedAt }.
+// sarvarcSetDriveStatus() (called from the Drive sync functions later in the
+// file, plus from smUpdateDriveStatusUI() below) is the only writer; this
+// section just renders whatever it's holding. lastSyncedAt is persisted to
+// localStorage so "last synced 12m ago" survives a reload instead of
+// resetting to "never" every time the page opens.
+window.sarvarcDriveStatus = window.sarvarcDriveStatus || { state: 'checking', lastSyncedAt: null };
+(function smInitDriveStatusFromStorage() {
+  try {
+    const raw = localStorage.getItem('sarvarcDriveLastSyncedAt');
+    const ts = raw ? parseInt(raw, 10) : NaN;
+    if (!isNaN(ts)) window.sarvarcDriveStatus.lastSyncedAt = ts;
+  } catch (e) { /* localStorage unavailable — falls back to "never synced" this session */ }
+})();
+
+function sarvarcSetDriveStatus(state) {
+  window.sarvarcDriveStatus.state = state;
+  if (state === 'connected') {
+    // 'connected' is only ever set right after a real pull actually
+    // completed (see sarvarcDriveSyncDown/sarvarcDriveSyncDownHard) — so
+    // this timestamp genuinely reflects "last time we checked Drive",
+    // not just "last time we confirmed a token exists".
+    window.sarvarcDriveStatus.lastSyncedAt = Date.now();
+    try { localStorage.setItem('sarvarcDriveLastSyncedAt', String(window.sarvarcDriveStatus.lastSyncedAt)); } catch (e) {}
+  }
+  if (typeof smRenderDriveStatusPanel === 'function') smRenderDriveStatusPanel();
+}
+
+function smFormatRelativeTime(ms) {
+  if (!ms) return null;
+  const diff = Math.max(0, Date.now() - ms);
+  const sec = Math.round(diff / 1000);
+  if (sec < 10) return 'just now';
+  if (sec < 60) return sec + 's ago';
+  const min = Math.round(sec / 60);
+  if (min < 60) return min + (min === 1 ? ' min ago' : ' min ago');
+  const hr = Math.round(min / 60);
+  if (hr < 24) return hr + (hr === 1 ? ' hour ago' : ' hours ago');
+  const day = Math.round(hr / 24);
+  return day + (day === 1 ? ' day ago' : ' days ago');
+}
+
+function smRenderDriveStatusPanel() {
+  const panel = document.getElementById('smDriveStatusPanel');
+  const text = document.getElementById('smDriveStatusText');
+  const sub = document.getElementById('smDriveStatusSub');
+  if (!panel || !text || !sub) return;
+  const status = window.sarvarcDriveStatus || { state: 'checking', lastSyncedAt: null };
+  panel.dataset.state = status.state;
+  const labels = {
+    checking: 'Checking connection…',
+    syncing: 'Syncing with Drive…',
+    connected: 'Connected to Drive',
+    offline: 'Offline',
+    not_connected: 'Not connected',
+    error: 'Sync error'
+  };
+  text.textContent = labels[status.state] || 'Checking connection…';
+  const agoText = smFormatRelativeTime(status.lastSyncedAt);
+  if (status.state === 'syncing') {
+    sub.textContent = agoText ? 'Last synced ' + agoText : 'First sync in progress';
+  } else if (status.state === 'offline') {
+    sub.textContent = agoText ? 'Last synced ' + agoText + ' — will resume when back online' : 'Will sync once back online';
+  } else if (status.state === 'not_connected') {
+    sub.textContent = 'Sign in with Google to sync sessions across devices';
+  } else if (status.state === 'error') {
+    sub.textContent = (agoText ? 'Last synced ' + agoText + ' — ' : '') + 'retrying automatically';
+  } else if (agoText) {
+    sub.textContent = 'Last synced ' + agoText;
+  } else {
+    sub.textContent = status.state === 'checking' ? '—' : 'No sync yet';
+  }
+}
+
+// A lightweight check (no data pull) — just "is there a usable Drive token
+// right now" — used to paint the resting state on load, after sign-in/out,
+// and when connectivity changes. The heavier, actual-data sync functions
+// (sarvarcDriveSyncDown / sarvarcDriveSyncDownHard) set 'syncing'/'connected'/
+// 'error' themselves around the real pull.
+async function smUpdateDriveStatusUI() {
+  if (!navigator.onLine) { sarvarcSetDriveStatus('offline'); return; }
+  try {
+    const available = (typeof sarvarcDriveAvailable === 'function') ? await sarvarcDriveAvailable() : false;
+    sarvarcSetDriveStatus(available ? 'connected' : 'not_connected');
+  } catch (e) { sarvarcSetDriveStatus('not_connected'); }
+}
+
+window.addEventListener('online', function () { smUpdateDriveStatusUI(); });
+window.addEventListener('offline', function () { sarvarcSetDriveStatus('offline'); });
+
+// Refreshes the "X ago" text on its own even when nothing new has synced,
+// so "2 min ago" doesn't silently go stale into "2 hours ago" without the
+// panel ever re-rendering.
+setInterval(function () {
+  if (typeof smRenderDriveStatusPanel === 'function') smRenderDriveStatusPanel();
+}, 30000);
+
+// Paint an initial state as soon as this script runs, then resolve the
+// real one once auth/token state is known.
+smRenderDriveStatusPanel();
+smUpdateDriveStatusUI();
 
 // Pointer-based drag ("pull to refresh"), scoped to the Saved Sessions page
 // only, and only armed when the person starts dragging from the very top of
@@ -63308,22 +63503,59 @@ if (document.readyState === 'loading') {
     return data.id;
   }
 
-  // Lists every session file currently in the app's Drive folder — this is
-  // what makes saved files "follow the login": whichever Google account is
+  // Lists session files currently in the app's Drive folder — this is what
+  // makes saved files "follow the login": whichever Google account is
   // signed in, this only ever sees files inside its own Drive.
-  async function sarvarcDriveListSessions() {
+  //
+  // Two scale improvements over a single flat request:
+  //  - Pagination: walks Drive's nextPageToken instead of one pageSize:1000
+  //    request, so this keeps working correctly (not silently truncating)
+  //    for an account with thousands of saved sessions.
+  //  - Delta filtering: pass opts.modifiedAfter (epoch ms) to ask Drive's
+  //    API itself for only files touched since that time, instead of
+  //    listing — and re-checking against IndexedDB — every file every
+  //    time. sarvarcDriveGetLastSyncedCursor() below supplies this from the
+  //    last successful sync automatically for background/auto passes.
+  async function sarvarcDriveListSessions(opts) {
+    opts = opts || {};
     const folderId = await sarvarcDriveEnsureFolder();
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const res = await sarvarcDriveFetch(
-      `files?q=${q}&fields=files(id,appProperties,modifiedTime)&spaces=drive&pageSize=1000`
-    );
-    const data = await res.json();
-    return (data.files || []).map(f => ({
+    let q = `'${folderId}' in parents and trashed=false`;
+    if (opts.modifiedAfter) {
+      q += ` and modifiedTime > '${new Date(opts.modifiedAfter).toISOString()}'`;
+    }
+    const qEncoded = encodeURIComponent(q);
+    let allFiles = [];
+    let pageToken = '';
+    do {
+      const pageParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+      const res = await sarvarcDriveFetch(
+        `files?q=${qEncoded}&fields=nextPageToken,files(id,appProperties,modifiedTime)&spaces=drive&pageSize=200${pageParam}`
+      );
+      const data = await res.json();
+      allFiles = allFiles.concat(data.files || []);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+    return allFiles.map(f => ({
       id: (f.appProperties && f.appProperties.sarvarcSessionId) || f.id,
       driveFileId: f.id,
       name: (f.appProperties && f.appProperties.sarvarcSessionName) || 'Untitled',
       savedAt: new Date(f.modifiedTime).getTime()
     }));
+  }
+
+  // Cursor for delta syncs: the last successful sync time, minus a small
+  // safety buffer for clock skew between this browser and Drive's server
+  // and for a file saved in the same second a sync completes. Reads the
+  // same localStorage key sarvarcSetDriveStatus() writes to (see the Drive
+  // status panel code above), so both features share one source of truth
+  // instead of tracking the timestamp twice.
+  function sarvarcDriveGetLastSyncedCursor() {
+    try {
+      const raw = localStorage.getItem('sarvarcDriveLastSyncedAt');
+      const ts = raw ? parseInt(raw, 10) : NaN;
+      if (isNaN(ts)) return null;
+      return ts - 60000;
+    } catch (e) { return null; }
   }
 
   async function sarvarcDriveLoadSession(driveFileId) {
@@ -63349,15 +63581,29 @@ if (document.readyState === 'loading') {
   // takes, which reads as "my files are gone" even though nothing was lost.
   window.sarvarcDriveSyncPending = false;
 
-  async function sarvarcDriveSyncDown() {
+  // opts.forceFull=true skips the delta cursor and lists the whole Drive
+  // folder — used for an explicit user-triggered refresh (drag/button),
+  // which doubles as a full reconcile safety net against the (unlikely)
+  // case a delta pass ever missed something. Background/auto passes
+  // (login, poll, tab-focus) default to the efficient delta path.
+  async function sarvarcDriveSyncDown(opts) {
+    opts = opts || {};
     // Flip the flag and repaint immediately (still synchronous at this point,
     // before the first await below) so the very first render after sign-in
     // already shows "checking Drive" instead of the empty state.
     window.sarvarcDriveSyncPending = true;
     if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('syncing');
     try {
-      if (!(await sarvarcDriveAvailable())) return;
-      const [driveSessions, db] = await Promise.all([sarvarcDriveListSessions(), idbKvOpen()]);
+      if (!(await sarvarcDriveAvailable())) {
+        if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('not_connected');
+        return;
+      }
+      const cursor = (!opts.forceFull && typeof sarvarcDriveGetLastSyncedCursor === 'function')
+        ? sarvarcDriveGetLastSyncedCursor() : null;
+      const [driveSessions, db] = await Promise.all([
+        sarvarcDriveListSessions({ modifiedAfter: cursor }), idbKvOpen()
+      ]);
       let pulledAny = false;
       for (const ds of driveSessions) {
         const existing = await new Promise((resolve) => {
@@ -63387,7 +63633,11 @@ if (document.readyState === 'loading') {
       if (pulledAny && document.getElementById('smSessionList') && typeof smRenderList === 'function') {
         smRenderList();
       }
-    } catch (e) { console.warn('[Drive sync] skipped', e); }
+      if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('connected');
+    } catch (e) {
+      console.warn('[Drive sync] skipped', e);
+      if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('error');
+    }
     finally {
       // Always clear + repaint, whether the pull found new sessions, found
       // none, or failed outright — otherwise "checking Drive" could get
@@ -63419,6 +63669,7 @@ if (document.readyState === 'loading') {
     retryDelayMs = retryDelayMs || 1500;
     window.sarvarcDriveSyncPending = true;
     if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('syncing');
     try {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         let token = null;
@@ -63426,10 +63677,18 @@ if (document.readyState === 'loading') {
         if (!token) {
           if (attempt < maxAttempts) { await new Promise(r => setTimeout(r, retryDelayMs)); continue; }
           console.warn('[Drive sync] no Drive token after ' + maxAttempts + ' attempts — not signed in with Google, or Drive access was declined');
+          if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('not_connected');
           return;
         }
         try {
-          const [driveSessions, db] = await Promise.all([sarvarcDriveListSessions(), idbKvOpen()]);
+          // Delta by default (see sarvarcDriveGetLastSyncedCursor) — a device
+          // that's synced before only asks Drive for what changed since
+          // then. A brand-new device has no cursor yet, so this naturally
+          // falls back to a full listing on its first-ever login sync.
+          const cursor = (typeof sarvarcDriveGetLastSyncedCursor === 'function') ? sarvarcDriveGetLastSyncedCursor() : null;
+          const [driveSessions, db] = await Promise.all([
+            sarvarcDriveListSessions({ modifiedAfter: cursor }), idbKvOpen()
+          ]);
           let pulledAny = false;
           for (const ds of driveSessions) {
             const existing = await new Promise((resolve) => {
@@ -63453,10 +63712,12 @@ if (document.readyState === 'loading') {
           if (pulledAny && document.getElementById('smSessionList') && typeof smRenderList === 'function') {
             smRenderList();
           }
+          if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('connected');
           return; // real pull actually completed — done, no need to retry further
         } catch (e) {
           console.warn('[Drive sync] hard login pull attempt ' + attempt + ' failed', e);
           if (attempt < maxAttempts) { await new Promise(r => setTimeout(r, retryDelayMs)); continue; }
+          if (typeof sarvarcSetDriveStatus === 'function') sarvarcSetDriveStatus('error');
         }
       }
     } finally {
@@ -64568,6 +64829,12 @@ if (document.readyState === 'loading') {
     // signs in or out — otherwise a file could stay shown as unlocked (or
     // locked) until the page happened to be reopened.
     if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    // Re-check the Drive connection status (panel in the Saved Sessions
+    // sidebar) any time auth state changes — signing out correctly flips it
+    // to "Not connected" since the token goes with it; signing back in
+    // (or a token refresh) flips it back once sarvarcDriveAvailable()
+    // confirms a usable token.
+    if (typeof smUpdateDriveStatusUI === 'function') smUpdateDriveStatusUI();
     // Same idea for the Assets library: re-filter by the newly-current
     // account right away, so switching accounts on the same browser can't
     // leave the previous account's images/logos/signatures on screen until
