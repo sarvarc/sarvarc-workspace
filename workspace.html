@@ -7348,7 +7348,28 @@ th:hover .da-th-del { opacity:1; }
   to   { opacity:1; transform:translateY(0) scale(1); }
 }
 .dg-type-dropdown { width:250px; max-height:min(70vh, 520px); overflow-y:auto; overscroll-behavior:contain; }
-.dg-columns-dropdown { width:280px; }
+.dg-columns-dropdown { width:320px; }
+.dg-axis-block { border:1px solid var(--border); border-radius:10px; padding:10px 11px; background:rgba(255,255,255,0.015); }
+.dg-axis-head { display:flex; align-items:center; gap:6px; margin-bottom:7px; }
+.dg-axis-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:5px; font-size:10px; font-weight:800; flex:none; }
+.dg-axis-badge.x { background:rgba(0,194,255,0.15); color:var(--blue); }
+.dg-axis-badge.y { background:rgba(34,197,94,0.15); color:#22C55E; }
+.dg-axis-title { font-size:11.5px; font-weight:800; color:var(--text); }
+.dg-axis-sub { font-size:10px; color:var(--text3); font-weight:500; }
+.dg-axis-swap-row { display:flex; align-items:center; justify-content:center; margin:2px 0; }
+.dg-axis-swap-btn {
+  display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:var(--text2);
+  background:var(--surface); border:1px solid var(--border); border-radius:99px; padding:4px 12px; cursor:pointer; transition:all 0.15s ease;
+}
+.dg-axis-swap-btn:hover { color:var(--blue); border-color:var(--blue); background:rgba(0,194,255,0.08); }
+.dg-axis-swap-btn svg { flex:none; }
+.dg-upload-preview-toggle {
+  display:flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; color:var(--text3);
+  cursor:pointer; margin-bottom:6px; user-select:none;
+}
+.dg-upload-preview-toggle:hover { color:var(--text2); }
+.dg-upload-preview-toggle svg { transition:transform 0.15s ease; }
+.dg-upload-preview-toggle.open svg { transform:rotate(90deg); }
 .dg-type-dropdown .dg-type-grid { grid-template-columns:1fr 1fr; }
 .dg-templates-dropdown { width:230px; }
 .dg-templates-dropdown .dg-template-grid { grid-template-columns:1fr; }
@@ -7388,13 +7409,13 @@ th:hover .da-th-del { opacity:1; }
 .dg-upload-zone-text { font-size:11px; line-height:1.5; color:var(--text2); font-weight:600; }
 .dg-upload-file-name { font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:8px; word-break:break-all; }
 .dg-upload-field-label { display:block; font-size:10.5px; font-weight:700; color:var(--text2); margin-bottom:4px; }
-.dg-upload-select { width:100%; padding:7px 9px; border-radius:8px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:12px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
+.dg-upload-select { width:100%; padding:9px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:12.5px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
 .dg-upload-select:focus { border-color:var(--blue); }
 .dg-upload-hint { font-size:10.5px; color:var(--text3); margin-top:8px; line-height:1.5; }
 .dg-upload-value-checks { display:flex; flex-direction:column; gap:2px; max-height:150px; overflow-y:auto; padding:6px 8px; border-radius:8px; background:var(--surface); border:1px solid var(--border); }
-.dg-upload-value-check { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text); cursor:pointer; padding:3px 2px; border-radius:5px; }
+.dg-upload-value-check { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); cursor:pointer; padding:6px 5px; border-radius:6px; }
 .dg-upload-value-check:hover { background:var(--surface2, rgba(0,194,255,0.06)); }
-.dg-upload-value-check input { cursor:pointer; margin:0; flex:none; }
+.dg-upload-value-check input { cursor:pointer; margin:0; flex:none; width:15px; height:15px; }
 .dg-upload-value-swatch { width:10px; height:10px; border-radius:3px; flex:none; }
 .dg-upload-value-check-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .dg-upload-value-flag { flex:none; font-size:10px; color:var(--text3); white-space:nowrap; }
@@ -7418,6 +7439,23 @@ th:hover .da-th-del { opacity:1; }
   background:var(--surface); border:1px solid var(--border); border-radius:9px;
 }
 .dg-columns-group { position:relative; display:flex; }
+/* Always-visible quick X/Y axis pickers — sit directly in the toolbar so switching which
+   column drives each axis is a single click, no need to open the Columns dropdown first.
+   They stay in sync with (and simply drive) the fuller X-Axis select / Y-Axis checklist
+   inside the Columns panel, which remains for multi-column Y comparisons and the raw
+   data preview. */
+.dg-quick-axis-group { display:flex; align-items:center; gap:4px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:9px; }
+.dg-quick-axis-chip { display:flex; align-items:center; gap:5px; padding:2px 8px 2px 4px; border-radius:6px; }
+.dg-quick-axis-badge { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:5px; font-size:9px; font-weight:800; flex:none; }
+.dg-quick-axis-badge.x { background:rgba(0,194,255,0.15); color:var(--blue); }
+.dg-quick-axis-badge.y { background:rgba(34,197,94,0.15); color:#22C55E; }
+.dg-quick-axis-select { max-width:128px; padding:3px 5px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text); font-size:11px; font-weight:600; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
+.dg-quick-axis-select:hover { border-color:var(--blue); }
+.dg-quick-axis-select:focus { border-color:var(--blue); }
+.dg-quick-axis-select:disabled { opacity:0.45; cursor:not-allowed; }
+.dg-quick-axis-group.dg-chip-disabled { opacity:0.4; pointer-events:none; }
+/* Same quick pickers, restyled to sit in the Map Explorer modal header (dark toolbar). */
+.dg-mapx-head .dg-quick-axis-group { background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.12); }
 .dg-show-chip {
   display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px;
   font-size:11.5px; font-weight:600; color:var(--text2); cursor:pointer; user-select:none;
@@ -7429,6 +7467,11 @@ th:hover .da-th-del { opacity:1; }
 .dg-show-chip input { display:none; }
 button.dg-show-chip { border:none; background:none; font-family:inherit; }
 button.dg-show-chip.active { background:var(--blue); }
+/* Applied when a toggle/group doesn't apply to the currently-selected chart type (e.g.
+   Trend on a Pie chart, or Axes on a Donut chart) — reads as inert instead of silently
+   doing nothing when clicked. */
+.dg-show-chip.dg-chip-disabled,
+.dg-rbn-dropdown-group.dg-chip-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
 .dg-canvas-holder {
   flex:1; display:flex; align-items:center; justify-content:center;
   background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; min-height:0;
@@ -10634,29 +10677,14 @@ button.dg-show-chip.active { background:var(--blue); }
             <div class="dg-rbn-sep"></div>
 
             <!-- ANNOTATE: manual text placed directly on the canvas, Canva-style.
-                 Kept near the front of the ribbon (not scrolled off to the right)
-                 so the alignment controls are always visible. -->
+                 Kept near the front of the ribbon (not scrolled off to the right).
+                 Select All / Align live only on the floating per-selection toolbar
+                 (dgPtxtToolbar) and Ctrl+A now — the ribbon copies were redundant. -->
             <div class="dg-rbn-group">
               <div class="dg-rbn-group-btns">
                 <button class="dg-rbn-btn" onclick="dgAddText()" title="Add a draggable text label on the chart">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
                   Add Text
-                </button>
-                <button class="dg-rbn-btn" id="dgRbnSelectAllBtn" onclick="dgSelectAllTexts()" title="Select all text labels on the chart (Ctrl+A)">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/><rect x="7.5" y="7.5" width="9" height="9" rx="1"/></svg>
-                  Select All
-                </button>
-                <button class="dg-rbn-btn" id="dgRbnAlignLeftBtn" onclick="dgPtxtSetAlign('left')" title="Align selected text left">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
-                  Left
-                </button>
-                <button class="dg-rbn-btn" id="dgRbnAlignCenterBtn" onclick="dgPtxtSetAlign('center')" title="Align selected text center">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4.5" y1="18" x2="19.5" y2="18"/></svg>
-                  Center
-                </button>
-                <button class="dg-rbn-btn" id="dgRbnAlignRightBtn" onclick="dgPtxtSetAlign('right')" title="Align selected text right">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>
-                  Right
                 </button>
               </div>
               <div class="dg-rbn-group-label">Annotate</div>
@@ -10738,7 +10766,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="dg-rbn-btn-row">
                 <button class="dg-rbn-btn dg-rbn-main" onclick="dgToggleFormatDropdown(event)" title="Number format">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
-                  <span id="dgFormatMainLabel">Plain</span>
+                  <span id="dgFormatMainLabel">Format</span>
                 </button>
                 <button class="dg-rbn-caret" onclick="dgToggleFormatDropdown(event)" title="Number format">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -10747,7 +10775,6 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="dg-dropdown-panel dg-format-dropdown" id="dgFormatDropdown">
                 <div class="dg-panel-title" style="margin-bottom:8px">Number Format</div>
                 <select id="dgFormatSelect" class="dg-format-panel-select" onchange="dgOnFormatChange()">
-                  <option value="plain">Plain (1,234)</option>
                   <option value="currency">Currency (auto \u20b9/$/\u20ac/\u00a3)</option>
                   <option value="percent">Percentage (12%)</option>
                   <option value="abbrev">Abbreviated (1.2K)</option>
@@ -10906,7 +10933,10 @@ button.dg-show-chip.active { background:var(--blue); }
                   Redo
                 </button>
               </div>
-              <div class="dg-rbn-group-label">History</div>
+              <!-- Labeled "Undo/Redo" (not "History") to avoid colliding with the separate
+                   saved-charts History dropdown a few groups over — same word, two different
+                   meanings, previously easy to mix up. -->
+              <div class="dg-rbn-group-label">Undo/Redo</div>
             </div>
 
             <div class="dg-rbn-sep"></div>
@@ -11030,18 +11060,19 @@ button.dg-show-chip.active { background:var(--blue); }
                 <span class="da-meta">Live Preview</span>
                 <div class="dg-preview-toolbar-spacer"></div>
                 <div class="dg-show-toggles" title="Toggle chart overlays">
-                  <div class="dg-columns-group" id="dgColumnsGroup">
-                    <button type="button" class="dg-show-chip" id="dgColumnsChip" onclick="dgToggleColumnsDropdown(event)" title="Manually choose which uploaded column is the label and which is the value">Columns</button>
-                    <div class="dg-dropdown-panel dg-columns-dropdown" id="dgColumnsDropdown">
-                      <div class="dg-panel-title" style="margin-bottom:8px">Choose Data Columns</div>
-                      <div class="dg-upload-file-name" id="dgUploadFileName"></div>
-                      <div class="dg-upload-preview" id="dgUploadPreview"></div>
-                      <label class="dg-upload-field-label">Label column (categories)</label>
-                      <select id="dgLabelColSelect" class="dg-upload-select" onchange="dgOnLabelColSelectChange()"></select>
-                      <label class="dg-upload-field-label" style="margin-top:8px">Value column(s) — pick 2+ to compare</label>
-                      <div class="dg-upload-value-checks" id="dgValueColChecks"></div>
-                      <div class="dg-upload-hint" id="dgUploadHint"></div>
-                    </div>
+                  <div class="dg-quick-axis-group" id="dgQuickAxisGroup" title="Quickly change which column drives each axis">
+                    <label class="dg-quick-axis-chip">
+                      <span class="dg-quick-axis-badge x">X</span>
+                      <select id="dgQuickXSelect" class="dg-quick-axis-select" onchange="dgQuickSetXAxis(this.value)" title="Column plotted on the X-Axis"></select>
+                    </label>
+                    <label class="dg-quick-axis-chip">
+                      <span class="dg-quick-axis-badge y">Y</span>
+                      <select id="dgQuickYSelect" class="dg-quick-axis-select" onchange="dgQuickSetYAxis(this.value)" title="Column plotted on the Y-Axis"></select>
+                    </label>
+                  </div>
+                  <div class="dg-columns-group" id="dgColumnsGroup" style="display:none">
+                    <select id="dgLabelColSelect" onchange="dgOnLabelColSelectChange()"></select>
+                    <div id="dgValueColChecks"></div>
                   </div>
                   <label class="dg-show-chip active" id="dgLegendChip" title="Show legend"><input type="checkbox" id="dgLegendToggle" checked onchange="dgToggleShowChip(this,'dgLegendChip')"> Legend</label>
                   <label class="dg-show-chip active" id="dgValuesChip" title="Show values on chart"><input type="checkbox" id="dgValuesToggle" checked onchange="dgToggleShowChip(this,'dgValuesChip')"> Values</label>
@@ -11055,7 +11086,7 @@ button.dg-show-chip.active { background:var(--blue); }
                     Explore Map
                   </button>
                 </div>
-                <div class="pdfed-rbn-btn pdfed-hand-btn annot-active dg-hand-indicator" style="cursor:default" title="Hand tool: click and drag the canvas to pan">
+                <div class="pdfed-rbn-btn pdfed-hand-btn annot-active dg-hand-indicator" style="cursor:default;display:none" title="Hand tool: click and drag the canvas to pan">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
                   Hand
                 </div>
@@ -11154,6 +11185,16 @@ button.dg-show-chip.active { background:var(--blue); }
                         <button type="button" class="dg-mapx-close" onclick="dgCloseMapExplorer()" title="Close">×</button>
                       </div>
                       <div class="dg-mapx-head" style="flex-wrap:wrap;">
+                        <div class="dg-quick-axis-group" id="dgMapxQuickAxisGroup" title="Quickly change which column locates each point and which column sizes/colours it">
+                          <label class="dg-quick-axis-chip">
+                            <span class="dg-quick-axis-badge x">Loc</span>
+                            <select id="dgMapxQuickXSelect" class="dg-quick-axis-select" onchange="dgQuickSetXAxis(this.value)" title="Column with the country/region names to plot"></select>
+                          </label>
+                          <label class="dg-quick-axis-chip">
+                            <span class="dg-quick-axis-badge y">Val</span>
+                            <select id="dgMapxQuickYSelect" class="dg-quick-axis-select" onchange="dgQuickSetYAxis(this.value)" title="Numeric column that sizes/colours each marker"></select>
+                          </label>
+                        </div>
                         <button type="button" class="dg-mapx-btn" id="dgMapxStatesToggle" onclick="dgMapxToggleStates()" title="Colour in state/province-level boundaries for one country, matched against your data by name">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
                           States/Provinces
@@ -11303,6 +11344,23 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
         </div>
 
+        <!-- Pull-to-refresh strip. Sits collapsed (height 0) above the list by
+             default. Dragging down from the top of this page — mouse or touch,
+             via Pointer Events — stretches it open and, past the threshold,
+             re-runs the same Drive pull used on login (sarvarcDriveSyncDown),
+             so a file that landed in Drive from another device/tab shows up
+             without waiting for the next full sign-in. Purely a manual nudge
+             for the existing sync — see smInitSessionsPullToRefresh below. -->
+        <div class="sm-ptr" id="smPtr" aria-live="polite">
+          <div class="sm-ptr-inner">
+            <span class="sm-ptr-arrow" id="smPtrArrow">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+            </span>
+            <span class="sm-ptr-ring" id="smPtrRing"></span>
+            <span class="sm-ptr-label" id="smPtrLabel">Pull down to check Drive</span>
+          </div>
+        </div>
+
         <div class="sm-layout">
           <div class="sm-main">
             <div class="sm-save-card" id="smSearchCard">
@@ -11319,6 +11377,9 @@ button.dg-show-chip.active { background:var(--blue); }
                   <span>Import</span>
                 </button>
                 <input type="file" id="smImportFileInput" accept="application/json,.json" style="display:none" onchange="smOnImportFileChosen(this)">
+                <button class="sm-session-btn icon-only" id="smManualRefreshBtn" title="Check Drive for sessions saved from another device" onclick="smManualRefresh()" style="flex-shrink:0">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
               </div>
             </div>
             <div class="sm-session-list" id="smSessionList"></div>
@@ -13181,6 +13242,51 @@ button.dg-show-chip.active { background:var(--blue); }
   transition: opacity .5s ease, max-height .6s ease, margin-top .6s ease;
 }
 .sm-page-desc.sm-desc-hidden { opacity: 0; max-height: 0; margin-top: 0; pointer-events: none; }
+/* Pull-to-refresh strip above the session list. Collapsed to 0 height at
+   rest; JS drives --sm-ptr-h (drag distance, capped) and toggles state
+   classes as the gesture progresses. Threshold state gets a filled arrow
+   background so "release now" is obvious before the person lets go. */
+.sm-ptr {
+  --sm-ptr-h: 0px;
+  height: var(--sm-ptr-h);
+  overflow: hidden;
+  display: flex; align-items: flex-end; justify-content: center;
+  touch-action: pan-x pan-down;
+}
+.sm-ptr.sm-ptr-animate { transition: height .25s cubic-bezier(.2,.8,.2,1); }
+.sm-ptr-inner {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px;
+  opacity: min(1, calc(var(--sm-ptr-h) / 34px));
+}
+.sm-ptr-arrow {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--border2, var(--border));
+  color: var(--text3);
+  transform: rotate(0deg);
+  transition: transform .18s ease, background .15s ease, border-color .15s ease, color .15s ease;
+}
+.sm-ptr.sm-ptr-armed .sm-ptr-arrow {
+  transform: rotate(180deg);
+  background: var(--pdfed-accent-bg); border-color: var(--pdfed-accent); color: var(--pdfed-accent);
+}
+.sm-ptr.sm-ptr-refreshing .sm-ptr-arrow,
+.sm-ptr.sm-ptr-done .sm-ptr-arrow { display: none; }
+.sm-ptr-ring {
+  display: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(0,194,255,0.18);
+  border-top-color: var(--blue, #00C2FF);
+  flex-shrink: 0;
+}
+.sm-ptr.sm-ptr-refreshing .sm-ptr-ring { display: inline-block; animation: smDriveSyncSpin 0.8s linear infinite; }
+.sm-ptr-label { font-size: 11.5px; font-weight: 600; color: var(--text3); white-space: nowrap; }
+.sm-ptr.sm-ptr-armed .sm-ptr-label,
+.sm-ptr.sm-ptr-refreshing .sm-ptr-label { color: var(--text2); }
+.sm-ptr.sm-ptr-done .sm-ptr-label { color: var(--pdfed-accent); }
+#smManualRefreshBtn svg { transition: transform .5s ease; }
+#smManualRefreshBtn.sm-refreshing svg { animation: smDriveSyncSpin 0.8s linear infinite; }
 .sm-layout { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; margin-top: 22px; }
 .sm-main { flex: 1 1 420px; min-width: 0; }
 .sm-side { width: 248px; flex: 0 0 248px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 20px; }
@@ -13953,6 +14059,10 @@ function navigate(sec) {
   }
   if (sec === 'savedsessions') {
     smAutoHideDesc();
+    if (typeof smOnEnterSavedSessions === 'function') smOnEnterSavedSessions();
+  } else if (typeof smStopAutoPoll === 'function') {
+    // Leaving the page — stop the background Drive poll, nothing there to refresh.
+    smStopAutoPoll();
   }
   if (sec === 'redact' && typeof rdxOnEnter === 'function') {
     rdxOnEnter();
@@ -18207,6 +18317,208 @@ function smApplyFilter() {
     noMatchEl.remove();
   }
 }
+
+// ─── Drive refresh — manual (drag/button) + automatic (polling) ───────────
+// sarvarcDriveSyncDown() (defined later in the Google Drive Sync script)
+// already runs once automatically right after sign-in. Everything here is
+// extra chances to re-run that exact same pull, for the case a session was
+// saved to Drive from another device/tab a few seconds (or minutes) after
+// login and so wasn't there yet for that first automatic pass:
+//   - smManualRefresh(): dragging down or tapping the refresh icon.
+//   - smOnEnterSavedSessions(): one quiet check whenever this page opens,
+//     plus starts a background poll while the person stays on it.
+//   - the poll + the tab-visibility listener below keep checking every
+//     little while so a delayed file can appear on its own, with no action
+//     needed — the auto passes stay quiet unless they actually find
+//     something new, so they never nag if there's nothing to report.
+let smSessionsRefreshing = false;
+let smSessionsPollTimer = null;
+const SM_AUTO_POLL_MS = 20000; // how often to silently re-check while the page is open
+
+function smCountSessionRows() {
+  const listEl = document.getElementById('smSessionList');
+  return listEl ? listEl.querySelectorAll('.sm-session-row').length : 0;
+}
+
+// Shared core for both the manual and automatic paths. silent=true skips
+// the "Checking…"/"Up to date" chatter and only surfaces the strip when new
+// sessions actually showed up — so background polling stays invisible
+// unless there's real news.
+async function smRunDriveRefresh(opts) {
+  opts = opts || {};
+  if (smSessionsRefreshing) return;
+  smSessionsRefreshing = true;
+  const btn = document.getElementById('smManualRefreshBtn');
+  if (btn) { btn.classList.add('sm-refreshing'); if (!opts.silent) btn.disabled = true; }
+  if (!opts.silent) smPtrSetState('refreshing');
+  try {
+    const available = (typeof sarvarcDriveAvailable === 'function') ? await sarvarcDriveAvailable() : false;
+    if (!available) {
+      if (!opts.silent) smPtrSetState('signedout');
+      return;
+    }
+    const before = smCountSessionRows();
+    if (typeof sarvarcDriveSyncDown === 'function') await sarvarcDriveSyncDown();
+    const gained = Math.max(0, smCountSessionRows() - before);
+    if (gained > 0) {
+      smPtrSetState('found', gained);
+    } else if (!opts.silent) {
+      smPtrSetState('done');
+    }
+  } catch (e) {
+    console.warn('[Sessions] Drive refresh failed', e);
+    if (!opts.silent) smPtrSetState('error');
+  } finally {
+    smSessionsRefreshing = false;
+    if (btn) { btn.classList.remove('sm-refreshing'); btn.disabled = false; }
+    setTimeout(smPtrCollapse, opts.silent ? 1600 : 1200);
+  }
+}
+
+function smManualRefresh() {
+  return smRunDriveRefresh({ silent: false });
+}
+
+// Called from navigate() every time the Saved Sessions page opens: one
+// immediate quiet check (catches a file that landed while the person was
+// elsewhere in the app), then a recurring quiet check every
+// SM_AUTO_POLL_MS while they stay on this page. smStopAutoPoll() below
+// clears it the moment they navigate away, so nothing polls in the
+// background once the list isn't even visible.
+function smOnEnterSavedSessions() {
+  smRunDriveRefresh({ silent: true });
+  smStopAutoPoll();
+  smSessionsPollTimer = setInterval(function () {
+    if (document.hidden) return; // tab not visible — wait for the visibility listener instead
+    smRunDriveRefresh({ silent: true });
+  }, SM_AUTO_POLL_MS);
+}
+
+function smStopAutoPoll() {
+  if (smSessionsPollTimer) { clearInterval(smSessionsPollTimer); smSessionsPollTimer = null; }
+}
+
+// Coming back to a backgrounded tab is a common way a "late" Drive file
+// finally gets noticed — re-check right away instead of waiting for the
+// next poll tick.
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden) {
+    const sec = document.getElementById('sec-savedsessions');
+    if (sec && sec.classList.contains('active')) smRunDriveRefresh({ silent: true });
+  }
+});
+
+function smPtrSetState(state, count) {
+  const ptr = document.getElementById('smPtr');
+  const label = document.getElementById('smPtrLabel');
+  if (!ptr || !label) return;
+  ptr.classList.remove('sm-ptr-armed', 'sm-ptr-refreshing', 'sm-ptr-done');
+  ptr.classList.add('sm-ptr-animate');
+  if (state === 'refreshing') {
+    ptr.style.setProperty('--sm-ptr-h', '40px');
+    ptr.classList.add('sm-ptr-refreshing');
+    label.textContent = 'Checking Drive…';
+  } else if (state === 'found') {
+    ptr.style.setProperty('--sm-ptr-h', '40px');
+    ptr.classList.add('sm-ptr-done');
+    label.textContent = count === 1 ? '1 file just arrived from Drive' : count + ' files just arrived from Drive';
+  } else if (state === 'done') {
+    ptr.style.setProperty('--sm-ptr-h', '40px');
+    ptr.classList.add('sm-ptr-done');
+    label.textContent = 'Up to date';
+  } else if (state === 'signedout') {
+    ptr.style.setProperty('--sm-ptr-h', '40px');
+    ptr.classList.add('sm-ptr-done');
+    label.textContent = 'Sign in with Google to sync';
+  } else if (state === 'error') {
+    ptr.style.setProperty('--sm-ptr-h', '40px');
+    ptr.classList.add('sm-ptr-done');
+    label.textContent = "Couldn't reach Drive — try again";
+  }
+}
+
+function smPtrCollapse() {
+  const ptr = document.getElementById('smPtr');
+  if (!ptr) return;
+  ptr.classList.add('sm-ptr-animate');
+  ptr.classList.remove('sm-ptr-armed', 'sm-ptr-refreshing', 'sm-ptr-done');
+  ptr.style.setProperty('--sm-ptr-h', '0px');
+}
+
+// Pointer-based drag ("pull to refresh"), scoped to the Saved Sessions page
+// only, and only armed when the person starts dragging from the very top of
+// the scrolled content (scrollTop <= 0) — so it never fights normal list
+// scrolling, session-name renaming, or any other drag interaction on this
+// page. Uses Pointer Events so mouse-drag and touch-drag both work the same
+// way, matching the pointerdown/pointermove usage already elsewhere in
+// this file.
+(function smInitSessionsPullToRefresh() {
+  const PTR_MAX = 90;      // px of visible drag before the pull maxes out
+  const PTR_THRESHOLD = 62; // px of drag needed to arm a release-to-refresh
+
+  let scrollEl = null;
+  let dragging = false;
+  let armed = false;
+  let startY = 0;
+  let ptr = null;
+
+  function getScrollEl() {
+    return document.querySelector('.main');
+  }
+
+  function sectionActive() {
+    const sec = document.getElementById('sec-savedsessions');
+    return !!(sec && sec.classList.contains('active'));
+  }
+
+  function onPointerDown(e) {
+    if (!sectionActive() || smSessionsRefreshing) return;
+    // Ignore drags starting on anything interactive (inputs, buttons,
+    // rename fields, checkboxes) so the gesture never hijacks normal
+    // clicks/edits on the session rows.
+    if (e.target.closest('input, button, textarea, select, a, .sm-session-name')) return;
+    scrollEl = getScrollEl();
+    if (!scrollEl || scrollEl.scrollTop > 0) return;
+    dragging = true;
+    armed = false;
+    startY = e.clientY;
+    ptr = document.getElementById('smPtr');
+    if (ptr) ptr.classList.remove('sm-ptr-animate');
+  }
+
+  function onPointerMove(e) {
+    if (!dragging || !ptr) return;
+    const dy = e.clientY - startY;
+    if (dy <= 0) { ptr.style.setProperty('--sm-ptr-h', '0px'); armed = false; ptr.classList.remove('sm-ptr-armed'); return; }
+    // Prevent the page from also scrolling while actively pulling.
+    if (e.cancelable) e.preventDefault();
+    const dampened = Math.min(PTR_MAX, dy * 0.55);
+    ptr.style.setProperty('--sm-ptr-h', dampened + 'px');
+    const shouldArm = dampened >= PTR_THRESHOLD * 0.55;
+    if (shouldArm !== armed) {
+      armed = shouldArm;
+      ptr.classList.toggle('sm-ptr-armed', armed);
+      const label = document.getElementById('smPtrLabel');
+      if (label) label.textContent = armed ? 'Release to refresh' : 'Pull down to check Drive';
+    }
+  }
+
+  function onPointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    if (armed) {
+      smManualRefresh();
+    } else {
+      smPtrCollapse();
+    }
+    armed = false;
+  }
+
+  document.addEventListener('pointerdown', onPointerDown, { passive: true });
+  document.addEventListener('pointermove', onPointerMove, { passive: false });
+  document.addEventListener('pointerup', onPointerUp, { passive: true });
+  document.addEventListener('pointercancel', onPointerUp, { passive: true });
+})();
 
 function smOnRenameInput(id, value) {
   smRenameSession(id, value).catch(e => console.warn('[Sessions] rename failed', e));
@@ -34599,11 +34911,19 @@ function pdfedActivateImgGhost(dataUrl, kind) {
   // shares, so the ghost automatically tracks zoom in/out with zero drift or
   // resizing, instead of being positioned in screen-px like before.
 
-  // Default size: 35% of the page's raw width, height computed from the
-  // IMAGE'S OWN aspect ratio (not forced square) so the box you see matches
-  // the photo's real shape.
-  const defaultW = Math.round((pc.width || 1000) * 0.35);
-  let defaultH = defaultW;
+  // Default size: fit inside a 35%-of-page-width × 35%-of-page-height box,
+  // preserving the IMAGE'S OWN aspect ratio (not forced square). Bounding
+  // BOTH dimensions (not just width) matters for wide/short sources like
+  // Mermaid flowcharts — those used to get a width-only 35% box with the
+  // height falling straight out of the aspect ratio, which for a wide
+  // flowchart could collapse to a few px tall and look like nothing had
+  // been pushed at all. minGhostSize guarantees it's always big enough to
+  // see and grab, even for extreme aspect ratios.
+  const boxW = Math.round((pc.width || 1000) * 0.35);
+  const boxH = Math.round((pc.height || 1400) * 0.35);
+  const minGhostSize = 90;
+  let defaultW = boxW;
+  let defaultH = boxW;
 
   // Center every newly inserted image on the page instead of dropping it
   // near a corner. Corner placement (the previous fix's 40,40-based
@@ -34648,8 +34968,18 @@ function pdfedActivateImgGhost(dataUrl, kind) {
   const probe = new Image();
   probe.onload = () => {
     if (probe.naturalWidth && probe.naturalHeight) {
-      defaultH = Math.round(defaultW * (probe.naturalHeight / probe.naturalWidth));
-      pdfedAnnotState.imgInsert.h = defaultH;
+      const ar = probe.naturalWidth / probe.naturalHeight;
+      let w = boxW, h = Math.round(boxW / ar);
+      if (h > boxH) { h = boxH; w = Math.round(boxH * ar); }
+      w = Math.max(w, minGhostSize);
+      h = Math.max(h, minGhostSize);
+      // Re-center on the same point the width-only default was centered on,
+      // so fixing the size doesn't also shove the box off to one side.
+      const it = pdfedAnnotState.imgInsert;
+      const cx = it.x + it.w / 2, cy = it.y + it.h / 2;
+      it.w = w; it.h = h;
+      it.x = Math.max(20, Math.min(cx - w / 2, pageW - w - 20));
+      it.y = Math.max(20, Math.min(cy - h / 2, pageH - h - 20));
       applyGhostRect();
     }
   };
@@ -54919,6 +55249,7 @@ function dgSetDgMode(mode) {
   const exploreChip = document.getElementById('dgExploreMapChip');
   if (exploreChip) exploreChip.style.display = isMap ? '' : 'none';
   if (!isMap) dgCloseMapExplorer();
+  dgSyncRibbonForType();
 
   const chartTab = document.getElementById('dgModeChartTab');
   const flowTab = document.getElementById('dgModeFlowTab');
@@ -54966,6 +55297,55 @@ function dgHologramOn() {
 
 const DG_3D_TYPES = ['3d-bar', '3d-grouped-bar', '3d-histogram', '3d-scatter', '3d-boxplot'];
 function dgIs3DType(type) { return DG_3D_TYPES.indexOf(type) !== -1; }
+
+// Which chart types each ribbon control actually affects, mirrored from the drawing code:
+// - DG_AXES_TYPES matches axisChartTypes in dgDrawChart (only these ever get an x/y axis title).
+// - DG_RADIUS_TYPES matches every place opts.barRadius is read (dgDrawBars/GroupedBars/Waterfall/Pareto).
+// - DG_TREND_TYPES matches every `if (opts.trendline...)` guard, 2D and 3D.
+// - DG_GROWTH_TYPES matches growthEligible in dgDrawChart (single-series, non-grouped only).
+// - Hologram applies to every 3D type (DG_3D_TYPES) and nothing else.
+const DG_AXES_TYPES = ['bar', 'stacked', 'waterfall', 'pareto', 'line', 'area', 'grouped'];
+const DG_RADIUS_TYPES = ['bar', 'stacked', 'grouped', 'waterfall', 'pareto'];
+const DG_TREND_TYPES = ['bar', 'line', 'area', '3d-bar', '3d-histogram', '3d-scatter'];
+const DG_GROWTH_TYPES = ['bar', 'line', 'area'];
+
+// Grays out (and disables) ribbon controls that don't apply to the currently-selected chart
+// type — e.g. Trend/Growth %/Hologram/Radius/Axes on a Pie or Funnel chart — instead of
+// leaving them fully clickable while doing nothing when toggled. Map mode already hides this
+// whole set of controls via dgSetDgMode's hideWhenMap/chip-hide logic, so this only needs to
+// run for Chart mode; it's still safe to call unconditionally since a hidden element staying
+// "disabled" underneath has no visible effect.
+function dgSyncRibbonForType() {
+  const type = (typeof dgState !== 'undefined' && dgState) ? dgState.type : null;
+  const setDisabled = (id, enabled) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('dg-chip-disabled', !enabled);
+    el.title = el.title || '';
+    if (!enabled && !el.dataset.dgFullTitle) {
+      el.dataset.dgFullTitle = el.title;
+      el.title = el.title ? el.title + ' — not used by this chart type' : 'Not used by this chart type';
+    } else if (enabled && el.dataset.dgFullTitle) {
+      el.title = el.dataset.dgFullTitle;
+      delete el.dataset.dgFullTitle;
+    }
+  };
+  const setGroupDisabled = (groupId, ddId, enabled) => {
+    const el = document.getElementById(groupId);
+    if (!el) return;
+    el.classList.toggle('dg-chip-disabled', !enabled);
+    if (!enabled) {
+      const dd = ddId && document.getElementById(ddId);
+      if (dd) dd.classList.remove('open');
+    }
+  };
+  if (dgActiveMode === 'map' || !type) return; // map mode's own gating already hides these entirely
+  setDisabled('dgTrendChip', DG_TREND_TYPES.includes(type));
+  setDisabled('dgGrowthChip', DG_GROWTH_TYPES.includes(type));
+  setDisabled('dgHologramChip', dgIs3DType(type));
+  setGroupDisabled('dgRadiusGroup', 'dgRadiusDropdown', DG_RADIUS_TYPES.includes(type));
+  setGroupDisabled('dgAxesGroup', 'dgAxesDropdown', DG_AXES_TYPES.includes(type));
+}
 
 const dg3D = {
   renderer: null, scene: null, camera: null, controls: null,
@@ -55854,6 +56234,7 @@ function dgSetType(type) {
   });
   const dd = document.getElementById('dgTypeDropdown');
   if (dd) dd.classList.remove('open');
+  dgSyncRibbonForType();
   dgRender();
 }
 
@@ -55871,7 +56252,6 @@ const DG_DROPDOWNS = [
   { groupId: 'dgTemplatesGroup', ddId: 'dgTemplatesDropdown' },
   { groupId: 'dgColourGroup',    ddId: 'dgColoursBody' },
   { groupId: 'dgUploadGroup',    ddId: 'dgUploadDropdown' },
-  { groupId: 'dgColumnsGroup',   ddId: 'dgColumnsDropdown' },
   { groupId: 'dgDataGroup',      ddId: 'dgDataDropdown' },
   { groupId: 'dgHistoryGroup',   ddId: 'dgHistoryDropdown' },
   { groupId: 'dgExportGroup',    ddId: 'dgExportDropdown' }
@@ -55965,14 +56345,14 @@ function dgToggleRadiusDropdown(e) {
 }
 // Keeps the collapsed Number Format button's label in sync with the selected option
 // (short word only, so the button stays a fixed compact width like its siblings).
-const DG_FORMAT_SHORT_LABELS = { plain: 'Plain', currency: 'Currency', percent: 'Percent', abbrev: 'Abbrev.' };
+const DG_FORMAT_SHORT_LABELS = { currency: 'Currency', percent: 'Percent', abbrev: 'Abbrev.' };
 // Currency's short label includes whichever symbol is actually active (₹ / $ / € / ...)
 // rather than a fixed word, so the ribbon button reflects what was auto-detected.
 function dgFormatShortLabel(fmtValue) {
   if (fmtValue === 'currency' && typeof dgState !== 'undefined' && dgState.currencySymbol) {
     return `Currency (${dgState.currencySymbol})`;
   }
-  return DG_FORMAT_SHORT_LABELS[fmtValue] || 'Plain';
+  return DG_FORMAT_SHORT_LABELS[fmtValue] || 'Format';
 }
 function dgOnFormatChange() {
   const select = document.getElementById('dgFormatSelect');
@@ -57816,12 +58196,103 @@ function dgRenderValueColChecks(defaultIdx) {
         <span class="dg-upload-value-check-label" title="${daEsc(headers[i])}">${daEsc(headers[i])}</span>${flagNote}
       </label>`;
   }).join('') : `<div class="dg-upload-hint" style="margin:0">No other numeric columns found</div>`;
+  dgSyncQuickAxisSelects();
 }
 
 // Changing the label column can change which columns are even eligible as value columns
 // (a column can't be both), so the checklist needs rebuilding before the chart re-plots.
 function dgOnLabelColSelectChange() {
   dgRenderValueColChecks();
+  dgGenerateChartFromUpload();
+}
+
+// Keeps the always-visible "quick" X/Y pickers (one pair in the main toolbar, one pair
+// duplicated in the Map Explorer modal header) mirroring whatever the fuller Columns panel
+// currently has selected. Called every time dgRenderValueColChecks() runs — i.e. on upload,
+// on label-column change, on swap — so the quick pickers never drift out of sync with the
+// underlying #dgLabelColSelect / #dgValueColChecks they're driving. Cheap to just rebuild
+// both pairs' <option> lists each time rather than diffing; these lists are tiny (one entry
+// per column).
+function dgSyncQuickAxisSelects() {
+  if (!dgUploadParsed) return;
+  const labelSel = document.getElementById('dgLabelColSelect');
+  if (!labelSel) return;
+  const xTargets = [document.getElementById('dgQuickXSelect'), document.getElementById('dgMapxQuickXSelect')];
+  xTargets.forEach(sel => { if (sel) { sel.innerHTML = labelSel.innerHTML; sel.value = labelSel.value; } });
+
+  // Build the Y option list from whatever dgRenderValueColChecks just put in the checklist
+  // (it already excludes the label column and hard-identifier columns), rather than
+  // recomputing eligibility rules a second time here.
+  const checkboxes = Array.from(document.querySelectorAll('#dgValueColChecks input[type="checkbox"]'));
+  const checked = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
+  const yOptionsHtml = checkboxes.map(cb => {
+    const labelText = cb.closest('.dg-upload-value-check')?.querySelector('.dg-upload-value-check-label')?.textContent || cb.value;
+    return `<option value="${cb.value}">${daEsc(labelText)}</option>`;
+  }).join('');
+  const multi = checked.length > 1;
+  const yTargets = [document.getElementById('dgQuickYSelect'), document.getElementById('dgMapxQuickYSelect')];
+  yTargets.forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = yOptionsHtml || '<option value="">—</option>';
+    if (checked.length) sel.value = checked[0];
+    // Multiple Y columns can still be ticked programmatically (e.g. an auto-detected
+    // comparison chart), which the single quick-select can't represent — disable it in
+    // that case rather than silently collapsing the comparison the moment it's touched.
+    sel.disabled = multi || !checkboxes.length;
+    sel.title = multi
+      ? 'Multiple Y-Axis columns are currently plotted for comparison'
+      : 'Column plotted on the Y-Axis';
+  });
+}
+
+// Fires from either quick X-Axis dropdown (toolbar or Map Explorer). Just forwards the
+// choice into the real #dgLabelColSelect and reuses its existing change handler, so every
+// downstream effect (rebuilding eligible Y columns, re-detecting country/date columns,
+// re-rendering the chart, refreshing the Map Explorer markers if it's open) stays identical
+// to picking the same column from the Columns panel.
+function dgQuickSetXAxis(idxStr) {
+  const labelSel = document.getElementById('dgLabelColSelect');
+  if (!labelSel || idxStr === '') return;
+  labelSel.value = idxStr;
+  dgOnLabelColSelectChange();
+}
+
+// Fires from either quick Y-Axis dropdown. Ticks exactly that one value-column checkbox
+// (unticking any others) and re-renders — the quick picker's single-select shape only ever
+// represents "one Y column," matching what it shows once dgSyncQuickAxisSelects disables it
+// during a multi-column comparison.
+function dgQuickSetYAxis(idxStr) {
+  if (idxStr === '') return;
+  const checkboxes = document.querySelectorAll('#dgValueColChecks input[type="checkbox"]');
+  checkboxes.forEach(cb => { cb.checked = (cb.value === idxStr); });
+  dgGenerateChartFromUpload();
+  dgSyncQuickAxisSelects();
+}
+
+// Collapses/expands the raw-data preview table inside the Columns panel — it's useful for a
+// sanity check but takes up a lot of vertical space, so it starts closed and stays out of the
+// way of the two controls (X-Axis, Y-Axis) people actually need on every visit.
+function dgToggleUploadPreview() {
+  const wrap = document.getElementById('dgUploadPreview');
+  const toggle = document.getElementById('dgUploadPreviewToggle');
+  if (!wrap || !toggle) return;
+  const open = wrap.style.display !== 'none';
+  wrap.style.display = open ? 'none' : '';
+  toggle.classList.toggle('open', !open);
+}
+
+// One-click "Swap X / Y": the current X-Axis column becomes a Y-Axis value, and the first
+// ticked Y-Axis value becomes the new X-Axis. Saves re-opening two separate controls to flip
+// which column drives the categories vs. the plotted numbers.
+function dgSwapAxes() {
+  const labelSel = document.getElementById('dgLabelColSelect');
+  if (!labelSel || !dgUploadParsed) return;
+  const checked = dgGetCheckedValueCols();
+  if (!checked.length) { toast('Tick a Y-Axis value first, then swap', 'error'); return; }
+  const oldLabelIdx = parseInt(labelSel.value, 10);
+  const newLabelIdx = checked[0];
+  labelSel.value = String(newLabelIdx);
+  dgRenderValueColChecks(oldLabelIdx);
   dgGenerateChartFromUpload();
 }
 
@@ -59318,7 +59789,7 @@ function dgNiceNum(range, round) {
   return niceFraction * Math.pow(10, exponent);
 }
 
-function dgYScale(vals, area) {
+function dgYScale(vals, area, labelPadPx) {
   const dataMax = Math.max(0, ...vals);
   const dataMin = Math.min(0, ...vals);
   const rawSpan = (dataMax - dataMin) || (Math.abs(dataMax) || 1);
@@ -59330,6 +59801,22 @@ function dgYScale(vals, area) {
   // Guarantee at least a sliver of headroom above the tallest bar/point so it
   // never touches the top edge of the chart.
   if (max - dataMax < step * 0.05) max += step;
+  // When a value label is drawn above the tallest bar/point (opts.values), that nominal
+  // "sliver" isn't necessarily enough — it's sized as a fraction of one nice-number step,
+  // which can shrink to just a few pixels regardless of how tall the label text actually
+  // is. That's what let the top value label get clipped against the chart's title/top
+  // edge. So when the caller tells us how many pixels the label needs (labelPadPx), keep
+  // extending the ceiling by whole steps until there's real, measured room for it.
+  if (labelPadPx) {
+    let guard = 0;
+    while (guard < 8) {
+      const headroomRange = (max - min) || step;
+      const headroomPx = ((max - dataMax) / headroomRange) * area.h;
+      if (headroomPx >= labelPadPx) break;
+      max += step;
+      guard++;
+    }
+  }
   const range = (max - min) || step;
   const tickCount = Math.max(1, Math.round(range / step));
   return { max, min, range, step, tickCount, toY: v => area.y + area.h - ((v - min) / range) * area.h };
@@ -59397,7 +59884,9 @@ function dgDrawAxisLines(ctx, area, scale) {
 
 function dgDrawBars(ctx, rows, area, opts, stacked) {
   const vals = rows.map(r => r.value);
-  const scale = dgYScale(vals, area);
+  // 12px bold value labels sit 8px above the bar top — ~26px of headroom keeps the
+  // tallest bar's label clear of the chart's top edge/title instead of getting clipped.
+  const scale = dgYScale(vals, area, (!stacked && opts.values) ? 26 : 0);
   dgDrawAxisGrid(ctx, area, scale, opts);
 
   if (stacked) {
@@ -59484,7 +59973,9 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
 function dgDrawGroupedBars(ctx, categories, series, area, opts) {
   if (!categories.length || !series.length) return;
   const allVals = series.reduce((acc, s) => acc.concat(s.values), []);
-  const scale = dgYScale(allVals, area);
+  // Smaller 10.5px value labels here, but same idea: guarantee pixel headroom above the
+  // tallest cluster bar so its label doesn't clip the top edge.
+  const scale = dgYScale(allVals, area, opts.values ? 22 : 0);
   dgDrawAxisGrid(ctx, area, scale, opts);
   const zeroY = scale.toY(0);
 
@@ -59628,6 +60119,18 @@ function dgDrawTornadoBars(ctx, categories, series, area, opts) {
   const n = categories.length;
   const maxAbs = Math.max(1, ...sr0.values.map(v => Math.abs(v || 0)), ...sr1.values.map(v => Math.abs(v || 0)));
 
+  // Value labels sit just outside each bar's tip. Scaling bars against the raw max lets the
+  // biggest bar reach all the way to the chart's outer edge, pushing its label off the edge
+  // with no room to render — so when labels are on, measure the widest one and shrink the
+  // bar-length scale so every bar tip (and its label) stays inside the plot.
+  ctx.font = '600 10.5px Inter, sans-serif';
+  let tornadoLabelPad = 0;
+  if (opts.values) {
+    const allVals = [...sr0.values, ...sr1.values];
+    const maxValLabelW = Math.max(0, ...allVals.map(v => ctx.measureText(dgFormatNumber(v, opts.numberFormat)).width));
+    tornadoLabelPad = maxValLabelW + 10;
+  }
+
   // Gutter sizes itself to the widest actual category label (with a sane floor/ceiling)
   // rather than a fixed fraction of the chart width, so longer category names (e.g.
   // "Operations", "Variable 12") don't get clipped while short ones ("HR") don't waste space.
@@ -59635,6 +60138,7 @@ function dgDrawTornadoBars(ctx, categories, series, area, opts) {
   const maxCatW = Math.max(0, ...categories.map(c => ctx.measureText(String(c || '')).width));
   const gutter = Math.min(240, Math.max(90, maxCatW + 28, area.w * 0.2));
   const sideW = (area.w - gutter) / 2;
+  const barMaxW = Math.max(20, sideW - tornadoLabelPad);
   const leftX1 = area.x + sideW;
   const rightX0 = leftX1 + gutter;
   const headerH = 26;
@@ -59662,8 +60166,8 @@ function dgDrawTornadoBars(ctx, categories, series, area, opts) {
 
   categories.forEach((cat, i) => {
     const v0 = sr0.values[i] || 0, v1 = sr1.values[i] || 0;
-    const w0 = (Math.abs(v0) / maxAbs) * sideW;
-    const w1 = (Math.abs(v1) / maxAbs) * sideW;
+    const w0 = (Math.abs(v0) / maxAbs) * barMaxW;
+    const w1 = (Math.abs(v1) / maxAbs) * barMaxW;
     ctx.fillStyle = sr0.color;
     ctx.fillRect(leftX1 - w0, y, w0, barH);
     ctx.fillStyle = sr1.color;
@@ -59715,7 +60219,9 @@ function dgDrawTrendline(ctx, rows, area, xs, scale) {
 
 function dgDrawLine(ctx, rows, area, opts, filled) {
   const vals = rows.map(r => r.value);
-  const scale = dgYScale(vals, area);
+  // Value labels sit 12px above each point (on top of a 5px dot) — reserve enough
+  // headroom that the highest point's label can't run off the top of the chart.
+  const scale = dgYScale(vals, area, opts.values ? 28 : 0);
   dgDrawAxisGrid(ctx, area, scale, opts);
 
   const n = rows.length;
@@ -60041,8 +60547,21 @@ function dgDrawFunnel(ctx, rows, area, opts) {
 function dgDrawRadar(ctx, categories, series, area, opts) {
   if (!categories || !categories.length || !series || !series.length) return;
   const cx = area.x + area.w / 2;
-  const legendRows = Math.ceil(series.length / 3);
-  const legendH = 20 + legendRows * 20;
+  // Work out the legend's real row-wrap (same itemW/perRow math the draw pass below uses)
+  // up front, so the space reserved for it always matches what's actually drawn. The old
+  // fixed "3 per row" assumption disagreed with the dynamic wrap width whenever items were
+  // wider or narrower than that guess, which either crowded the legend against the radar
+  // shape or shrank the radar for legend room it didn't end up needing. Also reserve nothing
+  // at all when the legend is hidden, instead of always carving out its space regardless.
+  const showLegend = opts.legend !== false;
+  let legendItemW = 0, legendRows = 0, legendH = 0;
+  if (showLegend) {
+    ctx.font = '12px Inter, sans-serif';
+    legendItemW = Math.min(160, area.w / Math.min(3, series.length));
+    const legendPerRow = Math.max(1, Math.floor(area.w / legendItemW));
+    legendRows = Math.ceil(series.length / legendPerRow);
+    legendH = 20 + legendRows * 20;
+  }
   const cy = area.y + (area.h - legendH) / 2;
   const R = Math.max(24, Math.min(area.w, area.h - legendH) / 2 - 38);
   const n = categories.length;
@@ -60108,12 +60627,14 @@ function dgDrawRadar(ctx, categories, series, area, opts) {
     });
   });
 
-  // Legend (wraps to multiple rows for 4+ series)
-  if (opts.legend !== false) {
+  // Legend (wraps to multiple rows for 4+ series) — itemW/perRow/rows here are the exact
+  // values already used above to reserve legendH, so the drawn legend can't spill past the
+  // space that was actually carved out for it.
+  if (showLegend) {
     ctx.font = '12px Inter, sans-serif';
-    const itemW = Math.min(160, area.w / Math.min(3, series.length));
+    const itemW = legendItemW;
     const perRow = Math.max(1, Math.floor(area.w / itemW));
-    const rows = Math.ceil(series.length / perRow);
+    const rows = legendRows;
     const legendTop = area.y + area.h - (rows * 20) + 6;
     series.forEach((s, i) => {
       const row = Math.floor(i / perRow);
@@ -60178,7 +60699,10 @@ function dgDrawLegend(ctx, lines, W, y, opts) {
       ctx.fillStyle = '#4b5563';
       ctx.textAlign = 'left';
       const label = it.r.label + (opts.values ? it.valStr : '');
-      ctx.fillText(dgFitLabel(ctx, label, it.w - 14), x + 16, rowY + 10);
+      // it.w already reserves 30px total for the swatch+gaps (see dgLayoutLegend); the
+      // text itself starts at x+16, so it only has it.w-16 to work with before the next
+      // entry's swatch starts — fitting to it.w-14 let long labels bleed 2px into it.
+      ctx.fillText(dgFitLabel(ctx, label, it.w - 16), x + 16, rowY + 10);
       x += it.w;
     });
   });
@@ -60229,9 +60753,10 @@ function dgRender() {
   if (!document.getElementById('dgRows').childElementCount) dgRenderRows();
   if (!document.getElementById('dgPaletteRow').childElementCount) dgRenderPalette();
   dgRenderCustomSwatches();
+  dgSyncRibbonForType();
   if (dgIs3DType(dgState.type)) {
     dgActivate3D(dgState.type);
-    if (!dg3D.renderer) { dgState.type = (dgState.type === '3d-grouped-bar') ? 'grouped' : 'bar'; dgDeactivate3D(); dgDrawChart(); } // 3D engine unavailable, fall back
+    if (!dg3D.renderer) { dgState.type = (dgState.type === '3d-grouped-bar') ? 'grouped' : 'bar'; dgDeactivate3D(); dgDrawChart(); dgSyncRibbonForType(); } // 3D engine unavailable, fall back
   } else {
     dgDeactivate3D();
     dgDrawChart();
@@ -62023,6 +62548,12 @@ window.dgToggleColumnsDropdown = dgToggleColumnsDropdown;
 window.dgHandleFileSelect = dgHandleFileSelect;
 window.dgHandleDrop = dgHandleDrop;
 window.dgOnUploadParsed = dgOnUploadParsed;
+window.dgOnLabelColSelectChange = dgOnLabelColSelectChange;
+window.dgSwapAxes = dgSwapAxes;
+window.dgSyncQuickAxisSelects = dgSyncQuickAxisSelects;
+window.dgQuickSetXAxis = dgQuickSetXAxis;
+window.dgQuickSetYAxis = dgQuickSetYAxis;
+window.dgToggleUploadPreview = dgToggleUploadPreview;
 window.dgGenerateChartFromUpload = dgGenerateChartFromUpload;
 window.dgToggleHistoryDropdown = dgToggleHistoryDropdown;
 window.dgHasExistingChart = dgHasExistingChart;
@@ -62867,6 +63398,73 @@ if (document.readyState === 'loading') {
     }
   }
 
+  // ── Hard login sync ──────────────────────────────────────────────────────
+  // sarvarcDriveSyncDown() above is a single best-effort attempt, which is
+  // fine for a manual refresh or the background poll (both run once the
+  // session is already fully warmed up). Right at login it isn't enough on
+  // its own: Supabase's provider_token (Google's Drive access token) can
+  // take a moment to actually land in the session right after the OAuth
+  // redirect/popup closes, so a single attempt fired the instant the login
+  // event fires can find no token yet and quietly return with nothing —
+  // which is exactly the "my saved files aren't here" case this whole
+  // feature exists to fix. This is the real, forced call: it keeps
+  // window.sarvarcDriveSyncPending set (so the UI stays on "checking
+  // Drive…" instead of flashing empty) and actually retries the full pull —
+  // token fetch and all — several times with a short backoff before it
+  // gives up. Still swallows errors at the end (a genuinely signed-out-of-
+  // Google user shouldn't see a Drive error), but it no longer gives up
+  // after one attempt.
+  async function sarvarcDriveSyncDownHard(maxAttempts, retryDelayMs) {
+    maxAttempts = maxAttempts || 5;
+    retryDelayMs = retryDelayMs || 1500;
+    window.sarvarcDriveSyncPending = true;
+    if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    try {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        let token = null;
+        try { token = await sarvarcDriveGetToken(); } catch (e) { /* fall through to retry */ }
+        if (!token) {
+          if (attempt < maxAttempts) { await new Promise(r => setTimeout(r, retryDelayMs)); continue; }
+          console.warn('[Drive sync] no Drive token after ' + maxAttempts + ' attempts — not signed in with Google, or Drive access was declined');
+          return;
+        }
+        try {
+          const [driveSessions, db] = await Promise.all([sarvarcDriveListSessions(), idbKvOpen()]);
+          let pulledAny = false;
+          for (const ds of driveSessions) {
+            const existing = await new Promise((resolve) => {
+              const tx = db.transaction('sessions', 'readonly');
+              const req = tx.objectStore('sessions').get(ds.id);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+            });
+            if (existing) continue; // already local — local copy wins, no overwrite
+            try {
+              const full = await sarvarcDriveLoadSession(ds.driveFileId);
+              await new Promise((resolve, reject) => {
+                const tx = db.transaction('sessions', 'readwrite');
+                tx.objectStore('sessions').put(full);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+              });
+              pulledAny = true;
+            } catch (e) { console.warn('[Drive sync] could not pull session', ds.id, e); }
+          }
+          if (pulledAny && document.getElementById('smSessionList') && typeof smRenderList === 'function') {
+            smRenderList();
+          }
+          return; // real pull actually completed — done, no need to retry further
+        } catch (e) {
+          console.warn('[Drive sync] hard login pull attempt ' + attempt + ' failed', e);
+          if (attempt < maxAttempts) { await new Promise(r => setTimeout(r, retryDelayMs)); continue; }
+        }
+      }
+    } finally {
+      window.sarvarcDriveSyncPending = false;
+      if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+    }
+  }
+
   // Companion to sarvarcDriveSyncDown: pushes UP any session that's sitting
   // in local IndexedDB but never made it to Drive (rec.driveFileId is
   // missing) — e.g. it was saved while the Google token had expired, so the
@@ -63482,11 +64080,16 @@ if (document.readyState === 'loading') {
     }
     sarvarcShowWelcome(displayName);
     sarvarcRunPendingExportIfAny();
-    // Best-effort: pull down any sessions already saved to this account's
-    // Drive on another device/browser. Runs in the background — never
-    // blocks entering the workspace, and silently no-ops for anyone who
-    // didn't sign in via Google or declined Drive access.
-    if (typeof sarvarcDriveSyncDown === 'function') sarvarcDriveSyncDown();
+    // Real, forced pull from this account's Drive — not fire-and-forget.
+    // Retries several times with a backoff in case Google's Drive token
+    // isn't hydrated in the Supabase session yet in the first instant after
+    // login (see sarvarcDriveSyncDownHard above). Not awaited here so it
+    // never blocks entering the workspace, but it keeps working in the
+    // background until it actually reaches Drive or genuinely runs out of
+    // attempts — silently no-ops only for someone who didn't sign in via
+    // Google or declined Drive access.
+    if (typeof sarvarcDriveSyncDownHard === 'function') sarvarcDriveSyncDownHard();
+    else if (typeof sarvarcDriveSyncDown === 'function') sarvarcDriveSyncDown();
     if (typeof sarvarcDriveSyncUp === 'function') sarvarcDriveSyncUp();
     // Same best-effort pull/push for the Assets library (images/logos/
     // signatures), so it follows a signed-in account across PCs too.
