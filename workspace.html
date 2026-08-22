@@ -6479,6 +6479,16 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-resp-head { display:flex; align-items:center; justify-content:space-between; }
 .mf-resp-head h4 { font-family:'Inter',sans-serif; font-size:13px; font-weight:700; }
 .mf-resp-count { font-size:10.5px; color:var(--text3); }
+.mf-resp-sync-status { font-size:10px; color:var(--text3); margin:-4px 0 2px; display:flex; align-items:center; gap:5px; }
+.mf-resp-sync-status:not(:empty)::before {
+  content:''; width:6px; height:6px; border-radius:50%; background:#1D9E75;
+  box-shadow:0 0 0 0 rgba(29,158,117,0.5); animation:mfSyncPulse 2s infinite;
+}
+@keyframes mfSyncPulse {
+  0% { box-shadow:0 0 0 0 rgba(29,158,117,0.45); }
+  70% { box-shadow:0 0 0 5px rgba(29,158,117,0); }
+  100% { box-shadow:0 0 0 0 rgba(29,158,117,0); }
+}
 .mf-resp-actions-row { display:flex; flex-direction:column; gap:8px; }
 .mf-resp-actions-row button { width:100%; justify-content:center; }
 .mf-resp-sep { height:1px; background:var(--border); margin:2px 0; }
@@ -8963,10 +8973,11 @@ button.dg-show-chip.active { background:var(--blue); }
                 <h4>Responses</h4>
                 <span class="mf-resp-count" id="mfRespCount">0 saved</span>
               </div>
+              <div class="mf-resp-sync-status" id="mfSyncStatus"></div>
               <div class="mf-resp-actions-row">
                 <button class="btn-primary" onclick="mfNewResponseDraft()">+ New Response</button>
                 <button class="btn-secondary" onclick="mfOpenMergeModal()" title="Bulk-fill this form from a Data Arrangement table, one response per row">Generate from Table…</button>
-                <button class="btn-secondary" id="mfSyncBtn" onclick="mfSyncPublishedResponses()" title="Pull in new responses submitted through your published public form link">Sync Online Responses</button>
+                <button class="btn-secondary" id="mfSyncBtn" onclick="mfSyncPublishedResponses()" title="Online responses sync in automatically every 15s — click to check right now">Refresh now</button>
               </div>
               <div class="mf-resp-sep"></div>
               <div class="mf-resp-list" id="mfRespList"></div>
@@ -50819,6 +50830,7 @@ function mfDeleteForm(id) {
 function mfGetCurrentForm() { return mfState.forms.find(f => f.id === mfState.currentId); }
 
 function mfOpenEditor(id) {
+  mfStopAutoSync();
   const f = mfState.forms.find(x => x.id === id);
   if (!f) return;
   if (f.kind === 'canvas') { mfcOpenEditor(id); return; }
@@ -50854,6 +50866,7 @@ function mfOpenEditor(id) {
 }
 
 function mfBackToGallery() {
+  mfStopAutoSync();
   mfState.currentId = null;
   const gv = document.getElementById('mfGalleryView');
   const ev = document.getElementById('mfEditorView');
@@ -51394,7 +51407,14 @@ function mfUpdatePreviewPagination() {
   });
   blocks.sort((a, b) => a.top - b.top);
 
-  const naturalHeight = page.scrollHeight; // real, unpadded content height before any spacers
+  // page.scrollHeight isn't safe to use here: .mf-preview-page keeps a
+  // minimum one-sheet-tall shape via aspect-ratio even when the real
+  // content is much shorter (so a 2-field form still looks like a full
+  // page), and scrollHeight reports that floor, not the actual content
+  // height. Using it directly made short forms with room to spare get
+  // told they need a phantom second page. The true content height is
+  // just how far down the last real field/heading actually reaches.
+  const naturalHeight = blocks.length ? Math.max(...blocks.map(b => b.bottom)) : page.scrollHeight;
   const naturalBreaks = mfComputeSmartBreaks(naturalHeight, sheetH - bottomMarginPx, sheetH - topMarginPx - bottomMarginPx, blocks);
   const totalPages = naturalBreaks.length - 1;
 
@@ -51501,6 +51521,13 @@ async function mfPublishForm() {
       fields: f.fields || [],
       require_identity: !!f.requireIdentity,
       status: 'active',
+      // Branding/appearance — everything filled in while building the form
+      // (logo, watermark, accent color) must carry over to the published,
+      // publicly-shared version, not just live locally in the editor.
+      logo_data_url: f.logoDataUrl || null,
+      watermark_on: f.logoDataUrl ? (f.watermarkOn !== false) : false,
+      watermark_opacity: f.watermarkOpacity == null ? 8 : f.watermarkOpacity,
+      accent_color: f.accentColor || '#0073E6',
     };
 
     let row;
@@ -51549,12 +51576,25 @@ async function mfUnpublishForm() {
   }
 }
 
-async function mfSyncPublishedResponses() {
+// silent=true is used by the background auto-sync poller: it still pulls in
+// new rows and updates the list, but skips the button spinner text and the
+// "no new responses" toast so it doesn't interrupt whatever the user's doing.
+// Manual clicks on the button always run with silent=false so there's still
+// clear feedback that something happened.
+let mfAutoSyncTimer = null;
+let mfAutoSyncTickTimer = null;
+let mfLastSyncedAt = null;
+
+async function mfSyncPublishedResponses(opts) {
+  const silent = !!(opts && opts.silent);
   const f = mfGetCurrentForm();
   if (!f) return;
-  if (!f.publishedId) { toast('Publish this form first to collect online responses', 'info'); return; }
+  if (!f.publishedId) {
+    if (!silent) toast('Publish this form first to collect online responses', 'info');
+    return;
+  }
   const btn = document.getElementById('mfSyncBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  if (!silent && btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
   try {
     const { data: rows, error } = await sarvarcSupabase
       .from('form_responses')
@@ -51580,15 +51620,63 @@ async function mfSyncPublishedResponses() {
       });
       added++;
     }
-    mfPersist();
-    mfRenderResponsesList();
-    toast(added ? `Pulled in ${added} new online response${added > 1 ? 's' : ''}` : 'No new responses yet', 'success');
+    mfLastSyncedAt = Date.now();
+    if (added) {
+      mfPersist();
+      mfRenderResponsesList();
+      // A quiet toast even in silent/background mode is fine — it's the
+      // "no new responses" case that would get noisy on a 15s timer.
+      toast(`${added} new online response${added > 1 ? 's' : ''} came in`, 'success');
+    } else {
+      mfRenderSyncStatus();
+      if (!silent) toast('No new responses yet', 'success');
+    }
   } catch (err) {
     console.error('[Make Forms] sync failed', err);
-    toast('Could not sync responses: ' + (err.message || 'unknown error'), 'error');
+    if (!silent) toast('Could not sync responses: ' + (err.message || 'unknown error'), 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Sync Online Responses'; }
+    if (!silent && btn) { btn.disabled = false; btn.textContent = 'Refresh now'; }
   }
+}
+
+function mfRenderSyncStatus() {
+  const el = document.getElementById('mfSyncStatus');
+  if (!el) return;
+  const f = mfGetCurrentForm();
+  if (!f || !f.publishedId) { el.textContent = ''; return; }
+  el.textContent = mfLastSyncedAt
+    ? `Live · checked ${mfTimeAgo(mfLastSyncedAt)}`
+    : 'Live · checking…';
+}
+
+function mfTimeAgo(ts) {
+  const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  return `${h}h ago`;
+}
+
+// Polls quietly every 15s while the Fill/Responses tab is open on a
+// published form, so new submissions show up without a manual click.
+// Stopped whenever we leave that tab or close the form editor entirely.
+function mfStartAutoSync() {
+  mfStopAutoSync();
+  const f = mfGetCurrentForm();
+  if (!f || !f.publishedId) return;
+  mfSyncPublishedResponses({ silent: true });
+  mfAutoSyncTimer = setInterval(() => {
+    mfSyncPublishedResponses({ silent: true });
+    mfRenderSyncStatus();
+  }, 15000);
+  // Keep the "checked Xs ago" label ticking even between actual syncs.
+  mfAutoSyncTickTimer = setInterval(mfRenderSyncStatus, 5000);
+  mfRenderSyncStatus();
+}
+function mfStopAutoSync() {
+  if (mfAutoSyncTimer) { clearInterval(mfAutoSyncTimer); mfAutoSyncTimer = null; }
+  if (mfAutoSyncTickTimer) { clearInterval(mfAutoSyncTickTimer); mfAutoSyncTickTimer = null; }
 }
 window.mfPublishForm = mfPublishForm;
 window.mfUnpublishForm = mfUnpublishForm;
@@ -51614,7 +51702,8 @@ function mfSwitchMode(mode) {
     else if (mode === 'design') { panel.classList.add('mf-preview-visible'); designSlot.appendChild(panel); }
     else { panel.classList.remove('mf-preview-visible'); holder.appendChild(panel); }
   }
-  if (mode === 'fill') mfRenderResponsesList();
+  if (mode === 'fill') { mfRenderResponsesList(); mfStartAutoSync(); }
+  else { mfStopAutoSync(); }
   mfRenderPreview();
   // The preview panel's effective on-screen width can change when it moves
   // between slots (design vs fill columns have different widths), which
@@ -51741,6 +51830,7 @@ function mfRenderResponsesList() {
   if (!list) return;
   if (count) count.textContent = responses.length + ' saved';
   if (badge) { badge.style.display = responses.length ? 'inline-block' : 'none'; badge.textContent = responses.length; }
+  mfRenderSyncStatus();
   if (!responses.length) { list.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
   list.innerHTML = responses.map(r => `
@@ -51774,17 +51864,23 @@ async function mfExportSingleResponsePDF(id, ev) {
     mfDraftValues = { ...r.values };
     mfRenderPreview();
     await new Promise(res => setTimeout(res, 30));
-    const canvas = await mfRasterizePreviewCanvas();
+    // Reuses the same true-A4 capture + smart-break pagination that the
+    // main Export PDF button uses, instead of screenshotting the whole
+    // (possibly multi-sheet) preview as one oversized custom page.
+    const result = await mfRasterizeFormPageCanvases();
+    if (!result) return;
+    const { slices, mmW, mmH } = result;
     const { jsPDF } = window.jspdf;
-    const imgW = canvas.width, imgH = canvas.height;
-    const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795);
-    const pdf = new jsPDF(Object.assign({ orientation: mmW > mmH ? 'landscape' : 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+    const pdf = new jsPDF(Object.assign({ orientation: 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
+    slices.forEach((slice, i) => {
+      if (i > 0) pdf.addPage([mmW, mmH], 'portrait');
+      pdf.addImage(slice.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+    });
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_response.pdf';
     if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
     if (state && state.stats) { state.stats.exports++; if (typeof updateStats === 'function') updateStats(); }
-    toast('Response exported as PDF' + (password ? ' (password protected)' : ''), 'success');
+    toast('Response exported as PDF' + (password ? ' (password protected)' : '') + (slices.length > 1 ? ` · ${slices.length} pages` : ''), 'success');
   } catch (e) {
     console.error(e);
     toast('Export failed: ' + e.message, 'error');
@@ -51810,14 +51906,20 @@ async function mfExportAllResponsesPDF() {
       mfDraftValues = { ...responses[i].values };
       mfRenderPreview();
       await new Promise(res => setTimeout(res, 30));
-      const canvas = await mfRasterizePreviewCanvas();
-      const imgW = canvas.width, imgH = canvas.height;
-      const mmW = imgW / (2 * 3.7795), mmH = imgH / (2 * 3.7795);
-      const orientation = mmW > mmH ? 'landscape' : 'portrait';
-      if (!pdf) pdf = new jsPDF(Object.assign({ orientation, unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
-      else pdf.addPage([mmW, mmH], orientation);
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+      // Each response can itself span multiple real A4 sheets — reuse the
+      // same slicer the main Export PDF button uses so every sheet, for
+      // every response, comes out as a proper full A4 page with nothing
+      // cut off, instead of one oversized custom page per response.
+      const result = await mfRasterizeFormPageCanvases();
+      if (!result) continue;
+      const { slices, mmW, mmH } = result;
+      slices.forEach((slice) => {
+        if (!pdf) pdf = new jsPDF(Object.assign({ orientation: 'portrait', unit: 'mm', format: [mmW, mmH] }, sarvarcPdfEncryptionOpts(password)));
+        else pdf.addPage([mmW, mmH], 'portrait');
+        pdf.addImage(slice.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH, '', 'FAST');
+      });
     }
+    if (!pdf) { toast('Nothing to export', 'error'); return; }
     const fname = (f.title || 'form').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '_responses.pdf';
     if (window.sarvarcApplyFreeWatermark) sarvarcStampPdfWatermark(pdf);
     pdf.save(sarvarcBrandFilename(fname));
