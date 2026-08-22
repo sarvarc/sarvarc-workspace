@@ -8834,6 +8834,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <button class="btn-secondary" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
               <button class="btn-secondary" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
               <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
+              <button class="btn-pill" id="mfPublishBtn" onclick="mfPublishForm()" title="Publish a shareable public link for this form"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> <span id="mfPublishBtnLabel">Publish</span></button>
               <button class="btn-pill" id="mfPushBtn" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
               <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
               <button class="btn-primary" id="mfExportBtn" onclick="mfToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -8965,6 +8966,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="mf-resp-actions-row">
                 <button class="btn-primary" onclick="mfNewResponseDraft()">+ New Response</button>
                 <button class="btn-secondary" onclick="mfOpenMergeModal()" title="Bulk-fill this form from a Data Arrangement table, one response per row">Generate from Table…</button>
+                <button class="btn-secondary" id="mfSyncBtn" onclick="mfSyncPublishedResponses()" title="Pull in new responses submitted through your published public form link">Sync Online Responses</button>
               </div>
               <div class="mf-resp-sep"></div>
               <div class="mf-resp-list" id="mfRespList"></div>
@@ -51466,6 +51468,131 @@ function mfGetResponses(f) {
   if (!f.responses) f.responses = [];
   return f.responses;
 }
+
+// ─── PUBLISH TO PUBLIC LINK ───
+// Publishing writes/updates a row in the Supabase `forms` table (owned by
+// the logged-in user via RLS) and shows a public link that points at the
+// standalone respondent page (sarvarc-forms.pages.dev), which itself talks
+// to a small Cloudflare Worker for reading the form + accepting submissions.
+// Syncing pulls new rows from `form_responses` (written by that Worker)
+// into this form's local .responses array, tagged source:'online' so they
+// sit alongside hand-filled/local ones without duplicating on repeat sync.
+const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://sarvarc-forms.pages.dev';
+
+function mfSlug() {
+  return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+}
+
+async function mfPublishForm() {
+  const f = mfGetCurrentForm();
+  if (!f) return;
+  const btn = document.getElementById('mfPublishBtn');
+  const label = document.getElementById('mfPublishBtnLabel');
+  if (btn) btn.disabled = true;
+  if (label) label.textContent = f.publishedId ? 'Updating…' : 'Publishing…';
+  try {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    if (!user) { toast('Please log in first to publish a form', 'error'); return; }
+
+    const payload = {
+      owner_id: user.id,
+      title: f.title || 'Untitled Form',
+      description: f.desc || '',
+      fields: f.fields || [],
+      require_identity: !!f.requireIdentity,
+      status: 'active',
+    };
+
+    let row;
+    if (f.publishedId) {
+      const { data, error } = await sarvarcSupabase
+        .from('forms').update(payload).eq('id', f.publishedId)
+        .select('id, share_slug').single();
+      if (error) throw error;
+      row = data;
+    } else {
+      payload.share_slug = mfSlug();
+      const { data, error } = await sarvarcSupabase
+        .from('forms').insert(payload)
+        .select('id, share_slug').single();
+      if (error) throw error;
+      row = data;
+    }
+
+    f.publishedId = row.id;
+    f.shareSlug = row.share_slug;
+    f.publishedAt = Date.now();
+    mfPersist();
+
+    const link = `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${row.share_slug}`;
+    try { await navigator.clipboard.writeText(link); toast('Form published! Link copied to clipboard', 'success'); }
+    catch(e) { toast('Form published!', 'success'); }
+    window.prompt('Your public form link (already copied if your browser allows it):', link);
+  } catch (err) {
+    console.error('[Make Forms] publish failed', err);
+    toast('Could not publish form: ' + (err.message || 'unknown error, check the "forms" table exists'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (label) label.textContent = f.publishedId ? 'Update Link' : 'Publish';
+  }
+}
+
+async function mfUnpublishForm() {
+  const f = mfGetCurrentForm();
+  if (!f || !f.publishedId) { toast('This form has not been published yet', 'info'); return; }
+  try {
+    const { error } = await sarvarcSupabase.from('forms').update({ status: 'paused' }).eq('id', f.publishedId);
+    if (error) throw error;
+    toast('Form is no longer accepting public responses', 'success');
+  } catch (err) {
+    toast('Could not unpublish: ' + (err.message || 'unknown error'), 'error');
+  }
+}
+
+async function mfSyncPublishedResponses() {
+  const f = mfGetCurrentForm();
+  if (!f) return;
+  if (!f.publishedId) { toast('Publish this form first to collect online responses', 'info'); return; }
+  const btn = document.getElementById('mfSyncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  try {
+    const { data: rows, error } = await sarvarcSupabase
+      .from('form_responses')
+      .select('id, answers, respondent_name, respondent_email, submitted_at')
+      .eq('form_id', f.publishedId)
+      .order('submitted_at', { ascending: true });
+    if (error) throw error;
+
+    const existing = mfGetResponses(f);
+    const existingRemoteIds = new Set(existing.filter(r => r.remoteId).map(r => r.remoteId));
+    let added = 0;
+    for (const row of (rows || [])) {
+      if (existingRemoteIds.has(row.id)) continue;
+      existing.push({
+        id: mfUid('resp'),
+        remoteId: row.id,
+        values: row.answers || {},
+        respondentName: row.respondent_name || '',
+        respondentEmail: row.respondent_email || '',
+        createdAt: new Date(row.submitted_at).getTime(),
+        updatedAt: new Date(row.submitted_at).getTime(),
+        source: 'online',
+      });
+      added++;
+    }
+    mfPersist();
+    mfRenderResponsesList();
+    toast(added ? `Pulled in ${added} new online response${added > 1 ? 's' : ''}` : 'No new responses yet', 'success');
+  } catch (err) {
+    console.error('[Make Forms] sync failed', err);
+    toast('Could not sync responses: ' + (err.message || 'unknown error'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sync Online Responses'; }
+  }
+}
+window.mfPublishForm = mfPublishForm;
+window.mfUnpublishForm = mfUnpublishForm;
+window.mfSyncPublishedResponses = mfSyncPublishedResponses;
 
 // Moves the one real preview-panel node between its off-screen Design home
 // and the visible Fill-mode slot, rather than keeping two copies in sync.
