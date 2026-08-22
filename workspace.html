@@ -3,6 +3,64 @@
 <html lang="en" data-theme="light">
 <head>
 <script>
+  // ── ACCOUNT-SCOPED STORAGE ──────────────────────────────────────────────
+  // Every module (Make Forms, PDF Editor, Data Arrangement, Diagrams,
+  // Redact, Extract, Sessions, ...) persists its working data to
+  // localStorage under a handful of fixed keys ('sarvarcForms',
+  // 'workspaceDoc_v1', 'sarvarcDaState_v1', etc). localStorage is scoped to
+  // the BROWSER, not to whoever is signed in — so on a shared device,
+  // signing out of one SARVARC account and into another left the previous
+  // person's forms/documents/tables fully visible to the next person.
+  //
+  // This patches every localStorage read/write to transparently namespace
+  // under the currently signed-in Supabase user's id (or "guest" while
+  // signed out), so each account only ever sees its own data on this
+  // device. It has to be the very first script on the page, before any
+  // module touches localStorage — and it determines the signed-in user
+  // synchronously by reading Supabase's own persisted session token
+  // (left un-namespaced, see EXCLUDED) rather than waiting on the async
+  // Supabase client, which is created much later in this file, after most
+  // modules have already restored their state from localStorage.
+  //
+  // When sign-in state actually changes (login / logout / switch account),
+  // sarvarcSupabase.auth.onAuthStateChange (near the Supabase client setup)
+  // reloads the page so every module re-restores from the *new* account's
+  // scoped keys instead of leaving the old account's in-memory state on screen.
+  (function () {
+    var SUPABASE_REF = 'ndysvofxjuonfrgfeswj';
+    var EXCLUDED = { 'sarvarcTheme': true }; // cosmetic, pre-auth, holds no user content
+
+    function isExcluded(key) {
+      if (EXCLUDED[key]) return true;
+      // Supabase's own session token must stay un-namespaced — it's the
+      // thing we read below to figure out *which* namespace to use.
+      return typeof key === 'string' && key.indexOf('sb-') === 0;
+    }
+
+    function readSignedInUid() {
+      try {
+        var raw = window.localStorage.getItem('sb-' + SUPABASE_REF + '-auth-token');
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        var user = (parsed && (parsed.user || (parsed.currentSession && parsed.currentSession.user))) || null;
+        return (user && user.id) || null;
+      } catch (e) { return null; }
+    }
+
+    window.__sarvarcUid = readSignedInUid(); // null = signed out ("guest")
+
+    function scopedKey(key) {
+      if (isExcluded(key)) return key;
+      return 'u_' + (window.__sarvarcUid || 'guest') + '::' + key;
+    }
+
+    var proto = Storage.prototype;
+    var _getItem = proto.getItem, _setItem = proto.setItem, _removeItem = proto.removeItem;
+    proto.getItem = function (key) { return _getItem.call(this, scopedKey(key)); };
+    proto.setItem = function (key, value) { return _setItem.call(this, scopedKey(key), value); };
+    proto.removeItem = function (key) { return _removeItem.call(this, scopedKey(key)); };
+  })();
+
   // Apply the user's last-chosen theme immediately (before CSS/paint) so the
   // page never flashes/reverts to light mode for someone who left it in dark mode.
   (function () {
@@ -6228,17 +6286,46 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-empty-icon { opacity:0.5; }
 .mf-empty p { font-size:13px; color:var(--text2); }
 
-/* editor */
-.mf-editor-top { display:flex; align-items:center; gap:14px; margin-bottom:22px; flex-wrap:wrap; }
-.mf-back-btn { flex-shrink:0; }
-.mf-title-input {
-  flex:1; min-width:200px; background:transparent; border:none; border-bottom:1px solid var(--border);
-  color:var(--text); font-family:'Inter',sans-serif; font-size:20px; font-weight:800;
-  padding:6px 2px; outline:none; transition:border 0.2s;
+/* editor top bar — grouped, premium enterprise toolbar */
+.mf-editor-top {
+  display:flex; align-items:center; justify-content:space-between; gap:18px;
+  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 14px 10px 10px; margin-bottom:20px; flex-wrap:wrap;
+  box-shadow:0 2px 10px rgba(0,0,0,0.10);
 }
-.mf-title-input:focus { border-color:var(--border2); }
-.mf-editor-actions { display:flex; gap:10px; flex-shrink:0; }
-.mf-editor-actions button { padding:9px 16px; font-size:12px; }
+.mf-editor-top-left { display:flex; align-items:center; gap:12px; flex:1; min-width:220px; }
+.mf-editor-top-right { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.mf-toolbar-divider { width:1px; height:24px; background:var(--border); flex-shrink:0; }
+.mf-toolbar-group { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+
+.mf-back-btn {
+  flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+  width:34px; height:34px; padding:0; border-radius:9px;
+  background:transparent; border:1px solid transparent; color:var(--text2);
+}
+.mf-back-btn:hover { background:var(--surface2); border-color:var(--border); color:var(--text); }
+
+.mf-title-input {
+  flex:1; min-width:160px; background:transparent; border:none;
+  color:var(--text); font-family:'Inter',sans-serif; font-size:17px; font-weight:800;
+  padding:6px 4px; outline:none; border-radius:7px; transition:background 0.2s;
+}
+.mf-title-input:hover { background:var(--surface); }
+.mf-title-input:focus { background:var(--surface2); }
+
+.mf-editor-actions { display:flex; align-items:center; gap:10px; flex-shrink:0; flex-wrap:wrap; }
+.mf-editor-actions button { padding:9px 15px; font-size:12px; height:34px; }
+.mf-icon-btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:34px; height:34px; padding:0 !important; border-radius:9px;
+  background:var(--surface); color:var(--text2); border:1px solid var(--border);
+  cursor:pointer; transition:all 0.15s;
+}
+.mf-icon-btn:hover { background:var(--surface2); border-color:var(--border2); color:var(--text); }
+.mf-icon-btn:disabled { opacity:0.35; cursor:default; pointer-events:none; }
+.mf-editor-actions .btn-pill { background:rgba(0,194,255,0.07); border-color:var(--border2); color:var(--text); }
+.mf-editor-actions .btn-pill:hover { background:rgba(0,194,255,0.14); }
+.mf-editor-actions .btn-secondary { background:var(--surface); }
 
 .mf-editor-body { display:grid; grid-template-columns: 1fr 380px; gap:28px; align-items:start; }
 @media (max-width: 980px) { .mf-editor-body { grid-template-columns: 1fr; gap:20px; } }
@@ -8838,38 +8925,52 @@ button.dg-show-chip.active { background:var(--blue); }
         <!-- EDITOR VIEW -->
         <div id="mfEditorView" style="display:none">
           <div class="mf-editor-top">
-            <button class="btn-secondary mf-back-btn" onclick="mfBackToGallery()">← Back to Forms</button>
-            <input type="text" id="mfFormTitleInput" class="mf-title-input" placeholder="Untitled Form" oninput="mfUpdateTitle(this.value)">
+            <div class="mf-editor-top-left">
+              <button class="mf-icon-btn mf-back-btn" onclick="mfBackToGallery()" title="Back to Forms"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+              <div class="mf-toolbar-divider"></div>
+              <input type="text" id="mfFormTitleInput" class="mf-title-input" placeholder="Untitled Form" oninput="mfUpdateTitle(this.value)">
+            </div>
             <div class="mf-editor-actions">
-              <button class="btn-secondary" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
-              <button class="btn-secondary" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
-              <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form">Duplicate</button>
-              <button class="btn-pill" id="mfPublishBtn" onclick="mfPublishForm()" title="Publish a shareable public link for this form"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> <span id="mfPublishBtnLabel">Publish</span></button>
-              <button class="btn-pill" id="mfPushBtn" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
-              <button class="btn-secondary" onclick="mfPrintForm()">Print</button>
-              <button class="btn-primary" id="mfExportBtn" onclick="mfToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-              <div class="dg-dropdown-panel rdx-export-dropdown" id="mfExportDropdown">
-                <div class="dg-panel-title" style="margin-bottom:8px">Export Form As</div>
-                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('pdf')})">
-                  <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
-                  <span class="pdfed-export-menu-body">
-                    <div class="pdfed-export-menu-title">PDF Document</div>
-                    <div class="pdfed-export-menu-desc">Print-ready, real A4 pages</div>
-                  </span>
-                </div>
-                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('docx')})">
-                  <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
-                  <span class="pdfed-export-menu-body">
-                    <div class="pdfed-export-menu-title">Word Document</div>
-                    <div class="pdfed-export-menu-desc">Each page embedded as a picture</div>
-                  </span>
-                </div>
-                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('image')})">
-                  <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
-                  <span class="pdfed-export-menu-body">
-                    <div class="pdfed-export-menu-title">Image (PNG)</div>
-                    <div class="pdfed-export-menu-desc">One PNG per page, zipped if more than one</div>
-                  </span>
+              <div class="mf-toolbar-group">
+                <button class="mf-icon-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
+                <button class="mf-icon-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
+              </div>
+              <div class="mf-toolbar-divider"></div>
+              <div class="mf-toolbar-group">
+                <button class="btn-secondary" onclick="mfDuplicateCurrent()" title="Duplicate this form"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Duplicate</span></button>
+              </div>
+              <div class="mf-toolbar-divider"></div>
+              <div class="mf-toolbar-group">
+                <button class="btn-pill" id="mfPublishBtn" onclick="mfPublishForm()" title="Publish a shareable public link for this form"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> <span id="mfPublishBtnLabel">Publish</span></button>
+                <button class="btn-pill" id="mfPushBtn" onclick="mfPushToWorkspace()" title="Send this form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
+              </div>
+              <div class="mf-toolbar-divider"></div>
+              <div class="mf-toolbar-group">
+                <button class="btn-secondary" onclick="mfPrintForm()"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</span></button>
+                <button class="btn-primary" id="mfExportBtn" onclick="mfToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+                <div class="dg-dropdown-panel rdx-export-dropdown" id="mfExportDropdown">
+                  <div class="dg-panel-title" style="margin-bottom:8px">Export Form As</div>
+                  <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('pdf')})">
+                    <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <span class="pdfed-export-menu-body">
+                      <div class="pdfed-export-menu-title">PDF Document</div>
+                      <div class="pdfed-export-menu-desc">Print-ready, real A4 pages</div>
+                    </span>
+                  </div>
+                  <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('docx')})">
+                    <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
+                    <span class="pdfed-export-menu-body">
+                      <div class="pdfed-export-menu-title">Word Document</div>
+                      <div class="pdfed-export-menu-desc">Each page embedded as a picture</div>
+                    </span>
+                  </div>
+                  <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfExportAs('image')})">
+                    <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                    <span class="pdfed-export-menu-body">
+                      <div class="pdfed-export-menu-title">Image (PNG)</div>
+                      <div class="pdfed-export-menu-desc">One PNG per page, zipped if more than one</div>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -9022,35 +9123,45 @@ button.dg-show-chip.active { background:var(--blue); }
         <!-- CANVAS EDITOR VIEW -->
         <div id="mfcView" style="display:none">
           <div class="mf-editor-top">
-            <button class="btn-secondary mf-back-btn" onclick="mfcBackToGallery()">← Back to Forms</button>
-            <input type="text" id="mfcTitleInput" class="mf-title-input" placeholder="Untitled Canvas Form" oninput="mfcUpdateTitle(this.value)">
+            <div class="mf-editor-top-left">
+              <button class="mf-icon-btn mf-back-btn" onclick="mfcBackToGallery()" title="Back to Forms"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+              <div class="mf-toolbar-divider"></div>
+              <input type="text" id="mfcTitleInput" class="mf-title-input" placeholder="Untitled Canvas Form" oninput="mfcUpdateTitle(this.value)">
+            </div>
             <div class="mf-editor-actions">
-              
-              <button class="btn-secondary" onclick="mfcPrint()">Print</button>
-              <button class="btn-pill" id="mfcPushBtn" onclick="mfcOpenPushChoiceModal()" title="Send this canvas form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
-              <button class="btn-primary" id="mfcExportBtn" onclick="mfcToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-              <div class="dg-dropdown-panel rdx-export-dropdown" id="mfcExportDropdown">
-                <div class="dg-panel-title" style="margin-bottom:8px">Export Form As</div>
-                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('pdf')})">
-                  <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
-                  <span class="pdfed-export-menu-body">
-                    <div class="pdfed-export-menu-title">PDF Document</div>
-                    <div class="pdfed-export-menu-desc">Print-ready, one page per canvas sheet</div>
-                  </span>
-                </div>
-                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('docx')})">
-                  <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
-                  <span class="pdfed-export-menu-body">
-                    <div class="pdfed-export-menu-title">Word Document</div>
-                    <div class="pdfed-export-menu-desc">Each page embedded as a picture</div>
-                  </span>
-                </div>
-                <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('image')})">
-                  <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
-                  <span class="pdfed-export-menu-body">
-                    <div class="pdfed-export-menu-title">Image (PNG)</div>
-                    <div class="pdfed-export-menu-desc">One PNG per page, zipped if more than one</div>
-                  </span>
+              <div class="mf-toolbar-group">
+                <button class="btn-secondary" onclick="mfcPrint()"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</span></button>
+              </div>
+              <div class="mf-toolbar-divider"></div>
+              <div class="mf-toolbar-group">
+                <button class="btn-pill" id="mfcPushBtn" onclick="mfcOpenPushChoiceModal()" title="Send this canvas form into the PDF Editor workspace as an editable page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg> Push to Workspace</button>
+              </div>
+              <div class="mf-toolbar-divider"></div>
+              <div class="mf-toolbar-group">
+                <button class="btn-primary" id="mfcExportBtn" onclick="mfcToggleExportDropdown(event)"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+                <div class="dg-dropdown-panel rdx-export-dropdown" id="mfcExportDropdown">
+                  <div class="dg-panel-title" style="margin-bottom:8px">Export Form As</div>
+                  <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('pdf')})">
+                    <span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.12);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <span class="pdfed-export-menu-body">
+                      <div class="pdfed-export-menu-title">PDF Document</div>
+                      <div class="pdfed-export-menu-desc">Print-ready, one page per canvas sheet</div>
+                    </span>
+                  </div>
+                  <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('docx')})">
+                    <span class="pdfed-export-menu-icon" style="background:rgba(129,140,248,0.15);color:#818CF8"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg></span>
+                    <span class="pdfed-export-menu-body">
+                      <div class="pdfed-export-menu-title">Word Document</div>
+                      <div class="pdfed-export-menu-desc">Each page embedded as a picture</div>
+                    </span>
+                  </div>
+                  <div class="pdfed-export-menu-item" onclick="sarvarcGateExport(function(){mfcExportAs('image')})">
+                    <span class="pdfed-export-menu-icon" style="background:rgba(244,114,182,0.15);color:#F472B6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                    <span class="pdfed-export-menu-body">
+                      <div class="pdfed-export-menu-title">Image (PNG)</div>
+                      <div class="pdfed-export-menu-desc">One PNG per page, zipped if more than one</div>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -16923,13 +17034,21 @@ const pdfed = {
 // annotations) can easily run well past localStorage's ~5-10MB quota, so it
 // lives in IndexedDB instead. Still entirely on-device — nothing here is ever
 // uploaded anywhere, this just survives a refresh instead of only living in memory.
+//
+// Account-scoped: unlike localStorage (namespaced by the shim at the very
+// top of <head>), IndexedDB databases are looked up by name directly, so
+// the current signed-in id is baked into the database name itself. Without
+// this, Sessions and the Assets Library — which both live here, and both
+// mirror to Google Drive — stayed visible to the next person who signed in
+// on the same browser, exactly like the old unscoped localStorage keys did.
 function idbKvOpen() {
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+    const dbName = 'sarvarcKV__' + (window.__sarvarcUid || 'guest');
     // v3 adds an 'assets' store (see Assets Library below) on top of the v2
     // 'sessions' store — bumping the version runs onupgradeneeded once, which
     // adds whatever's missing without touching anything already saved.
-    const req = indexedDB.open('sarvarcKV', 3);
+    const req = indexedDB.open(dbName, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
@@ -63634,6 +63753,24 @@ if (document.readyState === 'loading') {
   const SARVARC_SUPABASE_URL = 'https://ndysvofxjuonfrgfeswj.supabase.co';
   const SARVARC_SUPABASE_ANON_KEY = 'sb_publishable_wuiOlGoSu1E3_N7m8r8frg_eA6MKlTa';
   const sarvarcSupabase = window.supabase.createClient(SARVARC_SUPABASE_URL, SARVARC_SUPABASE_ANON_KEY);
+
+  // ---- Keep the account-scoped storage namespace (installed at the very
+  // top of <head>, before any module loaded its data) in sync with who's
+  // actually signed in. Every module already restored its state from the
+  // PREVIOUS account's scoped keys at boot, so when the signed-in identity
+  // changes — login, logout, or switching accounts on this same browser —
+  // a reload is the only reliable way to make every module re-restore from
+  // the new (correct) account's data instead of leaving the old account's
+  // forms/documents/tables sitting in memory on screen. This is what
+  // actually stops one person's data from carrying over to the next person
+  // who logs in on the same device. ----
+  sarvarcSupabase.auth.onAuthStateChange(function (event, session) {
+    const newUid = (session && session.user && session.user.id) || null;
+    if (newUid !== window.__sarvarcUid) {
+      window.__sarvarcUid = newUid;
+      location.reload();
+    }
+  });
 
   // ============== GOOGLE DRIVE SYNC (optional, opt-in, additive) ==============
   // Saved sessions already work fully offline via this browser's IndexedDB
