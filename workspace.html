@@ -64068,48 +64068,6 @@ if (document.readyState === 'loading') {
   // which doubles as a full reconcile safety net against the (unlikely)
   // case a delta pass ever missed something. Background/auto passes
   // (login, poll, tab-focus) default to the efficient delta path.
-  // Pulls every Drive session not already present locally into IndexedDB, in
-  // parallel (capped at a small concurrency) instead of one file at a time.
-  // The old version awaited each session's full download sequentially inside
-  // a for-loop — fine for 1-2 sessions, but on an account with a real
-  // backlog (first login on a new device, or after weeks away) that meant
-  // one network round-trip per session, back to back, which is what made
-  // "loading saved sessions" feel slow. Shared by both the best-effort pull
-  // (sarvarcDriveSyncDown) and the retrying login pull
-  // (sarvarcDriveSyncDownHard) so the speed-up applies everywhere sessions
-  // get pulled down.
-  async function sarvarcDrivePullMissingSessions(driveSessions, db) {
-    // Check IndexedDB for all candidates up front, in parallel — local reads
-    // are cheap, so there's no reason to serialize these either.
-    const alreadyLocal = await Promise.all(driveSessions.map(ds => new Promise((resolve) => {
-      const tx = db.transaction('sessions', 'readonly');
-      const req = tx.objectStore('sessions').get(ds.id);
-      req.onsuccess = () => resolve(!!req.result);
-      req.onerror = () => resolve(false);
-    })));
-    const toPull = driveSessions.filter((ds, i) => !alreadyLocal[i]);
-    let pulledAny = false;
-    const CONCURRENCY = 6;
-    let cursor = 0;
-    async function worker() {
-      while (cursor < toPull.length) {
-        const ds = toPull[cursor++];
-        try {
-          const full = await sarvarcDriveLoadSession(ds.driveFileId);
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction('sessions', 'readwrite');
-            tx.objectStore('sessions').put(full);
-            tx.oncomplete = resolve;
-            tx.onerror = () => reject(tx.error);
-          });
-          pulledAny = true;
-        } catch (e) { console.warn('[Drive sync] could not pull session', ds.id, e); }
-      }
-    }
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, toPull.length) }, worker));
-    return pulledAny;
-  }
-
   async function sarvarcDriveSyncDown(opts) {
     opts = opts || {};
     // Flip the flag and repaint immediately (still synchronous at this point,
@@ -64128,7 +64086,26 @@ if (document.readyState === 'loading') {
       const [driveSessions, db] = await Promise.all([
         sarvarcDriveListSessions({ modifiedAfter: cursor }), idbKvOpen()
       ]);
-      const pulledAny = await sarvarcDrivePullMissingSessions(driveSessions, db);
+      let pulledAny = false;
+      for (const ds of driveSessions) {
+        const existing = await new Promise((resolve) => {
+          const tx = db.transaction('sessions', 'readonly');
+          const req = tx.objectStore('sessions').get(ds.id);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+        if (existing) continue; // already local — local copy wins, no overwrite
+        try {
+          const full = await sarvarcDriveLoadSession(ds.driveFileId);
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction('sessions', 'readwrite');
+            tx.objectStore('sessions').put(full);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+          });
+          pulledAny = true;
+        } catch (e) { console.warn('[Drive sync] could not pull session', ds.id, e); }
+      }
       // The SIGNED_IN auth event already re-renders the Saved Sessions list
       // once, but that happens before this fire-and-forget pull has finished
       // — so on a fresh device (nothing local yet), that first render shows
@@ -64194,7 +64171,26 @@ if (document.readyState === 'loading') {
           const [driveSessions, db] = await Promise.all([
             sarvarcDriveListSessions({ modifiedAfter: cursor }), idbKvOpen()
           ]);
-          const pulledAny = await sarvarcDrivePullMissingSessions(driveSessions, db);
+          let pulledAny = false;
+          for (const ds of driveSessions) {
+            const existing = await new Promise((resolve) => {
+              const tx = db.transaction('sessions', 'readonly');
+              const req = tx.objectStore('sessions').get(ds.id);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+            });
+            if (existing) continue; // already local — local copy wins, no overwrite
+            try {
+              const full = await sarvarcDriveLoadSession(ds.driveFileId);
+              await new Promise((resolve, reject) => {
+                const tx = db.transaction('sessions', 'readwrite');
+                tx.objectStore('sessions').put(full);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+              });
+              pulledAny = true;
+            } catch (e) { console.warn('[Drive sync] could not pull session', ds.id, e); }
+          }
           if (pulledAny && document.getElementById('smSessionList') && typeof smRenderList === 'function') {
             smRenderList();
           }
