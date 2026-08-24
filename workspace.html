@@ -194,6 +194,7 @@
      vs. the app's neon --blue/--cyan brand color, so stat cards, icons and the
      takeaway callout read as calm analyst-report chrome rather than a flashy UI accent. */
   --dg-ink: #4E7DA6;
+  --dg-ink-rgb: 78, 125, 166;
   --dg-ink-soft: rgba(78,125,166,0.12);
   --text: #E8F4FF;
   --text2: #7BA8C4;
@@ -292,6 +293,7 @@
   --shadow-nav: 0 1px 2px rgba(16,40,90,0.04), 0 4px 10px -3px rgba(16,40,90,0.09);
   --shadow-nav-active: 0 1px 2px rgba(0,115,230,0.08), 0 4px 12px -2px rgba(0,115,230,0.16), 0 0 0 1px rgba(0,194,255,0.04);
   --dg-ink: #3E6B90;
+  --dg-ink-rgb: 62, 107, 144;
   --dg-ink-soft: rgba(62,107,144,0.09);
 }
 [data-theme="light"] .topnav { background: rgba(240,246,255,0.97); }
@@ -6459,6 +6461,14 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   border:1px solid rgba(0,0,0,0.08);
   font-family:'Inter',sans-serif;
   --mf-accent: #0073E6;
+  --mf-accent-rgb: 0, 115, 230;
+  --mf-accent-topbar: #4c66ef;
+  --mf-accent-header-border: #bdd4ed;
+  --mf-accent-header-bg: #edf5fd;
+  --mf-accent-heading-bg: #e6f0fa;
+  --mf-accent-field-hover-border: #88b9ea;
+  --mf-accent-mcq-hover-bg: #f0f7fe;
+  --mf-accent-mcq-hover-border: #bad2ec;
   position:relative;
 }
 /* Overlay only — never captured by html2canvas (exporters target
@@ -6524,13 +6534,13 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
    just nicer to look at. No JS/markup changes required. ─── */
 .mf-preview-page::before {
   content:''; position:absolute; top:0; left:0; right:0; height:7px; z-index:2;
-  background:linear-gradient(90deg, var(--mf-accent), color-mix(in srgb, var(--mf-accent) 45%, #8B5CF6));
+  background:linear-gradient(90deg, var(--mf-accent), var(--mf-accent-topbar));
 }
 .mf-pv-header {
   display:flex; align-items:center; gap:16px; margin-bottom:26px; padding:16px 18px;
-  border-radius:14px; border:1px solid color-mix(in srgb, var(--mf-accent) 18%, #e6e9ee);
+  border-radius:14px; border:1px solid var(--mf-accent-header-border);
   border-bottom:3px solid var(--mf-accent);
-  background:linear-gradient(135deg, color-mix(in srgb, var(--mf-accent) 7%, #ffffff), #ffffff);
+  background:linear-gradient(135deg, var(--mf-accent-header-bg), #ffffff);
 }
 .mf-pv-logo { height:52px; width:auto; max-width:140px; min-width:52px; object-fit:contain; flex-shrink:0; border-radius:8px; }
 .mf-pv-header-text { flex:1; min-width:0; }
@@ -6540,7 +6550,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-pv-heading {
   display:flex; align-items:center; gap:9px; font-size:12px; font-weight:800;
   text-transform:uppercase; letter-spacing:0.6px; color:#1b2430;
-  background:color-mix(in srgb, var(--mf-accent) 7%, #f7f9fb);
+  background:var(--mf-accent-heading-bg);
   border-left:4px solid var(--mf-accent); border-radius:9px;
   padding:10px 14px; margin:22px 0 14px;
 }
@@ -6550,8 +6560,8 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   border-radius:12px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,0.05);
   transition:box-shadow .18s ease, border-color .18s ease;
 }
-.mf-pv-field:hover { box-shadow:0 6px 16px rgba(15,23,42,0.08); border-color:color-mix(in srgb, var(--mf-accent) 40%, #e3e7ed); }
-.mf-pv-field:focus-within { box-shadow:0 0 0 3px color-mix(in srgb, var(--mf-accent) 16%, transparent), 0 6px 16px rgba(15,23,42,0.08); }
+.mf-pv-field:hover { box-shadow:0 6px 16px rgba(15,23,42,0.08); border-color:var(--mf-accent-field-hover-border); }
+.mf-pv-field:focus-within { box-shadow:0 0 0 3px rgba(var(--mf-accent-rgb), 0.16), 0 6px 16px rgba(15,23,42,0.08); }
 .mf-pv-field label { display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#5b6472; margin-bottom:8px; }
 .mf-pv-field .mf-pv-req { color:#e11d48; margin-left:2px; }
 .mf-pv-input, .mf-pv-textarea, .mf-pv-select-real {
@@ -6559,7 +6569,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   padding:10px 12px; font-size:13px; font-family:'Inter',sans-serif; color:#1a1a1a;
   background:#fbfcfe; outline:none; transition:border-color .15s, box-shadow .15s, background .15s;
 }
-.mf-pv-input:focus, .mf-pv-textarea:focus, .mf-pv-select-real:focus { border-color:var(--mf-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--mf-accent) 14%, transparent); background:#fff; }
+.mf-pv-input:focus, .mf-pv-textarea:focus, .mf-pv-select-real:focus { border-color:var(--mf-accent); box-shadow:0 0 0 3px rgba(var(--mf-accent-rgb), 0.14); background:#fff; }
 .mf-pv-textarea { resize:vertical; }
 .mf-pv-check { display:flex; align-items:center; gap:10px; }
 .mf-pv-check input { width:16px; height:16px; flex-shrink:0; accent-color:var(--mf-accent); }
@@ -6569,7 +6579,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 10px;
   border-radius:8px; border:1px solid transparent; transition:background .15s, border-color .15s;
 }
-.mf-pv-mcq-opt:hover { background:color-mix(in srgb, var(--mf-accent) 6%, #fff); border-color:color-mix(in srgb, var(--mf-accent) 18%, #e3e7ed); }
+.mf-pv-mcq-opt:hover { background:var(--mf-accent-mcq-hover-bg); border-color:var(--mf-accent-mcq-hover-border); }
 .mf-pv-mcq-opt input { width:15px; height:15px; flex-shrink:0; accent-color:var(--mf-accent); }
 .mf-pv-mcq-opt span { font-size:12.5px; font-weight:600; letter-spacing:0; color:#222; }
 .mf-pv-sig { border-bottom:1.5px solid #444; height:38px; }
@@ -7885,7 +7895,7 @@ button.dg-show-chip.active { background:var(--blue); }
 .dg-stat-icon {
   width:20px; height:20px; border-radius:6px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
-  background:color-mix(in srgb, var(--dg-accent, var(--dg-ink)) 14%, transparent);
+  background:rgba(var(--dg-accent-rgb, var(--dg-ink-rgb)), 0.14);
   color:var(--dg-accent, var(--dg-ink));
 }
 .dg-stat-icon svg { width:12px; height:12px; }
@@ -51510,13 +51520,56 @@ function mfSetSocialLink(key, value) {
   mfTouch(f);
 }
 
+// Converts "#rgb" / "#rrggbb" to an "r, g, b" string for rgba(var(...), alpha).
+// Returns null for anything unparseable so callers can fall back safely.
+function hexToRgbStr(hex) {
+  if (!hex) return null;
+  const m = String(hex).trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
+// Mixes hex1 (pct%) with hex2 ((100-pct)%) and returns a plain "#rrggbb"
+// string. This replaces CSS color-mix(in srgb, ...) throughout the preview
+// styles: html2canvas-based exporters (PDF export, Push to Workspace) run
+// their own CSS parser that doesn't support that CSS Color 4 function and
+// fail with "Attempting to parse an unsupported color function" if it's
+// present anywhere in the styles applied to the captured element, so every
+// accent tint is precomputed here in JS instead and exposed as a plain hex
+// custom property.
+function mixHex(hex1, pct, hex2) {
+  const c1 = hexToRgbStr(hex1), c2 = hexToRgbStr(hex2);
+  if (!c1 || !c2) return hex1;
+  const [r1, g1, b1] = c1.split(',').map(Number);
+  const [r2, g2, b2] = c2.split(',').map(Number);
+  const t = pct / 100;
+  const mix = (a, b) => Math.round(a * t + b * (1 - t));
+  const toHex = (n) => n.toString(16).padStart(2, '0');
+  return `#${toHex(mix(r1, r2))}${toHex(mix(g1, g2))}${toHex(mix(b1, b2))}`;
+}
+
 // ─── LIVE PREVIEW (real fillable inputs) ───
 function mfRenderPreview() {
   const f = mfGetCurrentForm();
   const page = document.getElementById('mfPreviewPage');
   if (!f || !page) return;
   const vals = (typeof mfDraftValues !== 'undefined' && mfDraftValues) || {};
-  page.style.setProperty('--mf-accent', f.accentColor || '#0073E6');
+  const mfAccentHex = f.accentColor || '#0073E6';
+  page.style.setProperty('--mf-accent', mfAccentHex);
+  const mfAccentRgb = hexToRgbStr(mfAccentHex);
+  if (mfAccentRgb) page.style.setProperty('--mf-accent-rgb', mfAccentRgb);
+  page.style.setProperty('--mf-accent-topbar', mixHex(mfAccentHex, 45, '#8B5CF6'));
+  page.style.setProperty('--mf-accent-header-border', mixHex(mfAccentHex, 18, '#e6e9ee'));
+  page.style.setProperty('--mf-accent-header-bg', mixHex(mfAccentHex, 7, '#ffffff'));
+  page.style.setProperty('--mf-accent-heading-bg', mixHex(mfAccentHex, 7, '#f7f9fb'));
+  page.style.setProperty('--mf-accent-field-hover-border', mixHex(mfAccentHex, 40, '#e3e7ed'));
+  page.style.setProperty('--mf-accent-mcq-hover-bg', mixHex(mfAccentHex, 6, '#ffffff'));
+  page.style.setProperty('--mf-accent-mcq-hover-border', mixHex(mfAccentHex, 18, '#e3e7ed'));
   // If a translated language is active, render its cached strings instead
   // of the original title/description/field labels/options — this is what
   // makes the Live Preview, Export PDF, and Push to Workspace all show the
@@ -59681,7 +59734,7 @@ function dgRenderInsightsStrip() {
   const proportionTypes = ['pie', 'donut', 'pareto', 'funnel', 'stacked'];
   const hasNegative = dgState.rows.some(r => r.value < 0);
   const negativeWarning = (hasNegative && proportionTypes.includes(dgState.type))
-    ? `<div class="dg-stat-card" style="--dg-accent:#B85C56;border-color:rgba(184,92,86,0.35)">
+    ? `<div class="dg-stat-card" style="--dg-accent:#B85C56;--dg-accent-rgb:184, 92, 86;border-color:rgba(184,92,86,0.35)">
          <div class="dg-stat-card-top"><span class="dg-stat-label" style="color:#B85C56">Note</span>
            <div class="dg-stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg></div>
          </div>
@@ -59708,41 +59761,41 @@ function dgRenderInsightsStrip() {
   const growthTrendClass = hasGrowth ? (stats.growthPct > 0.5 ? 'up' : (stats.growthPct < -0.5 ? 'down' : 'flat')) : 'flat';
   const growthArrow = growthTrendClass === 'up' ? trendArrowUp : (growthTrendClass === 'down' ? trendArrowDown : trendArrowFlat);
   strip.innerHTML = `
-    <div class="dg-stat-card" style="--dg-accent:var(--dg-ink)">
+    <div class="dg-stat-card" style="--dg-accent:var(--dg-ink);--dg-accent-rgb:var(--dg-ink-rgb)">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Total</span><div class="dg-stat-icon">${ICONS.total}</div></div>
       <span class="dg-stat-value">${fmt(stats.total)}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#6B8CA6">
+    <div class="dg-stat-card" style="--dg-accent:#6B8CA6;--dg-accent-rgb:107, 140, 166">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Average</span><div class="dg-stat-icon">${ICONS.avg}</div></div>
       <span class="dg-stat-value">${fmt(stats.avg)}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#3F6E93">
+    <div class="dg-stat-card" style="--dg-accent:#3F6E93;--dg-accent-rgb:63, 110, 147">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Highest</span><div class="dg-stat-icon">${ICONS.high}</div></div>
       <span class="dg-stat-value">${fmt(stats.max)}</span>
       <span class="dg-stat-sub" title="${dgEsc(stats.maxLabel)}">${dgEsc(stats.maxLabel)}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#6B7A8F">
+    <div class="dg-stat-card" style="--dg-accent:#6B7A8F;--dg-accent-rgb:107, 122, 143">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Lowest</span><div class="dg-stat-icon">${ICONS.low}</div></div>
       <span class="dg-stat-value">${fmt(stats.min)}</span>
       <span class="dg-stat-sub" title="${dgEsc(stats.minLabel)}">${dgEsc(stats.minLabel)}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:${growthColor}">
+    <div class="dg-stat-card" style="--dg-accent:${growthColor};--dg-accent-rgb:${hexToRgbStr(growthColor)}">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Growth 1st→Last</span><div class="dg-stat-icon">${ICONS.growth}</div></div>
       <span class="dg-stat-value" style="color:${growthColor}">${growthDisplay}</span>
       <span class="dg-stat-trend ${growthTrendClass}">${growthArrow}${growthTrendClass === 'up' ? 'Rising' : growthTrendClass === 'down' ? 'Falling' : 'Flat'}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#7A8CA8">
+    <div class="dg-stat-card" style="--dg-accent:#7A8CA8;--dg-accent-rgb:122, 140, 168">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Median</span><div class="dg-stat-icon">${ICONS.median}</div></div>
       <span class="dg-stat-value">${fmt(medianVal)}</span>
       <span class="dg-stat-sub">${Math.abs(medianVal - stats.avg) > stats.avg * 0.1 ? 'Differs from mean — data is skewed' : 'Close to mean — evenly spread'}</span>
     </div>
-    <div class="dg-stat-card" style="--dg-accent:#8B7CA6">
+    <div class="dg-stat-card" style="--dg-accent:#8B7CA6;--dg-accent-rgb:139, 124, 166">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Std Deviation</span><div class="dg-stat-icon">${ICONS.spread}</div></div>
       <span class="dg-stat-value">${fmt(stats.stdDev)}</span>
       <span class="dg-stat-sub">${(stats.coefVar * 100).toFixed(0)}% coefficient of variation</span>
     </div>
     ${outlierCount ? `
-    <div class="dg-stat-card" style="--dg-accent:#B8863E;border-color:rgba(184,134,62,0.35)">
+    <div class="dg-stat-card" style="--dg-accent:#B8863E;--dg-accent-rgb:184, 134, 62;border-color:rgba(184,134,62,0.35)">
       <div class="dg-stat-card-top"><span class="dg-stat-label" style="color:#B8863E">Outliers</span><div class="dg-stat-icon">${ICONS.outlier}</div></div>
       <span class="dg-stat-value" style="color:#B8863E">${outlierCount}</span>
       <span class="dg-stat-sub" title="${dgEsc(stats.outliers.map(o=>o.label).join(', '))}">${dgEsc(stats.outliers.slice(0,2).map(o=>o.label).join(', '))}${outlierCount>2?` +${outlierCount-2} more`:''}</span>
