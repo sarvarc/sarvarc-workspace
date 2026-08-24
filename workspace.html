@@ -6376,6 +6376,20 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-swatch-custom::-webkit-color-swatch-wrapper { padding:0; }
 .mf-swatch-custom::-webkit-color-swatch { border:none; border-radius:50%; }
 
+/* social links — owner-added Instagram/LinkedIn/WhatsApp/X/Website, shown
+   on the published form so respondents can find/follow the form owner. */
+.mf-social-row { display:flex; flex-direction:column; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--border); }
+.mf-social-row > label { font-size:11px; color:var(--text2); }
+.mf-social-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; }
+.mf-social-field { display:flex; align-items:center; gap:8px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:0 10px; transition:border 0.2s; }
+.mf-social-field:focus-within { border-color:var(--border2); }
+.mf-social-field-icon { display:flex; align-items:center; justify-content:center; flex-shrink:0; border-radius:6px; overflow:hidden; }
+.mf-social-field input {
+  background:transparent; border:none; color:var(--text); padding:8px 0; font-family:'Inter',sans-serif;
+  font-size:12px; outline:none; width:100%; min-width:0;
+}
+.mf-social-field input::placeholder { color:var(--text3); }
+
 .mf-field-list { display:flex; flex-direction:column; gap:10px; max-height:52vh; overflow-y:auto; padding-right:2px; }
 .mf-field-item {
   background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:12px;
@@ -6503,31 +6517,61 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   35%  { box-shadow: 0 0 0 6px rgba(0,194,255,0.28); }
   100% { box-shadow: 0 0 0 0 rgba(0,194,255,0); }
 }
-.mf-pv-header { display:flex; align-items:center; gap:18px; margin-bottom:24px; padding-bottom:20px; border-bottom:2.5px solid var(--mf-accent); }
-.mf-pv-logo { height:56px; width:auto; max-width:150px; min-width:56px; object-fit:contain; flex-shrink:0; }
+/* ─── "SARVARC Forms" look: Google-Forms-style airy layout, boxed field
+   cards with a colored accent rail, rendered from the SAME .mf-pv-field /
+   .mf-pv-heading DOM the exporters already capture via html2canvas — so the
+   Live Preview and every exported PDF / pushed page stay pixel-identical,
+   just nicer to look at. No JS/markup changes required. ─── */
+.mf-preview-page::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:7px; z-index:2;
+  background:linear-gradient(90deg, var(--mf-accent), color-mix(in srgb, var(--mf-accent) 45%, #8B5CF6));
+}
+.mf-pv-header {
+  display:flex; align-items:center; gap:16px; margin-bottom:26px; padding:16px 18px;
+  border-radius:14px; border:1px solid color-mix(in srgb, var(--mf-accent) 18%, #e6e9ee);
+  border-bottom:3px solid var(--mf-accent);
+  background:linear-gradient(135deg, color-mix(in srgb, var(--mf-accent) 7%, #ffffff), #ffffff);
+}
+.mf-pv-logo { height:52px; width:auto; max-width:140px; min-width:52px; object-fit:contain; flex-shrink:0; border-radius:8px; }
 .mf-pv-header-text { flex:1; min-width:0; }
-.mf-preview-page h1 { font-size:25px; font-weight:800; letter-spacing:-0.015em; margin-bottom:6px; color:#111; line-height:1.2; }
-.mf-preview-page .mf-pv-desc { font-size:11.5px; color:#5a6472; margin-bottom:24px; line-height:1.6; }
-.mf-pv-header + .mf-pv-desc { margin-top:-6px; }
-.mf-pv-field { margin-bottom:20px; }
-.mf-pv-field label { display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:#3a4250; margin-bottom:7px; }
+.mf-preview-page h1 { font-size:24px; font-weight:800; letter-spacing:-0.015em; margin-bottom:4px; color:#111; line-height:1.2; }
+.mf-preview-page .mf-pv-desc { font-size:11.5px; color:#5a6472; margin-bottom:22px; line-height:1.6; }
+.mf-pv-header + .mf-pv-desc { margin-top:-8px; }
+.mf-pv-heading {
+  display:flex; align-items:center; gap:9px; font-size:12px; font-weight:800;
+  text-transform:uppercase; letter-spacing:0.6px; color:#1b2430;
+  background:color-mix(in srgb, var(--mf-accent) 7%, #f7f9fb);
+  border-left:4px solid var(--mf-accent); border-radius:9px;
+  padding:10px 14px; margin:22px 0 14px;
+}
+.mf-pv-heading:first-child { margin-top:0; }
+.mf-pv-field {
+  margin-bottom:14px; background:#ffffff; border:1px solid #e3e7ed; border-left:3px solid var(--mf-accent);
+  border-radius:12px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,0.05);
+  transition:box-shadow .18s ease, border-color .18s ease;
+}
+.mf-pv-field:hover { box-shadow:0 6px 16px rgba(15,23,42,0.08); border-color:color-mix(in srgb, var(--mf-accent) 40%, #e3e7ed); }
+.mf-pv-field:focus-within { box-shadow:0 0 0 3px color-mix(in srgb, var(--mf-accent) 16%, transparent), 0 6px 16px rgba(15,23,42,0.08); }
+.mf-pv-field label { display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#5b6472; margin-bottom:8px; }
 .mf-pv-field .mf-pv-req { color:#e11d48; margin-left:2px; }
 .mf-pv-input, .mf-pv-textarea, .mf-pv-select-real {
-  width:100%; box-sizing:border-box; border:1px solid #d3d8e0; border-radius:6px;
-  padding:9px 11px; font-size:12.5px; font-family:'Inter',sans-serif; color:#1a1a1a;
-  background:#fbfbfc; outline:none; transition:border-color .15s, box-shadow .15s;
+  width:100%; box-sizing:border-box; border:1px solid #dde2e9; border-radius:9px;
+  padding:10px 12px; font-size:13px; font-family:'Inter',sans-serif; color:#1a1a1a;
+  background:#fbfcfe; outline:none; transition:border-color .15s, box-shadow .15s, background .15s;
 }
 .mf-pv-input:focus, .mf-pv-textarea:focus, .mf-pv-select-real:focus { border-color:var(--mf-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--mf-accent) 14%, transparent); background:#fff; }
 .mf-pv-textarea { resize:vertical; }
-.mf-pv-check { display:flex; align-items:center; gap:9px; }
-.mf-pv-check input { width:14px; height:14px; flex-shrink:0; accent-color:var(--mf-accent); }
-.mf-pv-check label { margin-bottom:0 !important; text-transform:none; font-weight:600; letter-spacing:0; color:#222; }
-.mf-pv-mcq-opts { display:flex; flex-direction:column; gap:8px; }
-.mf-pv-mcq-opt { display:flex; align-items:center; gap:9px; cursor:pointer; }
-.mf-pv-mcq-opt input { width:14px; height:14px; flex-shrink:0; accent-color:var(--mf-accent); }
+.mf-pv-check { display:flex; align-items:center; gap:10px; }
+.mf-pv-check input { width:16px; height:16px; flex-shrink:0; accent-color:var(--mf-accent); }
+.mf-pv-check label { margin-bottom:0 !important; text-transform:none; font-weight:600; letter-spacing:0; color:#222; font-size:12.5px; }
+.mf-pv-mcq-opts { display:flex; flex-direction:column; gap:7px; margin-top:2px; }
+.mf-pv-mcq-opt {
+  display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 10px;
+  border-radius:8px; border:1px solid transparent; transition:background .15s, border-color .15s;
+}
+.mf-pv-mcq-opt:hover { background:color-mix(in srgb, var(--mf-accent) 6%, #fff); border-color:color-mix(in srgb, var(--mf-accent) 18%, #e3e7ed); }
+.mf-pv-mcq-opt input { width:15px; height:15px; flex-shrink:0; accent-color:var(--mf-accent); }
 .mf-pv-mcq-opt span { font-size:12.5px; font-weight:600; letter-spacing:0; color:#222; }
-.mf-pv-heading { font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:var(--mf-accent); border-bottom:2px solid var(--mf-accent); padding-bottom:6px; margin:26px 0 16px; }
-.mf-pv-heading:first-child { margin-top:0; }
 .mf-pv-sig { border-bottom:1.5px solid #444; height:38px; }
 .mf-pv-sig-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:#8a92a0; margin-top:5px; }
 
@@ -9014,6 +9058,36 @@ button.dg-show-chip.active { background:var(--blue); }
                 <div class="mf-brand-color-block">
                   <label>Accent Color</label>
                   <div class="mf-brand-swatches" id="mfAccentSwatches"></div>
+                </div>
+              </div>
+
+              <div class="mf-social-row">
+                <label>Social Links <span style="color:var(--text3)">(optional, shown as icons on the published form)</span></label>
+                <div class="mf-social-grid">
+                  <div class="mf-social-field">
+                    <span class="mf-social-field-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="#E1306C"/><rect x="7" y="7" width="10" height="10" rx="3.2" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="16.6" cy="7.4" r="1.15" fill="#fff"/></svg></span>
+                    <input type="url" id="mfSocialInstagram" placeholder="Instagram URL" oninput="mfSetSocialLink('instagram', this.value)">
+                  </div>
+                  <div class="mf-social-field">
+                    <span class="mf-social-field-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#0A66C2"/><circle cx="8.1" cy="8.3" r="1.35" fill="#fff"/><rect x="7" y="10.8" width="2.2" height="6.9" rx="0.4" fill="#fff"/><path d="M11.6 10.8h2.1v1.15c.5-.78 1.35-1.35 2.55-1.35 1.95 0 3.15 1.28 3.15 3.7v4.4h-2.2v-4.05c0-1.1-.45-1.85-1.5-1.85-.83 0-1.3.55-1.5 1.1-.08.2-.1.47-.1.75v4.05h-2.2c.03-.7.03-6.2 0-6.9Z" fill="#fff"/></svg></span>
+                    <input type="url" id="mfSocialLinkedin" placeholder="LinkedIn URL" oninput="mfSetSocialLink('linkedin', this.value)">
+                  </div>
+                  <div class="mf-social-field">
+                    <span class="mf-social-field-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" fill="#25D366"/><path d="M12 5.3a6.7 6.7 0 0 0-5.7 10.2L5.6 18.4l3-.8A6.7 6.7 0 1 0 12 5.3Z" fill="#fff"/><path d="M12 6.6a5.4 5.4 0 0 0-4.6 8.2l.2.3-.7 2.5 2.6-.7.3.2A5.4 5.4 0 1 0 12 6.6Z" fill="#25D366"/><path d="M9.6 9.1c-.16-.35-.33-.36-.48-.36h-.4c-.14 0-.37.05-.56.27-.19.22-.74.72-.74 1.75 0 1.03.76 2.02.86 2.16.1.14 1.47 2.35 3.63 3.2 1.8.71 2.16.57 2.55.53.39-.04 1.26-.51 1.44-1.01.18-.5.18-.93.13-1.02-.05-.09-.19-.14-.4-.25-.21-.1-1.26-.62-1.45-.69-.19-.07-.34-.1-.48.1-.14.21-.55.69-.68.83-.12.14-.25.16-.46.05-.21-.1-.9-.33-1.71-1.05-.63-.56-1.06-1.26-1.18-1.47-.12-.21-.01-.32.09-.43.09-.09.21-.24.31-.36.1-.12.14-.21.21-.34.07-.14.03-.26-.02-.36-.05-.1-.44-1.11-.62-1.51Z" fill="#fff"/></svg></span>
+                    <input type="tel" id="mfSocialWhatsapp" placeholder="WhatsApp number or link" oninput="mfSetSocialLink('whatsapp', this.value)">
+                  </div>
+                  <div class="mf-social-field">
+                    <span class="mf-social-field-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="#0B0B0F"/><path d="M7 7l10 10M17 7L7 17" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+                    <input type="url" id="mfSocialX" placeholder="X (Twitter) URL" oninput="mfSetSocialLink('x', this.value)">
+                  </div>
+                  <div class="mf-social-field">
+                    <span class="mf-social-field-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="5.5" width="20" height="13" rx="4.2" fill="#FF0000"/><path d="M10.4 9.4v5.2l4.6-2.6Z" fill="#fff"/></svg></span>
+                    <input type="url" id="mfSocialYoutube" placeholder="YouTube URL" oninput="mfSetSocialLink('youtube', this.value)">
+                  </div>
+                  <div class="mf-social-field">
+                    <span class="mf-social-field-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18a13.5 13.5 0 0 1 0-18Z"/></svg></span>
+                    <input type="url" id="mfSocialWebsite" placeholder="Website URL" oninput="mfSetSocialLink('website', this.value)">
+                  </div>
                 </div>
               </div>
 
@@ -14007,6 +14081,7 @@ const mfHistory = createModuleHistory(
       if (typeof mfRenderLogoThumb === 'function') mfRenderLogoThumb();
       if (typeof mfRenderAccentSwatches === 'function') mfRenderAccentSwatches();
       if (typeof mfRenderWatermarkControls === 'function') mfRenderWatermarkControls();
+      if (typeof mfRenderSocialLinks === 'function') mfRenderSocialLinks();
       if (typeof mfRenderPreview === 'function') mfRenderPreview();
     } else {
       mfState.currentId = null;
@@ -50898,6 +50973,7 @@ function mfCreateFromTemplate(key) {
     accentColor: built.accentColor || '#0073E6',
     watermarkOn: true,
     watermarkOpacity: 8,
+    socialLinks: {},
     activeLang: 'original',
     translations: {},
     updatedAt: Date.now()
@@ -50953,10 +51029,12 @@ function mfOpenEditor(id) {
   const f = mfState.forms.find(x => x.id === id);
   if (!f) return;
   if (f.kind === 'canvas') { mfcOpenEditor(id); return; }
-  // Old forms saved before the translation feature existed won't have these
-  // yet — default them in place so every other function can assume they exist.
+  // Old forms saved before the translation/social-links features existed
+  // won't have these yet — default them in place so every other function
+  // can assume they exist.
   if (f.activeLang == null) f.activeLang = 'original';
   if (f.translations == null) f.translations = {};
+  if (f.socialLinks == null) f.socialLinks = {};
   mfState.currentId = id;
   mfMode = 'design';
   mfActiveResponseId = null;
@@ -50979,6 +51057,7 @@ function mfOpenEditor(id) {
   mfRenderLogoThumb();
   mfRenderAccentSwatches();
   mfRenderWatermarkControls();
+  mfRenderSocialLinks();
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
@@ -51397,6 +51476,40 @@ function mfSetAccentColor(hex) {
   mfRenderPreview();
 }
 
+// ─── BRANDING: SOCIAL LINKS ───
+// Owner-added company/personal social links — same 5-platform set the
+// published respondent page (socialLinksHtml) already knows how to render
+// as an icon row. Stored on f.socialLinks = { instagram, linkedin,
+// whatsapp, x, website }, all optional, and carried into the publish
+// payload as social_links so they show up for respondents on the live form.
+const MF_SOCIAL_FIELD_MAP = {
+  instagram: 'mfSocialInstagram',
+  linkedin: 'mfSocialLinkedin',
+  whatsapp: 'mfSocialWhatsapp',
+  x: 'mfSocialX',
+  youtube: 'mfSocialYoutube',
+  website: 'mfSocialWebsite',
+};
+
+function mfRenderSocialLinks() {
+  const f = mfGetCurrentForm();
+  if (!f) return;
+  const links = f.socialLinks || {};
+  Object.keys(MF_SOCIAL_FIELD_MAP).forEach(key => {
+    const input = document.getElementById(MF_SOCIAL_FIELD_MAP[key]);
+    if (input) input.value = links[key] || '';
+  });
+}
+
+function mfSetSocialLink(key, value) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  if (!f.socialLinks) f.socialLinks = {};
+  const trimmed = (value || '').trim();
+  if (trimmed) f.socialLinks[key] = trimmed;
+  else delete f.socialLinks[key];
+  mfTouch(f);
+}
+
 // ─── LIVE PREVIEW (real fillable inputs) ───
 function mfRenderPreview() {
   const f = mfGetCurrentForm();
@@ -51647,6 +51760,9 @@ async function mfPublishForm() {
       watermark_on: f.logoDataUrl ? (f.watermarkOn !== false) : false,
       watermark_opacity: f.watermarkOpacity == null ? 8 : f.watermarkOpacity,
       accent_color: f.accentColor || '#0073E6',
+      // Owner-added company/personal social links — rendered as an icon row
+      // on the published form (see socialLinksHtml on the respondent page).
+      social_links: f.socialLinks || {},
     };
 
     let row;
@@ -53893,6 +54009,7 @@ window.mfToggleFieldRequired = mfToggleFieldRequired;
 window.mfHandleLogoUpload = mfHandleLogoUpload;
 window.mfRemoveLogo = mfRemoveLogo;
 window.mfSetAccentColor = mfSetAccentColor;
+window.mfSetSocialLink = mfSetSocialLink;
 window.mfStartBlank = mfStartBlank;
 window.mfToggleWatermark = mfToggleWatermark;
 window.mfSetWatermarkOpacity = mfSetWatermarkOpacity;
