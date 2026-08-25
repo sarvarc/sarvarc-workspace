@@ -37328,6 +37328,7 @@ daRestore();
 // per-cell merge isn't wired up here, same tradeoff Make Forms made.
 let daCollabMap = null;
 let daCollabApplyingRemote = false; // guards against remote refresh re-touching a table the user is actively editing
+let daCollabRenderPending = false; // set when a remote update was skipped because you were mid-edit; a listener on daGridWrap catches it up as soon as you click/tab away
 
 function daCollabPush() {
   if (!daCollabMap || daCollabApplyingRemote) return;
@@ -37359,13 +37360,34 @@ function daCollabReconcileFromY(changedIds) {
 
     // A grid mid-edit (contenteditable focused) shouldn't get yanked out
     // from under the person typing — daRenderTable() already blurs the
-    // active cell before rebuilding, so skip the rebuild entirely here and
-    // let the next local blur (or the next remote change) catch it up.
+    // active cell before rebuilding. But that only needs to hold back the
+    // rebuild if the cell you're actually sitting in belongs to a table
+    // that just changed remotely; a cell in an unrelated table (or no
+    // focus at all) should redraw immediately instead of waiting on
+    // whatever you do next. Previously this skipped the whole rebuild for
+    // ANY focused cell, so the grid could sit stale until you happened to
+    // make another edit yourself.
     const gridWrap = document.getElementById('daGridWrap');
-    const typingInGrid = gridWrap && document.activeElement && gridWrap.contains(document.activeElement);
-    if (!typingInGrid) {
+    const active = gridWrap && document.activeElement && gridWrap.contains(document.activeElement) ? document.activeElement : null;
+    let editingChangedTable = false;
+    if (active && active.id && active.id.indexOf('daCell_') === 0) {
+      // id pattern: daCell_<datasetId>_<row>_<col>. Strip the prefix and
+      // the trailing _<row>_<col> rather than a naive split, since a
+      // dataset id is just "ds" + a number so this is safe either way.
+      const rest = active.id.slice('daCell_'.length);
+      const lastUnderscore = rest.lastIndexOf('_');
+      const secondLastUnderscore = rest.lastIndexOf('_', lastUnderscore - 1);
+      const focusedDsId = rest.slice(0, secondLastUnderscore);
+      editingChangedTable = !!(changedIds && changedIds.has(focusedDsId));
+    }
+    if (!active || !editingChangedTable) {
       if (typeof daRenderTabs === 'function') daRenderTabs();
       if (typeof daRenderTable === 'function') daRenderTable();
+    } else {
+      // Actively typing in the exact table that changed — leave it alone
+      // for now, but flag it so the catch-up listener (wired in attach()
+      // below) redraws the instant you click or tab away.
+      daCollabRenderPending = true;
     }
   } finally {
     daCollabApplyingRemote = false;
@@ -37384,6 +37406,24 @@ sarvarcCollabRegisterModule('dataarrange', {
       if (tx.origin !== 'remote') return;
       daCollabReconcileFromY(new Set(Array.from(event.changes.keys.keys())));
     });
+    // Catch-up: if a remote update landed while you were mid-edit and got
+    // deferred (see daCollabRenderPending above), redraw as soon as you
+    // click or tab out of the grid, instead of leaving the view stale
+    // until your next own edit happens to trigger a render.
+    const gridWrap = document.getElementById('daGridWrap');
+    if (gridWrap && !gridWrap.__daCollabCatchupWired) {
+      gridWrap.__daCollabCatchupWired = true;
+      gridWrap.addEventListener('focusout', () => {
+        if (!daCollabRenderPending) return;
+        daCollabRenderPending = false;
+        // Let the cell's own onblur commit (daUpdateCell) run first so we
+        // don't rebuild out from under it mid-commit.
+        setTimeout(() => {
+          if (typeof daRenderTabs === 'function') daRenderTabs();
+          if (typeof daRenderTable === 'function') daRenderTable();
+        }, 0);
+      });
+    }
   },
   detach() { daCollabMap = null; }
 });
@@ -65705,6 +65745,23 @@ if (document.readyState === 'loading') {
   const sarvarcCollabModules = {}; // key -> { attach(doc, awareness), detach() }
   const sarvarcCollabAttached = new Set();
 
+  // Sync-health indicator: a small spinning ring next to the "Live" badge.
+  // Spinning = the last change we tried to send or received actually went
+  // through. It freezes (and turns red) the moment a send fails or a
+  // received packet can't be applied — a plain, always-on signal that
+  // doesn't require opening devtools to tell "is this actually reaching
+  // the other person right now" from "it just looks connected".
+  let sarvarcCollabHealthy = true;
+  function sarvarcCollabSetHealthy(ok) {
+    sarvarcCollabHealthy = ok;
+    const el = document.getElementById('sarvarcCollabSyncIcon');
+    if (!el) return;
+    el.classList.toggle('sarvarc-collab-stalled', !ok);
+    el.title = ok
+      ? 'Syncing with your team'
+      : 'Sync stalled — your last change may not have reached your teammates. Try again or refresh.';
+  }
+
   // Replaces the early stub (see the queuing script right after the Yjs
   // loader, near the top of the page) — from here on this is the real
   // implementation, used by any module that registers from now on.
@@ -65753,7 +65810,11 @@ if (document.readyState === 'loading') {
       try {
         const update = sarvarcCollabB64ToBytes(msg.payload.u);
         Y.applyUpdate(doc, update, 'remote');
-      } catch (e) { console.warn('[Collab] bad update packet', e); }
+        sarvarcCollabSetHealthy(true);
+      } catch (e) {
+        console.warn('[Collab] bad update packet', e);
+        sarvarcCollabSetHealthy(false);
+      }
     });
     channel.on('broadcast', { event: 'yaware' }, (msg) => {
       try {
@@ -65766,9 +65827,20 @@ if (document.readyState === 'loading') {
     // fires this for both local and applied-remote updates, so we skip
     // re-broadcasting updates that just came in from 'remote' — otherwise
     // every client would loop the same update back and forth forever.
+    // channel.send() resolves 'ok' / 'error' / 'timed out' — this used to
+    // go unchecked, so a failed send (e.g. Realtime broadcast rejected)
+    // failed completely silently. Now it drives the sync-health spinner.
     doc.on('update', (update, origin) => {
       if (origin === 'remote') return;
-      channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(update) } });
+      channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(update) } })
+        .then((status) => {
+          if (status !== 'ok') console.warn('[Collab] send status:', status);
+          sarvarcCollabSetHealthy(status === 'ok');
+        })
+        .catch((e) => {
+          console.warn('[Collab] send threw', e);
+          sarvarcCollabSetHealthy(false);
+        });
     });
     awareness.on('update', ({ added, updated, removed }, origin) => {
       if (origin === 'remote') return;
@@ -65796,6 +65868,7 @@ if (document.readyState === 'loading') {
     sarvarcCollabAwareness = awareness;
     sarvarcCollabChannel = channel;
     sarvarcCollabProjectId = teamProjectId;
+    sarvarcCollabSetHealthy(true); // fresh connection starts clean; the spinner only freezes on an actual failed send/receive
     sarvarcCollabAttached.clear();
     Object.keys(sarvarcCollabModules).forEach(key => {
       sarvarcCollabAttached.add(key);
@@ -65888,6 +65961,20 @@ if (document.readyState === 'loading') {
         font-size:9.5px;color:#10B981;letter-spacing:.08em;text-transform:uppercase;
         font-weight:800;display:flex;align-items:center;gap:5px;
       }
+      /* Sync-health spinner: spinning cyan ring (matches the SARVARC accent)
+         = last send/receive went through fine. Freezes + dims the instant a
+         send fails or a received packet can't be applied, so a stalled
+         connection is visible at a glance without opening devtools — no
+         red/green traffic-light styling, stays in the app's own palette. */
+      .sarvarc-collab-sync {
+        width:10px; height:10px; border-radius:50%; flex-shrink:0;
+        border:2px solid var(--border2); border-top-color:var(--accent, #00C2FF);
+        animation: sarvarcCollabSpin 0.85s linear infinite;
+      }
+      .sarvarc-collab-sync.sarvarc-collab-stalled {
+        animation:none; opacity:.4;
+      }
+      @keyframes sarvarcCollabSpin { to { transform:rotate(360deg); } }
       .sarvarc-presence-dot {
         width:6px;height:6px;border-radius:50%;background:#10B981;
         box-shadow:0 0 0 rgba(16,185,129,0.6);
@@ -65974,7 +66061,10 @@ if (document.readyState === 'loading') {
       const shown = people.slice(0, MAX_SHOWN);
       const overflow = people.length - shown.length;
 
-      let html = '<span class="sarvarc-presence-live"><span class="sarvarc-presence-dot"></span>Live</span>';
+      let html = '<span class="sarvarc-presence-live"><span class="sarvarc-presence-dot"></span>Live'
+        + '<span class="sarvarc-collab-sync' + (sarvarcCollabHealthy ? '' : ' sarvarc-collab-stalled') + '" id="sarvarcCollabSyncIcon"'
+        + ' title="' + (sarvarcCollabHealthy ? 'Syncing with your team' : 'Sync stalled — your last change may not have reached your teammates. Try again or refresh.') + '"></span>'
+        + '</span>';
       html += '<span class="sarvarc-presence-avatars">';
       shown.forEach((state, i) => {
         const color = state.color || '#3b82f6';
