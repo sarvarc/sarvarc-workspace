@@ -64494,12 +64494,42 @@ if (document.readyState === 'loading') {
   // the new (correct) account's data instead of leaving the old account's
   // forms/documents/tables sitting in memory on screen. This is what
   // actually stops one person's data from carrying over to the next person
-  // who logs in on the same device. ----
+  // who logs in on the same device.
+  //
+  // sarvarcQueueWorkspaceEntryAndReload() is the ONE canonical way any
+  // code path in this file is allowed to react to a successful sign-in —
+  // the popup flow, the password/signup submit handler, and this listener
+  // itself all call it instead of jumping into the Workspace directly.
+  // Earlier, several of those places called sarvarcAuthEnterWorkspace()
+  // (which shows the welcome moment) straight away, racing this listener's
+  // own reload — whichever lost had its in-flight work silently discarded
+  // by the navigation. Even the "winner" wasn't reliable: entering the
+  // Workspace, then having this listener reload the page a beat later,
+  // meant the welcome overlay could get cut short or wiped before it ever
+  // painted, so it looked like it never showed at all. Funnelling every
+  // path through this one guarded function means the reload always
+  // happens first and workspace-entry always happens after, on a clean
+  // freshly-booted page, via the sessionStorage flag read once at boot
+  // (see sarvarcAuthUpdateNavUI().finally() further down). ----
+  window.__sarvarcAuthReloadPending = false;
+  function sarvarcQueueWorkspaceEntryAndReload() {
+    if (window.__sarvarcAuthReloadPending) return; // already in flight — first caller wins
+    window.__sarvarcAuthReloadPending = true;
+    sessionStorage.setItem('sarvarcPendingWorkspaceEntry', '1');
+    location.reload();
+  }
   sarvarcSupabase.auth.onAuthStateChange(function (event, session) {
     const newUid = (session && session.user && session.user.id) || null;
     if (newUid !== window.__sarvarcUid) {
       window.__sarvarcUid = newUid;
-      location.reload();
+      if (newUid) {
+        sarvarcQueueWorkspaceEntryAndReload();
+      } else if (!window.__sarvarcAuthReloadPending) {
+        // Signing out still needs the reload for correct namespace
+        // isolation, but there's no Workspace to enter afterward.
+        window.__sarvarcAuthReloadPending = true;
+        location.reload();
+      }
     }
   });
 
@@ -67125,20 +67155,17 @@ if (document.readyState === 'loading') {
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     if (sarvarcIsMobileForAuth) {
       // No reset here — the page is about to navigate away entirely.
-      // Flag that a full-page-redirect login is in flight so the
-      // onAuthStateChange SIGNED_IN handler (which runs on the fresh page
-      // load we come back to) knows to actually enter the workspace —
-      // see that handler for why this is needed.
-      sessionStorage.setItem('sarvarcGoogleRedirectPending', '1');
+      // No flag to set: when the page comes back with a session, the
+      // account-namespace listener (near the Supabase client setup) will
+      // detect the new uid, reload, and its sessionStorage flag carries
+      // the person into the Workspace after that reload.
       window.location.href = data.url;
       return;
     }
     const popup = window.open(data.url, 'sarvarcGoogleLogin', 'width=480,height=640');
     if (!popup) {
       // Popup blocked — fall back to the full-page redirect. Pending export
-      // won't auto-resume here, same as before. Same flag/reason as the
-      // mobile branch above.
-      sessionStorage.setItem('sarvarcGoogleRedirectPending', '1');
+      // won't auto-resume here, same as before.
       window.location.href = data.url;
       return;
     }
@@ -67172,7 +67199,11 @@ if (document.readyState === 'loading') {
       sarvarcGooglePopupPoll = null;
       try { if (!popup.closed) popup.close(); } catch (e) {}
       sarvarcAuthSetGoogleBusy(false);
-      await sarvarcAuthEnterWorkspace();
+      // Hand off to the one canonical post-login path (see
+      // sarvarcQueueWorkspaceEntryAndReload near the Supabase client
+      // setup) instead of calling sarvarcAuthEnterWorkspace() directly —
+      // that used to race the account-namespace listener's own reload.
+      sarvarcQueueWorkspaceEntryAndReload();
     };
 
     sarvarcGooglePopupPoll = setInterval(async () => {
@@ -67196,7 +67227,11 @@ if (document.readyState === 'loading') {
         for (let i = 0; i < 4 && !finished; i++) {
           await new Promise(r => setTimeout(r, 350));
           const { data: { session } } = await sarvarcSupabase.auth.getSession();
-          if (session) { finished = true; sarvarcAuthSetGoogleBusy(false); await sarvarcAuthEnterWorkspace(); break; }
+          if (session) {
+            finished = true; sarvarcAuthSetGoogleBusy(false);
+            sarvarcQueueWorkspaceEntryAndReload();
+            break;
+          }
         }
         // Genuinely cancelled (no session ever showed up) — hand the button
         // back so the person can try again without reopening the modal.
@@ -67277,12 +67312,16 @@ if (document.readyState === 'loading') {
           // rest automatically once the link is clicked.
           sarvarcAuthShowConfirmPane(email);
         } else {
-          await sarvarcAuthEnterWorkspace();
+          // Hand off to the one canonical post-login path instead of
+          // entering the Workspace directly here — see
+          // sarvarcQueueWorkspaceEntryAndReload near the Supabase client
+          // setup for why.
+          sarvarcQueueWorkspaceEntryAndReload();
         }
       } else {
         const { data, error } = await sarvarcSupabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        await sarvarcAuthEnterWorkspace();
+        sarvarcQueueWorkspaceEntryAndReload();
       }
     } catch (err) {
       sarvarcAuthShowError(sarvarcAuthFriendlyError(err));
@@ -67377,6 +67416,19 @@ if (document.readyState === 'loading') {
     // once — safe to trust a "signed out" reading from here on.
     window.sarvarcAuthReady = true;
     sarvarcUpdateEditLockUI();
+    // If this boot is the fresh page load right after the account-namespace
+    // listener's reload (see near the Supabase client setup — it sets this
+    // flag right before reloading on every real sign-in), finish the job
+    // that reload interrupted: drop the person into the Workspace. This is
+    // the single place that actually completes login for every path
+    // (Google popup, Google redirect, password, signup, email
+    // confirmation) — the reload always wins the race against calling
+    // sarvarcAuthEnterWorkspace() directly, so this is what makes it a
+    // reliable one-click login instead of needing several attempts.
+    if (sessionStorage.getItem('sarvarcPendingWorkspaceEntry') === '1') {
+      sessionStorage.removeItem('sarvarcPendingWorkspaceEntry');
+      sarvarcAuthEnterWorkspace();
+    }
   });
   (function() {
     // Reuses the already-embedded nav logo image as a faint background
@@ -67429,35 +67481,17 @@ if (document.readyState === 'loading') {
       document.getElementById('sarvarcRecoveryOverlay').classList.add('open');
       setTimeout(() => document.getElementById('sarvarcRecoveryNewPw').focus(), 50);
     }
-    // Signed in while the "check your email" pane is showing means the
-    // confirmation link was just clicked (in this tab or a synced one) —
-    // close the modal on its own, no click required from the user.
-    //
-    // ALSO covers the Google full-page-redirect flow (mobile, and the
-    // popup-blocked desktop fallback in sarvarcAuthGoogleLogin): that path
-    // navigates this same tab away to Google and back, so the page does a
-    // hard reload on return. Nothing on that fresh load ever called
-    // sarvarcAuthEnterWorkspace() — the popup path's finish() calls it
-    // directly, but a full-page redirect has no in-memory JS state left to
-    // call it from once the page reloads. This SIGNED_IN event (fired once
-    // Supabase's client parses the ?code= it finds in the URL on load) was
-    // the only hook left, but it only entered the workspace when the
-    // "check your email" pane happened to still be open — never true after
-    // a full navigate-away-and-back. Net effect: the nav button quietly
-    // updated to the person's name, but they stayed on the marketing page
-    // with no visible sign anything had happened — exactly "log in with
-    // Google and nothing happens". Guarded with a sessionStorage flag set
-    // right before the redirect so this only fires for that specific flow,
-    // and only once.
-    if (event === 'SIGNED_IN') {
-      const overlay = document.getElementById('sarvarcAuthOverlay');
-      const confirmPane = document.getElementById('sarvarcAuthConfirmPane');
-      const redirectPending = sessionStorage.getItem('sarvarcGoogleRedirectPending') === '1';
-      if (redirectPending) sessionStorage.removeItem('sarvarcGoogleRedirectPending');
-      if (redirectPending || (overlay.classList.contains('open') && confirmPane.style.display !== 'none')) {
-        sarvarcAuthEnterWorkspace();
-      }
-    }
+    // Note: entering the Workspace after a sign-in is NOT handled here.
+    // Every real sign-in — password, signup, Google popup, Google
+    // redirect, email-confirmation link — funnels through
+    // sarvarcQueueWorkspaceEntryAndReload() (see near the Supabase client
+    // setup), which reloads the page and lets the boot sequence
+    // (sarvarcAuthUpdateNavUI().finally() further down) call
+    // sarvarcAuthEnterWorkspace() exactly once, on a clean freshly-loaded
+    // page. Calling it directly from this SIGNED_IN handler used to race
+    // that reload — whichever lost had its work silently discarded by the
+    // navigation, which is why some logins needed several attempts and the
+    // welcome moment could get cut short or never visibly appear at all.
   });
 </script>
 </body>
