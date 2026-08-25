@@ -3,6 +3,20 @@
 <html lang="en" data-theme="light">
 <head>
 <script>
+  // ── LIVE CO-EDITING: EARLY STUB ─────────────────────────────────────────
+  // Deliberately the very first script on the page. Module scripts (Make
+  // Forms, and others as they're wired up) call sarvarcCollabRegisterModule()
+  // at their own script-load time, which happens LONG before the real LIVE
+  // CO-EDITING CORE block loads (it lives near the Team feature code, far
+  // down the page, since it needs sarvarcSupabase to already exist). This
+  // stub just queues those calls; the real core drains the queue and
+  // replaces this function once it initializes.
+  window.sarvarcCollabPending = [];
+  function sarvarcCollabRegisterModule(key, impl) {
+    window.sarvarcCollabPending.push([key, impl]);
+  }
+</script>
+<script>
   // ── ACCOUNT-SCOPED STORAGE ──────────────────────────────────────────────
   // Every module (Make Forms, PDF Editor, Data Arrangement, Diagrams,
   // Redact, Extract, Sessions, ...) persists its working data to
@@ -18132,6 +18146,18 @@ async function smLoadSession(id, moduleKeys, absentModuleKeys) {
   if (!rec) { if (typeof toast === 'function') toast('That session could not be found.', 'error'); return; }
   const access = await smCheckSessionAccess(rec);
   if (!access.ok) { smShowLockedMessage(access); return; }
+
+  // Loading anything other than the currently-live team project (e.g. a
+  // personal saved session) means we're leaving that live room — clear the
+  // flags so the post-reload auto-reconnect doesn't rejoin a room this
+  // load wasn't for. (sarvarcTeamProjectOpen sets these flags itself right
+  // before calling this function, so that call is unaffected.)
+  const liveSessionId = localStorage.getItem('sarvarcLiveCollabSessionId');
+  if (liveSessionId && liveSessionId !== id) {
+    localStorage.removeItem('sarvarcLiveCollabTeamProjectId');
+    localStorage.removeItem('sarvarcLiveCollabTeamId');
+    localStorage.removeItem('sarvarcLiveCollabSessionId');
+  }
 
   if (rec.schemaVersion !== SM_SNAPSHOT_SCHEMA_VERSION) {
     // Not fatal — the {ls, idb} shape hasn't changed since this field was
@@ -50495,7 +50521,90 @@ function mfPersist() {
   mfMemForms = mfState.forms; // always keep in-memory mirror in sync
   try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(mfState.forms)); }
   catch(e) { console.warn('[Make Forms] could not persist to localStorage', e); }
+  mfCollabPush();
 }
+
+// ─── LIVE CO-EDITING (see sarvarcCollabRegisterModule / core engine) ───
+// Each form is one entry in a shared Y.Map, keyed by form.id. Whichever
+// teammate last touched a given form wins for that form (Yjs "last write
+// wins" per key) — two people editing DIFFERENT forms never conflict.
+// Two people editing the very SAME form at the very same instant still
+// resolves to whoever's edit lands last, same as most form builders;
+// true per-keystroke merge inside one field is a further step (binding
+// the title/description inputs to Y.Text) that isn't wired up yet.
+let mfCollabMap = null;
+let mfCollabApplyingRemote = false; // guards against remote refresh re-touching a form the user is actively typing in
+
+function mfCollabPush() {
+  if (!mfCollabMap || mfCollabApplyingRemote) return;
+  const doc = mfCollabMap.doc;
+  doc.transact(() => {
+    const liveIds = new Set(mfState.forms.map(f => f.id));
+    // Remove forms that were deleted locally.
+    mfCollabMap.forEach((_v, k) => { if (!liveIds.has(k)) mfCollabMap.delete(k); });
+    mfState.forms.forEach(f => mfCollabMap.set(f.id, f));
+  });
+}
+
+function mfCollabReconcileFromY(changedIds) {
+  mfCollabApplyingRemote = true;
+  try {
+    const yIds = new Set();
+    mfCollabMap.forEach((v, k) => { yIds.add(k); });
+    // Keep local ordering for forms we already know about, append any new
+    // ones, drop any that were removed remotely.
+    const byId = {};
+    mfCollabMap.forEach((v, k) => { byId[k] = v; });
+    const kept = mfState.forms.filter(f => yIds.has(f.id)).map(f => byId[f.id]);
+    const existingIds = new Set(mfState.forms.map(f => f.id));
+    const added = Array.from(yIds).filter(id => !existingIds.has(id)).map(id => byId[id]);
+    mfState.forms = kept.concat(added);
+    mfMemForms = mfState.forms;
+    try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(mfState.forms)); } catch (e) {}
+
+    // Refresh whatever's currently on screen. If the form the user has
+    // open got changed remotely, refresh its editor — but never stomp an
+    // input the user is actively typing in right now.
+    if (document.getElementById('mfGalleryView') && document.getElementById('mfGalleryView').style.display !== 'none') {
+      if (typeof mfRenderFormsGrid === 'function') mfRenderFormsGrid();
+    }
+    const cur = mfGetCurrentForm();
+    if (cur && changedIds.has(cur.id)) {
+      const active = document.activeElement;
+      const activeId = active && active.id;
+      const fieldListEl = document.getElementById('mfFieldList');
+      const typingTitleOrDesc = activeId === 'mfFormTitleInput' || activeId === 'mfFormDescInput';
+      const typingInFieldList = fieldListEl && active && fieldListEl.contains(active);
+      // Full re-renders below rebuild DOM from scratch (innerHTML), which
+      // would yank focus/cursor out of whatever the user is mid-typing in.
+      // Skip that specific refresh rather than fight their keystrokes —
+      // the next change (remote or local) catches it back up.
+      if (!typingTitleOrDesc && typeof mfRenderPreview === 'function') mfRenderPreview();
+      if (!typingInFieldList && typeof mfRenderFieldList === 'function') mfRenderFieldList();
+    }
+  } finally {
+    mfCollabApplyingRemote = false;
+  }
+}
+
+sarvarcCollabRegisterModule('makeforms', {
+  attach(doc, awareness) {
+    mfCollabMap = doc.getMap('mfForms');
+    // First one in seeds the shared doc from whatever's already saved
+    // locally, so opening a live project with existing forms doesn't
+    // start everyone from empty.
+    if (mfCollabMap.size === 0 && mfState.forms.length) {
+      doc.transact(() => { mfState.forms.forEach(f => mfCollabMap.set(f.id, f)); });
+    } else {
+      mfCollabReconcileFromY(new Set(Array.from(mfCollabMap.keys())));
+    }
+    mfCollabMap.observe((event, tx) => {
+      if (tx.origin !== 'remote') return; // our own local pushes already reflect in mfState directly
+      mfCollabReconcileFromY(new Set(Array.from(event.changes.keys.keys())));
+    });
+  },
+  detach() { mfCollabMap = null; }
+});
 
 // ─── FIELD DEFAULTS ───
 function mfNewField(type) {
@@ -63977,6 +64086,25 @@ if (document.readyState === 'loading') {
      on signup is left untouched for a future step.
      ============================================================ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- ============================================================
+     LIVE CO-EDITING — Yjs (CRDT merge engine) + awareness protocol
+     (who's-looking-at-what). Loaded here so both the Team feature
+     and every module's collab hook below can use them. Actual
+     transport is Supabase Realtime `broadcast` (see
+     sarvarcCollabConnect below) — no separate server needed.
+     ============================================================ -->
+<script type="module">
+  // Yjs ships as ES modules only these days (no simple browser global), so
+  // pull it in as a module and hang it off window for the plain <script>
+  // blocks elsewhere on this page (sarvarcCollab core, per-module hooks)
+  // to use. esm.sh resolves the real npm package + its dependency graph
+  // correctly, which a guessed UMD global name would not.
+  import * as Yjs from 'https://esm.sh/yjs@13.6.18';
+  import * as YAwareness from 'https://esm.sh/y-protocols@1.0.6/awareness';
+  window.Yjs = Yjs;
+  window.YAwareness = YAwareness;
+  window.dispatchEvent(new Event('sarvarc-yjs-ready'));
+</script>
 <script>
   // ---- Show/hide toggle for any password field. Swaps the input's type
   // and the icon between "eye" (hidden, click to reveal) and "eye-off"
@@ -65306,6 +65434,183 @@ if (document.readyState === 'loading') {
   }
 
   // =========================================================
+  // LIVE CO-EDITING CORE — one reusable engine, shared by every module.
+  //
+  // How it works: each live team project gets one Yjs document (a CRDT —
+  // conflict-free replicated data type). Every module that wants live
+  // co-editing gets its own named Y.Map/Y.Array inside that shared doc
+  // instead of storing its data as a plain JS object. When two people
+  // edit at once, Yjs merges both edits automatically — nobody's change
+  // silently overwrites the other's, which is the problem a plain
+  // "last save wins" snapshot has.
+  //
+  // Transport: Supabase Realtime `broadcast` (same mechanism already
+  // used for the "who's online" presence dot below) relays tiny binary
+  // update packets between everyone with this project open — no extra
+  // server. This is NOT the historical "Team Projects" list (named
+  // checkpoints in the `team_projects` table/Storage bucket) — that
+  // stays as-is for versioned backups. This is the live, in-memory layer
+  // that exists only while people actually have the project open.
+  //
+  // Per-module integration contract: register a module with
+  // sarvarcCollabRegisterModule(key, { attach(doc, awareness), detach() }).
+  // attach() is called once connected; it should read/observe its Y type
+  // and keep the module's normal in-memory state + UI in sync with it.
+  // =========================================================
+  let sarvarcCollabDoc = null;
+  let sarvarcCollabAwareness = null;
+  let sarvarcCollabChannel = null;
+  let sarvarcCollabProjectId = null;
+  const sarvarcCollabModules = {}; // key -> { attach(doc, awareness), detach() }
+  const sarvarcCollabAttached = new Set();
+
+  // Replaces the early stub (see the queuing script right after the Yjs
+  // loader, near the top of the page) — from here on this is the real
+  // implementation, used by any module that registers from now on.
+  function sarvarcCollabRegisterModule(key, impl) {
+    sarvarcCollabModules[key] = impl;
+    // If we're already connected when a module registers (e.g. its script
+    // block runs after this one on page load), attach it immediately.
+    if (sarvarcCollabDoc && !sarvarcCollabAttached.has(key)) {
+      sarvarcCollabAttached.add(key);
+      try { impl.attach(sarvarcCollabDoc, sarvarcCollabAwareness); } catch (e) { console.warn('[Collab] attach failed for', key, e); }
+    }
+  }
+  // Drain anything modules queued before this real version existed.
+  (window.sarvarcCollabPending || []).forEach(([key, impl]) => sarvarcCollabRegisterModule(key, impl));
+  window.sarvarcCollabPending = { push: ([key, impl]) => sarvarcCollabRegisterModule(key, impl) };
+
+  function sarvarcCollabIsLive() { return !!sarvarcCollabDoc; }
+
+  // Waits for the Yjs module script (loaded as `type=module`, so it may
+  // not have run yet) before doing anything that needs window.Yjs.
+  function sarvarcCollabWaitForYjs() {
+    if (window.Yjs && window.YAwareness) return Promise.resolve();
+    return new Promise(resolve => {
+      window.addEventListener('sarvarc-yjs-ready', () => resolve(), { once: true });
+    });
+  }
+
+  async function sarvarcCollabConnect(teamProjectId) {
+    await sarvarcCollabWaitForYjs();
+    if (sarvarcCollabProjectId === teamProjectId && sarvarcCollabDoc) return; // already connected to this one
+    if (sarvarcCollabDoc) sarvarcCollabDisconnect();
+
+    const Y = window.Yjs;
+    const user = await sarvarcTeamGetUser();
+    if (!user) return;
+
+    const doc = new Y.Doc();
+    const awareness = new window.YAwareness.Awareness(doc);
+    const channel = sarvarcSupabase.channel('sarvarc-live-' + teamProjectId, { config: { broadcast: { self: false } } });
+
+    // Incoming CRDT updates from teammates — merge into our doc. Tag the
+    // transaction origin 'remote' so module attach() observers can tell
+    // "this came from a teammate, just re-render" apart from "this is my
+    // own edit, also push it out" and avoid an echo loop.
+    channel.on('broadcast', { event: 'yupdate' }, (msg) => {
+      try {
+        const update = sarvarcCollabB64ToBytes(msg.payload.u);
+        Y.applyUpdate(doc, update, 'remote');
+      } catch (e) { console.warn('[Collab] bad update packet', e); }
+    });
+    channel.on('broadcast', { event: 'yaware' }, (msg) => {
+      try {
+        const update = sarvarcCollabB64ToBytes(msg.payload.u);
+        window.YAwareness.applyAwarenessUpdate(awareness, update, 'remote');
+      } catch (e) { console.warn('[Collab] bad awareness packet', e); }
+    });
+
+    // Any local change (from us, in this tab) gets broadcast out. Yjs
+    // fires this for both local and applied-remote updates, so we skip
+    // re-broadcasting updates that just came in from 'remote' — otherwise
+    // every client would loop the same update back and forth forever.
+    doc.on('update', (update, origin) => {
+      if (origin === 'remote') return;
+      channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(update) } });
+    });
+    awareness.on('update', ({ added, updated, removed }, origin) => {
+      if (origin === 'remote') return;
+      const changed = added.concat(updated, removed);
+      const update = window.YAwareness.encodeAwarenessUpdate(awareness, changed);
+      channel.send({ type: 'broadcast', event: 'yaware', payload: { u: sarvarcCollabBytesToB64(update) } });
+    });
+
+    await new Promise(resolve => {
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Announce our identity for the field-level "who's editing what"
+          // indicators, and nudge our current doc state out so anyone
+          // already in the room converges with us (Yjs updates are
+          // idempotent/mergeable, so re-sending our full state is safe).
+          const m = sarvarcTeamMembersCache[user.id];
+          awareness.setLocalState({ userId: user.id, name: (m && m.full_name) || user.email, color: sarvarcCollabColorFor(user.id) });
+          channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(Y.encodeStateAsUpdate(doc)) } });
+          resolve();
+        }
+      });
+    });
+
+    sarvarcCollabDoc = doc;
+    sarvarcCollabAwareness = awareness;
+    sarvarcCollabChannel = channel;
+    sarvarcCollabProjectId = teamProjectId;
+    sarvarcCollabAttached.clear();
+    Object.keys(sarvarcCollabModules).forEach(key => {
+      sarvarcCollabAttached.add(key);
+      try { sarvarcCollabModules[key].attach(doc, awareness); } catch (e) { console.warn('[Collab] attach failed for', key, e); }
+    });
+  }
+
+  function sarvarcCollabDisconnect() {
+    Object.keys(sarvarcCollabModules).forEach(key => {
+      if (sarvarcCollabAttached.has(key)) {
+        try { sarvarcCollabModules[key].detach(); } catch (e) {}
+      }
+    });
+    sarvarcCollabAttached.clear();
+    if (sarvarcCollabChannel) { try { sarvarcSupabase.removeChannel(sarvarcCollabChannel); } catch (e) {} }
+    if (sarvarcCollabDoc) { try { sarvarcCollabDoc.destroy(); } catch (e) {} }
+    sarvarcCollabDoc = null;
+    sarvarcCollabAwareness = null;
+    sarvarcCollabChannel = null;
+    sarvarcCollabProjectId = null;
+    localStorage.removeItem('sarvarcLiveCollabTeamProjectId');
+    localStorage.removeItem('sarvarcLiveCollabTeamId');
+    localStorage.removeItem('sarvarcLiveCollabSessionId');
+  }
+
+  function sarvarcCollabBytesToB64(bytes) {
+    let bin = ''; const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function sarvarcCollabB64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  // Stable-ish color per user id, for cursor/field-presence badges.
+  const SARVARC_COLLAB_COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+  function sarvarcCollabColorFor(userId) {
+    let h = 0;
+    for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
+    return SARVARC_COLLAB_COLORS[h % SARVARC_COLLAB_COLORS.length];
+  }
+
+  // On page load: if we reloaded while a live team project was open (see
+  // sarvarcTeamProjectOpen below — loading a saved snapshot still goes
+  // through the existing reload-based restore path), reconnect to that
+  // same live room automatically instead of leaving it live-only-until-
+  // the-next-reload.
+  (function sarvarcCollabAutoReconnect() {
+    const pid = localStorage.getItem('sarvarcLiveCollabTeamProjectId');
+    if (!pid) return;
+    sarvarcCollabWaitForYjs().then(() => sarvarcCollabConnect(pid)).catch(e => console.warn('[Collab] auto-reconnect failed', e));
+  })();
+
+  // =========================================================
   // TEAM FEATURE — teams / members / invites / live presence.
   // Only metadata (names, emails, roles, project pointers) lives in
   // Supabase. Actual document content never leaves the owning member's
@@ -65648,9 +65953,16 @@ if (document.readyState === 'loading') {
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
       });
+      // Mark this as a LIVE team project before the reload below wipes all
+      // in-memory JS state. sarvarcCollabAutoReconnect (top of the LIVE
+      // CO-EDITING CORE block) picks these back up right after reload and
+      // rejoins the same live room, so co-editing survives the restore.
+      localStorage.setItem('sarvarcLiveCollabTeamProjectId', projectId);
+      localStorage.setItem('sarvarcLiveCollabTeamId', sarvarcTeamActiveId);
+      localStorage.setItem('sarvarcLiveCollabSessionId', rec.id);
       sarvarcTeamCloseModal();
       await smLoadSession(rec.id);
-      toast('Opened "' + proj.name + '" from the team', 'success');
+      toast('Opened "' + proj.name + '" from the team — live with teammates', 'success');
     } catch (e) {
       sarvarcTeamShowError(e.message || 'Could not open that project.');
     }
