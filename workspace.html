@@ -66145,6 +66145,11 @@ if (document.readyState === 'loading') {
   let sarvarcPresenceFocusHandler = null;
   let sarvarcPresenceBlurHandler = null;
   let sarvarcPresenceStaleTimer = null;
+  // userId -> { senderT, localSeenAt }. localSeenAt is stamped on OUR clock
+  // the moment we first observe a given senderT, so cursor staleness never
+  // depends on the sender's and viewer's system clocks agreeing (see the
+  // "Live mouse cursors" block in sarvarcPresenceRender for why).
+  const sarvarcPresenceCursorSeenAt = new Map();
 
   function sarvarcPresenceEnsureDom() {
     const cursorsLayer0 = document.getElementById('sarvarcCollabCursorsLayer');
@@ -66319,10 +66324,25 @@ if (document.readyState === 'loading') {
     }
 
     // ---- Live mouse cursors ----
+    // Staleness is judged against OUR OWN clock at the moment we noticed
+    // this cursor value change, not the sender's cur.t timestamp directly —
+    // cur.t was stamped on the sender's machine, and comparing it to our
+    // `now` assumes both clocks agree. Any real-world skew between two
+    // computers' clocks (even a few seconds, very common) made every
+    // incoming cursor look permanently "stale" and get silently dropped
+    // here, while everything else (the "Live" avatar bar above, which
+    // doesn't check cursor freshness) kept working — so teammates showed
+    // as present but their cursor never appeared.
     const seenCursorIds = new Set();
     remoteByUser.forEach((state, userId) => {
       const cur = state.cursor;
-      if (!cur || typeof cur.xPct !== 'number' || (now - cur.t) > 8000) return; // stale/no cursor yet
+      if (!cur || typeof cur.xPct !== 'number') return; // no cursor yet
+      const prevSeen = sarvarcPresenceCursorSeenAt.get(userId);
+      if (!prevSeen || prevSeen.senderT !== cur.t) {
+        sarvarcPresenceCursorSeenAt.set(userId, { senderT: cur.t, localSeenAt: now });
+      }
+      const localSeenAt = sarvarcPresenceCursorSeenAt.get(userId).localSeenAt;
+      if ((now - localSeenAt) > 8000) return; // no update from them in the last 8s
       const id = 'sarvarc-cursor-' + userId;
       seenCursorIds.add(id);
       let el = document.getElementById(id);
@@ -66426,6 +66446,7 @@ if (document.readyState === 'loading') {
     if (sarvarcPresenceBlurHandler) document.removeEventListener('focusout', sarvarcPresenceBlurHandler);
     if (sarvarcPresenceStaleTimer) clearInterval(sarvarcPresenceStaleTimer);
     sarvarcPresenceMouseHandler = sarvarcPresenceFocusHandler = sarvarcPresenceBlurHandler = sarvarcPresenceStaleTimer = null;
+    sarvarcPresenceCursorSeenAt.clear();
     const bar = document.getElementById('sarvarcPresenceBox');
     if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
     const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
