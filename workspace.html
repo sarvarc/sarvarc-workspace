@@ -13251,6 +13251,19 @@ button.dg-show-chip.active { background:var(--blue); }
         </div>
         <div id="sarvarcTeamError" style="font-size:10px;color:#ef4444;display:none;margin-top:8px"></div>
         <div id="sarvarcTeamNote" style="font-size:10px;color:var(--text3);display:none;margin-top:8px"></div>
+
+        <!-- SHARED PROJECTS: snapshot of current work pushed to this team's
+             private storage, so any member can open the SAME file instead of
+             everyone having their own personal-Drive copy. -->
+        <div style="border-top:1px solid var(--border2);margin-top:16px;padding-top:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Team Projects</div>
+            <button class="btn-secondary" style="padding:5px 10px;font-size:11px" onclick="sarvarcTeamProjectSave()">Save current work to team</button>
+          </div>
+          <div id="sarvarcTeamProjectsList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
+            <div style="font-size:11px;color:var(--text3)">No shared projects yet.</div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="pdfed-export-footer">
@@ -65447,6 +65460,7 @@ if (document.readyState === 'loading') {
     sarvarcTeamActiveId = teamId;
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
     await sarvarcTeamLoadMembers(teamId);
+    await sarvarcTeamProjectsLoad(teamId);
     sarvarcTeamStartPresence(teamId);
   }
 
@@ -65540,6 +65554,102 @@ if (document.readyState === 'loading') {
       });
       sarvarcTeamPresenceChannel = channel;
     });
+  }
+
+  // ---- Shared projects: push current work to the team, open a teammate's
+  // shared work. Uses the SAME session snapshot format (rec.snapshot =
+  // {ls, idb}) that "Saved Sessions" already uses locally and on personal
+  // Drive — just uploaded to the team's own private storage instead, and
+  // with the personal-account lock (rec.ownerEmail) cleared on open since
+  // it's now legitimately shared with the whole team. ----
+  async function sarvarcTeamProjectsLoad(teamId) {
+    const listEl = document.getElementById('sarvarcTeamProjectsList');
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">Loading…</div>';
+    try {
+      const { data: rows, error } = await sarvarcSupabase
+        .from('team_projects')
+        .select('id, name, storage_path, updated_at, updated_by, member:updated_by (full_name, email)')
+        .eq('team_id', teamId)
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">No shared projects yet.</div>';
+        return;
+      }
+      listEl.innerHTML = rows.map(p => {
+        const who = (p.member && (p.member.full_name || p.member.email)) || 'a teammate';
+        const when = p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface2)">
+          <div style="min-width:0">
+            <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+            <div style="font-size:10px;color:var(--text3)">Last saved by ${who}${when ? ' · ' + when : ''}</div>
+          </div>
+          <button class="btn-secondary" style="padding:5px 10px;font-size:11px;flex:none" onclick="sarvarcTeamProjectOpen('${p.id}')">Open</button>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      listEl.innerHTML = '';
+      sarvarcTeamShowError(e.message || 'Could not load team projects.');
+    }
+  }
+
+  async function sarvarcTeamProjectSave() {
+    if (!sarvarcTeamActiveId) return;
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    const name = prompt('Name this project for your team:', (typeof smDefaultName === 'function' ? smDefaultName() : 'Project'));
+    if (!name) return;
+    try {
+      const user = await sarvarcTeamGetUser();
+      if (!user) { sarvarcAuthOpenModal('login'); return; }
+      if (typeof smSaveSession !== 'function') throw new Error('Save engine not available on this page.');
+      // Re-uses the exact same capture path "Save Your Workflow" uses (also
+      // saves locally + to the owner's personal Drive as a backup — that
+      // part is unchanged and unaffected by the team copy below).
+      const rec = await smSaveSession(name);
+      const path = sarvarcTeamActiveId + '/' + rec.id + '.json';
+      const blob = new Blob([JSON.stringify(rec)], { type: 'application/json' });
+      const { error: upErr } = await sarvarcSupabase.storage.from('team-projects').upload(path, blob, { upsert: true, contentType: 'application/json' });
+      if (upErr) throw upErr;
+      const { error: rowErr } = await sarvarcSupabase.from('team_projects').insert({
+        team_id: sarvarcTeamActiveId, name, module: 'workflow',
+        owner_id: user.id, storage_path: path, updated_by: user.id, updated_at: new Date().toISOString()
+      });
+      if (rowErr) throw rowErr;
+      sarvarcTeamShowNote('Saved to team.');
+      toast('Saved to team', 'success');
+      await sarvarcTeamProjectsLoad(sarvarcTeamActiveId);
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not save to team.');
+    }
+  }
+
+  async function sarvarcTeamProjectOpen(projectId) {
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    try {
+      const { data: proj, error } = await sarvarcSupabase.from('team_projects').select('*').eq('id', projectId).maybeSingle();
+      if (error) throw error;
+      if (!proj || !proj.storage_path) throw new Error('That project could not be found.');
+      const { data: blob, error: dlErr } = await sarvarcSupabase.storage.from('team-projects').download(proj.storage_path);
+      if (dlErr) throw dlErr;
+      const text = await blob.text();
+      const rec = JSON.parse(text);
+      // Clear the personal-account lock — this snapshot is legitimately
+      // shared with the whole team now, not tied to whoever saved it.
+      rec.ownerEmail = null;
+      const db = await idbKvOpen();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readwrite');
+        tx.objectStore('sessions').put(rec);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      sarvarcTeamCloseModal();
+      await smLoadSession(rec.id);
+      toast('Opened "' + proj.name + '" from the team', 'success');
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not open that project.');
+    }
   }
 
   // ---- Continue with Google: opens Google's consent screen in a popup
