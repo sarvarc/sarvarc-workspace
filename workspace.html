@@ -67077,8 +67077,14 @@ if (document.readyState === 'loading') {
       } catch (e) { console.warn('[Team] Drive mirror (tagged) skipped', e); }
 
       // Pointer only — id/name/who/when — never file content.
+      // `module` is a NOT NULL column on team_projects (used to pick the
+      // tile icon/label in the team list — see SM_MODULE_TILE_COLOR/LABEL).
+      // Tag it with whichever module actually has content in this snapshot
+      // (the same detection smComposeThumbnail uses), falling back to
+      // 'workspace' for an empty/blank save so the insert never 23502s.
+      const primaryModule = smPresentModules(rec.snapshot)[0] || 'workspace';
       const { error: rowErr } = await sarvarcSupabase.from('team_projects').upsert({
-        id: rec.id, team_id: sarvarcTeamActiveId, name,
+        id: rec.id, team_id: sarvarcTeamActiveId, name, module: primaryModule,
         owner_id: user.id, updated_by: user.id, updated_at: new Date().toISOString()
       });
       if (rowErr) throw rowErr;
