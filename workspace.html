@@ -4920,6 +4920,74 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 }
 .sarvarc-pw-modal-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
 
+/* ─── TEAM MODAL — enterprise-grade member cards, avatars, role badges ─── */
+.sarvarc-team-modal { max-width: 520px; }
+.sarvarc-team-count-pill {
+  font-size: 10.5px; font-weight: 700; color: var(--text2);
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 999px; padding: 2px 9px; margin-left: 8px; letter-spacing: .02em;
+}
+.sarvarc-team-section-label {
+  font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em;
+  font-weight: 700; margin: 4px 0 9px; display: flex; align-items: center; justify-content: space-between;
+}
+.sarvarc-team-members-list { display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; padding-right: 2px; }
+.sarvarc-team-member-card {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+  transition: border-color .15s, background .15s, transform .15s;
+}
+.sarvarc-team-member-card:hover { border-color: var(--border2); background: var(--surface2); }
+.sarvarc-team-member-card.is-you { border-color: rgba(0,194,255,0.35); background: rgba(0,194,255,0.05); }
+.sarvarc-team-avatar-wrap { position: relative; flex: none; }
+.sarvarc-team-avatar {
+  width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+  border: 2px solid var(--border2); display: block; background: var(--surface2);
+}
+.sarvarc-team-avatar-fallback {
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff; border: 2px solid var(--border2);
+}
+.sarvarc-team-online-dot {
+  position: absolute; bottom: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%;
+  background: #22c55e; border: 2px solid var(--bg2); box-shadow: 0 0 0 0 rgba(34,197,94,0.6);
+  animation: sarvarcTeamPulse 2s infinite;
+}
+.sarvarc-team-online-dot.offline { background: var(--text3); border-color: var(--bg2); animation: none; box-shadow: none; }
+@keyframes sarvarcTeamPulse {
+  0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+  70% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+.sarvarc-team-member-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.sarvarc-team-member-name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.sarvarc-team-member-you-tag { font-size: 9.5px; font-weight: 700; color: var(--cyan); background: rgba(0,194,255,0.12); border-radius: 5px; padding: 1px 5px; letter-spacing: .02em; }
+.sarvarc-team-member-email { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sarvarc-team-role-badge {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 999px; flex: none; white-space: nowrap;
+}
+.sarvarc-team-role-owner { color: #7a5a00; background: linear-gradient(135deg, #ffe28a, #ffc94d); }
+[data-theme="dark"] .sarvarc-team-role-owner { color: #4a3300; }
+.sarvarc-team-role-admin { color: #fff; background: linear-gradient(135deg, var(--blue), var(--cyan)); }
+.sarvarc-team-role-member { color: var(--text2); background: var(--surface2); border: 1px solid var(--border2); }
+.sarvarc-team-member-actions { flex: none; display: flex; gap: 6px; }
+.sarvarc-team-action-btn {
+  padding: 5px 10px; font-size: 10.5px; font-weight: 600; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text2);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.sarvarc-team-action-btn:hover { background: var(--surface); }
+.sarvarc-team-action-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.35); }
+.sarvarc-team-action-btn.danger:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+.sarvarc-team-action-btn.leave { color: #f59e0b; border-color: rgba(245,158,11,0.35); }
+.sarvarc-team-action-btn.leave:hover { background: rgba(245,158,11,0.1); border-color: #f59e0b; }
+.sarvarc-team-switcher-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.sarvarc-team-switcher-select {
+  flex: 1; padding: 8px 10px; font-size: 12.5px; font-weight: 600; border-radius: 9px;
+  background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+}
+
 /* ─── SLIDESHOW ICON BUTTON (sits beside Cancel in the PDF export modal) ─── */
 .pdfed-slideshow-icon-btn {
   width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
@@ -8504,6 +8572,7 @@ button.dg-show-chip.active { background:var(--blue); }
     </a>
     <span class="topnav-ws-label" style="font-size:10px;letter-spacing:0.3em;color:var(--text3);text-transform:uppercase;font-weight:400;margin-left:10px;padding-left:10px;border-left:1px solid var(--border);flex-shrink:0;">Workspace</span>
     <span class="topnav-beta-badge" style="font-size:9px;letter-spacing:0.08em;color:var(--blue);text-transform:uppercase;font-weight:700;margin-left:8px;padding:2px 7px;border-radius:20px;border:1px solid var(--border2);background:rgba(0,194,255,0.10);flex-shrink:0;">Beta</span>
+    <div id="sarvarcPresenceBox" class="sarvarc-presence-box" style="display:none;"></div>
     <div class="topnav-spacer"></div>
     <button class="new-project-btn" id="newProjectBtn" onclick="smNewProject()" title="New Project — clears all current work in every module (Workspace document, Extraction, Data Arrangement, Make Forms, Diagrams &amp; Graphs, Redact PII) so you can start fresh. Your saved sessions aren't affected." aria-label="New Project">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
@@ -13222,10 +13291,10 @@ button.dg-show-chip.active { background:var(--blue); }
      actual documents stay in each member's own Google Drive, same as solo
      projects. -->
 <div class="pdfed-insert-modal-overlay" id="sarvarcTeamOverlay" onmousedown="if(event.target===this)sarvarcTeamCloseModal()">
-  <div class="sarvarc-pw-modal" style="max-width:440px">
+  <div class="sarvarc-pw-modal sarvarc-team-modal">
     <div class="pdfed-export-head">
       <div>
-        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team</h3>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team<span class="sarvarc-team-count-pill" id="sarvarcTeamCountPill" style="display:none">0 members</span></h3>
         <div class="pdfed-export-sub" id="sarvarcTeamModalSub">Work on projects together with your team</div>
       </div>
       <button type="button" class="pdfed-export-close" onclick="sarvarcTeamCloseModal()" aria-label="Close">
@@ -13246,9 +13315,10 @@ button.dg-show-chip.active { background:var(--blue); }
 
       <!-- Has team(s) -->
       <div id="sarvarcTeamActiveState" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-          <select id="sarvarcTeamSwitcher" onchange="sarvarcTeamSwitch(this.value)" style="flex:1;padding:7px 8px;font-size:12px;border-radius:7px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)"></select>
+        <div class="sarvarc-team-switcher-row">
+          <select id="sarvarcTeamSwitcher" class="sarvarc-team-switcher-select" onchange="sarvarcTeamSwitch(this.value)"></select>
           <button class="btn-secondary" title="Create another team" onclick="sarvarcTeamShowCreateForm()" style="padding:7px 9px;font-size:12px">+ New</button>
+          <button class="sarvarc-team-action-btn leave" id="sarvarcTeamLeaveBtn" title="Leave this team" onclick="sarvarcTeamLeave()" style="padding:7px 10px">Leave Team</button>
         </div>
 
         <div id="sarvarcTeamCreateInline" style="display:none;margin-bottom:12px">
@@ -13256,8 +13326,8 @@ button.dg-show-chip.active { background:var(--blue); }
           <button class="pdfed-export-download-btn" style="width:100%;margin-top:8px" onclick="sarvarcTeamCreate('sarvarcTeamNewName2')">Create</button>
         </div>
 
-        <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 8px">Members</div>
-        <div id="sarvarcTeamMembersList" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+        <div class="sarvarc-team-section-label">Members</div>
+        <div id="sarvarcTeamMembersList" class="sarvarc-team-members-list"></div>
 
         <div id="sarvarcTeamInviteRow" style="display:flex;gap:8px;margin-top:12px">
           <input type="email" id="sarvarcTeamInviteEmail" class="pdfed-export-range-input" placeholder="teammate@email.com" style="margin-top:0;flex:1">
@@ -37234,6 +37304,7 @@ function daPersist() {
       }));
     } catch (e) { console.warn('[Data Arrangement] could not persist to localStorage', e); }
   }, 300);
+  daCollabPush();
 }
 function daRestore() {
   try {
@@ -37248,6 +37319,74 @@ function daRestore() {
   } catch (e) { console.warn('[Data Arrangement] could not restore from localStorage', e); }
 }
 daRestore();
+
+// ─── LIVE CO-EDITING (see sarvarcCollabRegisterModule / core engine) ───
+// Same recipe as Make Forms: each dataset is one entry in a shared Y.Map,
+// keyed by dataset.id. Two people editing DIFFERENT tables never conflict;
+// two people editing the very same table at the very same instant resolves
+// last-write-wins for that whole table (Yjs "last write wins" per key) —
+// per-cell merge isn't wired up here, same tradeoff Make Forms made.
+let daCollabMap = null;
+let daCollabApplyingRemote = false; // guards against remote refresh re-touching a table the user is actively editing
+
+function daCollabPush() {
+  if (!daCollabMap || daCollabApplyingRemote) return;
+  const doc = daCollabMap.doc;
+  doc.transact(() => {
+    const liveIds = new Set(daState.datasets.map(d => d.id));
+    daCollabMap.forEach((_v, k) => { if (!liveIds.has(k)) daCollabMap.delete(k); });
+    daState.datasets.forEach(d => daCollabMap.set(d.id, d));
+  });
+}
+
+function daCollabReconcileFromY(changedIds) {
+  daCollabApplyingRemote = true;
+  try {
+    const yIds = new Set();
+    daCollabMap.forEach((v, k) => { yIds.add(k); });
+    const byId = {};
+    daCollabMap.forEach((v, k) => { byId[k] = v; });
+    // Keep local ordering for tables we already know about, append any new
+    // ones, drop any that were removed remotely.
+    const kept = daState.datasets.filter(d => yIds.has(d.id)).map(d => byId[d.id]);
+    const existingIds = new Set(daState.datasets.map(d => d.id));
+    const added = Array.from(yIds).filter(id => !existingIds.has(id)).map(id => byId[id]);
+    daState.datasets = kept.concat(added);
+    if (!daState.datasets.some(d => d.id === daState.activeId)) {
+      daState.activeId = daState.datasets.length ? daState.datasets[0].id : null;
+    }
+    try { localStorage.setItem(DA_STORAGE_KEY, JSON.stringify({ datasets: daState.datasets, activeId: daState.activeId, idCounter: daIdCounter })); } catch (e) {}
+
+    // A grid mid-edit (contenteditable focused) shouldn't get yanked out
+    // from under the person typing — daRenderTable() already blurs the
+    // active cell before rebuilding, so skip the rebuild entirely here and
+    // let the next local blur (or the next remote change) catch it up.
+    const gridWrap = document.getElementById('daGridWrap');
+    const typingInGrid = gridWrap && document.activeElement && gridWrap.contains(document.activeElement);
+    if (!typingInGrid) {
+      if (typeof daRenderTabs === 'function') daRenderTabs();
+      if (typeof daRenderTable === 'function') daRenderTable();
+    }
+  } finally {
+    daCollabApplyingRemote = false;
+  }
+}
+
+sarvarcCollabRegisterModule('dataarrange', {
+  attach(doc, awareness) {
+    daCollabMap = doc.getMap('daDatasets');
+    if (daCollabMap.size === 0 && daState.datasets.length) {
+      doc.transact(() => { daState.datasets.forEach(d => daCollabMap.set(d.id, d)); });
+    } else {
+      daCollabReconcileFromY(new Set(Array.from(daCollabMap.keys())));
+    }
+    daCollabMap.observe((event, tx) => {
+      if (tx.origin !== 'remote') return;
+      daCollabReconcileFromY(new Set(Array.from(event.changes.keys.keys())));
+    });
+  },
+  detach() { daCollabMap = null; }
+});
 
 // ─── Drag & drop wiring (mirrors handleDragOver/handleDrop but scoped to Data Arrangement) ───
 function daDragOver(e) { e.preventDefault(); document.getElementById('daUploadZone').classList.add('dragover'); }
@@ -41394,13 +41533,13 @@ function daRenderTable() {
           if (!matched) {
             optsHtml = `<option value="${daEsc(val)}" selected>${val === '' ? '—' : daEsc(val)}</option>` + optsHtml;
           }
-          html += `<td data-r="${ri}" data-c="${ci}"><select class="da-td-select" data-da-dropdown="1"
+          html += `<td data-r="${ri}" data-c="${ci}"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select" data-da-dropdown="1"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onchange="daUpdateCell(${ri}, ${ci}, this.value)"
                oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
                title="Dropdown list, right-click to edit choices">${optsHtml}</select>${linkBadge}</td>`;
         } else {
-          html += `<td data-r="${ri}" data-c="${ci}"><div class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}" contenteditable="true" spellcheck="false"
+          html += `<td data-r="${ri}" data-c="${ci}"><div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}" contenteditable="true" spellcheck="false"
                onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
@@ -55987,6 +56126,7 @@ function dgFlowPersist() {
       const title = (document.getElementById('dgFlowTitleInput') || {}).value || '';
       localStorage.setItem(DG_FLOW_STORAGE_KEY, JSON.stringify({ code, title }));
     } catch (e) { console.warn('[Diagrams] could not persist flowchart state', e); }
+    dgFlowCollabPush();
   }, 300);
 }
 function dgFlowRestore() {
@@ -57485,6 +57625,7 @@ function dgPersist() {
     try {
       localStorage.setItem(DG_HISTORY_STORAGE_KEY, JSON.stringify(dgChartHistory));
     } catch (e) { console.warn('[Diagrams] could not persist chart history', e); }
+    dgCollabPushChart();
   }, 300);
 }
 function dgRestore() {
@@ -57504,6 +57645,106 @@ function dgRestore() {
   } catch (e) { console.warn('[Diagrams] could not restore chart history', e); }
 }
 dgRestore();
+
+// ─── LIVE CO-EDITING (see sarvarcCollabRegisterModule / core engine) ───
+// Diagrams & Graphs isn't a list of named items like Make Forms/Data
+// Arrangement — it's one chart being worked on at a time — so instead of a
+// Y.Map keyed by item id, dgState's own top-level properties (type, rows,
+// paletteScheme, texts, ...) each become one key in a shared Y.Map. Two
+// people editing DIFFERENT properties at once (one picking a palette while
+// the other edits data rows) merge cleanly; two people touching the exact
+// SAME property at the same instant still resolves last-write-wins for
+// that property, same tradeoff Make Forms/Data Arrangement made.
+let dgCollabMap = null;
+let dgCollabApplyingRemote = false;
+
+function dgCollabPushChart() {
+  if (!dgCollabMap || dgCollabApplyingRemote) return;
+  const doc = dgCollabMap.doc;
+  doc.transact(() => {
+    Object.keys(dgState).forEach(k => dgCollabMap.set(k, dgState[k]));
+  });
+}
+
+function dgCollabReconcileChartFromY() {
+  dgCollabApplyingRemote = true;
+  try {
+    dgCollabMap.forEach((v, k) => { dgState[k] = v; });
+    try { localStorage.setItem(DG_STORAGE_KEY, JSON.stringify(dgState)); } catch (e) {}
+    // Don't yank a chart mid-drag/mid-edit out from under an active
+    // control — text overlay dragging and a couple of ribbon inputs track
+    // their own live element refs, so a full dgRender() while the user has
+    // one of those focused would fight their input. Skip while any dg*
+    // control has focus; the next local change (or remote update) re-syncs.
+    const active = document.activeElement;
+    const typingInDg = active && active.closest && active.closest('#dgRibbonBar, #dgMainRow, .dg-text-overlay');
+    if (!typingInDg && typeof dgRender === 'function') dgRender();
+  } finally {
+    dgCollabApplyingRemote = false;
+  }
+}
+
+let dgFlowCollabMap = null;
+let dgFlowCollabApplyingRemote = false;
+
+function dgFlowCollabPush() {
+  if (!dgFlowCollabMap || dgFlowCollabApplyingRemote) return;
+  const ta = document.getElementById('dgFlowInput');
+  const ti = document.getElementById('dgFlowTitleInput');
+  const doc = dgFlowCollabMap.doc;
+  doc.transact(() => {
+    dgFlowCollabMap.set('code', ta ? ta.value : '');
+    dgFlowCollabMap.set('title', ti ? ti.value : '');
+  });
+}
+
+function dgFlowCollabReconcileFromY() {
+  dgFlowCollabApplyingRemote = true;
+  try {
+    const ta = document.getElementById('dgFlowInput');
+    const ti = document.getElementById('dgFlowTitleInput');
+    const code = dgFlowCollabMap.get('code');
+    const title = dgFlowCollabMap.get('title');
+    try { localStorage.setItem(DG_FLOW_STORAGE_KEY, JSON.stringify({ code: code || '', title: title || '' })); } catch (e) {}
+    // Never stomp the box someone's actively typing a diagram/title into.
+    if (ta && document.activeElement !== ta && typeof code === 'string' && ta.value !== code) {
+      ta.value = code;
+      if (typeof dgFlowRender === 'function') dgFlowRender();
+    }
+    if (ti && document.activeElement !== ti && typeof title === 'string') ti.value = title;
+  } finally {
+    dgFlowCollabApplyingRemote = false;
+  }
+}
+
+sarvarcCollabRegisterModule('diagrams', {
+  attach(doc, awareness) {
+    dgCollabMap = doc.getMap('dgChart');
+    if (dgCollabMap.size === 0) {
+      doc.transact(() => { Object.keys(dgState).forEach(k => dgCollabMap.set(k, dgState[k])); });
+    } else {
+      dgCollabReconcileChartFromY();
+    }
+    dgCollabMap.observe((event, tx) => {
+      if (tx.origin !== 'remote') return;
+      dgCollabReconcileChartFromY();
+    });
+
+    dgFlowCollabMap = doc.getMap('dgFlow');
+    const localCode = (document.getElementById('dgFlowInput') || {}).value || '';
+    if (dgFlowCollabMap.size === 0 && localCode) {
+      const localTitle = (document.getElementById('dgFlowTitleInput') || {}).value || '';
+      doc.transact(() => { dgFlowCollabMap.set('code', localCode); dgFlowCollabMap.set('title', localTitle); });
+    } else if (dgFlowCollabMap.size > 0) {
+      dgFlowCollabReconcileFromY();
+    }
+    dgFlowCollabMap.observe((event, tx) => {
+      if (tx.origin !== 'remote') return;
+      dgFlowCollabReconcileFromY();
+    });
+  },
+  detach() { dgCollabMap = null; dgFlowCollabMap = null; }
+});
 
 // Used by callers outside this module (Data Arrangement's push button) to
 // decide whether to ask before overwriting. The blank canvas someone starts
@@ -65544,7 +65785,7 @@ if (document.readyState === 'loading') {
           // already in the room converges with us (Yjs updates are
           // idempotent/mergeable, so re-sending our full state is safe).
           const m = sarvarcTeamMembersCache[user.id];
-          awareness.setLocalState({ userId: user.id, name: (m && m.full_name) || user.email, color: sarvarcCollabColorFor(user.id) });
+          awareness.setLocalState({ userId: user.id, name: (m && m.full_name) || user.email, avatar: (m && m.avatar_url) || null, color: sarvarcCollabColorFor(user.id) });
           channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(Y.encodeStateAsUpdate(doc)) } });
           resolve();
         }
@@ -65623,32 +65864,62 @@ if (document.readyState === 'loading') {
   let sarvarcPresenceStaleTimer = null;
 
   function sarvarcPresenceEnsureDom() {
-    if (document.getElementById('sarvarcPresenceBar')) return;
+    const cursorsLayer0 = document.getElementById('sarvarcCollabCursorsLayer');
+    if (!cursorsLayer0) {
+      const cursorsLayer = document.createElement('div');
+      cursorsLayer.id = 'sarvarcCollabCursorsLayer';
+      cursorsLayer.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:850;overflow:hidden;';
+      document.body.appendChild(cursorsLayer);
+    }
 
-    const bar = document.createElement('div');
-    bar.id = 'sarvarcPresenceBar';
-    bar.style.cssText = 'position:fixed;top:8px;right:16px;z-index:900;display:none;align-items:center;';
-    document.body.appendChild(bar);
-
-    const cursorsLayer = document.createElement('div');
-    cursorsLayer.id = 'sarvarcCollabCursorsLayer';
-    cursorsLayer.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:850;overflow:hidden;';
-    document.body.appendChild(cursorsLayer);
-
+    if (document.getElementById('sarvarcPresenceStyle')) return;
     const style = document.createElement('style');
+    style.id = 'sarvarcPresenceStyle';
     style.textContent = `
-      #sarvarcPresenceBar .sarvarc-presence-avatar {
-        width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-        font-size:11px;font-weight:700;color:#fff;border:2px solid var(--bg2);margin-left:-8px;
-        box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:default;
+      /* ── Live-members box, embedded in the top bar ─────────────────── */
+      .sarvarc-presence-box {
+        display:flex; align-items:center; gap:8px;
+        margin-left:10px; padding:4px 10px 4px 8px;
+        border-radius:20px; border:1px solid var(--border2);
+        background:linear-gradient(180deg, rgba(16,185,129,0.10), rgba(16,185,129,0.03));
+        flex-shrink:0; transition:opacity .25s ease;
       }
-      #sarvarcPresenceBar .sarvarc-presence-avatar:first-child { margin-left:0; }
-      #sarvarcPresenceBar .sarvarc-presence-live {
-        font-size:10px;color:var(--text2);margin-right:8px;letter-spacing:.06em;text-transform:uppercase;
-        font-weight:700;display:flex;align-items:center;gap:5px;
+      .sarvarc-presence-live {
+        font-size:9.5px;color:#10B981;letter-spacing:.08em;text-transform:uppercase;
+        font-weight:800;display:flex;align-items:center;gap:5px;
       }
-      #sarvarcPresenceBar .sarvarc-presence-dot {
-        width:6px;height:6px;border-radius:50%;background:#10B981;box-shadow:0 0 6px #10B981;
+      .sarvarc-presence-dot {
+        width:6px;height:6px;border-radius:50%;background:#10B981;
+        box-shadow:0 0 0 rgba(16,185,129,0.6);
+        animation:sarvarcPresenceDotPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes sarvarcPresenceDotPulse {
+        0%   { box-shadow:0 0 0 0 rgba(16,185,129,0.55); }
+        70%  { box-shadow:0 0 0 5px rgba(16,185,129,0); }
+        100% { box-shadow:0 0 0 0 rgba(16,185,129,0); }
+      }
+      .sarvarc-presence-avatars { display:flex; align-items:center; }
+      .sarvarc-presence-avatar-wrap {
+        position:relative; width:26px; height:26px; margin-left:-8px; flex-shrink:0;
+        border-radius:50%;
+        /* the "breathing" — a slow, gentle scale + glow, staggered per person */
+        animation:sarvarcPresenceBreathe 3.2s ease-in-out infinite;
+      }
+      .sarvarc-presence-avatar-wrap:first-child { margin-left:0; }
+      @keyframes sarvarcPresenceBreathe {
+        0%, 100% { transform:scale(1);    filter:drop-shadow(0 0 0 rgba(16,185,129,0)); }
+        50%      { transform:scale(1.07); filter:drop-shadow(0 0 4px rgba(16,185,129,0.45)); }
+      }
+      .sarvarc-presence-avatar-img, .sarvarc-presence-avatar-fallback {
+        width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        font-size:10.5px; font-weight:700; color:#fff; border:2px solid var(--bg2);
+        box-shadow:0 1px 4px rgba(0,0,0,0.35); cursor:default; object-fit:cover;
+      }
+      .sarvarc-presence-overflow {
+        width:26px; height:26px; margin-left:-8px; border-radius:50%; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center;
+        font-size:9.5px; font-weight:700; color:var(--text2); border:2px solid var(--bg2);
+        background:var(--surface2); box-shadow:0 1px 4px rgba(0,0,0,0.3);
       }
       .sarvarc-remote-cursor { position:fixed;pointer-events:none;transition:left .08s linear, top .08s linear;z-index:851; }
       .sarvarc-remote-cursor svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
@@ -65661,6 +65932,7 @@ if (document.readyState === 'loading') {
         position:absolute;font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:5px 5px 5px 0;
         transform:translateY(-100%);white-space:nowrap;pointer-events:none;z-index:852;box-shadow:0 1px 3px rgba(0,0,0,0.4);
       }
+      @media (max-width: 900px) { .sarvarc-presence-box { display:none !important; } }
     `;
     document.head.appendChild(style);
   }
@@ -65673,7 +65945,7 @@ if (document.readyState === 'loading') {
   function sarvarcPresenceRender() {
     if (!sarvarcCollabAwareness) return;
     sarvarcPresenceEnsureDom();
-    const bar = document.getElementById('sarvarcPresenceBar');
+    const bar = document.getElementById('sarvarcPresenceBox');
     const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
     if (!bar || !cursorsLayer) return;
 
@@ -65691,16 +65963,38 @@ if (document.readyState === 'loading') {
       if (!existing || stateT >= existingT) remoteByUser.set(state.userId, state);
     });
 
-    // ---- "Who's here" avatar bar ----
+    // ---- "Who's here" box, embedded in the top bar ----
+    // Real profile photos where we have them, round and gently "breathing"
+    // (a slow scale + glow pulse, staggered per person) so a glance at the
+    // top bar tells you who's live without it feeling busy or gimmicky.
     if (remoteByUser.size > 0) {
       bar.style.display = 'flex';
+      const MAX_SHOWN = 5;
+      const people = Array.from(remoteByUser.values());
+      const shown = people.slice(0, MAX_SHOWN);
+      const overflow = people.length - shown.length;
+
       let html = '<span class="sarvarc-presence-live"><span class="sarvarc-presence-dot"></span>Live</span>';
-      remoteByUser.forEach((state) => {
+      html += '<span class="sarvarc-presence-avatars">';
+      shown.forEach((state, i) => {
         const color = state.color || '#3b82f6';
         const name = (state.name || 'Teammate');
-        html += '<div class="sarvarc-presence-avatar" style="background:' + color + '" title="' +
-          name.replace(/"/g, '&quot;') + ' \u2014 editing live now">' + sarvarcPresenceInitials(name) + '</div>';
+        const title = (name.replace(/"/g, '&quot;')) + ' \u2014 editing live now';
+        // Stagger each avatar's breathing cycle so the box feels alive
+        // rather than everyone pulsing in lockstep.
+        const delay = (i * 0.35).toFixed(2) + 's';
+        const inner = state.avatar
+          ? '<img class="sarvarc-presence-avatar-img" src="' + state.avatar.replace(/"/g, '&quot;') +
+            '" alt="" referrerpolicy="no-referrer" title="' + title + '" onerror="this.outerHTML=\'<div class=&quot;sarvarc-presence-avatar-fallback&quot; style=&quot;background:' +
+            color + '&quot; title=&quot;' + title.replace(/'/g, "&#39;") + '&quot;>' + sarvarcPresenceInitials(name) + '</div>\'">'
+          : '<div class="sarvarc-presence-avatar-fallback" style="background:' + color + '" title="' + title + '">' +
+            sarvarcPresenceInitials(name) + '</div>';
+        html += '<span class="sarvarc-presence-avatar-wrap" style="animation-delay:' + delay + ';z-index:' + (shown.length - i) + '">' + inner + '</span>';
       });
+      if (overflow > 0) {
+        html += '<span class="sarvarc-presence-overflow" title="' + overflow + ' more live now">+' + overflow + '</span>';
+      }
+      html += '</span>';
       bar.innerHTML = html;
     } else {
       bar.style.display = 'none';
@@ -65815,7 +66109,7 @@ if (document.readyState === 'loading') {
     if (sarvarcPresenceBlurHandler) document.removeEventListener('focusout', sarvarcPresenceBlurHandler);
     if (sarvarcPresenceStaleTimer) clearInterval(sarvarcPresenceStaleTimer);
     sarvarcPresenceMouseHandler = sarvarcPresenceFocusHandler = sarvarcPresenceBlurHandler = sarvarcPresenceStaleTimer = null;
-    const bar = document.getElementById('sarvarcPresenceBar');
+    const bar = document.getElementById('sarvarcPresenceBox');
     if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
     const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
     if (cursorsLayer) cursorsLayer.innerHTML = '';
@@ -66005,28 +66299,101 @@ if (document.readyState === 'loading') {
         .from('team_members').select('id, user_id, role, email, full_name')
         .eq('team_id', teamId);
       if (error) throw error;
-      members.forEach(m => { sarvarcTeamMembersCache[m.user_id] = { full_name: m.full_name, email: m.email }; });
+
+      // Pull avatars (Google DP) from profiles in one batch query, keyed by
+      // user_id — team_members itself doesn't store avatars, profiles does
+      // (see sarvarcAuthUpdateNavUI, which captures it from Google on login).
+      let avatarsById = {};
+      try {
+        const ids = members.map(m => m.user_id);
+        if (ids.length) {
+          const { data: profRows } = await sarvarcSupabase.from('profiles').select('id, avatar_url').in('id', ids);
+          (profRows || []).forEach(p => { if (p.avatar_url) avatarsById[p.id] = p.avatar_url; });
+        }
+      } catch (e) { /* avatars are a nice-to-have — initials fallback covers this */ }
+
+      members.forEach(m => { sarvarcTeamMembersCache[m.user_id] = { full_name: m.full_name, email: m.email, avatar_url: avatarsById[m.user_id] || null }; });
       const myRole = (members.find(m => m.user_id === user.id) || {}).role || 'member';
       const canManage = myRole === 'owner' || myRole === 'admin';
       document.getElementById('sarvarcTeamInviteRow').style.display = canManage ? 'flex' : 'none';
 
+      const countPill = document.getElementById('sarvarcTeamCountPill');
+      if (countPill) { countPill.style.display = 'inline-block'; countPill.textContent = members.length + (members.length === 1 ? ' member' : ' members'); }
+
+      const leaveBtn = document.getElementById('sarvarcTeamLeaveBtn');
+      if (leaveBtn) {
+        const soleOwner = myRole === 'owner' && members.length > 1;
+        leaveBtn.style.opacity = soleOwner ? '0.5' : '1';
+        leaveBtn.title = soleOwner ? 'Transfer ownership or remove other members before leaving' : 'Leave this team';
+      }
+
       listEl.innerHTML = members.map(m => {
         const label = m.full_name || m.email || 'Member';
         const online = sarvarcTeamOnlineIds.has(m.user_id);
-        const removeBtn = (canManage && m.user_id !== user.id)
-          ? `<button class="btn-secondary" style="padding:3px 8px;font-size:10.5px" onclick="sarvarcTeamRemoveMember('${m.id}')">Remove</button>` : '';
-        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 6px;border-radius:7px;background:var(--surface2)" data-member-user="${m.user_id}">
-          <div style="display:flex;align-items:center;gap:7px;min-width:0">
-            <span style="width:8px;height:8px;border-radius:50%;flex:none;background:${online ? '#22c55e' : 'var(--border2)'}" title="${online ? 'Online now' : 'Offline'}"></span>
-            <span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
-            <span style="font-size:10px;color:var(--text3);text-transform:capitalize">${m.role}</span>
+        const isYou = m.user_id === user.id;
+        const avatarUrl = avatarsById[m.user_id];
+        const color = (typeof sarvarcCollabColorFor === 'function') ? sarvarcCollabColorFor(m.user_id) : '#3b82f6';
+        const avatarHtml = avatarUrl
+          ? `<img class="sarvarc-team-avatar" src="${avatarUrl.replace(/"/g,'&quot;')}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'sarvarc-team-avatar-fallback',style:'background:${color}',textContent:'${sarvarcPresenceInitials(label).replace(/'/g, "\\'")}'}));">`
+          : `<div class="sarvarc-team-avatar-fallback" style="background:${color}">${sarvarcPresenceInitials(label)}</div>`;
+        const roleClass = m.role === 'owner' ? 'sarvarc-team-role-owner' : (m.role === 'admin' ? 'sarvarc-team-role-admin' : 'sarvarc-team-role-member');
+        const removeBtn = (canManage && !isYou)
+          ? `<button class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${m.id}')">Remove</button>` : '';
+        const leaveInline = isYou ? `<button class="sarvarc-team-action-btn leave" onclick="sarvarcTeamLeave()">Leave</button>` : '';
+        return `<div class="sarvarc-team-member-card${isYou ? ' is-you' : ''}" data-member-user="${m.user_id}">
+          <div class="sarvarc-team-avatar-wrap">
+            ${avatarHtml}
+            <span class="sarvarc-team-online-dot${online ? '' : ' offline'}" title="${online ? 'Online now' : 'Offline'}"></span>
           </div>
-          ${removeBtn}
+          <div class="sarvarc-team-member-info">
+            <div class="sarvarc-team-member-name">${label}${isYou ? '<span class="sarvarc-team-member-you-tag">YOU</span>' : ''}</div>
+            <div class="sarvarc-team-member-email">${m.email || ''}</div>
+          </div>
+          <span class="sarvarc-team-role-badge ${roleClass}">${m.role}</span>
+          <div class="sarvarc-team-member-actions">${removeBtn}${leaveInline}</div>
         </div>`;
       }).join('');
     } catch (e) {
       listEl.innerHTML = '';
       sarvarcTeamShowError(e.message || 'Could not load members.');
+    }
+  }
+
+  // ---- Leave a team you belong to. Owners must transfer ownership or
+  // remove everyone else first — there's no ownership-transfer flow yet, so
+  // rather than silently orphaning the team (or deleting it out from under
+  // people who still have shared projects open), a sole/last owner with
+  // other members present is blocked with a clear explanation. A lone owner
+  // with no other members can always leave — that just deletes the team. ----
+  async function sarvarcTeamLeave() {
+    if (!sarvarcTeamActiveId) return;
+    try {
+      const user = await sarvarcTeamGetUser();
+      if (!user) return;
+      const { data: members, error } = await sarvarcSupabase
+        .from('team_members').select('id, user_id, role').eq('team_id', sarvarcTeamActiveId);
+      if (error) throw error;
+      const me = members.find(m => m.user_id === user.id);
+      if (!me) return;
+      if (me.role === 'owner' && members.length > 1) {
+        sarvarcTeamShowError('You\'re the owner — remove every other member first, or ask an admin to take over, before you can leave.');
+        return;
+      }
+      const teamName = (sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId) || {}).name || 'this team';
+      if (!confirm(`Leave ${teamName}? You'll lose access to its shared projects unless you're invited back.`)) return;
+
+      const { error: delErr } = await sarvarcSupabase.from('team_members').delete().eq('id', me.id);
+      if (delErr) throw delErr;
+      // Sole owner leaving a team with nobody else in it — nothing left to
+      // orphan, so clean up the now-empty team row too.
+      if (me.role === 'owner' && members.length === 1) {
+        try { await sarvarcSupabase.from('teams').delete().eq('id', sarvarcTeamActiveId); } catch (e) {}
+      }
+      toast(`Left ${teamName}`, 'success');
+      sarvarcTeamActiveId = null;
+      await sarvarcTeamLoadMyTeams(user);
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not leave team.');
     }
   }
 
@@ -66393,7 +66760,7 @@ if (document.readyState === 'loading') {
       let displayName = user.email;
       try {
         let { data: profile } = await sarvarcSupabase.from('profiles')
-          .select('full_name, business_name').eq('id', user.id).maybeSingle();
+          .select('full_name, business_name, avatar_url').eq('id', user.id).maybeSingle();
         if (!profile || (!profile.full_name && !profile.business_name)) {
           // No name saved in profiles yet — check if one came in from the
           // sign-up form's "Full name" field, or from Google's own account
@@ -66401,13 +66768,23 @@ if (document.readyState === 'loading') {
           // first login would show their email instead of their name, and
           // they'd only see their name after a separate trip to Settings.
           const metaName = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '';
-          if (metaName) {
+          const metaAvatar = (user.user_metadata && (user.user_metadata.avatar_url || user.user_metadata.picture)) || null;
+          if (metaName || metaAvatar) {
             try {
               await sarvarcSupabase.from('profiles').upsert({
-                id: user.id, full_name: metaName, updated_at: new Date().toISOString()
+                id: user.id, full_name: metaName || null, avatar_url: metaAvatar, updated_at: new Date().toISOString()
               });
             } catch (e) { /* profiles table not reachable — still use metaName below for this session */ }
-            profile = { full_name: metaName, business_name: null };
+            profile = { full_name: metaName, business_name: null, avatar_url: metaAvatar };
+          }
+        } else if (!profile.avatar_url) {
+          // Profile already exists (name saved via Settings) but has never
+          // captured a Google avatar — backfill it quietly on this login
+          // rather than requiring a trip through Settings.
+          const metaAvatar = (user.user_metadata && (user.user_metadata.avatar_url || user.user_metadata.picture)) || null;
+          if (metaAvatar) {
+            try { await sarvarcSupabase.from('profiles').update({ avatar_url: metaAvatar }).eq('id', user.id); } catch (e) {}
+            profile.avatar_url = metaAvatar;
           }
         }
         if (profile && (profile.full_name || profile.business_name)) {
