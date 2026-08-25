@@ -64535,6 +64535,20 @@ if (document.readyState === 'loading') {
     // release the guard so the next attempt (or this same one) can retry.
     setTimeout(() => {
       window.__sarvarcAuthReloadPending = false;
+      // If the button that triggered this is still showing its spinner
+      // (meaning the reload genuinely never happened), give it back so the
+      // person isn't left staring at a frozen, unresponsive button.
+      const btn = document.getElementById('sarvarcAuthSubmitBtn');
+      if (btn && btn.disabled && sarvarcAuthLastSubmitBtnHtml) {
+        btn.disabled = false;
+        btn.innerHTML = sarvarcAuthLastSubmitBtnHtml;
+        sarvarcAuthBusy = false;
+      }
+      // Same fallback for the "Continue with Google" button.
+      if (typeof sarvarcAuthGoogleBusy !== 'undefined' && sarvarcAuthGoogleBusy &&
+          typeof sarvarcAuthSetGoogleBusy === 'function') {
+        sarvarcAuthSetGoogleBusy(false);
+      }
     }, 4000);
   }
   sarvarcSupabase.auth.onAuthStateChange(function (event, session) {
@@ -65186,6 +65200,10 @@ if (document.readyState === 'loading') {
 
   let sarvarcAuthMode = 'login'; // 'login' | 'signup'
   let sarvarcAuthBusy = false;
+  // Remembers the submit button's pre-click HTML/state so the reload
+  // safety-net (see sarvarcQueueWorkspaceEntryAndReload) can restore it in
+  // the rare case the reload it's waiting on never actually happens.
+  let sarvarcAuthLastSubmitBtnHtml = null;
 
   // ---- EXPORT GATE ----
   // Every real "download the finished file" button in the app (PDF/DOCX/XLSX/
@@ -67225,11 +67243,12 @@ if (document.readyState === 'loading') {
       clearInterval(sarvarcGooglePopupPoll);
       sarvarcGooglePopupPoll = null;
       try { if (!popup.closed) popup.close(); } catch (e) {}
-      sarvarcAuthSetGoogleBusy(false);
-      // Hand off to the one canonical post-login path (see
-      // sarvarcQueueWorkspaceEntryAndReload near the Supabase client
-      // setup) instead of calling sarvarcAuthEnterWorkspace() directly —
-      // that used to race the account-namespace listener's own reload.
+      // Deliberately NOT resetting the Google button here (see the same
+      // reasoning on the password-login path in sarvarcAuthSubmit) — a
+      // reload is about to happen, and switching "Connecting…" back to a
+      // normal, clickable "Continue with Google" right as that starts made
+      // the screen look frozen for a second or two. The reload safety-net
+      // restores it if the reload ever genuinely fails to happen.
       sarvarcQueueWorkspaceEntryAndReload();
     };
 
@@ -67255,7 +67274,10 @@ if (document.readyState === 'loading') {
           await new Promise(r => setTimeout(r, 350));
           const { data: { session } } = await sarvarcSupabase.auth.getSession();
           if (session) {
-            finished = true; sarvarcAuthSetGoogleBusy(false);
+            finished = true;
+            // Same as above — leave the "Connecting…" state up until the
+            // reload takes over, instead of flashing the button back to
+            // normal right before the (slow) reload begins.
             sarvarcQueueWorkspaceEntryAndReload();
             break;
           }
@@ -67320,6 +67342,7 @@ if (document.readyState === 'loading') {
     sarvarcAuthShowError('');
     const submitBtn = document.getElementById('sarvarcAuthSubmitBtn');
     const originalBtnHtml = submitBtn.innerHTML;
+    sarvarcAuthLastSubmitBtnHtml = originalBtnHtml;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="mf-btn-spinner"></span>' + (sarvarcAuthMode === 'signup' ? 'Creating account…' : 'Logging in…');
 
@@ -67336,23 +67359,37 @@ if (document.readyState === 'loading') {
         if (data.user && !data.session) {
           // Email confirmation is required before a session exists — swap
           // in the "check your email" pane; onAuthStateChange handles the
-          // rest automatically once the link is clicked.
+          // rest automatically once the link is clicked. No reload is
+          // coming on this path, so it's safe (and necessary) to restore
+          // the button right away.
           sarvarcAuthShowConfirmPane(email);
+          sarvarcAuthBusy = false;
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHtml;
         } else {
           // Hand off to the one canonical post-login path instead of
           // entering the Workspace directly here — see
           // sarvarcQueueWorkspaceEntryAndReload near the Supabase client
-          // setup for why.
+          // setup for why. Deliberately NOT resetting the button here: a
+          // reload is about to happen (the slowest step), and switching
+          // the button back to its normal, clickable "Log In" state right
+          // as that starts made the screen look frozen/unresponsive for a
+          // second or two. Leaving the spinner up keeps it honest — it
+          // stays "in progress" right up until the reload actually takes
+          // over. sarvarcAuthBusy is deliberately left true too, so a
+          // stray extra click during this window can't double-submit.
           sarvarcQueueWorkspaceEntryAndReload();
         }
       } else {
         const { data, error } = await sarvarcSupabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Same reasoning as above — leave the spinner running, the reload
+        // safety-net (see sarvarcQueueWorkspaceEntryAndReload) restores
+        // this exact button if the reload ever fails to happen.
         sarvarcQueueWorkspaceEntryAndReload();
       }
     } catch (err) {
       sarvarcAuthShowError(sarvarcAuthFriendlyError(err));
-    } finally {
       sarvarcAuthBusy = false;
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnHtml;
