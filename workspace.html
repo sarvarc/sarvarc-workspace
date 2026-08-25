@@ -65560,9 +65560,13 @@ if (document.readyState === 'loading') {
       sarvarcCollabAttached.add(key);
       try { sarvarcCollabModules[key].attach(doc, awareness); } catch (e) { console.warn('[Collab] attach failed for', key, e); }
     });
+    // Start showing who's here + live cursors + field presence now that
+    // we're actually connected (see LIVE PRESENCE UI block above).
+    sarvarcPresenceAttachInputListeners(awareness);
   }
 
   function sarvarcCollabDisconnect() {
+    sarvarcPresenceDetachInputListeners();
     Object.keys(sarvarcCollabModules).forEach(key => {
       if (sarvarcCollabAttached.has(key)) {
         try { sarvarcCollabModules[key].detach(); } catch (e) {}
@@ -65597,6 +65601,229 @@ if (document.readyState === 'loading') {
     let h = 0;
     for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
     return SARVARC_COLLAB_COLORS[h % SARVARC_COLLAB_COLORS.length];
+  }
+
+  // =========================================================
+  // LIVE PRESENCE UI — "who's here right now" avatar bar, live mouse
+  // cursors for everyone connected to the same live document, and a
+  // colored ring + name badge on whichever field a teammate currently
+  // has focused. Purely a rendering layer on top of the awareness
+  // protocol already wired up above (awareness.setLocalState / the
+  // 'yaware' broadcast channel) — no new transport needed.
+  //
+  // Cursor positions are broadcast as a fraction of the viewport
+  // (xPct/yPct) rather than raw pixels, since two teammates' windows are
+  // rarely the same size; each viewer renders every remote cursor at the
+  // same relative spot in THEIR OWN window. Good enough for "I can see
+  // roughly where you're pointing", not meant to be pixel-perfect.
+  // =========================================================
+  let sarvarcPresenceMouseHandler = null;
+  let sarvarcPresenceFocusHandler = null;
+  let sarvarcPresenceBlurHandler = null;
+  let sarvarcPresenceStaleTimer = null;
+
+  function sarvarcPresenceEnsureDom() {
+    if (document.getElementById('sarvarcPresenceBar')) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'sarvarcPresenceBar';
+    bar.style.cssText = 'position:fixed;top:8px;right:16px;z-index:900;display:none;align-items:center;';
+    document.body.appendChild(bar);
+
+    const cursorsLayer = document.createElement('div');
+    cursorsLayer.id = 'sarvarcCollabCursorsLayer';
+    cursorsLayer.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:850;overflow:hidden;';
+    document.body.appendChild(cursorsLayer);
+
+    const style = document.createElement('style');
+    style.textContent = `
+      #sarvarcPresenceBar .sarvarc-presence-avatar {
+        width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+        font-size:11px;font-weight:700;color:#fff;border:2px solid var(--bg2);margin-left:-8px;
+        box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:default;
+      }
+      #sarvarcPresenceBar .sarvarc-presence-avatar:first-child { margin-left:0; }
+      #sarvarcPresenceBar .sarvarc-presence-live {
+        font-size:10px;color:var(--text2);margin-right:8px;letter-spacing:.06em;text-transform:uppercase;
+        font-weight:700;display:flex;align-items:center;gap:5px;
+      }
+      #sarvarcPresenceBar .sarvarc-presence-dot {
+        width:6px;height:6px;border-radius:50%;background:#10B981;box-shadow:0 0 6px #10B981;
+      }
+      .sarvarc-remote-cursor { position:fixed;pointer-events:none;transition:left .08s linear, top .08s linear;z-index:851; }
+      .sarvarc-remote-cursor svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+      .sarvarc-remote-cursor .sarvarc-cursor-label {
+        position:absolute;left:14px;top:16px;white-space:nowrap;font-size:11px;font-weight:600;color:#fff;
+        padding:2px 7px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.4);
+      }
+      .sarvarc-field-presence-ring { outline:2px solid;outline-offset:2px;border-radius:6px; }
+      .sarvarc-field-presence-badge {
+        position:absolute;font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:5px 5px 5px 0;
+        transform:translateY(-100%);white-space:nowrap;pointer-events:none;z-index:852;box-shadow:0 1px 3px rgba(0,0,0,0.4);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Initials from a display name, e.g. "Prayag Pathak" -> "PP".
+  function sarvarcPresenceInitials(name) {
+    return (name || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  }
+
+  function sarvarcPresenceRender() {
+    if (!sarvarcCollabAwareness) return;
+    sarvarcPresenceEnsureDom();
+    const bar = document.getElementById('sarvarcPresenceBar');
+    const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
+    if (!bar || !cursorsLayer) return;
+
+    const states = sarvarcCollabAwareness.getStates();
+    const localId = sarvarcCollabAwareness.clientID;
+    const now = Date.now();
+    // Dedupe by userId (same person could theoretically have >1 tab open);
+    // keep whichever state has the freshest cursor timestamp.
+    const remoteByUser = new Map();
+    states.forEach((state, clientId) => {
+      if (clientId === localId || !state || !state.userId) return;
+      const existing = remoteByUser.get(state.userId);
+      const existingT = (existing && existing.cursor && existing.cursor.t) || 0;
+      const stateT = (state.cursor && state.cursor.t) || 0;
+      if (!existing || stateT >= existingT) remoteByUser.set(state.userId, state);
+    });
+
+    // ---- "Who's here" avatar bar ----
+    if (remoteByUser.size > 0) {
+      bar.style.display = 'flex';
+      let html = '<span class="sarvarc-presence-live"><span class="sarvarc-presence-dot"></span>Live</span>';
+      remoteByUser.forEach((state) => {
+        const color = state.color || '#3b82f6';
+        const name = (state.name || 'Teammate');
+        html += '<div class="sarvarc-presence-avatar" style="background:' + color + '" title="' +
+          name.replace(/"/g, '&quot;') + ' \u2014 editing live now">' + sarvarcPresenceInitials(name) + '</div>';
+      });
+      bar.innerHTML = html;
+    } else {
+      bar.style.display = 'none';
+      bar.innerHTML = '';
+    }
+
+    // ---- Live mouse cursors ----
+    const seenCursorIds = new Set();
+    remoteByUser.forEach((state, userId) => {
+      const cur = state.cursor;
+      if (!cur || typeof cur.xPct !== 'number' || (now - cur.t) > 8000) return; // stale/no cursor yet
+      const id = 'sarvarc-cursor-' + userId;
+      seenCursorIds.add(id);
+      let el = document.getElementById(id);
+      const color = state.color || '#3b82f6';
+      const name = (state.name || 'Teammate').replace(/</g, '&lt;');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        el.className = 'sarvarc-remote-cursor';
+        cursorsLayer.appendChild(el);
+        el.dataset.color = '';
+      }
+      if (el.dataset.color !== color || el.dataset.name !== name) {
+        el.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 2l7 19 2.5-7.5L20 11z" fill="' +
+          color + '"/></svg><span class="sarvarc-cursor-label" style="background:' + color + '">' + name + '</span>';
+        el.dataset.color = color;
+        el.dataset.name = name;
+      }
+      el.style.left = (cur.xPct * window.innerWidth) + 'px';
+      el.style.top = (cur.yPct * window.innerHeight) + 'px';
+    });
+    cursorsLayer.querySelectorAll('.sarvarc-remote-cursor').forEach(el => {
+      if (!seenCursorIds.has(el.id)) el.remove();
+    });
+
+    // ---- Field-level "who's editing this field" ring + badge ----
+    document.querySelectorAll('.sarvarc-field-presence-ring').forEach(el => {
+      el.classList.remove('sarvarc-field-presence-ring');
+      el.style.outlineColor = '';
+    });
+    document.querySelectorAll('.sarvarc-field-presence-badge').forEach(el => el.remove());
+    remoteByUser.forEach((state) => {
+      const fieldId = state.field;
+      if (!fieldId) return;
+      const target = document.getElementById(fieldId);
+      if (!target) return;
+      const color = state.color || '#3b82f6';
+      target.classList.add('sarvarc-field-presence-ring');
+      target.style.outlineColor = color;
+      const rect = target.getBoundingClientRect();
+      const badge = document.createElement('div');
+      badge.className = 'sarvarc-field-presence-badge';
+      badge.style.background = color;
+      badge.style.left = rect.left + 'px';
+      badge.style.top = (rect.top + window.scrollY) + 'px';
+      badge.textContent = (state.name || 'Teammate');
+      document.body.appendChild(badge);
+    });
+  }
+
+  // Wires up local mouse/focus tracking (broadcast out via awareness) and
+  // starts rendering everyone else's presence. Called once per live
+  // connection from sarvarcCollabConnect.
+  function sarvarcPresenceAttachInputListeners(awareness) {
+    let lastSent = 0;
+    sarvarcPresenceMouseHandler = function (e) {
+      const t = Date.now();
+      if (t - lastSent < 60) return; // throttle broadcasts to ~16/sec
+      lastSent = t;
+      awareness.setLocalStateField('cursor', {
+        xPct: e.clientX / window.innerWidth,
+        yPct: e.clientY / window.innerHeight,
+        t: t
+      });
+    };
+    document.addEventListener('mousemove', sarvarcPresenceMouseHandler);
+
+    // Only track focus on elements with a stable id — that id (plus the
+    // fact everyone's looking at the same module UI) is enough to say
+    // "this teammate is in this exact field" without any per-module code.
+    sarvarcPresenceFocusHandler = function (e) {
+      const t = e.target;
+      if (!t || !t.id) return;
+      if (!/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t.getAttribute('contenteditable') !== 'true') return;
+      awareness.setLocalStateField('field', t.id);
+    };
+    sarvarcPresenceBlurHandler = function (e) {
+      const t = e.target;
+      if (!t || !t.id) return;
+      const local = awareness.getLocalState();
+      if (local && local.field === t.id) awareness.setLocalStateField('field', null);
+    };
+    document.addEventListener('focusin', sarvarcPresenceFocusHandler);
+    document.addEventListener('focusout', sarvarcPresenceBlurHandler);
+
+    // Re-render on every awareness change, ours or a teammate's — this
+    // listener runs alongside (not instead of) the broadcast-out listener
+    // registered in sarvarcCollabConnect above.
+    awareness.on('update', sarvarcPresenceRender);
+    // Field badges are positioned from getBoundingClientRect(), which goes
+    // stale on scroll/resize even with no new awareness update — a light
+    // periodic re-render keeps them lined up, and doubles as cleanup for
+    // cursors from a teammate whose tab closed without a clean disconnect.
+    sarvarcPresenceStaleTimer = setInterval(sarvarcPresenceRender, 2000);
+    sarvarcPresenceRender();
+  }
+
+  function sarvarcPresenceDetachInputListeners() {
+    if (sarvarcPresenceMouseHandler) document.removeEventListener('mousemove', sarvarcPresenceMouseHandler);
+    if (sarvarcPresenceFocusHandler) document.removeEventListener('focusin', sarvarcPresenceFocusHandler);
+    if (sarvarcPresenceBlurHandler) document.removeEventListener('focusout', sarvarcPresenceBlurHandler);
+    if (sarvarcPresenceStaleTimer) clearInterval(sarvarcPresenceStaleTimer);
+    sarvarcPresenceMouseHandler = sarvarcPresenceFocusHandler = sarvarcPresenceBlurHandler = sarvarcPresenceStaleTimer = null;
+    const bar = document.getElementById('sarvarcPresenceBar');
+    if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+    const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
+    if (cursorsLayer) cursorsLayer.innerHTML = '';
+    document.querySelectorAll('.sarvarc-field-presence-ring').forEach(el => {
+      el.classList.remove('sarvarc-field-presence-ring');
+      el.style.outlineColor = '';
+    });
+    document.querySelectorAll('.sarvarc-field-presence-badge').forEach(el => el.remove());
   }
 
   // On page load: if we reloaded while a live team project was open (see
