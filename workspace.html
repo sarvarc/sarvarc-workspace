@@ -4207,13 +4207,47 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .pdfed-upload-placeholder .pu-icon { margin-bottom: 4px; }
 .pdfed-upload-placeholder h3 { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 800; color: var(--text2); margin-bottom: 2px; }
 
-/* Insert page modal */
+/* Insert page modal — every full-screen modal in the app (auth, team,
+   export, refine, settings…) shares this overlay. It used to toggle a hard
+   display:none → display:flex with zero transition, so any modal (most
+   noticeably the login modal and the Team modal) just snapped into
+   existence with no sense of motion. Switched to an always-in-DOM,
+   opacity/visibility-driven overlay so `.open` can animate — this is a
+   pure CSS change with no JS/markup dependency, so every modal that shares
+   this class gets a smooth fade+rise for free, login included.
+   `pointer-events:none` + `visibility:hidden` while closed keeps it fully
+   inert (no accidental clicks/tab-stops through the invisible layer), and
+   the delayed `visibility` transition means it truly leaves the a11y tree
+   only after the fade-out finishes. */
 .pdfed-insert-modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-  z-index: 700; display: none; align-items: center; justify-content: center;
+  z-index: 700; display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(10px);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s, backdrop-filter 0.2s ease;
 }
-.pdfed-insert-modal-overlay.open { display: flex; }
+.pdfed-insert-modal-overlay.open {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity 0.2s ease, visibility 0s linear 0s, backdrop-filter 0.2s ease;
+}
+/* The card itself rises + scales in slightly, so opening reads as one
+   deliberate motion rather than a pop. Targets the direct child generically
+   (">" combinator) since different modals wrap different card classes
+   (.sarvarc-pw-modal, .pdfed-export-modal, etc.) — this way every modal
+   sharing the overlay gets the same treatment without listing each one.
+   Respects reduced-motion. */
+.pdfed-insert-modal-overlay > * {
+  transform: translateY(14px) scale(0.97);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(.22,1,.36,1), opacity 0.2s ease;
+}
+.pdfed-insert-modal-overlay.open > * {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdfed-insert-modal-overlay, .pdfed-insert-modal-overlay > * { transition: opacity 0.12s linear !important; transform: none !important; }
+}
 
 /* ─── Edit lock overlay — appears only at the moment a logged-out guest who
    has used their free export actually tries to click or type something
@@ -4922,6 +4956,22 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 
 /* ─── TEAM MODAL — enterprise-grade member cards, avatars, role badges ─── */
 .sarvarc-team-modal { max-width: 520px; }
+/* Loading skeleton — shimmering placeholder shown while the modal's first
+   network round-trip (invites + teams) is in flight. */
+.sarvarc-team-skel-bar, .sarvarc-team-skel-row {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border2) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: sarvarcTeamSkelShimmer 1.3s ease-in-out infinite;
+}
+.sarvarc-team-skel-row { width: 100%; height: 52px; border-radius: 10px; margin-bottom: 8px; }
+@keyframes sarvarcTeamSkelShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sarvarc-team-skel-bar, .sarvarc-team-skel-row { animation: none; background: var(--surface2); }
+}
 .sarvarc-team-count-pill {
   font-size: 10.5px; font-weight: 700; color: var(--text2);
   background: var(--surface2); border: 1px solid var(--border2);
@@ -13331,6 +13381,18 @@ button.dg-show-chip.active { background:var(--blue); }
       <div id="sarvarcTeamError" style="font-size:11px;color:#ef4444;display:none;margin-bottom:12px;padding:8px 10px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25)"></div>
       <div id="sarvarcTeamNote" style="font-size:11px;color:var(--text3);display:none;margin-bottom:12px;padding:8px 10px;border-radius:6px;background:var(--surface2)"></div>
 
+      <!-- Skeleton — shown the instant the modal opens, before the
+           teams/members network round-trip resolves, so the modal never
+           renders fully blank for a beat and then "pops" the real content
+           in. Shape roughly mirrors the switcher row + member cards below
+           it, so the swap to real content doesn't jump around either. -->
+      <div id="sarvarcTeamSkeleton" style="display:none">
+        <div class="sarvarc-team-skel-bar" style="width:100%;height:34px;border-radius:9px;margin-bottom:14px"></div>
+        <div class="sarvarc-team-skel-bar" style="width:70px;height:9px;margin-bottom:8px"></div>
+        <div class="sarvarc-team-skel-row"></div>
+        <div class="sarvarc-team-skel-row"></div>
+      </div>
+
       <!-- No team yet -->
       <div id="sarvarcTeamEmptyState" style="display:none;text-align:center;padding:18px 6px">
         <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">You're not part of a team yet. Create one to start sharing projects and working together in real time.</div>
@@ -18009,14 +18071,31 @@ async function smComposeThumbnail(presentModules) {
   return can.toDataURL('image/jpeg', 0.78);
 }
 
-async function smSaveSession(name) {
+// RFC4122 v4 UUID — used wherever an id needs to satisfy a Postgres `uuid`
+// column (e.g. team_projects.id below). Regular local-only session ids stay
+// on the lighter 'sess_...' format since Supabase never sees those.
+function sarvarcGenUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// `forcedId`, when passed, is used as-is instead of generating a
+// 'sess_...' id — needed by sarvarcTeamProjectSave() below, which must hand
+// this same id to Supabase's `team_projects.id` (a `uuid` column) and so
+// needs a real UUID from the moment the session is first created, not a
+// second id bolted on afterwards (that would leave two IndexedDB/Drive
+// copies of the same save under two different ids).
+async function smSaveSession(name, forcedId) {
   const [ls, idb, ownerEmail] = await Promise.all([smCaptureLocalStorage(), smCaptureIdbKv(), smGetCurrentAuthEmail()]);
   const snapshot = { ls, idb };
   const thumb = await smComposeThumbnail(smPresentModules(snapshot));
   let size = 0;
   try { size = JSON.stringify(snapshot).length; } catch (e) {}
   const rec = {
-    id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    id: forcedId || ('sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)),
     name: (name || '').trim() || smDefaultName(),
     savedAt: Date.now(),
     size,
@@ -66414,14 +66493,37 @@ if (document.readyState === 'loading') {
     el.textContent = msg; el.style.display = 'block';
   }
 
+  // Toggles the skeleton vs. the real empty/active states. Kept as one
+  // helper so every place that finishes (or restarts) a load — including
+  // the error path inside sarvarcTeamLoadMyTeams — can reliably clear the
+  // skeleton instead of it getting stuck on screen.
+  function sarvarcTeamSetLoading(loading) {
+    const skel = document.getElementById('sarvarcTeamSkeleton');
+    if (!skel) return;
+    skel.style.display = loading ? 'block' : 'none';
+    if (loading) {
+      document.getElementById('sarvarcTeamEmptyState').style.display = 'none';
+      document.getElementById('sarvarcTeamActiveState').style.display = 'none';
+    }
+  }
+
   async function sarvarcTeamOpenModal() {
     document.getElementById('sarvarcAuthMenu').style.display = 'none';
     const user = await sarvarcTeamGetUser();
     if (!user) { sarvarcAuthOpenModal('login'); return; }
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    // Skeleton goes up in the same tick the overlay starts fading in, so
+    // by the time the card has finished animating into place there's
+    // already believable content in it — never a blank card that then
+    // jumps to real content a moment later.
+    sarvarcTeamSetLoading(true);
     document.getElementById('sarvarcTeamOverlay').classList.add('open');
-    await sarvarcTeamLoadMyInvites(user);
-    await sarvarcTeamLoadMyTeams(user);
+    try {
+      await sarvarcTeamLoadMyInvites(user);
+      await sarvarcTeamLoadMyTeams(user);
+    } finally {
+      sarvarcTeamSetLoading(false);
+    }
   }
 
   function sarvarcTeamCloseModal() {
@@ -66939,7 +67041,11 @@ if (document.readyState === 'loading') {
       // Re-uses the exact same capture + local-save + personal-Drive-mirror
       // path "Save Your Workflow" uses. This pusher's own copy always lands
       // in THEIR OWN Google Drive — never on a SARVARC server.
-      const rec = await smSaveSession(name);
+      // A real UUID is forced here (rather than the usual 'sess_...' local
+      // id) because this same id also becomes team_projects.id below, and
+      // that column is a Postgres `uuid` — passing 'sess_...' there is what
+      // produced "invalid input syntax for type uuid: sess_...".
+      const rec = await smSaveSession(name, sarvarcGenUuid());
       const teamName = (sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId) || {}).name || 'Team';
       rec.teamId = sarvarcTeamActiveId;
       rec.teamName = teamName;
