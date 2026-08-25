@@ -66338,7 +66338,7 @@ if (document.readyState === 'loading') {
           : `<div class="sarvarc-team-avatar-fallback" style="background:${color}">${sarvarcPresenceInitials(label)}</div>`;
         const roleClass = m.role === 'owner' ? 'sarvarc-team-role-owner' : (m.role === 'admin' ? 'sarvarc-team-role-admin' : 'sarvarc-team-role-member');
         const removeBtn = (canManage && !isYou)
-          ? `<button class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${m.id}')">Remove</button>` : '';
+          ? `<button class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${m.id}','${m.user_id}')">Remove</button>` : '';
         const leaveInline = isYou ? `<button class="sarvarc-team-action-btn leave" onclick="sarvarcTeamLeave()">Leave</button>` : '';
         return `<div class="sarvarc-team-member-card${isYou ? ' is-you' : ''}" data-member-user="${m.user_id}">
           <div class="sarvarc-team-avatar-wrap">
@@ -66419,15 +66419,77 @@ if (document.readyState === 'loading') {
     }
   }
 
-  async function sarvarcTeamRemoveMember(memberRowId) {
+  async function sarvarcTeamRemoveMember(memberRowId, removedUserId) {
     if (!confirm('Remove this person from the team?')) return;
+    const teamId = sarvarcTeamActiveId;
     try {
       const { error } = await sarvarcSupabase.from('team_members').delete().eq('id', memberRowId);
       if (error) throw error;
-      await sarvarcTeamLoadMembers(sarvarcTeamActiveId);
+      // Tell everyone currently connected — including the removed person's
+      // own tab(s) — right now, over the same realtime channel already
+      // used for "who's online". Without this, the removed user's browser
+      // has no idea it was kicked: it keeps polling nothing, keeps
+      // broadcasting mouse-move/awareness updates into the live session,
+      // and their cursor just sits there on every teammate's screen until
+      // the Yjs awareness protocol's own ~30s stale-client timeout finally
+      // prunes it. Broadcasting makes the cutoff instant on both ends.
+      if (sarvarcTeamPresenceChannel && removedUserId) {
+        try {
+          await sarvarcTeamPresenceChannel.send({
+            type: 'broadcast', event: 'member-removed',
+            payload: { teamId, userId: removedUserId }
+          });
+        } catch (e) { console.warn('[Team] could not broadcast removal', e); }
+      }
+      await sarvarcTeamLoadMembers(teamId);
     } catch (e) {
       sarvarcTeamShowError(e.message || 'Could not remove member.');
     }
+  }
+
+  // Reacts to a 'member-removed' broadcast on the team channel. Fires on
+  // EVERY currently-connected client for that team, including the removed
+  // person's own tab — that's the point: no polling, no waiting.
+  async function sarvarcTeamHandleMemberRemoved(teamId, removedUserId) {
+    const user = await sarvarcTeamGetUser();
+    if (!user) return;
+
+    if (user.id === removedUserId) {
+      // This is the removed person's own client. Cut them off from the
+      // live session immediately — stop broadcasting our cursor, leave
+      // the Yjs doc/awareness channel — rather than leaving it connected
+      // until an idle timeout eventually notices.
+      if (typeof sarvarcCollabIsLive === 'function' && sarvarcCollabIsLive()) {
+        sarvarcCollabDisconnect();
+      }
+      if (sarvarcTeamPresenceChannel) {
+        try { sarvarcSupabase.removeChannel(sarvarcTeamPresenceChannel); } catch (e) {}
+        sarvarcTeamPresenceChannel = null;
+      }
+      sarvarcTeamActiveId = null;
+      toast("You've been removed from this team", 'error');
+      sarvarcTeamCloseModal();
+      await sarvarcTeamLoadMyTeams(user);
+      return;
+    }
+
+    // Someone else was removed: don't wait for the awareness protocol's
+    // own timeout to quietly age their cursor out — find their live
+    // client (matched by the userId we already stamp into every
+    // awareness state, see sarvarcCollabConnect) and remove it from the
+    // shared doc's awareness right now, so their cursor disappears from
+    // every remaining teammate's screen this instant instead of drifting
+    // there for up to ~30 more seconds.
+    if (teamId === sarvarcTeamActiveId && sarvarcCollabAwareness && window.YAwareness) {
+      const staleClientIds = [];
+      sarvarcCollabAwareness.getStates().forEach((state, clientId) => {
+        if (state && state.userId === removedUserId) staleClientIds.push(clientId);
+      });
+      if (staleClientIds.length) {
+        window.YAwareness.removeAwarenessStates(sarvarcCollabAwareness, staleClientIds, 'removed-by-owner');
+      }
+    }
+    if (teamId === sarvarcTeamActiveId) await sarvarcTeamLoadMembers(teamId);
   }
 
   // ---- Live presence: who from the team is online right now ----
@@ -66446,6 +66508,10 @@ if (document.readyState === 'loading') {
         const state = channel.presenceState();
         sarvarcTeamOnlineIds = new Set(Object.keys(state));
         sarvarcTeamLoadMembers(teamId);
+      });
+      channel.on('broadcast', { event: 'member-removed' }, ({ payload }) => {
+        if (!payload) return;
+        sarvarcTeamHandleMemberRemoved(payload.teamId, payload.userId);
       });
       channel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
