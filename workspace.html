@@ -18564,6 +18564,16 @@ async function smBuildSWBytes(rec) {
     sarvarcSessionExport: true,
     exportedAt: Date.now(),
     schemaVersion: (typeof rec.schemaVersion === 'number') ? rec.schemaVersion : SM_SNAPSHOT_SCHEMA_VERSION,
+    // Carried through so a .sw shared for a TEAM project can be re-imported
+    // under the SAME id the team knows it by (team_projects.id / the id
+    // sarvarcTeamProjectOpen looks up with smGetSession(projectId)).
+    // Without this, every .sw import minted a fresh random id, so the
+    // Team modal could never recognize "you already have this one" no
+    // matter how many times you imported the file — see smImportSWFile.
+    id: rec.id,
+    teamId: rec.teamId || null,
+    teamName: rec.teamName || null,
+    pushedByName: rec.pushedByName || null,
     name: rec.name,
     savedAt: rec.savedAt,
     size: rec.size,
@@ -18646,14 +18656,36 @@ async function smImportSWFile(file) {
   try {
     const buf = await file.arrayBuffer();
     const payload = await smParseSWBytes(new Uint8Array(buf));
+
+    // If this .sw carries the id it was originally saved under (every file
+    // exported after this fix does — see smBuildSWBytes), reuse that exact
+    // id instead of minting a new random one, PROVIDED nothing already
+    // occupies it locally. This is what lets a manually-shared TEAM project
+    // land under the same id the team modal looks it up by
+    // (sarvarcTeamProjectOpen / sarvarcTeamProjectsLoad's smGetSession(p.id)
+    // check), so it correctly shows "Open" instead of endlessly asking the
+    // team / offering "Sync & Open" again after you already have it.
+    // Older .sw files with no `id` field, or a rare genuine collision, fall
+    // back to the old behavior of a fresh random id.
+    let id = null;
+    if (payload.id && typeof payload.id === 'string') {
+      const existing = (typeof smGetSession === 'function') ? await smGetSession(payload.id) : null;
+      if (!existing) id = payload.id;
+    }
+    if (!id) id = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
     const rec = {
-      id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      id,
       name: (String(payload.name || '').trim() || smDefaultName()) + ' (shared)',
       savedAt: Date.now(),
       size: (function () { try { return JSON.stringify(payload.snapshot).length; } catch (e) { return payload.size || 0; } })(),
       schemaVersion: (typeof payload.schemaVersion === 'number') ? payload.schemaVersion : 0,
       snapshot: payload.snapshot
     };
+    // Re-attach team metadata (if this .sw came from a team project) so it
+    // shows the same "shared" badge / "Last saved by ..." label a live
+    // team-sync would have given it.
+    if (payload.teamId) { rec.teamId = payload.teamId; rec.teamName = payload.teamName || null; rec.pushedByName = payload.pushedByName || null; }
     const db = await idbKvOpen();
     await new Promise((resolve, reject) => {
       const tx = db.transaction('sessions', 'readwrite');
@@ -18664,6 +18696,9 @@ async function smImportSWFile(file) {
     smNotifyOtherTabs('save', rec.id);
     if (typeof toast === 'function') toast('Project received — saved as "' + rec.name + '" in your Saved Sessions.', 'success');
     if (document.getElementById('smSessionList')) smRenderList();
+    if (payload.teamId && document.getElementById('sarvarcTeamProjectsList') && typeof sarvarcTeamProjectsLoad === 'function') {
+      sarvarcTeamProjectsLoad(payload.teamId);
+    }
   } catch (e) {
     console.warn('[Sessions] .sw import failed', e);
     if (typeof toast === 'function') toast(e && e.message ? e.message : 'Could not load that .sw file.', 'error');
