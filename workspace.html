@@ -41607,6 +41607,7 @@ function daRenameHeader(colIdx, newName) {
   const clean = newName.trim() || `Column ${colIdx + 1}`;
   ds.headers[colIdx] = clean;
   daRenderTable();
+  daPersist();
 }
 
 function daRenameTitle(newTitle) {
@@ -41614,12 +41615,14 @@ function daRenameTitle(newTitle) {
   const clean = newTitle.trim();
   ds.title = clean || null;
   daRenderTable();
+  daPersist();
 }
 
 function daClearTitle() {
   const ds = daGetActive(); if (!ds) return;
   ds.title = null;
   daRenderTable();
+  daPersist();
   toast('Main heading removed — the table headers below are unaffected', 'info');
 }
 
@@ -41629,6 +41632,7 @@ function daUpdateCell(rowIdx, colIdx, newVal) {
   ds.rows[rowIdx][colIdx] = val;
   daRecalcColumnOps(ds);
   daRenderTable();
+  daPersist(); // push this cell edit to the shared Yjs doc so teammates see it live
   if (daActiveCell && daActiveCell.row === rowIdx && daActiveCell.col === colIdx) {
     daUpdateFormulaBar(rowIdx, colIdx, val);
   }
@@ -41662,6 +41666,7 @@ function daAddRow() {
   ds.rows.push(new Array(ds.headers.length).fill(''));
   daRecalcColumnOps(ds);
   daRenderTable();
+  daPersist();
   const wrap = document.getElementById('daGridWrap');
   wrap.scrollTop = wrap.scrollHeight;
 }
@@ -41671,6 +41676,7 @@ function daAddColumn() {
   ds.headers.push(`Column ${ds.headers.length + 1}`);
   ds.rows.forEach(r => r.push(''));
   daRenderTable();
+  daPersist();
 }
 
 function daDeleteRow(rowIdx) {
@@ -41703,6 +41709,7 @@ function daDeleteRow(rowIdx) {
   }
   daRecalcColumnOps(ds);
   daRenderTable();
+  daPersist();
 }
 
 function daDeleteColumn(colIdx) {
@@ -41751,6 +41758,7 @@ function daDeleteColumn(colIdx) {
   }
   daRecalcColumnOps(ds);
   daRenderTable();
+  daPersist();
 }
 
 // ─── Cell Dropdown Lists ("Data Validation", Excel-style) ───
@@ -66019,6 +66027,13 @@ if (document.readyState === 'loading') {
         position:absolute;font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:5px 5px 5px 0;
         transform:translateY(-100%);white-space:nowrap;pointer-events:none;z-index:852;box-shadow:0 1px 3px rgba(0,0,0,0.4);
       }
+      .sarvarc-end-live-btn {
+        margin-left:8px; padding:4px 10px; font-size:10.5px; font-weight:600;
+        color:#f59e0b; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.35);
+        border-radius:20px; cursor:pointer; white-space:nowrap; flex-shrink:0;
+        transition:background .15s,border-color .15s;
+      }
+      .sarvarc-end-live-btn:hover { background:rgba(245,158,11,0.16); border-color:#f59e0b; }
       @media (max-width: 900px) { .sarvarc-presence-box { display:none !important; } }
     `;
     document.head.appendChild(style);
@@ -66054,7 +66069,12 @@ if (document.readyState === 'loading') {
     // Real profile photos where we have them, round and gently "breathing"
     // (a slow scale + glow pulse, staggered per person) so a glance at the
     // top bar tells you who's live without it feeling busy or gimmicky.
-    if (remoteByUser.size > 0) {
+    // The owner also gets an "End Live Session" control here — shown even
+    // if they're currently the only one connected, since ending it (e.g.
+    // right before others join, or to stop a stray auto-reconnect) is
+    // still a valid owner action either way.
+    const isOwner = sarvarcTeamMyRole === 'owner';
+    if (remoteByUser.size > 0 || isOwner) {
       bar.style.display = 'flex';
       const MAX_SHOWN = 5;
       const people = Array.from(remoteByUser.values());
@@ -66065,26 +66085,31 @@ if (document.readyState === 'loading') {
         + '<span class="sarvarc-collab-sync' + (sarvarcCollabHealthy ? '' : ' sarvarc-collab-stalled') + '" id="sarvarcCollabSyncIcon"'
         + ' title="' + (sarvarcCollabHealthy ? 'Syncing with your team' : 'Sync stalled — your last change may not have reached your teammates. Try again or refresh.') + '"></span>'
         + '</span>';
-      html += '<span class="sarvarc-presence-avatars">';
-      shown.forEach((state, i) => {
-        const color = state.color || '#3b82f6';
-        const name = (state.name || 'Teammate');
-        const title = (name.replace(/"/g, '&quot;')) + ' \u2014 editing live now';
-        // Stagger each avatar's breathing cycle so the box feels alive
-        // rather than everyone pulsing in lockstep.
-        const delay = (i * 0.35).toFixed(2) + 's';
-        const inner = state.avatar
-          ? '<img class="sarvarc-presence-avatar-img" src="' + state.avatar.replace(/"/g, '&quot;') +
-            '" alt="" referrerpolicy="no-referrer" title="' + title + '" onerror="this.outerHTML=\'<div class=&quot;sarvarc-presence-avatar-fallback&quot; style=&quot;background:' +
-            color + '&quot; title=&quot;' + title.replace(/'/g, "&#39;") + '&quot;>' + sarvarcPresenceInitials(name) + '</div>\'">'
-          : '<div class="sarvarc-presence-avatar-fallback" style="background:' + color + '" title="' + title + '">' +
-            sarvarcPresenceInitials(name) + '</div>';
-        html += '<span class="sarvarc-presence-avatar-wrap" style="animation-delay:' + delay + ';z-index:' + (shown.length - i) + '">' + inner + '</span>';
-      });
-      if (overflow > 0) {
-        html += '<span class="sarvarc-presence-overflow" title="' + overflow + ' more live now">+' + overflow + '</span>';
+      if (shown.length) {
+        html += '<span class="sarvarc-presence-avatars">';
+        shown.forEach((state, i) => {
+          const color = state.color || '#3b82f6';
+          const name = (state.name || 'Teammate');
+          const title = (name.replace(/"/g, '&quot;')) + ' \u2014 editing live now';
+          // Stagger each avatar's breathing cycle so the box feels alive
+          // rather than everyone pulsing in lockstep.
+          const delay = (i * 0.35).toFixed(2) + 's';
+          const inner = state.avatar
+            ? '<img class="sarvarc-presence-avatar-img" src="' + state.avatar.replace(/"/g, '&quot;') +
+              '" alt="" referrerpolicy="no-referrer" title="' + title + '" onerror="this.outerHTML=\'<div class=&quot;sarvarc-presence-avatar-fallback&quot; style=&quot;background:' +
+              color + '&quot; title=&quot;' + title.replace(/'/g, "&#39;") + '&quot;>' + sarvarcPresenceInitials(name) + '</div>\'">'
+            : '<div class="sarvarc-presence-avatar-fallback" style="background:' + color + '" title="' + title + '">' +
+              sarvarcPresenceInitials(name) + '</div>';
+          html += '<span class="sarvarc-presence-avatar-wrap" style="animation-delay:' + delay + ';z-index:' + (shown.length - i) + '">' + inner + '</span>';
+        });
+        if (overflow > 0) {
+          html += '<span class="sarvarc-presence-overflow" title="' + overflow + ' more live now">+' + overflow + '</span>';
+        }
+        html += '</span>';
       }
-      html += '</span>';
+      if (isOwner) {
+        html += '<button type="button" class="sarvarc-end-live-btn" onclick="sarvarcTeamEndLiveSession()" title="End this live session for everyone — they\'ll fall back to their own separate workspace">End Live Session</button>';
+      }
       bar.innerHTML = html;
     } else {
       bar.style.display = 'none';
@@ -66218,6 +66243,20 @@ if (document.readyState === 'loading') {
   (function sarvarcCollabAutoReconnect() {
     const pid = localStorage.getItem('sarvarcLiveCollabTeamProjectId');
     if (!pid) return;
+    // Restore which team this project belongs to and restart the team's
+    // presence/removal channel here too — not just the editing channel.
+    // Without this, 'member-removed' broadcasts (owner kicks someone,
+    // sarvarcTeamRemoveMember) never reach anyone actually working in the
+    // shared project, since that broadcast only travels over the
+    // sarvarc-team-<teamId> channel, which otherwise only gets subscribed
+    // to when the Team settings modal happens to be open. Cursors of a
+    // removed member — and the removed member's own connection — would
+    // otherwise linger indefinitely instead of being cut off instantly.
+    const tid = localStorage.getItem('sarvarcLiveCollabTeamId');
+    if (tid) {
+      sarvarcTeamActiveId = tid;
+      sarvarcTeamStartPresence(tid);
+    }
     sarvarcCollabWaitForYjs().then(() => sarvarcCollabConnect(pid)).catch(e => console.warn('[Collab] auto-reconnect failed', e));
   })();
 
@@ -66231,6 +66270,7 @@ if (document.readyState === 'loading') {
   let sarvarcTeamActiveId = null;
   let sarvarcTeamPresenceChannel = null;
   let sarvarcTeamOnlineIds = new Set();
+  let sarvarcTeamMyRole = null;     // 'owner' | 'admin' | 'member' in sarvarcTeamActiveId — refreshed by sarvarcTeamLoadMembers, used to gate "End Live Session"
 
   async function sarvarcTeamGetUser() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
@@ -66406,6 +66446,10 @@ if (document.readyState === 'loading') {
       const myRole = (members.find(m => m.user_id === user.id) || {}).role || 'member';
       const canManage = myRole === 'owner' || myRole === 'admin';
       document.getElementById('sarvarcTeamInviteRow').style.display = canManage ? 'flex' : 'none';
+      // Cached at module scope (not just this modal) so the top-bar "End Live
+      // Session" control — which can render while the Team modal is closed —
+      // knows whether the current person is allowed to use it.
+      sarvarcTeamMyRole = myRole;
 
       const countPill = document.getElementById('sarvarcTeamCountPill');
       if (countPill) { countPill.style.display = 'inline-block'; countPill.textContent = members.length + (members.length === 1 ? ' member' : ' members'); }
@@ -66582,6 +66626,58 @@ if (document.readyState === 'loading') {
     if (teamId === sarvarcTeamActiveId) await sarvarcTeamLoadMembers(teamId);
   }
 
+  // ---- End Live Session (owner-only): shuts down the current live team
+  // project for EVERYONE connected to it right now, including the owner's
+  // own tab. This does NOT delete the team project or anyone's work — it
+  // just stops the real-time sync. Each participant's browser keeps
+  // whatever content it last had; from this point on that content is a
+  // private, local, no-longer-synced copy again — i.e. their own
+  // workspace. Note this does not save anything to the team's stored copy
+  // first — if there are unsaved live edits, "Save to Team" before ending
+  // is the way to keep them. ----
+  async function sarvarcTeamEndLiveSession() {
+    const teamProjectId = localStorage.getItem('sarvarcLiveCollabTeamProjectId');
+    if (!teamProjectId) { toast('No live session is currently open.', 'info'); return; }
+    if (sarvarcTeamMyRole !== 'owner') { sarvarcTeamShowError('Only the team owner can end a live session.'); return; }
+    if (!confirm('End this live session for everyone?\n\nEveryone currently connected will be dropped back to their own separate workspace. Nothing is deleted, but any edits not yet saved to the team won\'t be kept in the shared copy.')) return;
+
+    const teamId = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
+    try {
+      if (sarvarcTeamPresenceChannel) {
+        try {
+          await sarvarcTeamPresenceChannel.send({
+            type: 'broadcast', event: 'session-ended',
+            payload: { teamId, teamProjectId }
+          });
+        } catch (e) { console.warn('[Team] could not broadcast session end', e); }
+      }
+    } finally {
+      // Broadcasts don't echo back to the sender (self:false), so the owner
+      // has to be dropped out of the live room locally too.
+      await sarvarcTeamHandleSessionEnded(teamId, teamProjectId);
+    }
+  }
+
+  // Reacts to a 'session-ended' broadcast — fires on EVERY client currently
+  // live on that team project, including the owner's own tab (called
+  // directly there, see above, since broadcasts don't self-echo).
+  async function sarvarcTeamHandleSessionEnded(teamId, endedTeamProjectId) {
+    const activeProjectId = localStorage.getItem('sarvarcLiveCollabTeamProjectId');
+    if (!activeProjectId || activeProjectId !== endedTeamProjectId) return; // not in this session, ignore
+
+    if (typeof sarvarcCollabIsLive === 'function' && sarvarcCollabIsLive()) {
+      sarvarcCollabDisconnect(); // stops Yjs sync + awareness, clears the sarvarcLiveCollab* localStorage flags
+    } else {
+      // Disconnect wasn't live (e.g. reconnect hadn't finished yet) — still
+      // clear the flags so a stray reload doesn't try to rejoin a room
+      // that's now gone.
+      localStorage.removeItem('sarvarcLiveCollabTeamProjectId');
+      localStorage.removeItem('sarvarcLiveCollabTeamId');
+      localStorage.removeItem('sarvarcLiveCollabSessionId');
+    }
+    toast('The live session was ended — you\'re back on your own workspace.', 'info');
+  }
+
   // ---- Live presence: who from the team is online right now ----
   // Uses Supabase Realtime Presence — an ephemeral in-memory channel.
   // Nothing here is written to a database table.
@@ -66602,6 +66698,10 @@ if (document.readyState === 'loading') {
       channel.on('broadcast', { event: 'member-removed' }, ({ payload }) => {
         if (!payload) return;
         sarvarcTeamHandleMemberRemoved(payload.teamId, payload.userId);
+      });
+      channel.on('broadcast', { event: 'session-ended' }, ({ payload }) => {
+        if (!payload) return;
+        sarvarcTeamHandleSessionEnded(payload.teamId, payload.teamProjectId);
       });
       channel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
