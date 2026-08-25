@@ -67125,13 +67125,20 @@ if (document.readyState === 'loading') {
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     if (sarvarcIsMobileForAuth) {
       // No reset here — the page is about to navigate away entirely.
+      // Flag that a full-page-redirect login is in flight so the
+      // onAuthStateChange SIGNED_IN handler (which runs on the fresh page
+      // load we come back to) knows to actually enter the workspace —
+      // see that handler for why this is needed.
+      sessionStorage.setItem('sarvarcGoogleRedirectPending', '1');
       window.location.href = data.url;
       return;
     }
     const popup = window.open(data.url, 'sarvarcGoogleLogin', 'width=480,height=640');
     if (!popup) {
       // Popup blocked — fall back to the full-page redirect. Pending export
-      // won't auto-resume here, same as before.
+      // won't auto-resume here, same as before. Same flag/reason as the
+      // mobile branch above.
+      sessionStorage.setItem('sarvarcGoogleRedirectPending', '1');
       window.location.href = data.url;
       return;
     }
@@ -67425,10 +67432,29 @@ if (document.readyState === 'loading') {
     // Signed in while the "check your email" pane is showing means the
     // confirmation link was just clicked (in this tab or a synced one) —
     // close the modal on its own, no click required from the user.
+    //
+    // ALSO covers the Google full-page-redirect flow (mobile, and the
+    // popup-blocked desktop fallback in sarvarcAuthGoogleLogin): that path
+    // navigates this same tab away to Google and back, so the page does a
+    // hard reload on return. Nothing on that fresh load ever called
+    // sarvarcAuthEnterWorkspace() — the popup path's finish() calls it
+    // directly, but a full-page redirect has no in-memory JS state left to
+    // call it from once the page reloads. This SIGNED_IN event (fired once
+    // Supabase's client parses the ?code= it finds in the URL on load) was
+    // the only hook left, but it only entered the workspace when the
+    // "check your email" pane happened to still be open — never true after
+    // a full navigate-away-and-back. Net effect: the nav button quietly
+    // updated to the person's name, but they stayed on the marketing page
+    // with no visible sign anything had happened — exactly "log in with
+    // Google and nothing happens". Guarded with a sessionStorage flag set
+    // right before the redirect so this only fires for that specific flow,
+    // and only once.
     if (event === 'SIGNED_IN') {
       const overlay = document.getElementById('sarvarcAuthOverlay');
       const confirmPane = document.getElementById('sarvarcAuthConfirmPane');
-      if (overlay.classList.contains('open') && confirmPane.style.display !== 'none') {
+      const redirectPending = sessionStorage.getItem('sarvarcGoogleRedirectPending') === '1';
+      if (redirectPending) sessionStorage.removeItem('sarvarcGoogleRedirectPending');
+      if (redirectPending || (overlay.classList.contains('open') && confirmPane.style.display !== 'none')) {
         sarvarcAuthEnterWorkspace();
       }
     }
