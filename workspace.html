@@ -65473,6 +65473,7 @@ if (document.readyState === 'loading') {
         .from('team_members').select('id, user_id, role, email, full_name')
         .eq('team_id', teamId);
       if (error) throw error;
+      members.forEach(m => { sarvarcTeamMembersCache[m.user_id] = { full_name: m.full_name, email: m.email }; });
       const myRole = (members.find(m => m.user_id === user.id) || {}).role || 'member';
       const canManage = myRole === 'owner' || myRole === 'admin';
       document.getElementById('sarvarcTeamInviteRow').style.display = canManage ? 'flex' : 'none';
@@ -65562,6 +65563,8 @@ if (document.readyState === 'loading') {
   // Drive — just uploaded to the team's own private storage instead, and
   // with the personal-account lock (rec.ownerEmail) cleared on open since
   // it's now legitimately shared with the whole team. ----
+  let sarvarcTeamMembersCache = {}; // user_id -> {full_name, email}, used to label "last saved by"
+
   async function sarvarcTeamProjectsLoad(teamId) {
     const listEl = document.getElementById('sarvarcTeamProjectsList');
     if (!listEl) return;
@@ -65569,7 +65572,7 @@ if (document.readyState === 'loading') {
     try {
       const { data: rows, error } = await sarvarcSupabase
         .from('team_projects')
-        .select('id, name, storage_path, updated_at, updated_by, member:updated_by (full_name, email)')
+        .select('id, name, storage_path, updated_at, updated_by')
         .eq('team_id', teamId)
         .order('updated_at', { ascending: false });
       if (error) throw error;
@@ -65578,7 +65581,8 @@ if (document.readyState === 'loading') {
         return;
       }
       listEl.innerHTML = rows.map(p => {
-        const who = (p.member && (p.member.full_name || p.member.email)) || 'a teammate';
+        const m = sarvarcTeamMembersCache[p.updated_by];
+        const who = (m && (m.full_name || m.email)) || 'a teammate';
         const when = p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '';
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface2)">
           <div style="min-width:0">
