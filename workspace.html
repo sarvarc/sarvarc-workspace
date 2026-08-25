@@ -8506,6 +8506,9 @@ button.dg-show-chip.active { background:var(--blue); }
       <span id="sarvarcAuthNavLabel">Log In</span>
     </button>
     <div id="sarvarcAuthMenu" style="display:none;position:absolute;top:44px;right:16px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,0.5);padding:6px;z-index:800;min-width:160px;">
+      <button class="btn-secondary" id="sarvarcTeamNavMenuBtn" onclick="sarvarcTeamOpenModal()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start;position:relative">Team
+        <span id="sarvarcTeamInviteDot" style="display:none;position:absolute;top:7px;right:9px;width:7px;height:7px;border-radius:50%;background:#ef4444"></span>
+      </button>
       <button class="btn-secondary" onclick="sarvarcSettingsOpenModal()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Settings</button>
       <button class="btn-secondary" onclick="sarvarcAuthLogOut()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Log Out</button>
     </div>
@@ -13196,6 +13199,62 @@ button.dg-show-chip.active { background:var(--blue); }
     <div class="pdfed-export-footer">
       <button class="btn-secondary" onclick="sarvarcSettingsCloseModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
       <button class="pdfed-export-download-btn" id="sarvarcSettingsSaveBtn" onclick="sarvarcSettingsSaveProfile()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEAM MODAL: create/switch teams, invite teammates by email, see who's
+     online right now. Only metadata (names/emails/roles) lives in Supabase —
+     actual documents stay in each member's own Google Drive, same as solo
+     projects. -->
+<div class="pdfed-insert-modal-overlay" id="sarvarcTeamOverlay" onmousedown="if(event.target===this)sarvarcTeamCloseModal()">
+  <div class="sarvarc-pw-modal" style="max-width:440px">
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team</h3>
+        <div class="pdfed-export-sub" id="sarvarcTeamModalSub">Work on projects together with your team</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="sarvarcTeamCloseModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sarvarc-pw-modal-body">
+
+      <!-- Pending invites banner (only shown if the logged-in email has any) -->
+      <div id="sarvarcTeamInvitesBox" style="display:none;margin-bottom:14px;padding:10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2)"></div>
+
+      <!-- No team yet -->
+      <div id="sarvarcTeamEmptyState" style="display:none;text-align:center;padding:18px 6px">
+        <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">You're not part of a team yet. Create one to start sharing projects and working together in real time.</div>
+        <input type="text" id="sarvarcTeamNewName" class="pdfed-export-range-input" placeholder="Team name, e.g. Prayaga &amp; Co." style="margin-top:0">
+        <button class="pdfed-export-download-btn" style="width:100%;margin-top:10px" onclick="sarvarcTeamCreate()">Create Team</button>
+      </div>
+
+      <!-- Has team(s) -->
+      <div id="sarvarcTeamActiveState" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <select id="sarvarcTeamSwitcher" onchange="sarvarcTeamSwitch(this.value)" style="flex:1;padding:7px 8px;font-size:12px;border-radius:7px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)"></select>
+          <button class="btn-secondary" title="Create another team" onclick="sarvarcTeamShowCreateForm()" style="padding:7px 9px;font-size:12px">+ New</button>
+        </div>
+
+        <div id="sarvarcTeamCreateInline" style="display:none;margin-bottom:12px">
+          <input type="text" id="sarvarcTeamNewName2" class="pdfed-export-range-input" placeholder="Team name" style="margin-top:0">
+          <button class="pdfed-export-download-btn" style="width:100%;margin-top:8px" onclick="sarvarcTeamCreate('sarvarcTeamNewName2')">Create</button>
+        </div>
+
+        <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 8px">Members</div>
+        <div id="sarvarcTeamMembersList" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+
+        <div id="sarvarcTeamInviteRow" style="display:flex;gap:8px;margin-top:12px">
+          <input type="email" id="sarvarcTeamInviteEmail" class="pdfed-export-range-input" placeholder="teammate@email.com" style="margin-top:0;flex:1">
+          <button class="btn-secondary" onclick="sarvarcTeamInvite()" style="padding:0 14px;font-size:12px">Invite</button>
+        </div>
+        <div id="sarvarcTeamError" style="font-size:10px;color:#ef4444;display:none;margin-top:8px"></div>
+        <div id="sarvarcTeamNote" style="font-size:10px;color:var(--text3);display:none;margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="pdfed-export-footer">
+      <button class="btn-secondary" onclick="sarvarcTeamCloseModal()" style="padding:9px 18px;font-size:12px">Close</button>
     </div>
   </div>
 </div>
@@ -65231,6 +65290,256 @@ if (document.readyState === 'loading') {
     } finally {
       btn.disabled = false;
     }
+  }
+
+  // =========================================================
+  // TEAM FEATURE — teams / members / invites / live presence.
+  // Only metadata (names, emails, roles, project pointers) lives in
+  // Supabase. Actual document content never leaves the owning member's
+  // Google Drive — team_projects rows just point at a drive_file_id.
+  // =========================================================
+  let sarvarcTeamMyTeams = [];      // [{id, name, role}]
+  let sarvarcTeamActiveId = null;
+  let sarvarcTeamPresenceChannel = null;
+  let sarvarcTeamOnlineIds = new Set();
+
+  async function sarvarcTeamGetUser() {
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    return user || null;
+  }
+
+  function sarvarcTeamShowError(msg) {
+    const el = document.getElementById('sarvarcTeamError');
+    if (!msg) { el.style.display = 'none'; return; }
+    el.textContent = msg; el.style.display = 'block';
+  }
+
+  function sarvarcTeamShowNote(msg) {
+    const el = document.getElementById('sarvarcTeamNote');
+    if (!msg) { el.style.display = 'none'; return; }
+    el.textContent = msg; el.style.display = 'block';
+  }
+
+  async function sarvarcTeamOpenModal() {
+    document.getElementById('sarvarcAuthMenu').style.display = 'none';
+    const user = await sarvarcTeamGetUser();
+    if (!user) { sarvarcAuthOpenModal('login'); return; }
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    document.getElementById('sarvarcTeamOverlay').classList.add('open');
+    await sarvarcTeamLoadMyInvites(user);
+    await sarvarcTeamLoadMyTeams(user);
+  }
+
+  function sarvarcTeamCloseModal() {
+    document.getElementById('sarvarcTeamOverlay').classList.remove('open');
+  }
+
+  function sarvarcTeamShowCreateForm() {
+    document.getElementById('sarvarcTeamCreateInline').style.display = 'block';
+  }
+
+  // ---- Pending invites (matched against the logged-in Google email) ----
+  async function sarvarcTeamLoadMyInvites(user) {
+    const box = document.getElementById('sarvarcTeamInvitesBox');
+    const dot = document.getElementById('sarvarcTeamInviteDot');
+    try {
+      const { data: invites, error } = await sarvarcSupabase
+        .from('team_invites')
+        .select('id, team_id, role, status, teams:team_id (name)')
+        .eq('email', user.email)
+        .eq('status', 'pending');
+      if (error) throw error;
+      if (!invites || invites.length === 0) {
+        box.style.display = 'none'; dot.style.display = 'none'; return;
+      }
+      dot.style.display = 'block';
+      box.style.display = 'block';
+      box.innerHTML = invites.map(inv => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0">
+          <div style="font-size:12px;color:var(--text)"><b>${(inv.teams && inv.teams.name) || 'A team'}</b> invited you</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-secondary" style="padding:5px 10px;font-size:11px" onclick="sarvarcTeamAcceptInvite('${inv.id}','${inv.team_id}','${inv.role}')">Accept</button>
+            <button class="btn-secondary" style="padding:5px 10px;font-size:11px" onclick="sarvarcTeamDeclineInvite('${inv.id}')">Decline</button>
+          </div>
+        </div>`).join('');
+    } catch (e) {
+      box.style.display = 'none'; dot.style.display = 'none';
+    }
+  }
+
+  async function sarvarcTeamAcceptInvite(inviteId, teamId, role) {
+    try {
+      const user = await sarvarcTeamGetUser();
+      const { data: profile } = await sarvarcSupabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+      const { error: joinErr } = await sarvarcSupabase.from('team_members').insert({
+        team_id: teamId, user_id: user.id, role: role === 'admin' ? 'admin' : 'member',
+        email: user.email, full_name: (profile && profile.full_name) || null
+      });
+      if (joinErr) throw joinErr;
+      await sarvarcSupabase.from('team_invites').update({ status: 'accepted' }).eq('id', inviteId);
+      toast('Joined the team', 'success');
+      await sarvarcTeamOpenModal();
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not join team.');
+    }
+  }
+
+  async function sarvarcTeamDeclineInvite(inviteId) {
+    try {
+      await sarvarcSupabase.from('team_invites').update({ status: 'declined' }).eq('id', inviteId);
+      await sarvarcTeamOpenModal();
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---- Load teams the user belongs to ----
+  async function sarvarcTeamLoadMyTeams(user) {
+    try {
+      const { data: rows, error } = await sarvarcSupabase
+        .from('team_members')
+        .select('role, teams:team_id (id, name)')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      sarvarcTeamMyTeams = (rows || []).filter(r => r.teams).map(r => ({ id: r.teams.id, name: r.teams.name, role: r.role }));
+
+      const empty = document.getElementById('sarvarcTeamEmptyState');
+      const active = document.getElementById('sarvarcTeamActiveState');
+      if (sarvarcTeamMyTeams.length === 0) {
+        empty.style.display = 'block'; active.style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none'; active.style.display = 'block';
+      document.getElementById('sarvarcTeamCreateInline').style.display = 'none';
+
+      const sw = document.getElementById('sarvarcTeamSwitcher');
+      sw.innerHTML = sarvarcTeamMyTeams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      if (!sarvarcTeamActiveId || !sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId)) {
+        sarvarcTeamActiveId = sarvarcTeamMyTeams[0].id;
+      }
+      sw.value = sarvarcTeamActiveId;
+      await sarvarcTeamSwitch(sarvarcTeamActiveId);
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not load your teams.');
+    }
+  }
+
+  async function sarvarcTeamCreate(inputId) {
+    const nameEl = document.getElementById(inputId || 'sarvarcTeamNewName');
+    const name = (nameEl.value || '').trim();
+    if (!name) { sarvarcTeamShowError('Give your team a name.'); return; }
+    try {
+      const user = await sarvarcTeamGetUser();
+      const { data: team, error } = await sarvarcSupabase.from('teams').insert({ name, owner_id: user.id }).select().single();
+      if (error) throw error;
+      const { data: profile } = await sarvarcSupabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+      await sarvarcSupabase.from('team_members').insert({
+        team_id: team.id, user_id: user.id, role: 'owner', email: user.email, full_name: (profile && profile.full_name) || null
+      });
+      sarvarcTeamActiveId = team.id;
+      nameEl.value = '';
+      toast('Team created', 'success');
+      await sarvarcTeamLoadMyTeams(user);
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not create team.');
+    }
+  }
+
+  async function sarvarcTeamSwitch(teamId) {
+    sarvarcTeamActiveId = teamId;
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    await sarvarcTeamLoadMembers(teamId);
+    sarvarcTeamStartPresence(teamId);
+  }
+
+  async function sarvarcTeamLoadMembers(teamId) {
+    const listEl = document.getElementById('sarvarcTeamMembersList');
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">Loading…</div>';
+    try {
+      const user = await sarvarcTeamGetUser();
+      const { data: members, error } = await sarvarcSupabase
+        .from('team_members').select('id, user_id, role, email, full_name')
+        .eq('team_id', teamId);
+      if (error) throw error;
+      const myRole = (members.find(m => m.user_id === user.id) || {}).role || 'member';
+      const canManage = myRole === 'owner' || myRole === 'admin';
+      document.getElementById('sarvarcTeamInviteRow').style.display = canManage ? 'flex' : 'none';
+
+      listEl.innerHTML = members.map(m => {
+        const label = m.full_name || m.email || 'Member';
+        const online = sarvarcTeamOnlineIds.has(m.user_id);
+        const removeBtn = (canManage && m.user_id !== user.id)
+          ? `<button class="btn-secondary" style="padding:3px 8px;font-size:10.5px" onclick="sarvarcTeamRemoveMember('${m.id}')">Remove</button>` : '';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 6px;border-radius:7px;background:var(--surface2)" data-member-user="${m.user_id}">
+          <div style="display:flex;align-items:center;gap:7px;min-width:0">
+            <span style="width:8px;height:8px;border-radius:50%;flex:none;background:${online ? '#22c55e' : 'var(--border2)'}" title="${online ? 'Online now' : 'Offline'}"></span>
+            <span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+            <span style="font-size:10px;color:var(--text3);text-transform:capitalize">${m.role}</span>
+          </div>
+          ${removeBtn}
+        </div>`;
+      }).join('');
+    } catch (e) {
+      listEl.innerHTML = '';
+      sarvarcTeamShowError(e.message || 'Could not load members.');
+    }
+  }
+
+  async function sarvarcTeamInvite() {
+    const emailEl = document.getElementById('sarvarcTeamInviteEmail');
+    const email = (emailEl.value || '').trim().toLowerCase();
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    if (!email || !email.includes('@')) { sarvarcTeamShowError('Enter a valid email.'); return; }
+    try {
+      const user = await sarvarcTeamGetUser();
+      const { error } = await sarvarcSupabase.from('team_invites').insert({
+        team_id: sarvarcTeamActiveId, email, invited_by: user.id
+      });
+      if (error) throw error;
+      emailEl.value = '';
+      // No email-sending service wired up yet: the invite shows up
+      // automatically next time that person logs into SARVARC with
+      // this Google account and opens Team.
+      sarvarcTeamShowNote(`Invite added for ${email} — they'll see it next time they log in.`);
+    } catch (e) {
+      if ((e.message || '').includes('duplicate')) sarvarcTeamShowError('Already invited.');
+      else sarvarcTeamShowError(e.message || 'Could not send invite.');
+    }
+  }
+
+  async function sarvarcTeamRemoveMember(memberRowId) {
+    if (!confirm('Remove this person from the team?')) return;
+    try {
+      const { error } = await sarvarcSupabase.from('team_members').delete().eq('id', memberRowId);
+      if (error) throw error;
+      await sarvarcTeamLoadMembers(sarvarcTeamActiveId);
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not remove member.');
+    }
+  }
+
+  // ---- Live presence: who from the team is online right now ----
+  // Uses Supabase Realtime Presence — an ephemeral in-memory channel.
+  // Nothing here is written to a database table.
+  function sarvarcTeamStartPresence(teamId) {
+    if (sarvarcTeamPresenceChannel) {
+      try { sarvarcSupabase.removeChannel(sarvarcTeamPresenceChannel); } catch (e) {}
+      sarvarcTeamPresenceChannel = null;
+    }
+    sarvarcTeamOnlineIds = new Set();
+    sarvarcTeamGetUser().then(user => {
+      if (!user) return;
+      const channel = sarvarcSupabase.channel('sarvarc-team-' + teamId, { config: { presence: { key: user.id } } });
+      channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        sarvarcTeamOnlineIds = new Set(Object.keys(state));
+        sarvarcTeamLoadMembers(teamId);
+      });
+      channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ email: user.email, online_at: new Date().toISOString() });
+        }
+      });
+      sarvarcTeamPresenceChannel = channel;
+    });
   }
 
   // ---- Continue with Google: opens Google's consent screen in a popup
