@@ -64553,6 +64553,23 @@ if (document.readyState === 'loading') {
   window.dispatchEvent(new Event('sarvarc-yjs-ready'));
 </script>
 <script>
+  // TEAM FEATURE state — declared first, before any async/await code below
+  // runs, so these are fully initialized in the very first synchronous
+  // tick of this script. They used to be declared much further down
+  // (~line 66493), after several async IIFEs (Drive token refresh, Yjs
+  // collab auto-reconnect) that `await`/`.then()` and yield control back
+  // to the browser mid-script. If the "Team" nav button was clicked during
+  // one of those gaps — before execution reached the old declaration line —
+  // sarvarcTeamOpenModal() (a hoisted function, callable immediately) tried
+  // to read these `let` bindings while they were still in their temporal
+  // dead zone, throwing "Cannot access 'sarvarcTeamMyTeams' before
+  // initialization". Declaring them here removes that race entirely.
+  let sarvarcTeamMyTeams = [];      // [{id, name, role}]
+  let sarvarcTeamActiveId = null;
+  let sarvarcTeamPresenceChannel = null;
+  let sarvarcTeamOnlineIds = new Set();
+  let sarvarcTeamMyRole = null;     // 'owner' | 'admin' | 'member' in sarvarcTeamActiveId — refreshed by sarvarcTeamLoadMembers, used to gate "End Live Session"
+
   // ---- Show/hide toggle for any password field. Swaps the input's type
   // and the icon between "eye" (hidden, click to reveal) and "eye-off"
   // (visible, click to hide) so it's obvious which state you're in. ----
@@ -66491,12 +66508,9 @@ if (document.readyState === 'loading') {
   // pushed live, peer-to-peer, to each teammate's own Google Drive (see
   // "Shared projects" further below: sarvarcTeamProjectSave /
   // sarvarcTeamHandleProjectPush / sarvarcTeamRequestProjectSync).
+  // State variables (sarvarcTeamMyTeams, sarvarcTeamActiveId, etc.) are
+  // now declared at the very top of this script — see the comment there.
   // =========================================================
-  let sarvarcTeamMyTeams = [];      // [{id, name, role}]
-  let sarvarcTeamActiveId = null;
-  let sarvarcTeamPresenceChannel = null;
-  let sarvarcTeamOnlineIds = new Set();
-  let sarvarcTeamMyRole = null;     // 'owner' | 'admin' | 'member' in sarvarcTeamActiveId — refreshed by sarvarcTeamLoadMembers, used to gate "End Live Session"
 
   async function sarvarcTeamGetUser() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
