@@ -11676,6 +11676,10 @@ button.dg-show-chip.active { background:var(--blue); }
                 </button>
               </div>
             </div>
+            <div class="sm-scope-tabs" role="tablist">
+              <button type="button" class="sm-scope-tab active" id="smScopeAllBtn" onclick="smSetSessionsScope('all')">All</button>
+              <button type="button" class="sm-scope-tab" id="smScopeTeamBtn" onclick="smSetSessionsScope('team')" title="Sessions pushed to/from a team, synced to your own Google Drive">Team Projects</button>
+            </div>
             <div class="sm-session-list" id="smSessionList"></div>
           </div>
 
@@ -13908,6 +13912,22 @@ button.dg-show-chip.active { background:var(--blue); }
   display: inline-flex; align-items: center; gap: 5px; transition: all .12s ease; white-space: nowrap;
 }
 .sm-session-unlock-btn:hover { background: rgba(239,68,68,0.14); border-color: #ef4444; }
+
+/* ─── Team Projects badge + All/Team scope tabs ─── */
+.sm-team-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: rgba(59,130,246,0.08); color: #3b82f6; border: 1px solid rgba(59,130,246,0.28);
+  white-space: nowrap; flex-shrink: 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-team-badge svg { flex-shrink: 0; }
+.sm-scope-tabs { display: flex; gap: 6px; margin: 10px 2px 12px; }
+.sm-scope-tab {
+  padding: 5px 13px; font-size: 11.5px; font-weight: 600; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--text3); border: 1px solid var(--border); transition: all .12s ease;
+}
+.sm-scope-tab:hover { color: var(--text2); border-color: var(--border2); }
+.sm-scope-tab.active { background: rgba(59,130,246,0.1); color: #3b82f6; border-color: rgba(59,130,246,0.35); }
 
 /* ── Mobile (same 768px shell breakpoint as the rest of the app) ──
    Saved Sessions previously had no dedicated mobile pass — the fixed
@@ -18728,6 +18748,16 @@ async function smRenderList() {
           'Locked' +
         '</span>'
       : '';
+    // Team Projects: pushed to/from a team, synced to this device's own
+    // Drive (see sarvarcTeamProjectSave / sarvarcTeamHandleProjectPush) —
+    // shown with a small badge so they're distinguishable from purely
+    // personal sessions at a glance, even in the "All" view.
+    const teamBadge = s.teamId
+      ? '<span class="sm-team-badge" title="' + (s.pushedByName ? ('Shared by ' + String(s.pushedByName).replace(/"/g, '&quot;')) : 'Shared with your team') + '">' +
+          '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' +
+          (String(s.teamName || 'Team').replace(/</g, '&lt;')) +
+        '</span>'
+      : '';
 
     const actionsHtml = isLocked
       ? '<div class="sm-session-actions">' +
@@ -18753,12 +18783,12 @@ async function smRenderList() {
           : '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>');
     const thumbColorStyle = s.thumb ? '' : ' style="color:var(--text3)"';
 
-    return '<div class="sm-session-row' + (isLocked ? ' sm-session-locked' : '') + '" data-id="' + s.id + '" data-name="' + searchName + '">' +
+    return '<div class="sm-session-row' + (isLocked ? ' sm-session-locked' : '') + '" data-id="' + s.id + '" data-name="' + searchName + '" data-team="' + (s.teamId ? '1' : '0') + '">' +
         '<div class="sm-session-thumb"' + thumbColorStyle + '>' + thumbInner + '</div>' +
         (isLocked
           ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage(\'' + String(s.ownerEmail).replace(/'/g, "\\'") + '\')">' + safeName + '</span>'
           : '<input class="sm-session-name" value="' + safeName + '" onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">') +
-        lockBadge +
+        lockBadge + teamBadge +
         '<div class="sm-session-meta">' + dateStr + ', ' + timeStr + ' · ' + smFormatBytes(s.size) + '</div>' +
         '<div class="sm-session-divider"></div>' +
         '<div class="sm-mod-row">' + smModuleChecksHtml(s.id, s.snapshot) + '</div>' +
@@ -18774,29 +18804,49 @@ function smFilterSessions(value) {
   smSearchQuery = (value || '').trim().toLowerCase();
   smApplyFilter();
 }
+
+// ─── All / Team Projects scope toggle ──────────────────────────────────────
+// 'all' shows every saved session; 'team' narrows to just the ones pushed
+// to/from a team (data-team="1" — see smRenderList's teamBadge). Purely a
+// client-side view filter — doesn't change what's actually stored anywhere.
+let smSessionsScope = 'all';
+function smSetSessionsScope(scope) {
+  smSessionsScope = scope;
+  const allBtn = document.getElementById('smScopeAllBtn');
+  const teamBtn = document.getElementById('smScopeTeamBtn');
+  if (allBtn) allBtn.classList.toggle('active', scope === 'all');
+  if (teamBtn) teamBtn.classList.toggle('active', scope === 'team');
+  smApplyFilter();
+}
+
 function smApplyFilter() {
   const listEl = document.getElementById('smSessionList');
   if (!listEl) return;
   const rows = listEl.querySelectorAll('.sm-session-row');
   let visibleCount = 0;
   rows.forEach(function (row) {
-    const match = !smSearchQuery || (row.dataset.name || '').indexOf(smSearchQuery) !== -1;
+    const searchMatch = !smSearchQuery || (row.dataset.name || '').indexOf(smSearchQuery) !== -1;
+    const scopeMatch = smSessionsScope !== 'team' || row.dataset.team === '1';
+    const match = searchMatch && scopeMatch;
     row.style.display = match ? '' : 'none';
     if (match) visibleCount++;
   });
   let noMatchEl = listEl.querySelector('.sm-session-no-match');
-  if (rows.length && smSearchQuery && visibleCount === 0) {
+  if (rows.length && visibleCount === 0) {
     if (!noMatchEl) {
       noMatchEl = document.createElement('div');
       noMatchEl.className = 'sm-session-no-match';
       noMatchEl.style.cssText = 'padding:26px 16px;text-align:center;color:var(--text3);font-size:12.5px';
       listEl.appendChild(noMatchEl);
     }
-    noMatchEl.textContent = 'No saved sessions match "' + smSearchQuery + '".';
+    noMatchEl.textContent = smSearchQuery
+      ? 'No saved sessions match "' + smSearchQuery + '".'
+      : 'No Team Projects yet — push one from a team\'s "Save current work to team" button.';
   } else if (noMatchEl) {
     noMatchEl.remove();
   }
 }
+window.smSetSessionsScope = smSetSessionsScope;
 
 // ─── Drive refresh — manual (drag/button) + automatic (polling) ───────────
 // sarvarcDriveSyncDown() (defined later in the Google Drive Sync script)
@@ -66263,8 +66313,10 @@ if (document.readyState === 'loading') {
   // =========================================================
   // TEAM FEATURE — teams / members / invites / live presence.
   // Only metadata (names, emails, roles, project pointers) lives in
-  // Supabase. Actual document content never leaves the owning member's
-  // Google Drive — team_projects rows just point at a drive_file_id.
+  // Supabase. Actual project content is never stored server-side — it's
+  // pushed live, peer-to-peer, to each teammate's own Google Drive (see
+  // "Shared projects" further below: sarvarcTeamProjectSave /
+  // sarvarcTeamHandleProjectPush / sarvarcTeamRequestProjectSync).
   // =========================================================
   let sarvarcTeamMyTeams = [];      // [{id, name, role}]
   let sarvarcTeamActiveId = null;
@@ -66703,6 +66755,18 @@ if (document.readyState === 'loading') {
         if (!payload) return;
         sarvarcTeamHandleSessionEnded(payload.teamId, payload.teamProjectId);
       });
+      // Team Projects: peer-to-peer push/pull (see sarvarcTeamProjectSave /
+      // sarvarcTeamHandleProjectPush / sarvarcTeamRequestProjectSync below).
+      // Nothing here is stored by Supabase — it's just relaying between
+      // browsers that happen to be online on this channel at the same time.
+      channel.on('broadcast', { event: 'team-project-push' }, ({ payload }) => {
+        if (!payload) return;
+        sarvarcTeamHandleProjectPush(payload.teamId, payload.rec);
+      });
+      channel.on('broadcast', { event: 'team-project-request' }, ({ payload }) => {
+        if (!payload) return;
+        sarvarcTeamHandleProjectRequest(payload.teamId, payload.teamProjectId);
+      });
       channel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await channel.track({ email: user.email, online_at: new Date().toISOString() });
@@ -66715,10 +66779,33 @@ if (document.readyState === 'loading') {
   // ---- Shared projects: push current work to the team, open a teammate's
   // shared work. Uses the SAME session snapshot format (rec.snapshot =
   // {ls, idb}) that "Saved Sessions" already uses locally and on personal
-  // Drive — just uploaded to the team's own private storage instead, and
-  // with the personal-account lock (rec.ownerEmail) cleared on open since
-  // it's now legitimately shared with the whole team. ----
-  let sarvarcTeamMembersCache = {}; // user_id -> {full_name, email}, used to label "last saved by"
+  // Drive.
+  //
+  // IMPORTANT: no SARVARC server ever holds the actual file content. Two
+  // things travel separately:
+  //   1. A tiny POINTER row in the `team_projects` table (id, team_id,
+  //      name, who last saved it, when) — just enough for teammates to see
+  //      the project exists and pick it from a list. No file content.
+  //   2. The real project content, which is only ever:
+  //        - written into the pusher's OWN Google Drive (their login), and
+  //        - live-relayed peer-to-peer over the team's Supabase Realtime
+  //          broadcast channel to whoever else is online RIGHT NOW — each
+  //          of THEIR browsers then writes it into THEIR OWN Drive too.
+  //      Realtime broadcast is a live pass-through, not storage — Supabase
+  //      never keeps a copy of what passed through it.
+  //   Anyone offline at push time simply doesn't get it in that moment —
+  //   sarvarcTeamRequestProjectSync() below asks the team again the next
+  //   time they open SARVARC; if literally nobody with a copy is online,
+  //   the existing "Share as .sw file" export/import (Saved Sessions page)
+  //   is the manual fallback.
+  //   Practical limit: Realtime broadcast messages have a size ceiling
+  //   (well under what a very large project with lots of embedded images
+  //   could reach) — a push that's too big to relay live still saves fine
+  //   to the pusher's own Drive, it just won't reach teammates until they
+  //   pull it directly (open it once themselves) or a smaller/trimmed
+  //   version is pushed. ----
+  let sarvarcTeamMembersCache = {};        // user_id -> {full_name, email}, used to label "last saved by"
+  let sarvarcTeamPendingSyncRequests = {}; // teamProjectId -> requestedAt, cleared once a copy arrives
 
   async function sarvarcTeamProjectsLoad(teamId) {
     const listEl = document.getElementById('sarvarcTeamProjectsList');
@@ -66727,7 +66814,7 @@ if (document.readyState === 'loading') {
     try {
       const { data: rows, error } = await sarvarcSupabase
         .from('team_projects')
-        .select('id, name, storage_path, updated_at, updated_by')
+        .select('id, name, updated_at, updated_by')
         .eq('team_id', teamId)
         .order('updated_at', { ascending: false });
       if (error) throw error;
@@ -66735,16 +66822,22 @@ if (document.readyState === 'loading') {
         listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">No shared projects yet.</div>';
         return;
       }
+      // Which of these already have a local (and thus Drive-mirrored) copy
+      // on THIS device vs. still need a live pull from an online teammate.
+      let localIds = new Set();
+      try { localIds = new Set((await smListSessions()).map(s => s.id)); } catch (e) {}
+
       listEl.innerHTML = rows.map(p => {
         const m = sarvarcTeamMembersCache[p.updated_by];
         const who = (m && (m.full_name || m.email)) || 'a teammate';
         const when = p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '';
+        const haveIt = localIds.has(p.id);
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface2)">
           <div style="min-width:0">
-            <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+            <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${haveIt ? '' : ' <span style="color:var(--text3);font-weight:400">(not synced to this device yet)</span>'}</div>
             <div style="font-size:10px;color:var(--text3)">Last saved by ${who}${when ? ' · ' + when : ''}</div>
           </div>
-          <button class="btn-secondary" style="padding:5px 10px;font-size:11px;flex:none" onclick="sarvarcTeamProjectOpen('${p.id}')">Open</button>
+          <button class="btn-secondary" style="padding:5px 10px;font-size:11px;flex:none" onclick="sarvarcTeamProjectOpen('${p.id}')">${haveIt ? 'Open' : 'Sync &amp; Open'}</button>
         </div>`;
       }).join('');
     } catch (e) {
@@ -66762,21 +66855,64 @@ if (document.readyState === 'loading') {
       const user = await sarvarcTeamGetUser();
       if (!user) { sarvarcAuthOpenModal('login'); return; }
       if (typeof smSaveSession !== 'function') throw new Error('Save engine not available on this page.');
-      // Re-uses the exact same capture path "Save Your Workflow" uses (also
-      // saves locally + to the owner's personal Drive as a backup — that
-      // part is unchanged and unaffected by the team copy below).
+
+      // Re-uses the exact same capture + local-save + personal-Drive-mirror
+      // path "Save Your Workflow" uses. This pusher's own copy always lands
+      // in THEIR OWN Google Drive — never on a SARVARC server.
       const rec = await smSaveSession(name);
-      const path = sarvarcTeamActiveId + '/' + rec.id + '.json';
-      const blob = new Blob([JSON.stringify(rec)], { type: 'application/json' });
-      const { error: upErr } = await sarvarcSupabase.storage.from('team-projects').upload(path, blob, { upsert: true, contentType: 'application/json' });
-      if (upErr) throw upErr;
-      const { error: rowErr } = await sarvarcSupabase.from('team_projects').insert({
-        team_id: sarvarcTeamActiveId, name, module: 'workflow',
-        owner_id: user.id, storage_path: path, updated_by: user.id, updated_at: new Date().toISOString()
+      const teamName = (sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId) || {}).name || 'Team';
+      rec.teamId = sarvarcTeamActiveId;
+      rec.teamName = teamName;
+      rec.pushedByName = (sarvarcTeamMembersCache[user.id] && sarvarcTeamMembersCache[user.id].full_name) || user.email;
+      rec.pushedAt = Date.now();
+      // Legitimately shared with the whole team now — not locked to
+      // whichever member happened to click Save.
+      rec.ownerEmail = null;
+
+      const db = await idbKvOpen();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readwrite');
+        tx.objectStore('sessions').put(rec);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      // Re-mirror to Drive now that the team tags above are set (the
+      // smSaveSession() mirror ran before those existed).
+      try {
+        if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+          rec.driveFileId = await sarvarcDriveSaveSession(rec);
+          await new Promise((resolve) => {
+            const tx2 = db.transaction('sessions', 'readwrite');
+            tx2.objectStore('sessions').put(rec);
+            tx2.oncomplete = resolve;
+            tx2.onerror = () => resolve();
+          });
+        }
+      } catch (e) { console.warn('[Team] Drive mirror (tagged) skipped', e); }
+
+      // Pointer only — id/name/who/when — never file content.
+      const { error: rowErr } = await sarvarcSupabase.from('team_projects').upsert({
+        id: rec.id, team_id: sarvarcTeamActiveId, name,
+        owner_id: user.id, updated_by: user.id, updated_at: new Date().toISOString()
       });
       if (rowErr) throw rowErr;
+
+      // Live-push the full project straight to whoever's online right now.
+      // Each of their browsers saves it locally AND mirrors it into THEIR
+      // OWN Drive under their own login — this call is the "single click,
+      // synced live to every online teammate" step.
+      if (sarvarcTeamPresenceChannel) {
+        try {
+          await sarvarcTeamPresenceChannel.send({
+            type: 'broadcast', event: 'team-project-push',
+            payload: { teamId: sarvarcTeamActiveId, rec }
+          });
+        } catch (e) { console.warn('[Team] could not live-push project', e); }
+      }
+
       sarvarcTeamShowNote('Saved to team.');
-      toast('Saved to team', 'success');
+      toast('Saved to team \u2014 synced live to whoever\u2019s online', 'success');
+      if (document.getElementById('smSessionList')) smRenderList();
       await sarvarcTeamProjectsLoad(sarvarcTeamActiveId);
     } catch (e) {
       sarvarcTeamShowError(e.message || 'Could not save to team.');
@@ -66786,23 +66922,18 @@ if (document.readyState === 'loading') {
   async function sarvarcTeamProjectOpen(projectId) {
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
     try {
-      const { data: proj, error } = await sarvarcSupabase.from('team_projects').select('*').eq('id', projectId).maybeSingle();
-      if (error) throw error;
-      if (!proj || !proj.storage_path) throw new Error('That project could not be found.');
-      const { data: blob, error: dlErr } = await sarvarcSupabase.storage.from('team-projects').download(proj.storage_path);
-      if (dlErr) throw dlErr;
-      const text = await blob.text();
-      const rec = JSON.parse(text);
-      // Clear the personal-account lock — this snapshot is legitimately
-      // shared with the whole team now, not tied to whoever saved it.
-      rec.ownerEmail = null;
-      const db = await idbKvOpen();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('sessions', 'readwrite');
-        tx.objectStore('sessions').put(rec);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
+      let rec = (typeof smGetSession === 'function') ? await smGetSession(projectId) : null;
+      if (!rec) {
+        // Not synced to this device yet — ask the team live and wait a
+        // few seconds for whoever's online with it to hand it back (see
+        // sarvarcTeamRequestProjectSync / sarvarcTeamHandleProjectPush).
+        await sarvarcTeamRequestProjectSync(projectId);
+        rec = await sarvarcTeamWaitForSession(projectId, 6000);
+      }
+      if (!rec) {
+        sarvarcTeamShowError('No teammate is online right now to send this project. Ask one to open SARVARC, or have them share it to you as a .sw file instead (Saved Sessions → share icon).');
+        return;
+      }
       // Mark this as a LIVE team project before the reload below wipes all
       // in-memory JS state. sarvarcCollabAutoReconnect (top of the LIVE
       // CO-EDITING CORE block) picks these back up right after reload and
@@ -66812,10 +66943,98 @@ if (document.readyState === 'loading') {
       localStorage.setItem('sarvarcLiveCollabSessionId', rec.id);
       sarvarcTeamCloseModal();
       await smLoadSession(rec.id);
-      toast('Opened "' + proj.name + '" from the team — live with teammates', 'success');
+      toast('Opened "' + rec.name + '" from the team — live with teammates', 'success');
     } catch (e) {
       sarvarcTeamShowError(e.message || 'Could not open that project.');
     }
+  }
+
+  // Reacts to a 'team-project-push' broadcast — fires on every OTHER client
+  // connected to this team's channel right now (broadcasts never echo back
+  // to the sender). Saves the pushed project straight into this browser's
+  // own local sessions AND mirrors it into THIS person's own Google Drive —
+  // never into any SARVARC server. This is what makes "Save to Team" reach
+  // everyone who happens to be online the instant it's clicked.
+  async function sarvarcTeamHandleProjectPush(teamId, rec) {
+    if (!rec || !rec.id) return;
+    try {
+      const db = await idbKvOpen();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('sessions', 'readwrite');
+        tx.objectStore('sessions').put(rec);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      try {
+        if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+          rec.driveFileId = await sarvarcDriveSaveSession(rec);
+          await new Promise((resolve) => {
+            const tx2 = db.transaction('sessions', 'readwrite');
+            tx2.objectStore('sessions').put(rec);
+            tx2.oncomplete = resolve;
+            tx2.onerror = () => resolve();
+          });
+        }
+      } catch (e) { console.warn('[Team] Drive mirror of pushed project skipped', e); }
+
+      delete sarvarcTeamPendingSyncRequests[rec.id];
+      if (typeof toast === 'function') toast('Synced "' + rec.name + '" from ' + (rec.pushedByName || 'your team') + ' to your Drive.', 'success');
+      if (document.getElementById('smSessionList')) smRenderList();
+      if (teamId === sarvarcTeamActiveId) await sarvarcTeamProjectsLoad(teamId);
+    } catch (e) { console.warn('[Team] could not save pushed project locally', e); }
+  }
+
+  // Reacts to a 'team-project-request' broadcast: someone on this team just
+  // asked for a project they don't have locally yet. If WE happen to have
+  // it, hand it straight back over the same channel so their browser can
+  // pick it up — purely peer-to-peer, nothing passes through storage.
+  async function sarvarcTeamHandleProjectRequest(teamId, teamProjectId) {
+    try {
+      const rec = (typeof smGetSession === 'function') ? await smGetSession(teamProjectId) : null;
+      if (!rec || !sarvarcTeamPresenceChannel) return;
+      await sarvarcTeamPresenceChannel.send({
+        type: 'broadcast', event: 'team-project-push',
+        payload: { teamId, rec }
+      });
+    } catch (e) { /* we just don't have it, or the send failed — fine, another online teammate might have it */ }
+  }
+
+  // Broadcasts a request for a project this device doesn't have yet, and
+  // waits briefly for any online teammate who does have it to hand it back
+  // (sarvarcTeamHandleProjectRequest above). If nobody responds in time,
+  // the honest options are: try again once someone with it is online, or
+  // fall back to the existing manual .sw export/import.
+  async function sarvarcTeamRequestProjectSync(teamProjectId, name) {
+    if (!sarvarcTeamPresenceChannel) { if (typeof toast === 'function') toast('Connect to the team first.', 'error'); return; }
+    sarvarcTeamPendingSyncRequests[teamProjectId] = Date.now();
+    if (typeof toast === 'function') toast('Asking your team for "' + (name || 'this project') + '"\u2026', 'info');
+    try {
+      await sarvarcTeamPresenceChannel.send({
+        type: 'broadcast', event: 'team-project-request',
+        payload: { teamId: sarvarcTeamActiveId, teamProjectId }
+      });
+    } catch (e) { console.warn('[Team] could not request project sync', e); }
+    setTimeout(async () => {
+      if (!sarvarcTeamPendingSyncRequests[teamProjectId]) return; // arrived already
+      delete sarvarcTeamPendingSyncRequests[teamProjectId];
+      const got = (typeof smGetSession === 'function') ? await smGetSession(teamProjectId) : null;
+      if (!got && typeof toast === 'function') {
+        toast('No teammate is online right now to sync this from. Ask one to open SARVARC, or have them send you a .sw file instead (Saved Sessions \u2192 share icon).', 'error');
+      }
+    }, 6000);
+  }
+
+  // Polls local storage briefly for a project just requested from the team
+  // — lets sarvarcTeamProjectOpen() wait a moment for the live hand-off to
+  // land before giving up.
+  async function sarvarcTeamWaitForSession(id, timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const rec = (typeof smGetSession === 'function') ? await smGetSession(id) : null;
+      if (rec) return rec;
+      await new Promise(r => setTimeout(r, 400));
+    }
+    return null;
   }
 
   // ---- Continue with Google: opens Google's consent screen in a popup
