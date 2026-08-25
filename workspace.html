@@ -13322,6 +13322,15 @@ button.dg-show-chip.active { background:var(--blue); }
       <!-- Pending invites banner (only shown if the logged-in email has any) -->
       <div id="sarvarcTeamInvitesBox" style="display:none;margin-bottom:14px;padding:10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2)"></div>
 
+      <!-- Error/status messages live here, OUTSIDE the empty/active state
+           containers below, so they're visible no matter which (if either)
+           of those containers ends up rendered. Previously these lived
+           inside #sarvarcTeamActiveState, so if loading teams failed before
+           that container was shown, the error was written into a hidden div
+           and the user was left staring at a totally blank modal. -->
+      <div id="sarvarcTeamError" style="font-size:11px;color:#ef4444;display:none;margin-bottom:12px;padding:8px 10px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25)"></div>
+      <div id="sarvarcTeamNote" style="font-size:11px;color:var(--text3);display:none;margin-bottom:12px;padding:8px 10px;border-radius:6px;background:var(--surface2)"></div>
+
       <!-- No team yet -->
       <div id="sarvarcTeamEmptyState" style="display:none;text-align:center;padding:18px 6px">
         <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">You're not part of a team yet. Create one to start sharing projects and working together in real time.</div>
@@ -13349,8 +13358,6 @@ button.dg-show-chip.active { background:var(--blue); }
           <input type="email" id="sarvarcTeamInviteEmail" class="pdfed-export-range-input" placeholder="teammate@email.com" style="margin-top:0;flex:1">
           <button class="btn-secondary" onclick="sarvarcTeamInvite()" style="padding:0 14px;font-size:12px">Invite</button>
         </div>
-        <div id="sarvarcTeamError" style="font-size:10px;color:#ef4444;display:none;margin-top:8px"></div>
-        <div id="sarvarcTeamNote" style="font-size:10px;color:var(--text3);display:none;margin-top:8px"></div>
 
         <!-- SHARED PROJECTS: snapshot of current work pushed to this team's
              private storage, so any member can open the SAME file instead of
@@ -64516,7 +64523,19 @@ if (document.readyState === 'loading') {
     if (window.__sarvarcAuthReloadPending) return; // already in flight — first caller wins
     window.__sarvarcAuthReloadPending = true;
     sessionStorage.setItem('sarvarcPendingWorkspaceEntry', '1');
-    location.reload();
+    // Safety net: location.reload() is expected to tear down this whole JS
+    // context almost immediately, which makes this timer moot in the normal
+    // case. But on a slow connection, a battery-saving mobile browser, or
+    // certain in-app webviews, the reload can be delayed or silently
+    // swallowed — and with no reset anywhere else, the guard above would
+    // then stay stuck "true" for the rest of this page's life, silently
+    // no-op'ing every future login attempt (login succeeds against
+    // Supabase, but the app never advances and never explains why). If
+    // we're still here after a few seconds, the reload didn't happen —
+    // release the guard so the next attempt (or this same one) can retry.
+    setTimeout(() => {
+      window.__sarvarcAuthReloadPending = false;
+    }, 4000);
   }
   sarvarcSupabase.auth.onAuthStateChange(function (event, session) {
     const newUid = (session && session.user && session.user.id) || null;
@@ -65600,6 +65619,7 @@ if (document.readyState === 'loading') {
     // signatures), so it follows a signed-in account across PCs too.
     if (typeof sarvarcAssetsSyncDown === 'function') sarvarcAssetsSyncDown();
     if (typeof sarvarcAssetsSyncUp === 'function') sarvarcAssetsSyncUp();
+    return displayName;
   }
 
   function sarvarcAuthSwitchTab(mode) {
@@ -66492,7 +66512,14 @@ if (document.readyState === 'loading') {
       sw.value = sarvarcTeamActiveId;
       await sarvarcTeamSwitch(sarvarcTeamActiveId);
     } catch (e) {
-      sarvarcTeamShowError(e.message || 'Could not load your teams.');
+      // Fall back to the empty state instead of leaving the modal blank —
+      // this container was previously never shown on the error path, which
+      // meant the error message (written into a div nested inside the
+      // *active* state) was invisible and the user was stuck looking at
+      // nothing at all.
+      document.getElementById('sarvarcTeamActiveState').style.display = 'none';
+      document.getElementById('sarvarcTeamEmptyState').style.display = 'block';
+      sarvarcTeamShowError(e.message || 'Could not load your teams. Try closing and reopening this window.');
     }
   }
 
@@ -67427,9 +67454,28 @@ if (document.readyState === 'loading') {
     // reliable one-click login instead of needing several attempts.
     if (sessionStorage.getItem('sarvarcPendingWorkspaceEntry') === '1') {
       sessionStorage.removeItem('sarvarcPendingWorkspaceEntry');
-      sarvarcAuthEnterWorkspace();
+      sarvarcAuthEnterWorkspaceWithRetry();
     }
   });
+
+  // ---- Wraps sarvarcAuthEnterWorkspace() for the one moment we KNOW a
+  // session should exist (we're only here because a login just succeeded
+  // and queued this exact reload) but getSession() can still occasionally
+  // read null a beat too early — e.g. a slow connection or device where the
+  // session hasn't finished being restored from storage yet on this very
+  // first check. Previously a single early null reading here was final:
+  // the person was dropped into the Workspace anyway (the reload itself is
+  // proof login worked), but the top-bar name/nav state, having read null
+  // once, was never rechecked — so it silently kept showing "Log In" for
+  // the rest of that visit despite them being fully signed in. This retries
+  // a few times, briefly, before accepting a genuine logged-out state. ----
+  async function sarvarcAuthEnterWorkspaceWithRetry() {
+    let displayName = await sarvarcAuthEnterWorkspace();
+    for (let i = 0; i < 4 && !displayName; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      displayName = await sarvarcAuthUpdateNavUI();
+    }
+  }
   (function() {
     // Reuses the already-embedded nav logo image as a faint background
     // watermark in the auth modal (and the welcome overlay below), rather
