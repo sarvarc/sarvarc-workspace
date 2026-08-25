@@ -4967,8 +4967,13 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
   font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   padding: 3px 8px; border-radius: 999px; flex: none; white-space: nowrap;
 }
-.sarvarc-team-role-owner { color: #7a5a00; background: linear-gradient(135deg, #ffe28a, #ffc94d); }
-[data-theme="dark"] .sarvarc-team-role-owner { color: #4a3300; }
+/* Owner badge — same "restrained gold" language used for premium accents
+   elsewhere in the app (slim ring / soft glow, never a flat painted chip):
+   a translucent gold tint + border, matching the glass treatment every
+   other role badge here already uses, instead of an opaque yellow pill
+   that reads out of place against the navy/cyan surfaces around it. */
+.sarvarc-team-role-owner { color: #b8860b; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.4); }
+[data-theme="dark"] .sarvarc-team-role-owner { color: #f0cf6a; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.35); }
 .sarvarc-team-role-admin { color: #fff; background: linear-gradient(135deg, var(--blue), var(--cyan)); }
 .sarvarc-team-role-member { color: var(--text2); background: var(--surface2); border: 1px solid var(--border2); }
 .sarvarc-team-member-actions { flex: none; display: flex; gap: 6px; }
@@ -6137,6 +6142,13 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 .mf-btn-spinner {
   display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.35);
   border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite;
+  vertical-align:-2px; margin-right:6px;
+}
+/* Same idiom as .mf-btn-spinner, but for light-surface buttons (e.g. the
+   Google login button) where a white ring would be invisible. */
+.sarvarc-btn-spinner-dark {
+  display:inline-block; width:12px; height:12px; border:2px solid var(--border2);
+  border-top-color:var(--blue); border-radius:50%; animation:spin 0.7s linear infinite;
   vertical-align:-2px; margin-right:6px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -13200,16 +13212,16 @@ button.dg-show-chip.active { background:var(--blue); }
         <button type="button" id="sarvarcAuthTabLogin" class="active" onclick="sarvarcAuthSwitchTab('login')">Log In</button>
         <button type="button" id="sarvarcAuthTabSignup" onclick="sarvarcAuthSwitchTab('signup')">Sign Up</button>
       </div>
-      <button type="button" class="sarvarc-google-btn" onclick="sarvarcAuthGoogleLogin()">
-        <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-2.1 14.1-5.6l-6.5-5.5C29.6 34.8 27 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C39.9 37.4 44 31.3 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
-        Continue with Google
+      <button type="button" class="sarvarc-google-btn" id="sarvarcAuthGoogleBtn" onclick="sarvarcAuthGoogleLogin()">
+        <svg width="17" height="17" viewBox="0 0 48 48" id="sarvarcAuthGoogleIcon"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-2.1 14.1-5.6l-6.5-5.5C29.6 34.8 27 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C39.9 37.4 44 31.3 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+        <span id="sarvarcAuthGoogleLabel">Continue with Google</span>
       </button>
       <div class="sarvarc-auth-divider"><span>or continue with email</span></div>
       <div class="sarvarc-auth-fields">
-        <input type="text" id="sarvarcAuthFullName" class="pdfed-export-range-input" placeholder="Full name (optional)" autocomplete="name" style="display:none;" onkeydown="if(event.key==='Enter'){document.getElementById('sarvarcAuthEmail').focus();}">
-        <input type="email" id="sarvarcAuthEmail" class="pdfed-export-range-input" placeholder="Email" autocomplete="email" onkeydown="if(event.key==='Enter'){document.getElementById('sarvarcAuthPassword').focus();}">
+        <input type="text" id="sarvarcAuthFullName" class="pdfed-export-range-input" placeholder="Full name (optional)" autocomplete="name" style="display:none;" oninput="sarvarcAuthShowError('')" onkeydown="if(event.key==='Enter'){document.getElementById('sarvarcAuthEmail').focus();}">
+        <input type="email" id="sarvarcAuthEmail" class="pdfed-export-range-input" placeholder="Email" autocomplete="email" oninput="sarvarcAuthShowError('')" onkeydown="if(event.key==='Enter'){document.getElementById('sarvarcAuthPassword').focus();}">
         <div class="sarvarc-pw-field">
-          <input type="password" id="sarvarcAuthPassword" class="pdfed-export-range-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();sarvarcAuthSubmit();}">
+          <input type="password" id="sarvarcAuthPassword" class="pdfed-export-range-input" placeholder="Password" autocomplete="current-password" oninput="sarvarcAuthShowError('')" onkeydown="if(event.key==='Enter'){event.preventDefault();sarvarcAuthSubmit();}">
           <span class="sarvarc-pw-eye" onclick="sarvarcTogglePwVisibility('sarvarcAuthPassword', this)" title="Show password"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
         </div>
       </div>
@@ -13710,11 +13722,15 @@ button.dg-show-chip.active { background:var(--blue); }
   animation: smDriveDotPulse 1.8s ease-in-out infinite;
 }
 .sm-drive-status-panel[data-state="syncing"] .sm-drive-status-text { color: var(--blue, #00C2FF); }
-/* connected — token good, resting state between syncs */
-.sm-drive-status-panel[data-state="connected"] .sm-drive-status-dot {
+/* connected — a real sync round-trip just completed */
+/* token_ok — token good, but this only confirms we *can* reach Drive, not
+   that a sync has actually run yet (see smUpdateDriveStatusUI) */
+.sm-drive-status-panel[data-state="connected"] .sm-drive-status-dot,
+.sm-drive-status-panel[data-state="token_ok"] .sm-drive-status-dot {
   background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.1);
 }
-.sm-drive-status-panel[data-state="connected"] .sm-drive-status-text { color: #22c55e; }
+.sm-drive-status-panel[data-state="connected"] .sm-drive-status-text,
+.sm-drive-status-panel[data-state="token_ok"] .sm-drive-status-text { color: #22c55e; }
 /* offline — browser has no network at all */
 .sm-drive-status-panel[data-state="offline"] .sm-drive-status-dot { background: #f59e0b; }
 .sm-drive-status-panel[data-state="offline"] .sm-drive-status-text { color: #f59e0b; }
@@ -19033,6 +19049,7 @@ function smRenderDriveStatusPanel() {
     checking: 'Checking connection…',
     syncing: 'Syncing with Drive…',
     connected: 'Connected to Drive',
+    token_ok: 'Connected to Drive',
     offline: 'Offline',
     not_connected: 'Not connected',
     error: 'Sync error'
@@ -19062,8 +19079,13 @@ function smRenderDriveStatusPanel() {
 async function smUpdateDriveStatusUI() {
   if (!navigator.onLine) { sarvarcSetDriveStatus('offline'); return; }
   try {
+    // 'token_ok', not 'connected' — this only confirms a usable token
+    // exists, not that a sync round-trip actually happened. Reusing
+    // 'connected' here used to stamp a fresh "last synced just now" purely
+    // from a token check, which could read as a completed sync when none
+    // had actually run yet.
     const available = (typeof sarvarcDriveAvailable === 'function') ? await sarvarcDriveAvailable() : false;
-    sarvarcSetDriveStatus(available ? 'connected' : 'not_connected');
+    sarvarcSetDriveStatus(available ? 'token_ok' : 'not_connected');
   } catch (e) { sarvarcSetDriveStatus('not_connected'); }
 }
 
@@ -65474,6 +65496,7 @@ if (document.readyState === 'loading') {
     document.getElementById('sarvarcAuthEmail').value = '';
     document.getElementById('sarvarcAuthPassword').value = '';
     sarvarcAuthShowError('');
+    if (typeof sarvarcAuthSetGoogleBusy === 'function') sarvarcAuthSetGoogleBusy(false);
     document.getElementById('sarvarcAuthFormPane').style.display = 'block';
     document.getElementById('sarvarcAuthConfirmPane').style.display = 'none';
     document.getElementById('sarvarcAuthFooter').style.display = 'flex';
@@ -65640,7 +65663,7 @@ if (document.readyState === 'loading') {
       if (error) throw error;
       sarvarcAuthShowConfirmPane('reset', email);
     } catch (err) {
-      sarvarcAuthShowError(err.message || 'Could not send reset email. Try again.');
+      sarvarcAuthShowError(sarvarcAuthFriendlyError(err));
     }
   }
 
@@ -67046,8 +67069,26 @@ if (document.readyState === 'loading') {
   // the email/password path does. Falls back to the old full-page redirect
   // only if the browser blocks the popup (auto-resume won't survive that
   // path, but login itself still works). ----
+  let sarvarcAuthGoogleBusy = false;
+  function sarvarcAuthSetGoogleBusy(busy) {
+    sarvarcAuthGoogleBusy = busy;
+    const btn = document.getElementById('sarvarcAuthGoogleBtn');
+    const icon = document.getElementById('sarvarcAuthGoogleIcon');
+    const label = document.getElementById('sarvarcAuthGoogleLabel');
+    if (!btn || !label) return;
+    btn.disabled = busy;
+    icon.style.display = busy ? 'none' : '';
+    if (busy) {
+      label.innerHTML = '<span class="sarvarc-btn-spinner-dark"></span>Connecting…';
+    } else {
+      label.textContent = 'Continue with Google';
+    }
+  }
+
   async function sarvarcAuthGoogleLogin() {
+    if (sarvarcAuthGoogleBusy) return;
     sarvarcAuthShowError('');
+    sarvarcAuthSetGoogleBusy(true);
     const { data, error } = await sarvarcSupabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -67064,7 +67105,8 @@ if (document.readyState === 'loading') {
       }
     });
     if (error || !data || !data.url) {
-      sarvarcAuthShowError((error && error.message) || 'Could not start Google sign-in. Try again.');
+      sarvarcAuthShowError(sarvarcAuthFriendlyError(error) || 'Could not start Google sign-in. Try again.');
+      sarvarcAuthSetGoogleBusy(false);
       return;
     }
     // On mobile (and in-app browsers), window.open() after an `await` is
@@ -67082,6 +67124,7 @@ if (document.readyState === 'loading') {
     const sarvarcIsMobileForAuth = sm_isMobileViewport() ||
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     if (sarvarcIsMobileForAuth) {
+      // No reset here — the page is about to navigate away entirely.
       window.location.href = data.url;
       return;
     }
@@ -67121,6 +67164,7 @@ if (document.readyState === 'loading') {
       clearInterval(sarvarcGooglePopupPoll);
       sarvarcGooglePopupPoll = null;
       try { if (!popup.closed) popup.close(); } catch (e) {}
+      sarvarcAuthSetGoogleBusy(false);
       await sarvarcAuthEnterWorkspace();
     };
 
@@ -67145,8 +67189,11 @@ if (document.readyState === 'loading') {
         for (let i = 0; i < 4 && !finished; i++) {
           await new Promise(r => setTimeout(r, 350));
           const { data: { session } } = await sarvarcSupabase.auth.getSession();
-          if (session) { finished = true; await sarvarcAuthEnterWorkspace(); break; }
+          if (session) { finished = true; sarvarcAuthSetGoogleBusy(false); await sarvarcAuthEnterWorkspace(); break; }
         }
+        // Genuinely cancelled (no session ever showed up) — hand the button
+        // back so the person can try again without reopening the modal.
+        if (!finished) sarvarcAuthSetGoogleBusy(false);
         return;
       }
 
@@ -67171,6 +67218,26 @@ if (document.readyState === 'loading') {
     el.style.display = 'block'; el.textContent = msg;
   }
 
+  // ---- Translate raw Supabase auth errors into plain, reassuring copy.
+  // Supabase's own messages ("Invalid login credentials", "User already
+  // registered", raw network errors) are accurate but read as developer-
+  // facing — this keeps the modal feeling like part of the product rather
+  // than a form that occasionally throws technical text at you. Unknown
+  // errors still fall through to Supabase's own message rather than a dead
+  // end, so nothing is ever silently swallowed. ----
+  function sarvarcAuthFriendlyError(err) {
+    const raw = (err && err.message) || '';
+    const m = raw.toLowerCase();
+    if (m.includes('invalid login credentials')) return "That email and password don't match. Double-check them, or use \"Forgot password?\" below.";
+    if (m.includes('already registered') || m.includes('already exists')) return 'An account already exists for that email — try Log In instead.';
+    if (m.includes('email not confirmed')) return 'Please confirm your email first — check your inbox for the link we sent.';
+    if (m.includes('rate limit') || m.includes('too many requests')) return 'Too many attempts — please wait a minute and try again.';
+    if (m.includes('password should be at least') || m.includes('password is too short')) return 'Password must be at least 6 characters.';
+    if (m.includes('failed to fetch') || m.includes('network')) return "Can't reach the server right now — check your connection and try again.";
+    if (m.includes('invalid email')) return 'That email address doesn\'t look right — please check it.';
+    return raw || 'Something went wrong. Please try again.';
+  }
+
   // ---- Submit: sign up or log in depending on active tab ----
   async function sarvarcAuthSubmit() {
     if (sarvarcAuthBusy) return;
@@ -67183,7 +67250,9 @@ if (document.readyState === 'loading') {
     sarvarcAuthBusy = true;
     sarvarcAuthShowError('');
     const submitBtn = document.getElementById('sarvarcAuthSubmitBtn');
+    const originalBtnHtml = submitBtn.innerHTML;
     submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="mf-btn-spinner"></span>' + (sarvarcAuthMode === 'signup' ? 'Creating account…' : 'Logging in…');
 
     try {
       if (sarvarcAuthMode === 'signup') {
@@ -67209,10 +67278,11 @@ if (document.readyState === 'loading') {
         await sarvarcAuthEnterWorkspace();
       }
     } catch (err) {
-      sarvarcAuthShowError(err.message || 'Something went wrong. Try again.');
+      sarvarcAuthShowError(sarvarcAuthFriendlyError(err));
     } finally {
       sarvarcAuthBusy = false;
       submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnHtml;
     }
   }
 
@@ -67228,7 +67298,18 @@ if (document.readyState === 'loading') {
   // exists (set via Settings), its name/business name is shown instead of
   // the raw email — falls back to email until the user fills that in. ----
   async function sarvarcAuthUpdateNavUI() {
-    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    // Source of truth is getSession() — a local, no-network read of the
+    // already-stored session (the same one sarvarcDriveGetToken() trusts).
+    // getUser() used to gate this instead: it forces a round-trip to the
+    // Supabase Auth server on every call, with no error handling or
+    // fallback, so any network hiccup (or a signed-in-but-not-yet-revalidated
+    // moment) made this silently fall to "Log In" while Drive — which never
+    // used getUser() — correctly showed connected. That mismatch was the bug.
+    let session = null;
+    try {
+      ({ data: { session } } = await sarvarcSupabase.auth.getSession());
+    } catch (e) { session = null; }
+    const user = session && session.user;
     const label = document.getElementById('sarvarcAuthNavLabel');
     const btn = document.getElementById('sarvarcAuthNavBtn');
     if (user) {
