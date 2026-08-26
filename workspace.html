@@ -8609,6 +8609,27 @@ button.dg-show-chip.active { background:var(--blue); }
   .rdx-side { display:none; }
   .rdx-thumbs { width:64px; }
 }
+
+/* Brand Kit — top-bar popover (moved here from the old standalone Business
+   Proposals module so it's reachable regardless of which module is active).
+   Save one logo + company identity once; every proposal template inserted
+   onto the canvas picks it up automatically (see bkSave/bkLoad in JS). */
+.bk-panel{ position:absolute; top:calc(100% + 8px); left:0; z-index:900; width:260px; background:var(--bg2); border:1px solid var(--border2); border-radius:12px; padding:14px; box-shadow:0 12px 32px rgba(0,0,0,0.35); display:none; }
+.bk-panel.open{ display:block; }
+.bk-panel h4{ margin:0 0 10px; font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px; }
+.bk-panel .bk-badge{ font-size:9px; font-weight:800; letter-spacing:.04em; background:rgba(0,194,255,0.15); color:#00c2ff; border-radius:5px; padding:2px 6px; }
+.bk-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.bk-logo-drop{ width:44px; height:44px; border-radius:9px; border:1.5px dashed var(--border2); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; overflow:hidden; background:var(--surface2); }
+.bk-logo-drop img{ width:100%; height:100%; object-fit:contain; }
+.bk-logo-drop span{ font-size:16px; color:var(--text3); }
+.bk-field{ flex:1; min-width:0; }
+.bk-field input{ width:100%; background:var(--surface2); border:1px solid var(--border2); border-radius:7px; padding:6px 8px; font-size:12px; color:var(--text); }
+.bk-field input::placeholder{ color:var(--text3); }
+.bk-field + .bk-field{ margin-top:6px; }
+.bk-actions{ display:flex; gap:8px; margin-top:4px; }
+.bk-actions button{ flex:1; font-size:11px; font-weight:700; border-radius:7px; padding:7px 8px; cursor:pointer; border:1px solid var(--border2); background:var(--surface2); color:var(--text2); }
+.bk-actions button.primary{ background:#00c2ff; border-color:#00c2ff; color:#001018; }
+.bk-status{ font-size:10.5px; color:var(--text3); margin-top:8px; line-height:1.4; }
 </style>
 </head>
 <body class="splash-active">
@@ -8714,10 +8735,6 @@ button.dg-show-chip.active { background:var(--blue); }
     </div>
     <div class="nav-item" onclick="navigate('redact')" title="Privacy Redaction">
       <span class="nav-icon" style="color:#EF4444"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9.5" y1="9.5" x2="14.5" y2="14.5"/><line x1="14.5" y1="9.5" x2="9.5" y2="14.5"/></svg></span> Redact PII
-    </div>
-    <div class="nav-item" onclick="navigate('proposals')" title="Business Proposals">
-      <span class="nav-icon" style="color:#F59E0B"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></span> Business Proposals
-      <span class="sidebar-tag" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.2);color:#F59E0B;margin-left:auto;letter-spacing:0.3px">NEW</span>
     </div>
 
     <!-- IMAGES FOLDER -->
@@ -9667,11 +9684,41 @@ button.dg-show-chip.active { background:var(--blue); }
                    drops the chosen design straight onto the current canvas as an
                    editable page (same placedTexts/placedTables mechanism Data
                    Tables & Diagrams use to push content onto pdfed.pages). -->
-              <div class="pdfed-shapes-group" id="pdfedProposalsGroup" style="margin-left:10px">
+              <div class="pdfed-shapes-group" id="pdfedProposalsGroup" style="margin-left:10px;position:relative">
                 <button class="pdfed-appbar-btn" id="pdfedProposalsBtn" onclick="bpOpenTemplateModal()" title="Insert a ready-made business proposal template onto the canvas">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
                   Business Proposals
                 </button>
+                <button class="pdfed-appbar-btn" id="pdfedBrandKitBtn" onclick="bkTogglePanel()" title="Save your logo once, auto-brand every proposal you insert">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                  Brand Kit
+                </button>
+                <!-- BRAND KIT panel: save a logo + company identity once, then every
+                     proposal template inserted onto the canvas auto-applies it (see
+                     bkSave/bkLoad and bpRenderTemplateBg's use of bkLoad()). Lives
+                     right next to the Business Proposals button since that's the
+                     only feature it affects. Free tier = 1 saved kit; a "Kits"
+                     switcher for multiple saved brands is the natural paid upgrade
+                     on top of this same storage shape. -->
+                <div class="bk-panel" id="bkPanel">
+                  <h4>Brand Kit <span class="bk-badge">AUTO-APPLIES</span></h4>
+                  <div class="bk-row">
+                    <div class="bk-logo-drop" id="bkLogoDrop" onclick="document.getElementById('bkLogoInput').click()">
+                      <img id="bkLogoPreview" style="display:none">
+                      <span id="bkLogoPlaceholder">+</span>
+                    </div>
+                    <input type="file" id="bkLogoInput" accept="image/*" style="display:none" onchange="bkHandleLogoFile(this.files[0])">
+                    <div class="bk-field">
+                      <input type="text" id="bkCompanyInput" placeholder="Company name" oninput="bkOnFieldInput()">
+                      <input type="text" id="bkTaglineInput" placeholder="Tagline (optional)" oninput="bkOnFieldInput()">
+                    </div>
+                  </div>
+                  <div class="bk-actions">
+                    <button onclick="bkClear()">Clear</button>
+                    <button class="primary" onclick="bkSaveFromPanel()">Save &amp; Apply</button>
+                  </div>
+                  <div class="bk-status" id="bkStatus">No brand kit saved yet — upload a logo to brand every proposal automatically from now on.</div>
+                </div>
               </div>
             </div>
             <!-- Right action buttons -->
@@ -12079,381 +12126,10 @@ button.dg-show-chip.active { background:var(--blue); }
       </div>
     </div>
 
-    <!-- BUSINESS PROPOSALS SECTION -->
-    <div class="section" id="sec-proposals">
-      <style>
-        #sec-proposals .bp-wrap{ padding:20px; max-width:1400px; margin:0 auto; }
-        #sec-proposals .bp-head h2{ font-family:'Inter',sans-serif; font-size:20px; font-weight:700; margin:0 0 4px; }
-        #sec-proposals .bp-head p{ font-size:12.5px; color:var(--text2); margin:0 0 18px; max-width:640px; }
-        #sec-proposals .bp-tpl-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:16px; }
-        #sec-proposals .bp-tpl-card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; cursor:pointer; transition:transform .15s,box-shadow .15s,border-color .15s; }
-        #sec-proposals .bp-tpl-card:hover{ transform:translateY(-3px); border-color:var(--border2); box-shadow:var(--shadow-card-hover); }
-        #sec-proposals .bp-tpl-thumb{ height:130px; border-radius:8px; background:#fff; overflow:hidden; position:relative; margin-bottom:10px; border:1px solid rgba(0,0,0,0.06); }
-        #sec-proposals .bp-tpl-thumb-bar{ height:34px; }
-        #sec-proposals .bp-tpl-thumb-lines{ padding:12px; display:flex; flex-direction:column; gap:7px; }
-        #sec-proposals .bp-tpl-thumb-lines span{ display:block; height:6px; border-radius:3px; background:#e5e7eb; }
-        #sec-proposals .bp-tpl-thumb-lines span:nth-child(1){ width:70%; }
-        #sec-proposals .bp-tpl-thumb-lines span:nth-child(2){ width:92%; }
-        #sec-proposals .bp-tpl-thumb-lines span:nth-child(3){ width:55%; }
-        #sec-proposals .bp-tpl-modern .bp-tpl-thumb-bar{ background:#2563eb; }
-        #sec-proposals .bp-tpl-navy .bp-tpl-thumb-bar{ background:#0f2748; }
-        #sec-proposals .bp-tpl-gradient .bp-tpl-thumb-bar{ background:linear-gradient(90deg,#7c3aed,#ec4899); }
-        #sec-proposals .bp-tpl-elegant .bp-tpl-thumb-bar{ background:#111827; border-bottom:3px solid #c9a227; }
-        #sec-proposals .bp-tpl-dark .bp-tpl-thumb{ background:#111827; }
-        #sec-proposals .bp-tpl-dark .bp-tpl-thumb-bar{ background:#00e5c7; height:6px; }
-        #sec-proposals .bp-tpl-dark .bp-tpl-thumb-lines span{ background:#374151; }
-        #sec-proposals .bp-tpl-card h4{ font-size:13px; font-weight:700; margin:0 0 3px; }
-        #sec-proposals .bp-tpl-card p{ font-size:11px; color:var(--text2); margin:0; line-height:1.4; }
-
-        #sec-proposals .bp-editor-toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-        #sec-proposals .bp-btn{ font-size:12px; font-weight:600; padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; }
-        #sec-proposals .bp-btn:hover{ border-color:var(--border2); }
-        #sec-proposals .bp-btn.primary{ background:#2563eb; color:#fff; border-color:#2563eb; }
-        #sec-proposals .bp-select{ font-size:12px; padding:7px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
-        #sec-proposals .bp-editor-body{ display:flex; justify-content:center; }
-        #sec-proposals .bp-sheet-scroll{ width:100%; max-width:820px; overflow-x:auto; }
-        #sec-proposals .bp-sheet{ background:#ffffff; color:#1f2937; width:794px; min-height:1123px; margin:0 auto 40px; padding:48px 56px; box-shadow:0 6px 24px rgba(0,0,0,.18); font-family:'Inter',Arial,sans-serif; box-sizing:border-box; }
-        #sec-proposals .bp-sheet.bp-exporting{ box-shadow:none; }
-        #sec-proposals .bp-sheet [contenteditable="true"]{ outline:none; border-radius:4px; }
-        #sec-proposals .bp-sheet [contenteditable="true"]:hover{ background:rgba(37,99,235,0.05); }
-        #sec-proposals .bp-sheet [contenteditable="true"]:focus{ background:rgba(37,99,235,0.08); box-shadow:0 0 0 1px rgba(37,99,235,0.4); }
-        #sec-proposals .bp-sheet-header{ display:flex; align-items:center; gap:14px; padding-bottom:18px; margin-bottom:20px; border-bottom:2px solid #e5e7eb; }
-        #sec-proposals .bp-logo{ width:46px; height:46px; border-radius:10px; background:#2563eb; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; flex-shrink:0; }
-        #sec-proposals .bp-company-info{ flex:1; }
-        #sec-proposals .bp-company-name{ font-weight:800; font-size:16px; }
-        #sec-proposals .bp-company-tag{ font-size:11px; color:#6b7280; }
-        #sec-proposals .bp-doc-label{ font-size:12px; font-weight:800; letter-spacing:1.5px; color:#2563eb; }
-        #sec-proposals .bp-meta-row{ display:flex; gap:28px; margin-bottom:24px; }
-        #sec-proposals .bp-meta-label{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.6px; color:#9ca3af; margin-bottom:3px; }
-        #sec-proposals .bp-project-title{ font-size:26px; font-weight:800; margin:0 0 18px; line-height:1.25; }
-        #sec-proposals .bp-section-h{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:#2563eb; margin:22px 0 8px; padding-bottom:5px; border-bottom:1px solid #e5e7eb; }
-        #sec-proposals .bp-body-text{ font-size:12.5px; line-height:1.6; }
-        #sec-proposals .bp-scope-list{ margin:0; padding-left:18px; font-size:12.5px; line-height:1.9; }
-        #sec-proposals .bp-scope-list li{ position:relative; }
-        #sec-proposals .bp-li-del{ border:none; background:none; color:#ef4444; cursor:pointer; font-size:11px; margin-left:8px; opacity:.65; }
-        #sec-proposals .bp-li-del:hover{ opacity:1; }
-        #sec-proposals .bp-add-btn{ font-size:11px; font-weight:600; color:#2563eb; background:none; border:1px dashed #93c5fd; border-radius:6px; padding:4px 10px; cursor:pointer; margin-top:6px; }
-        #sec-proposals .bp-price-table{ width:100%; border-collapse:collapse; margin-top:6px; font-size:12px; }
-        #sec-proposals .bp-price-table th{ text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; color:#9ca3af; padding:6px 8px; border-bottom:2px solid #e5e7eb; }
-        #sec-proposals .bp-price-table td{ padding:7px 8px; border-bottom:1px solid #f1f2f4; vertical-align:middle; }
-        #sec-proposals .bp-num{ text-align:right; }
-        #sec-proposals .bp-price-table th:nth-child(2), #sec-proposals .bp-price-table th:nth-child(3), #sec-proposals .bp-price-table th:nth-child(4){ text-align:right; }
-        #sec-proposals .bp-qty, #sec-proposals .bp-rate{ width:64px; text-align:right; border:1px solid #e5e7eb; border-radius:5px; padding:3px 6px; font-size:12px; }
-        #sec-proposals .bp-total-label{ text-align:right; font-weight:700; font-size:12px; padding-top:10px; }
-        #sec-proposals .bp-total-amount{ font-weight:800; font-size:13.5px; padding-top:10px; color:#2563eb; }
-        #sec-proposals .bp-signature-row{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:34px; padding-top:16px; border-top:1px solid #e5e7eb; }
-        #sec-proposals .bp-sig-line{ width:180px; border-top:1px solid #9ca3af; padding-top:4px; text-align:center; }
-
-        /* Corporate Navy skin */
-        #sec-proposals .bp-tpl-navy .bp-sheet-header{ border-bottom-color:#0f2748; }
-        #sec-proposals .bp-tpl-navy .bp-logo{ background:#0f2748; }
-        #sec-proposals .bp-tpl-navy .bp-doc-label{ color:#c9a227; }
-        #sec-proposals .bp-tpl-navy .bp-section-h{ color:#0f2748; border-bottom-color:#0f2748; }
-        #sec-proposals .bp-tpl-navy .bp-total-amount{ color:#0f2748; }
-        #sec-proposals .bp-tpl-navy .bp-add-btn{ color:#0f2748; border-color:#0f2748; }
-
-        /* Creative Gradient skin */
-        #sec-proposals .bp-tpl-gradient .bp-sheet-header{ margin:-48px -56px 20px; padding:36px 56px 20px; background:linear-gradient(120deg,#7c3aed,#ec4899); border-bottom:none; }
-        #sec-proposals .bp-tpl-gradient .bp-logo{ background:rgba(255,255,255,0.25); }
-        #sec-proposals .bp-tpl-gradient .bp-company-name{ color:#fff; }
-        #sec-proposals .bp-tpl-gradient .bp-company-tag{ color:rgba(255,255,255,0.8); }
-        #sec-proposals .bp-tpl-gradient .bp-doc-label{ color:#fff; }
-        #sec-proposals .bp-tpl-gradient .bp-section-h{ color:#7c3aed; border-bottom-color:#f3e8ff; }
-        #sec-proposals .bp-tpl-gradient .bp-total-amount{ color:#ec4899; }
-        #sec-proposals .bp-tpl-gradient .bp-add-btn{ color:#7c3aed; border-color:#e9d5ff; }
-
-        /* Classic Elegant skin */
-        #sec-proposals .bp-tpl-elegant .bp-sheet{ font-family:Georgia,'Times New Roman',serif; }
-        #sec-proposals .bp-tpl-elegant .bp-sheet-header{ border-bottom:3px double #111827; }
-        #sec-proposals .bp-tpl-elegant .bp-logo{ background:#111827; border-radius:0; }
-        #sec-proposals .bp-tpl-elegant .bp-doc-label{ color:#c9a227; letter-spacing:3px; }
-        #sec-proposals .bp-tpl-elegant .bp-project-title{ font-style:italic; }
-        #sec-proposals .bp-tpl-elegant .bp-section-h{ color:#111827; font-family:'Inter',sans-serif; }
-        #sec-proposals .bp-tpl-elegant .bp-total-amount{ color:#111827; }
-
-        /* Bold Dark skin */
-        #sec-proposals .bp-tpl-dark.bp-sheet{ background:#0b1220; color:#e5e7eb; }
-        #sec-proposals .bp-tpl-dark .bp-sheet-header{ border-bottom-color:#1f2937; }
-        #sec-proposals .bp-tpl-dark .bp-logo{ background:#00e5c7; color:#0b1220; }
-        #sec-proposals .bp-tpl-dark .bp-company-tag{ color:#9ca3af; }
-        #sec-proposals .bp-tpl-dark .bp-doc-label{ color:#00e5c7; }
-        #sec-proposals .bp-tpl-dark .bp-meta-label{ color:#6b7280; }
-        #sec-proposals .bp-tpl-dark .bp-section-h{ color:#00e5c7; border-bottom-color:#1f2937; }
-        #sec-proposals .bp-tpl-dark .bp-price-table th{ color:#6b7280; }
-        #sec-proposals .bp-tpl-dark .bp-price-table td{ border-bottom-color:#1f2937; }
-        #sec-proposals .bp-tpl-dark .bp-qty, #sec-proposals .bp-tpl-dark .bp-rate{ background:#111827; border-color:#1f2937; color:#e5e7eb; }
-        #sec-proposals .bp-tpl-dark .bp-total-amount{ color:#00e5c7; }
-        #sec-proposals .bp-tpl-dark [contenteditable="true"]:hover{ background:rgba(0,229,199,0.08); }
-        #sec-proposals .bp-tpl-dark .bp-sig-line{ border-top-color:#374151; }
-        #sec-proposals .bp-tpl-dark .bp-signature-row{ border-top-color:#1f2937; }
-        #sec-proposals .bp-tpl-dark .bp-add-btn{ color:#00e5c7; border-color:#134e4a; }
-
-        @media (max-width: 900px){
-          #sec-proposals .bp-sheet{ width:100%; padding:28px 20px; }
-        }
-      </style>
-
-      <div class="bp-wrap">
-        <!-- GALLERY VIEW -->
-        <div id="bpGalleryView">
-          <div class="bp-head">
-            <h2>Business Proposals</h2>
-            <p>Pick a designer template, fill in your details right on the page, and export a polished PDF proposal in minutes — everything stays in your browser.</p>
-          </div>
-          <div class="bp-tpl-grid">
-            <div class="bp-tpl-card" onclick="bpCreateFromTemplate('modern')">
-              <div class="bp-tpl-thumb bp-tpl-modern"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-              <h4>Modern Minimal</h4>
-              <p>Clean lines, blue accent — great for tech &amp; startups</p>
-            </div>
-            <div class="bp-tpl-card" onclick="bpCreateFromTemplate('navy')">
-              <div class="bp-tpl-thumb bp-tpl-navy"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-              <h4>Corporate Navy</h4>
-              <p>Navy &amp; gold — trustworthy, for enterprise clients</p>
-            </div>
-            <div class="bp-tpl-card" onclick="bpCreateFromTemplate('gradient')">
-              <div class="bp-tpl-thumb bp-tpl-gradient"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-              <h4>Creative Gradient</h4>
-              <p>Purple-pink gradient — for design &amp; creative studios</p>
-            </div>
-            <div class="bp-tpl-card" onclick="bpCreateFromTemplate('elegant')">
-              <div class="bp-tpl-thumb bp-tpl-elegant"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-              <h4>Classic Elegant</h4>
-              <p>Serif type, gold rule — for consulting &amp; legal</p>
-            </div>
-            <div class="bp-tpl-card" onclick="bpCreateFromTemplate('dark')">
-              <div class="bp-tpl-thumb bp-tpl-dark"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-              <h4>Bold Dark</h4>
-              <p>Dark canvas, neon accent — for product &amp; media pitches</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- EDITOR VIEW -->
-        <div id="bpEditorView" style="display:none">
-          <div class="bp-editor-toolbar no-print">
-            <button class="bp-btn" onclick="bpBackToGallery()">← Templates</button>
-            <select id="bpTemplateSelect" class="bp-select" onchange="bpChangeTemplateSkin(this.value)" title="Switch design without losing your text">
-              <option value="modern">Modern Minimal</option>
-              <option value="navy">Corporate Navy</option>
-              <option value="gradient">Creative Gradient</option>
-              <option value="elegant">Classic Elegant</option>
-              <option value="dark">Bold Dark</option>
-            </select>
-            <select id="bpCurrencySelect" class="bp-select" onchange="bpSetCurrency(this.value)" title="Currency for the total">
-              <option value="₹">₹ INR</option>
-              <option value="$">$ USD</option>
-              <option value="€">€ EUR</option>
-              <option value="£">£ GBP</option>
-            </select>
-            <div style="flex:1"></div>
-            <button class="bp-btn primary" onclick="bpExportPDF()">⬇ Download PDF</button>
-          </div>
-
-          <div class="bp-editor-body">
-            <div class="bp-sheet-scroll">
-              <div id="bpPreviewSheet" class="bp-sheet bp-tpl-modern">
-                <div class="bp-sheet-header">
-                  <div class="bp-logo" id="bpLogoInitial" contenteditable="true">SC</div>
-                  <div class="bp-company-info">
-                    <div class="bp-company-name" id="bpCompanyName" contenteditable="true">Your Company Name</div>
-                    <div class="bp-company-tag" id="bpCompanyTag" contenteditable="true">Tagline goes here</div>
-                  </div>
-                  <div class="bp-doc-label">PROPOSAL</div>
-                </div>
-
-                <div class="bp-meta-row">
-                  <div><span class="bp-meta-label">Prepared for</span><div id="bpClientName" contenteditable="true">Client Name</div></div>
-                  <div><span class="bp-meta-label">Date</span><div id="bpDate" contenteditable="true">DD Month YYYY</div></div>
-                  <div><span class="bp-meta-label">Valid until</span><div id="bpValidUntil" contenteditable="true">DD Month YYYY</div></div>
-                </div>
-
-                <h1 class="bp-project-title" id="bpProjectTitle" contenteditable="true">Project Title Goes Here</h1>
-
-                <h3 class="bp-section-h">Overview</h3>
-                <div class="bp-body-text" id="bpIntro" contenteditable="true">Describe the client's problem and how you plan to solve it, in two or three sentences.</div>
-
-                <h3 class="bp-section-h">Scope of Work</h3>
-                <ul class="bp-scope-list" id="bpScopeList">
-                  <li contenteditable="true">Deliverable one<button class="bp-li-del no-print" onclick="bpRemoveLi(this)">✕</button></li>
-                  <li contenteditable="true">Deliverable two<button class="bp-li-del no-print" onclick="bpRemoveLi(this)">✕</button></li>
-                  <li contenteditable="true">Deliverable three<button class="bp-li-del no-print" onclick="bpRemoveLi(this)">✕</button></li>
-                </ul>
-                <button class="bp-add-btn no-print" onclick="bpAddScopeItem()">+ Add item</button>
-
-                <h3 class="bp-section-h">Investment</h3>
-                <table class="bp-price-table">
-                  <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th><th class="no-print"></th></tr></thead>
-                  <tbody id="bpPriceBody">
-                    <tr class="bp-price-row">
-                      <td class="bp-cell" contenteditable="true">Item description</td>
-                      <td class="bp-num"><input type="number" class="bp-qty" value="1" min="0" oninput="bpCalcRow(this)"></td>
-                      <td class="bp-num"><input type="number" class="bp-rate" value="0" min="0" oninput="bpCalcRow(this)"></td>
-                      <td class="bp-num bp-amount">0.00</td>
-                      <td class="no-print"><button class="bp-li-del" onclick="bpRemoveRow(this)">✕</button></td>
-                    </tr>
-                  </tbody>
-                  <tfoot><tr><td colspan="3" class="bp-total-label">Total</td><td class="bp-num bp-total-amount" id="bpTotalAmount">₹ 0.00</td><td class="no-print"></td></tr></tfoot>
-                </table>
-                <button class="bp-add-btn no-print" onclick="bpAddPriceRow()">+ Add line item</button>
-
-                <h3 class="bp-section-h">Terms &amp; Notes</h3>
-                <div class="bp-body-text" id="bpTerms" contenteditable="true">50% deposit to begin, balance due on delivery. Prices valid for 30 days from the date above.</div>
-
-                <div class="bp-signature-row">
-                  <div><span class="bp-meta-label">Prepared by</span><div id="bpSignName" contenteditable="true">Your Name</div></div>
-                  <div class="bp-sig-line"><span class="bp-meta-label">Signature</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </main>
 </div>
 
 <script>
-// ── BUSINESS PROPOSALS MODULE ──────────────────────────────────────────
-// Self-contained: a gallery of designer skins (just CSS classes on the
-// #bpPreviewSheet node) plus a directly-editable (contenteditable) preview
-// that IS the export source, so there's no separate data model to keep in
-// sync — what you see in the editor is exactly what gets rasterized to PDF.
-let bpCurrency = '₹';
-
-function bpBackToGallery() {
-  const gv = document.getElementById('bpGalleryView');
-  const ev = document.getElementById('bpEditorView');
-  if (ev) ev.style.display = 'none';
-  if (gv) gv.style.display = '';
-}
-
-function bpCreateFromTemplate(key) {
-  const gv = document.getElementById('bpGalleryView');
-  const ev = document.getElementById('bpEditorView');
-  if (gv) gv.style.display = 'none';
-  if (ev) ev.style.display = '';
-  bpChangeTemplateSkin(key);
-  const sel = document.getElementById('bpTemplateSelect');
-  if (sel) sel.value = key;
-  if (typeof swTrack === 'function') { try { swTrack('module_open', { module: 'proposals', template: key }); } catch(e) {} }
-}
-
-function bpChangeTemplateSkin(key) {
-  const sheet = document.getElementById('bpPreviewSheet');
-  if (!sheet) return;
-  sheet.className = 'bp-sheet bp-tpl-' + key;
-}
-
-function bpSetCurrency(sym) {
-  bpCurrency = sym;
-  bpUpdateTotal();
-}
-
-function bpCalcRow(input) {
-  const row = input.closest('tr');
-  if (!row) return;
-  const qtyEl = row.querySelector('.bp-qty');
-  const rateEl = row.querySelector('.bp-rate');
-  const amtEl = row.querySelector('.bp-amount');
-  const qty = parseFloat(qtyEl && qtyEl.value) || 0;
-  const rate = parseFloat(rateEl && rateEl.value) || 0;
-  if (amtEl) amtEl.textContent = (qty * rate).toFixed(2);
-  bpUpdateTotal();
-}
-
-function bpUpdateTotal() {
-  let total = 0;
-  document.querySelectorAll('#bpPriceBody .bp-amount').forEach(c => {
-    total += parseFloat(c.textContent) || 0;
-  });
-  const totalEl = document.getElementById('bpTotalAmount');
-  if (totalEl) totalEl.textContent = bpCurrency + ' ' + total.toFixed(2);
-}
-
-function bpAddPriceRow() {
-  const tbody = document.getElementById('bpPriceBody');
-  if (!tbody) return;
-  const tr = document.createElement('tr');
-  tr.className = 'bp-price-row';
-  tr.innerHTML =
-    '<td class="bp-cell" contenteditable="true">New item</td>' +
-    '<td class="bp-num"><input type="number" class="bp-qty" value="1" min="0" oninput="bpCalcRow(this)"></td>' +
-    '<td class="bp-num"><input type="number" class="bp-rate" value="0" min="0" oninput="bpCalcRow(this)"></td>' +
-    '<td class="bp-num bp-amount">0.00</td>' +
-    '<td class="no-print"><button class="bp-li-del" onclick="bpRemoveRow(this)">✕</button></td>';
-  tbody.appendChild(tr);
-}
-
-function bpRemoveRow(btn) {
-  const tbody = document.getElementById('bpPriceBody');
-  const row = btn.closest('tr');
-  if (!tbody || !row) return;
-  if (tbody.children.length <= 1) { toast('Keep at least one line item', 'info'); return; }
-  row.remove();
-  bpUpdateTotal();
-}
-
-function bpAddScopeItem() {
-  const ul = document.getElementById('bpScopeList');
-  if (!ul) return;
-  const li = document.createElement('li');
-  li.contentEditable = 'true';
-  li.textContent = 'New deliverable';
-  const btn = document.createElement('button');
-  btn.className = 'bp-li-del no-print';
-  btn.textContent = '✕';
-  btn.setAttribute('onclick', 'bpRemoveLi(this)');
-  li.appendChild(btn);
-  ul.appendChild(li);
-}
-
-function bpRemoveLi(btn) {
-  const ul = document.getElementById('bpScopeList');
-  const li = btn.closest('li');
-  if (!ul || !li) return;
-  if (ul.children.length <= 1) { toast('Keep at least one item', 'info'); return; }
-  li.remove();
-}
-
-async function bpExportPDF() {
-  const el = document.getElementById('bpPreviewSheet');
-  if (!el || typeof html2canvas === 'undefined' || !window.jspdf) {
-    toast('PDF export is not available right now', 'error');
-    return;
-  }
-  toast('Preparing your PDF…', 'info');
-  el.classList.add('bp-exporting');
-  try {
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageW = 210, pageH = 297;
-    const imgW = pageW;
-    const imgH = canvas.height * imgW / canvas.width;
-    let heightLeft = imgH, position = 0;
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-    heightLeft -= pageH;
-    while (heightLeft > 0) {
-      position = heightLeft - imgH;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-      heightLeft -= pageH;
-    }
-    const titleEl = document.getElementById('bpProjectTitle');
-    let name = ((titleEl && titleEl.textContent) || 'Business Proposal').trim() || 'Business Proposal';
-    name = name.replace(/[^\w\- ]+/g, '').trim() || 'Business Proposal';
-    pdf.save(name + '.pdf');
-    toast('Proposal downloaded', 'success');
-  } catch (e) {
-    toast('Could not export the PDF', 'error');
-  } finally {
-    el.classList.remove('bp-exporting');
-  }
-}
-
 // ── BUSINESS PROPOSALS → PDF EDITOR CANVAS ──────────────────────────────
 // A second, separate entry point into the same 5 designer skins above, but
 // this one is reached from the "Business Proposals" button that lives right
@@ -12515,9 +12191,95 @@ const BP_TEMPLATE_LABELS = {
   elegant: 'Classic Elegant', dark: 'Bold Dark'
 };
 
+// ── BRAND KIT ─────────────────────────────────────────────────────────
+// One saved identity (logo + company name + tagline) that auto-fills every
+// proposal template inserted onto the canvas, instead of the user
+// re-uploading/retyping it each time. Lives in the top bar now (not tied to
+// any one module's DOM), so it works regardless of which module is open.
+// Free tier is exactly this — one kit. A "Kits" list (named, switchable,
+// multiple logos for agencies juggling clients) is the natural paid
+// upgrade on top of this same bkSave/bkLoad shape.
+const BK_STORAGE_KEY = 'sarvarc_brand_kit_v1';
+
+function bkLoad() {
+  try {
+    const raw = localStorage.getItem(BK_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function bkSave(kit) {
+  try { localStorage.setItem(BK_STORAGE_KEY, JSON.stringify(kit)); } catch (e) {}
+}
+
+function bkTogglePanel() {
+  const panel = document.getElementById('bkPanel');
+  if (!panel) return;
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open', opening);
+  if (opening) bkRefreshPanel();
+}
+
+function bkRefreshPanel() {
+  const kit = bkLoad();
+  const preview = document.getElementById('bkLogoPreview');
+  const placeholder = document.getElementById('bkLogoPlaceholder');
+  const status = document.getElementById('bkStatus');
+  const companyInput = document.getElementById('bkCompanyInput');
+  const taglineInput = document.getElementById('bkTaglineInput');
+  if (kit && kit.logo) {
+    preview.src = kit.logo; preview.style.display = '';
+    if (placeholder) placeholder.style.display = 'none';
+  } else {
+    preview.style.display = 'none';
+    if (placeholder) placeholder.style.display = '';
+  }
+  if (companyInput) companyInput.value = (kit && kit.company) || '';
+  if (taglineInput) taglineInput.value = (kit && kit.tagline) || '';
+  if (status) {
+    status.textContent = kit
+      ? 'Saved — every proposal you insert onto the canvas auto-applies this logo and name.'
+      : 'No brand kit saved yet — upload a logo to brand every proposal automatically from now on.';
+  }
+}
+
+function bkHandleLogoFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const preview = document.getElementById('bkLogoPreview');
+    const placeholder = document.getElementById('bkLogoPlaceholder');
+    if (preview) { preview.src = reader.result; preview.style.display = ''; }
+    if (placeholder) placeholder.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function bkOnFieldInput() { /* live-typed values are picked up on Save & Apply */ }
+
+function bkClear() {
+  localStorage.removeItem(BK_STORAGE_KEY);
+  bkRefreshPanel();
+  if (typeof toast === 'function') toast('Brand Kit cleared', 'info');
+}
+
+function bkSaveFromPanel() {
+  const preview = document.getElementById('bkLogoPreview');
+  const kit = {
+    logo: (preview && preview.style.display !== 'none') ? preview.src : null,
+    company: (document.getElementById('bkCompanyInput') || {}).value || '',
+    tagline: (document.getElementById('bkTaglineInput') || {}).value || ''
+  };
+  bkSave(kit);
+  bkRefreshPanel();
+  if (typeof toast === 'function') toast('Brand Kit saved — new proposals will use it', 'success');
+}
+
 function bpOpenTemplateModal() {
   const ov = document.getElementById('bpTplModalOverlay');
   if (ov) ov.classList.add('open');
+  const hint = document.getElementById('bpTplModalKitHint');
+  if (hint) { const kit = bkLoad(); hint.style.display = (kit && kit.logo) ? '' : 'none'; }
 }
 function bpCloseTemplateModal() {
   const ov = document.getElementById('bpTplModalOverlay');
@@ -12546,13 +12308,25 @@ function bpRoundRectPath(ctx, x, y, w, h, r) {
 // table coordinates below use — so drawing here and positioning overlays
 // afterward can share one plain set of numbers. Rendered 2x oversized then
 // downscaled, the same anti-aliasing trick pdfedRenderBlankPage() uses.
-function bpRenderTemplateBg(key) {
+function bpLoadImage(src) {
+  return new Promise((resolve) => {
+    if (!src) { resolve(null); return; }
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function bpRenderTemplateBg(key) {
   const skin = BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern;
   const W = 794, H = 1123, scale = 2;
   const c = document.createElement('canvas');
   c.width = W * scale; c.height = H * scale;
   const ctx = c.getContext('2d');
   ctx.scale(scale, scale);
+  const kit = bkLoad();
+  const kitLogoImg = await bpLoadImage(kit && kit.logo);
 
   ctx.fillStyle = skin.bodyBg;
   ctx.fillRect(0, 0, W, H);
@@ -12577,13 +12351,29 @@ function bpRenderTemplateBg(key) {
     ctx.beginPath(); ctx.moveTo(60, skin.headerHeight); ctx.lineTo(W - 60, skin.headerHeight); ctx.stroke();
   }
 
-  // Logo swatch + initials
+  // Logo swatch — the user's uploaded Brand Kit logo when there is one,
+  // clipped to the same rounded-rect slot the initials swatch used, so
+  // switching a logo on/off never moves anything else on the page.
   bpRoundRectPath(ctx, 60, 28, 46, 46, skin.logoRadius);
-  ctx.fillStyle = skin.logoBg; ctx.fill();
-  ctx.fillStyle = skin.logoText;
-  ctx.font = "800 17px 'Inter', sans-serif";
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('SC', 83, 53);
+  if (kitLogoImg) {
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    // contain-fit the logo inside the 46x46 slot with a small inset
+    const pad = 4, slot = 46 - pad * 2;
+    const ratio = Math.min(slot / kitLogoImg.width, slot / kitLogoImg.height);
+    const dw = kitLogoImg.width * ratio, dh = kitLogoImg.height * ratio;
+    const dx = 60 + pad + (slot - dw) / 2, dy = 28 + pad + (slot - dh) / 2;
+    ctx.drawImage(kitLogoImg, dx, dy, dw, dh);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = skin.logoBg; ctx.fill();
+    ctx.fillStyle = skin.logoText;
+    ctx.font = "800 17px 'Inter', sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('SC', 83, 53);
+  }
 
   // Doc-type label, top right
   ctx.fillStyle = skin.docLabelColor;
@@ -12654,7 +12444,8 @@ async function bpInsertTemplateToCanvas(key) {
   bpCloseTemplateModal();
 
   const isNewDoc = pdfed.pages.length === 0;
-  const bg = bpRenderTemplateBg(key);
+  const bg = await bpRenderTemplateBg(key);
+  const kit = bkLoad();
   const pg = {
     type: 'blank', dataUrl: bg, modified: true, edits: {}, textBlocks: [],
     label: 'Business Proposal', bgColor: skin.bodyBg, pageMM: [210, 297],
@@ -12675,8 +12466,8 @@ async function bpInsertTemplateToCanvas(key) {
     }, opts || {}));
   };
 
-  addText('Your Company Name', 120, 26, 17, { color: headerTextColor, bold: true, w: 420 });
-  addText('Tagline goes here', 120, 54, 11, { color: headerMutedColor, w: 420 });
+  addText((kit && kit.company) || 'Your Company Name', 120, 26, 17, { color: headerTextColor, bold: true, w: 420 });
+  addText((kit && kit.tagline) || 'Tagline goes here', 120, 54, 11, { color: headerMutedColor, w: 420 });
   addText('Client Name', 60, 156, 13, { bold: true, w: 200 });
   addText('DD Month YYYY', 284, 156, 13, { w: 200 });
   addText('DD Month YYYY', 508, 156, 13, { w: 200 });
@@ -13226,6 +13017,7 @@ async function bpInsertTemplateToCanvas(key) {
     </div>
     <div class="bp-tplmodal-body">
       <p class="bp-tplmodal-hint">Every field, the scope list, and the pricing table are placed as editable boxes right on the page — click anything to change it.</p>
+      <p class="bp-tplmodal-hint" id="bpTplModalKitHint" style="display:none;color:#00c2ff">🎨 Your saved Brand Kit logo will be applied automatically.</p>
       <div class="bp-tpl-grid">
         <div class="bp-tpl-card" onclick="bpInsertTemplateToCanvas('modern')">
           <div class="bp-tpl-thumb bp-tpl-modern"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
@@ -15388,7 +15180,6 @@ function navigate(sec) {
     else if(sec === 'diagrams' && t.includes('diagrams')) n.classList.add('active');
     else if(sec === 'savedsessions' && t.includes('saved sessions')) n.classList.add('active');
     else if(sec === 'redact' && t.includes('redact pii')) n.classList.add('active');
-    else if(sec === 'proposals' && t.includes('business proposals')) n.classList.add('active');
   });
   if(sec === 'export') {
     document.getElementById('exportCount').textContent = state.extractedImages.length + ' image' + (state.extractedImages.length !== 1 ? 's' : '');
