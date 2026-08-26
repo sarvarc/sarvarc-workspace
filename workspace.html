@@ -65485,7 +65485,22 @@ if (document.readyState === 'loading') {
 
   async function sarvarcRefreshEditLockState() {
     if (window.sarvarcAutoClearDone) return; // already clearing/reloading — nothing left to check
-    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    let user = null;
+    try {
+      // getUser() is a real network round-trip. If it's slow, blocked, or
+      // errors right after a fresh post-login reload, don't let that failure
+      // fall through to the "signed out" branch below — that would leave a
+      // stale edit-lock (e.g. from using the free export as a guest) stuck
+      // "on" forever even though the login itself succeeded, since nothing
+      // else in the app retries this specific check afterward. Fall back to
+      // the cheap, local getSession() instead, which doesn't hit the network.
+      ({ data: { user } } = await sarvarcSupabase.auth.getUser());
+    } catch (e) {
+      try {
+        const { data: { session } } = await sarvarcSupabase.auth.getSession();
+        user = (session && session.user) || null;
+      } catch (e2) { /* still unknown — fall through, don't guess */ }
+    }
     if (user) {
       // Being logged in is not by itself enough — it must be the SAME
       // account that owns whatever's currently loaded. Without this check,
@@ -65750,7 +65765,7 @@ if (document.readyState === 'loading') {
     sarvarcAuthCloseModal();
     const displayName = await sarvarcAuthUpdateNavUI();
     swTrack('account_active', { name: displayName ? 'named' : 'unnamed' });
-    sarvarcUpdateEditLockUI();
+    await sarvarcUpdateEditLockUI();
     if (typeof navigate === 'function' && document.getElementById('sec-pdfeditor')) {
       navigate('pdfeditor');
     }
@@ -67694,6 +67709,13 @@ if (document.readyState === 'loading') {
     for (let i = 0; i < 4 && !displayName; i++) {
       await new Promise(r => setTimeout(r, 400));
       displayName = await sarvarcAuthUpdateNavUI();
+      // The nav label isn't the only thing that can lose this race — the
+      // edit-lock check (a separate network call) can too, and unlike the
+      // label it has real consequences: it's what stands between a freshly
+      // logged-in person and actually being able to edit. Re-run it on
+      // every retry so a slow first read can't leave the lock stuck "on"
+      // after login has genuinely succeeded.
+      await sarvarcUpdateEditLockUI();
     }
   }
   (function() {
