@@ -6670,6 +6670,13 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   opacity:0.08; z-index:0; pointer-events:none; user-select:none;
 }
 .mf-pv-content { position:relative; z-index:1; }
+/* Custom "festive/banner" image — separate from the logo watermark above.
+   Lets the form owner drop in any picture (a Diwali/Christmas graphic, a
+   company campaign banner, etc.) that shows up faint, full-bleed, behind
+   the header card only — like a printed letterhead backdrop rather than a
+   repeated page watermark. */
+.mf-pv-banner-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; pointer-events:none; user-select:none; }
+.mf-pv-header-fg { position:relative; z-index:1; display:flex; align-items:center; gap:16px; width:100%; }
 .mf-watermark-row { display:none; align-items:center; gap:14px; margin-top:10px; flex-wrap:wrap; }
 .mf-watermark-row label { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2); cursor:pointer; white-space:nowrap; }
 .mf-watermark-row input[type="range"] { width:90px; accent-color:var(--blue); }
@@ -6701,7 +6708,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   background:linear-gradient(90deg, var(--mf-accent), var(--mf-accent-topbar));
 }
 .mf-pv-header {
-  display:flex; align-items:center; gap:16px; margin-bottom:26px; padding:16px 18px;
+  position:relative; overflow:hidden; margin-bottom:26px; padding:16px 18px;
   border-radius:14px; border:1px solid var(--mf-accent-header-border);
   border-bottom:3px solid var(--mf-accent);
   background:linear-gradient(135deg, var(--mf-accent-header-bg), #ffffff);
@@ -9231,6 +9238,25 @@ button.dg-show-chip.active { background:var(--blue); }
                       <input type="range" id="mfWatermarkOpacity" min="5" max="10" value="8" oninput="mfSetWatermarkOpacity(this.value)">
                       <span class="mf-wm-val" id="mfWatermarkOpacityVal">8%</span>
                     </label>
+                  </div>
+                  <div class="mf-brand-logo-block" style="margin-top:14px">
+                    <label>Header Background Image <span style="color:var(--text3)">(upload any image — appears faint behind the title, e.g. for a festival or promotion)</span></label>
+                    <div class="mf-brand-logo-row">
+                      <div class="mf-brand-logo-thumb" id="mfBannerThumb">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      </div>
+                      <div class="mf-brand-logo-btns">
+                        <button class="btn-secondary" style="padding:7px 12px;font-size:11px" onclick="document.getElementById('mfBannerFileInput').click()">Upload Image</button>
+                        <button class="btn-secondary" style="padding:7px 12px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.35)" id="mfBannerRemoveBtn" onclick="mfRemoveBanner()">Remove</button>
+                        <input type="file" id="mfBannerFileInput" accept="image/*" style="display:none" onchange="mfHandleBannerUpload(this)">
+                      </div>
+                    </div>
+                    <div class="mf-watermark-row" id="mfBannerRow">
+                      <label>Opacity
+                        <input type="range" id="mfBannerOpacity" min="5" max="40" value="15" oninput="mfSetBannerOpacity(this.value)">
+                        <span class="mf-wm-val" id="mfBannerOpacityVal">15%</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <div class="mf-brand-color-block">
@@ -51025,6 +51051,7 @@ function mfNewField(type) {
 const MF_TYPE_NAMES = { text:'Text', paragraph:'Paragraph', number:'Number', date:'Date', checkbox:'Checkbox', mcq:'MCQ', select:'Dropdown', heading:'Section', signature:'Signature' };
 const MF_ACCENT_PRESETS = ['#0073E6', '#00C2FF', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#1a1a1a'];
 const MF_LOGO_MAX_DIM = 240; // px, longest side after resize
+const MF_BANNER_MAX_DIM = 1000; // px, longest side after resize — a full-width header backdrop needs more resolution than a small logo
 
 // ─── TEMPLATES ───
 // Every template below carries a `category` used to group the picker, and
@@ -51564,6 +51591,8 @@ function mfCreateFromTemplate(key) {
     accentColor: built.accentColor || '#0073E6',
     watermarkOn: true,
     watermarkOpacity: 8,
+    bannerImageDataUrl: null,
+    bannerImageOpacity: 15,
     socialLinks: {},
     activeLang: 'original',
     translations: {},
@@ -51786,6 +51815,11 @@ function mfRenderWatermarkControls() {
   slider.value = opacity;
   if (val) val.textContent = opacity + '%';
   if (wmRow) wmRow.style.display = f.logoDataUrl ? 'flex' : 'none';
+  // Keep the separate Banner Image controls in sync everywhere the logo
+  // watermark controls are refreshed (opening a form, switching forms,
+  // applying an asset) rather than needing a second call wired in at
+  // every one of those call sites.
+  if (typeof mfRenderBannerControls === 'function') mfRenderBannerControls();
 }
 
 function mfToggleWatermark(checked) {
@@ -52048,6 +52082,91 @@ function mfRemoveLogo() {
   mfRenderPreview();
 }
 
+// ─── BRANDING: FESTIVE / BANNER IMAGE ───
+// Separate from the logo watermark above — this lets the form owner drop in
+// ANY picture (a Diwali/Christmas graphic, a company campaign banner, a
+// one-off announcement image) that shows up faint, full-bleed, behind the
+// header card only. Independent toggle/opacity from the logo watermark, so
+// both can be used together or on their own.
+function mfRenderBannerThumb() {
+  const f = mfGetCurrentForm();
+  const thumb = document.getElementById('mfBannerThumb');
+  const removeBtn = document.getElementById('mfBannerRemoveBtn');
+  if (!f || !thumb) return;
+  if (f.bannerImageDataUrl) {
+    thumb.innerHTML = `<img src="${f.bannerImageDataUrl}" alt="Banner">`;
+    if (removeBtn) removeBtn.style.display = 'inline-block';
+  } else {
+    thumb.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+    if (removeBtn) removeBtn.style.display = 'none';
+  }
+  const row = document.getElementById('mfBannerRow');
+  if (row) row.style.display = f.bannerImageDataUrl ? 'flex' : 'none';
+}
+
+function mfRenderBannerControls() {
+  const f = mfGetCurrentForm();
+  const slider = document.getElementById('mfBannerOpacity');
+  const val = document.getElementById('mfBannerOpacityVal');
+  if (!f || !slider) { mfRenderBannerThumb(); return; }
+  const opacity = f.bannerImageOpacity == null ? 15 : f.bannerImageOpacity;
+  slider.value = opacity;
+  if (val) val.textContent = opacity + '%';
+  mfRenderBannerThumb();
+}
+
+function mfHandleBannerUpload(input) {
+  const f = mfGetCurrentForm();
+  const file = input.files && input.files[0];
+  if (!f || !file) return;
+  if (!file.type.startsWith('image/')) { toast('Please choose an image file', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, MF_BANNER_MAX_DIM / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      f.bannerImageDataUrl = c.toDataURL('image/jpeg', 0.9);
+      if (f.bannerImageOpacity == null) f.bannerImageOpacity = 15;
+      // Auto-store in the Assets library so this same festival/campaign
+      // image can be reused on other forms without re-uploading the file.
+      if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('banner', f.bannerImageDataUrl, file.name);
+      mfTouch(f);
+      mfRenderBannerControls();
+      mfRenderPreview();
+      toast('Header background image added', 'success');
+    };
+    img.onerror = () => toast('Could not read that image', 'error');
+    img.src = e.target.result;
+  };
+  reader.onerror = () => toast('Could not read that file', 'error');
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function mfRemoveBanner() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  f.bannerImageDataUrl = null;
+  mfTouch(f);
+  mfRenderBannerControls();
+  mfRenderPreview();
+}
+
+function mfSetBannerOpacity(val) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const n = Math.min(40, Math.max(5, Number(val) || 15));
+  f.bannerImageOpacity = n;
+  const label = document.getElementById('mfBannerOpacityVal');
+  if (label) label.textContent = n + '%';
+  mfTouch(f);
+  mfRenderPreview();
+}
+
 // ─── BRANDING: ACCENT COLOR ───
 function mfRenderAccentSwatches() {
   const f = mfGetCurrentForm();
@@ -52170,8 +52289,12 @@ function mfRenderPreview() {
   // the empty slot it fills in.
   const watermarkHtml = '<div class="mf-pv-watermarks" id="mfPvWatermarks"></div>';
   let html = '';
-  if (f.logoDataUrl) {
-    html += `<div class="mf-pv-header"><img class="mf-pv-logo" src="${f.logoDataUrl}" alt="Logo"><div class="mf-pv-header-text"><h1>${mfEsc(displayTitle)}</h1></div></div>`;
+  const bannerImgHtml = f.bannerImageDataUrl
+    ? `<img class="mf-pv-banner-img" src="${f.bannerImageDataUrl}" alt="" style="opacity:${(f.bannerImageOpacity == null ? 15 : f.bannerImageOpacity) / 100}">`
+    : '';
+  if (f.logoDataUrl || f.bannerImageDataUrl) {
+    const logoImgHtml = f.logoDataUrl ? `<img class="mf-pv-logo" src="${f.logoDataUrl}" alt="Logo">` : '';
+    html += `<div class="mf-pv-header">${bannerImgHtml}<div class="mf-pv-header-fg">${logoImgHtml}<div class="mf-pv-header-text"><h1>${mfEsc(displayTitle)}</h1></div></div></div>`;
   } else {
     html += `<h1>${mfEsc(displayTitle)}</h1>`;
   }
@@ -52393,6 +52516,11 @@ async function mfPublishForm() {
       logo_data_url: f.logoDataUrl || null,
       watermark_on: f.logoDataUrl ? (f.watermarkOn !== false) : false,
       watermark_opacity: f.watermarkOpacity == null ? 8 : f.watermarkOpacity,
+      // Separate festive/banner image — any picture the owner uploads
+      // (festival graphic, campaign banner) shown faint behind the header
+      // on the published form, independent of the logo watermark above.
+      banner_image_data_url: f.bannerImageDataUrl || null,
+      banner_image_opacity: f.bannerImageOpacity == null ? 15 : f.bannerImageOpacity,
       accent_color: f.accentColor || '#0073E6',
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
@@ -54647,6 +54775,9 @@ window.mfSetSocialLink = mfSetSocialLink;
 window.mfStartBlank = mfStartBlank;
 window.mfToggleWatermark = mfToggleWatermark;
 window.mfSetWatermarkOpacity = mfSetWatermarkOpacity;
+window.mfHandleBannerUpload = mfHandleBannerUpload;
+window.mfRemoveBanner = mfRemoveBanner;
+window.mfSetBannerOpacity = mfSetBannerOpacity;
 window.mfPrintForm = mfPrintForm;
 window.mfExportPDF = mfExportPDF;
 window.mfExportDOCX = mfExportDOCX;
