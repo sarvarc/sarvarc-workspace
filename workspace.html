@@ -42,7 +42,27 @@
   // scoped keys instead of leaving the old account's in-memory state on screen.
   (function () {
     var SUPABASE_REF = 'ndysvofxjuonfrgfeswj';
-    var EXCLUDED = { 'sarvarcTheme': true }; // cosmetic, pre-auth, holds no user content
+    // 'sarvarcTheme': cosmetic, pre-auth, holds no user content.
+    // 'sarvarcPendingWorkspaceEntry': a one-shot signal written right before
+    // sarvarcQueueWorkspaceEntryAndReload() reloads the page, then read once
+    // at boot to finish entering the Workspace. It must NOT be namespaced by
+    // window.__sarvarcUid: that variable is only guaranteed correct *after*
+    // this account-scoping IIFE re-reads it fresh on the next boot. In
+    // between (e.g. the Google popup login flow, where the session is
+    // established in a different window and this window's own uid variable
+    // hasn't been updated yet when the flag is written), the write and the
+    // read can land under two different scoped keys ("guest" vs. the real
+    // uid), so the flag silently "disappears" and the app never advances
+    // past the login modal even though sign-in succeeded. Since this key
+    // holds no user content and lives for at most a few hundred ms across
+    // exactly one reload, there's no data-isolation reason to scope it.
+    // 'sarvarcHasEntered' (first-visit splash flag) is the same class of
+    // pre-account technical flag and is excluded for the same reason.
+    var EXCLUDED = {
+      'sarvarcTheme': true,
+      'sarvarcPendingWorkspaceEntry': true,
+      'sarvarcHasEntered': true
+    };
 
     function isExcluded(key) {
       if (EXCLUDED[key]) return true;
