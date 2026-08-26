@@ -67484,10 +67484,16 @@ if (document.readyState === 'loading') {
         if (popup.location.origin === window.location.origin) {
           if (sameOriginSince === null) sameOriginSince = Date.now();
           // Backstop only — the session check above normally fires first,
-          // well before this. Give the exchange real time (a few seconds,
-          // not a few hundred ms) before treating a stuck popup as reason
-          // to close it.
-          if (Date.now() - sameOriginSince > 4000) popup.close();
+          // well before this. Give the exchange real time before treating
+          // a stuck popup as reason to close it. Widened from 4s to 10s:
+          // 4s was cutting off the Google->Supabase code/token exchange
+          // while it was still in flight (slower connections, an extra
+          // Google account-picker step, etc.), which force-closed the
+          // popup mid-exchange and made login intermittently fail —
+          // exactly the "sometimes it logs in, sometimes it doesn't"
+          // symptom this backstop was supposed to only guard against, not
+          // cause.
+          if (Date.now() - sameOriginSince > 10000) popup.close();
         }
       } catch (e) {
         // Still on accounts.google.com — cross-origin read throws, expected.
