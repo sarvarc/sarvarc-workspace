@@ -67447,7 +67447,18 @@ if (document.readyState === 'loading') {
         if (session) { await finish(); return; }
       } catch (e) {}
 
-      if (popup.closed) {
+      // A same-origin COOP header on this page (set at the hosting/CDN
+      // level, not here) severs the opener/popup relationship the instant
+      // the popup navigates to Google's cross-origin login page — Chrome
+      // then blocks even harmless reads like .closed and logs "Cross-
+      // Origin-Opener-Policy policy would block the window.closed call".
+      // Treat a blocked/unknown read as "can't tell yet" rather than
+      // letting it throw and skip the rest of this tick — the getSession()
+      // check above is what actually detects success either way; this is
+      // only the "user closed it without signing in" fallback path.
+      let sarvarcPopupClosed = false;
+      try { sarvarcPopupClosed = popup.closed; } catch (e) { sarvarcPopupClosed = false; }
+      if (sarvarcPopupClosed) {
         clearInterval(sarvarcGooglePopupPoll);
         sarvarcGooglePopupPoll = null;
         // Popup is gone (user closed it, or cancelled) and we still haven't
