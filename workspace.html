@@ -53340,22 +53340,36 @@ function mfSlug() {
   return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
 }
 
+// Publishing talks to Supabase over the network, so it can genuinely sit
+// for a second or two — long enough that a person watching a frozen
+// "Publishing…" button label has no way to tell "almost done" from
+// "stuck". We reuse the same premium export-overlay (3D drifting sheet +
+// progress bar) already shown during PDF/Word/ZIP exports elsewhere in the
+// app, staged across the real steps of the publish flow (validate →
+// package branding/attachments → save your form → mint the public
+// link) so the wait always reads as forward progress, never a stall.
+const mfWait = (ms) => new Promise(r => setTimeout(r, ms));
+
 async function mfPublishForm() {
   const f = mfGetCurrentForm();
   if (!f) return;
   const btn = document.getElementById('mfPublishBtn');
   const label = document.getElementById('mfPublishBtnLabel');
+  const isUpdate = !!f.publishedId;
   if (btn) btn.disabled = true;
-  if (label) label.textContent = f.publishedId ? 'Updating…' : 'Publishing…';
+  if (label) label.textContent = isUpdate ? 'Updating…' : 'Publishing…';
+  showExportOverlay(
+    isUpdate ? 'Updating your form…' : 'Publishing your form…',
+    'Preparing form data…'
+  );
   try {
-    // getSession() reads the cached session locally — no network round trip
-    // (unless the token needs a refresh). getUser() instead calls out to the
-    // Auth server to revalidate the JWT on every single publish, which was
-    // adding a full extra network round trip to the critical path for no
-    // real benefit here (the person is already logged in and using the app).
-    const { data: { session } } = await sarvarcSupabase.auth.getSession();
-    const user = session && session.user;
-    if (!user) { toast('Please log in first to publish a form', 'error'); return; }
+    updateExportProgress(10, 'Preparing form data…');
+    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    if (!user) { hideExportOverlay(); toast('Please log in first to publish a form', 'error'); return; }
+
+    const hasAssets = !!(f.logoDataUrl || f.bannerImageDataUrl || (f.attachmentFolders && f.attachmentFolders.length));
+    await mfWait(220);
+    updateExportProgress(30, hasAssets ? 'Packaging branding & attachments…' : 'Validating fields…');
 
     const payload = {
       owner_id: user.id,
@@ -53385,6 +53399,11 @@ async function mfPublishForm() {
       attachment_folders: f.attachmentFolders || [],
     };
 
+    await mfWait(200);
+    updateExportProgress(55, 'Applying appearance & branding…');
+    await mfWait(180);
+    updateExportProgress(72, isUpdate ? 'Saving your changes…' : 'Making your form live…');
+
     let row;
     if (f.publishedId) {
       const { data, error } = await sarvarcSupabase
@@ -53401,17 +53420,22 @@ async function mfPublishForm() {
       row = data;
     }
 
+    updateExportProgress(92, 'Generating your public link…');
+    await mfWait(150);
+
     f.publishedId = row.id;
     f.shareSlug = row.share_slug;
     f.publishedAt = Date.now();
     mfPersist();
 
     const link = `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${row.share_slug}`;
+    completeExportOverlay(isUpdate ? 'Link updated!' : 'Form published!', { module: 'make-forms', format: 'publish' });
     try { await navigator.clipboard.writeText(link); toast('Form published! Link copied to clipboard', 'success'); }
     catch(e) { toast('Form published!', 'success'); }
     window.prompt('Your public form link (already copied if your browser allows it):', link);
   } catch (err) {
     console.error('[Make Forms] publish failed', err);
+    hideExportOverlay();
     toast('Could not publish form: ' + (err.message || 'unknown error, check the "forms" table exists'), 'error');
   } finally {
     if (btn) btn.disabled = false;
