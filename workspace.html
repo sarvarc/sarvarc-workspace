@@ -6502,6 +6502,60 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .mf-design-preview-col .mf-preview-scroll { max-height:78vh; }
 @media (max-width: 980px) { .mf-design-preview-col { position:static; } }
 
+/* Attachments — files the owner uploads (grouped into named folders) that
+   respondents can open/download on the published live form. Sits under
+   the Live Preview in the right column. Each file link opens in a new
+   browser tab, so the respondent's own tab (and whatever they've already
+   typed) is never touched. */
+.mf-attach-panel {
+  display:flex; flex-direction:column; gap:12px;
+  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:18px;
+}
+.mf-attach-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.mf-attach-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; }
+.mf-attach-new-btn {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text2);
+  font-family:'Inter',sans-serif; font-size:11px; font-weight:600; padding:6px 12px; border-radius:999px;
+  cursor:pointer; transition:all .15s; flex-shrink:0;
+}
+.mf-attach-new-btn:hover { border-color:var(--cyan); color:var(--cyan); background:rgba(0,194,255,0.08); }
+.mf-attach-folders { display:flex; flex-direction:column; gap:10px; max-height:44vh; overflow-y:auto; padding-right:2px; }
+.mf-attach-empty { font-size:11.5px; color:var(--text3); line-height:1.6; padding:2px; }
+.mf-attach-folder { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; }
+.mf-attach-folder-head { display:flex; align-items:center; gap:8px; }
+.mf-attach-folder-icon { flex-shrink:0; color:var(--text3); display:flex; }
+.mf-attach-folder-name {
+  flex:1; min-width:0; background:transparent; border:none; border-bottom:1px dashed transparent;
+  color:var(--text); font-family:'Plus Jakarta Sans','Inter',sans-serif; font-size:12.5px; font-weight:700;
+  padding:2px 0; outline:none;
+}
+.mf-attach-folder-name:hover, .mf-attach-folder-name:focus { border-bottom-color:var(--border2); }
+.mf-attach-folder-btns { display:flex; gap:4px; flex-shrink:0; }
+.mf-attach-folder-btns button {
+  width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+  background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+  color:var(--text2); cursor:pointer; font-size:11px; transition:all .15s; padding:0;
+}
+.mf-attach-folder-btns button:hover { border-color:rgba(239,68,68,0.5); color:#ef4444; }
+.mf-attach-file-list { display:flex; flex-direction:column; gap:5px; }
+.mf-attach-file { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 8px; }
+.mf-attach-file-icon { flex-shrink:0; width:20px; height:20px; display:flex; align-items:center; justify-content:center; color:var(--cyan); }
+.mf-attach-file-info { flex:1; min-width:0; }
+.mf-attach-file-name { font-size:11.5px; color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mf-attach-file-size { font-size:10px; color:var(--text3); }
+.mf-attach-file-remove {
+  flex-shrink:0; width:20px; height:20px; display:flex; align-items:center; justify-content:center;
+  background:transparent; border:none; color:var(--text3); cursor:pointer; font-size:13px; border-radius:5px;
+}
+.mf-attach-file-remove:hover { color:#ef4444; background:rgba(239,68,68,0.1); }
+.mf-attach-add-file-btn {
+  align-self:flex-start; background:var(--surface2); border:1px solid var(--border); color:var(--text2);
+  font-family:'Inter',sans-serif; font-size:11px; font-weight:600; padding:6px 12px; border-radius:999px;
+  cursor:pointer; transition:all .15s;
+}
+.mf-attach-add-file-btn:hover { border-color:var(--cyan); color:var(--cyan); background:rgba(0,194,255,0.08); }
+
 .mf-fields-panel {
   background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
   padding:26px; display:flex; flex-direction:column; gap:20px;
@@ -9347,6 +9401,20 @@ button.dg-show-chip.active { background:var(--blue); }
                 <span class="mf-design-preview-label">Live Preview</span>
                 <span class="mf-design-preview-size" id="mfDesignPreviewSize">A4 · 210 × 297 mm</span>
               </div>
+            </div>
+
+            <!-- Attachments: named folders of files the respondent can open
+                 on the published live form (brochures, price lists, T&Cs).
+                 Forced into the right column (grid-column:2) since it's a
+                 sibling of the two auto-placed columns above, not nested
+                 inside the dynamic preview slot. -->
+            <div class="mf-attach-panel" id="mfAttachPanel" style="grid-column:2">
+              <div class="mf-attach-head">
+                <span class="mf-attach-label">Attachments <span style="color:var(--text3);font-weight:500;text-transform:none;letter-spacing:normal">— files clients can open on the live form</span></span>
+                <button class="mf-attach-new-btn" onclick="mfAddAttachFolder()">+ New Folder</button>
+              </div>
+              <div class="mf-attach-folders" id="mfAttachFolders"></div>
+              <div class="mf-attach-empty" id="mfAttachEmpty">No folders yet. Add a folder, name it, then drop in the files you want clients to be able to open while filling this form — e.g. "Price List" or "Terms &amp; Conditions".</div>
             </div>
           </div>
 
@@ -51589,6 +51657,7 @@ const MF_TYPE_NAMES = { text:'Text', paragraph:'Paragraph', number:'Number', dat
 const MF_ACCENT_PRESETS = ['#0073E6', '#00C2FF', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#1a1a1a'];
 const MF_LOGO_MAX_DIM = 240; // px, longest side after resize
 const MF_BANNER_MAX_DIM = 1000; // px, longest side after resize — a full-width header backdrop needs more resolution than a small logo
+const MF_ATTACH_MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB — attachments ride inside the same forms row as everything else, so a hard cap keeps publish/load fast
 
 // ─── TEMPLATES ───
 // Every template below carries a `category` used to group the picker, and
@@ -52131,6 +52200,7 @@ function mfCreateFromTemplate(key) {
     bannerImageDataUrl: null,
     bannerImageOpacity: 15,
     socialLinks: {},
+    attachmentFolders: [],
     activeLang: 'original',
     translations: {},
     updatedAt: Date.now()
@@ -52192,6 +52262,7 @@ function mfOpenEditor(id) {
   if (f.activeLang == null) f.activeLang = 'original';
   if (f.translations == null) f.translations = {};
   if (f.socialLinks == null) f.socialLinks = {};
+  if (f.attachmentFolders == null) f.attachmentFolders = [];
   mfState.currentId = id;
   mfMode = 'design';
   mfActiveResponseId = null;
@@ -52215,6 +52286,7 @@ function mfOpenEditor(id) {
   mfRenderAccentSwatches();
   mfRenderWatermarkControls();
   mfRenderSocialLinks();
+  mfRenderAttachPanel();
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
@@ -52757,6 +52829,118 @@ function mfSetSocialLink(key, value) {
   mfTouch(f);
 }
 
+// ─── ATTACHMENTS: NAMED FOLDERS OF FILES FOR THE LIVE FORM ───
+// The owner groups reference files (brochure, price list, T&Cs...) into
+// named folders here. On publish they ride along in the same forms row
+// (see attachments in mfPublishForm's payload) and the published page
+// renders them as plain download/open links — a link with target="_blank"
+// opens a new tab without touching the form tab underneath, so whatever
+// the respondent has already typed is never at risk.
+function mfGetAttachFolders(f) {
+  if (!f.attachmentFolders) f.attachmentFolders = [];
+  return f.attachmentFolders;
+}
+
+function mfAddAttachFolder() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  mfGetAttachFolders(f).push({ id: mfUid('afold'), name: 'New Folder', files: [] });
+  mfTouch(f);
+  mfRenderAttachPanel();
+}
+
+function mfRenameAttachFolder(folderId, name) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const folder = mfGetAttachFolders(f).find(x => x.id === folderId); if (!folder) return;
+  folder.name = (name || '').trim() || 'Untitled Folder';
+  mfTouch(f);
+}
+
+function mfRemoveAttachFolder(folderId) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const folder = mfGetAttachFolders(f).find(x => x.id === folderId); if (!folder) return;
+  if (!confirm('Delete folder "' + folder.name + '" and its ' + folder.files.length + ' file(s)? This cannot be undone.')) return;
+  f.attachmentFolders = mfGetAttachFolders(f).filter(x => x.id !== folderId);
+  mfTouch(f);
+  mfRenderAttachPanel();
+  toast('Folder deleted', 'info');
+}
+
+function mfTriggerAttachFileInput(folderId) {
+  const input = document.getElementById('mfAttachFileInput_' + folderId);
+  if (input) input.click();
+}
+
+function mfHandleAttachFileUpload(folderId, input) {
+  const f = mfGetCurrentForm();
+  const folder = f && mfGetAttachFolders(f).find(x => x.id === folderId);
+  const files = input.files;
+  if (!f || !folder || !files || !files.length) return;
+  let addedCount = 0, skippedLarge = 0;
+  const readNext = (i) => {
+    if (i >= files.length) {
+      mfTouch(f);
+      mfRenderAttachPanel();
+      if (addedCount) toast(addedCount + ' file(s) added to "' + folder.name + '"', 'success');
+      if (skippedLarge) toast(skippedLarge + ' file(s) skipped — over the 8MB limit per attachment', 'error');
+      input.value = '';
+      return;
+    }
+    const file = files[i];
+    if (file.size > MF_ATTACH_MAX_FILE_BYTES) { skippedLarge++; readNext(i + 1); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      folder.files.push({ id: mfUid('afile'), name: file.name, mime: file.type || 'application/octet-stream', size: file.size, dataUrl: e.target.result });
+      addedCount++;
+      readNext(i + 1);
+    };
+    reader.onerror = () => readNext(i + 1);
+    reader.readAsDataURL(file);
+  };
+  readNext(0);
+}
+
+function mfRemoveAttachFile(folderId, fileId) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const folder = mfGetAttachFolders(f).find(x => x.id === folderId); if (!folder) return;
+  folder.files = folder.files.filter(x => x.id !== fileId);
+  mfTouch(f);
+  mfRenderAttachPanel();
+}
+
+function mfRenderAttachPanel() {
+  const f = mfGetCurrentForm();
+  const wrap = document.getElementById('mfAttachFolders');
+  const empty = document.getElementById('mfAttachEmpty');
+  if (!f || !wrap) return;
+  const folders = mfGetAttachFolders(f);
+  if (empty) empty.style.display = folders.length ? 'none' : 'block';
+  wrap.innerHTML = folders.map(folder => `
+    <div class="mf-attach-folder">
+      <div class="mf-attach-folder-head">
+        <span class="mf-attach-folder-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span>
+        <input class="mf-attach-folder-name" value="${mfEsc(folder.name)}" onchange="mfRenameAttachFolder('${folder.id}', this.value)">
+        <div class="mf-attach-folder-btns">
+          <button title="Delete folder" onclick="mfRemoveAttachFolder('${folder.id}')">✕</button>
+        </div>
+      </div>
+      <div class="mf-attach-file-list">
+        ${folder.files.map(file => `
+          <div class="mf-attach-file">
+            <span class="mf-attach-file-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+            <div class="mf-attach-file-info">
+              <div class="mf-attach-file-name">${mfEsc(file.name)}</div>
+              <div class="mf-attach-file-size">${smFormatBytes(file.size)}</div>
+            </div>
+            <button class="mf-attach-file-remove" title="Remove file" onclick="mfRemoveAttachFile('${folder.id}', '${file.id}')">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <input type="file" id="mfAttachFileInput_${folder.id}" multiple style="display:none" onchange="mfHandleAttachFileUpload('${folder.id}', this)">
+      <button class="mf-attach-add-file-btn" onclick="mfTriggerAttachFileInput('${folder.id}')">+ Add Files</button>
+    </div>
+  `).join('');
+}
+
 // Converts "#rgb" / "#rrggbb" to an "r, g, b" string for rgba(var(...), alpha).
 // Returns null for anything unparseable so callers can fall back safely.
 function hexToRgbStr(hex) {
@@ -53062,6 +53246,11 @@ async function mfPublishForm() {
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
       social_links: f.socialLinks || {},
+      // Named folders of files (brochures, price lists, T&Cs...) the
+      // respondent can open on the published form without losing whatever
+      // they've already filled in — see attachmentsHtml on the respondent
+      // page, which renders each file as a plain target="_blank" link.
+      attachments: f.attachmentFolders || [],
     };
 
     let row;
