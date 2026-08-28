@@ -53348,7 +53348,13 @@ async function mfPublishForm() {
   if (btn) btn.disabled = true;
   if (label) label.textContent = f.publishedId ? 'Updating…' : 'Publishing…';
   try {
-    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    // getSession() reads the cached session locally — no network round trip
+    // (unless the token needs a refresh). getUser() instead calls out to the
+    // Auth server to revalidate the JWT on every single publish, which was
+    // adding a full extra network round trip to the critical path for no
+    // real benefit here (the person is already logged in and using the app).
+    const { data: { session } } = await sarvarcSupabase.auth.getSession();
+    const user = session && session.user;
     if (!user) { toast('Please log in first to publish a form', 'error'); return; }
 
     const payload = {
