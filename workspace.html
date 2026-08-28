@@ -6520,7 +6520,8 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   display:flex; gap:20px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px solid var(--border);
 }
 .mf-brand-logo-block, .mf-brand-color-block { display:flex; flex-direction:column; gap:8px; flex:1; min-width:180px; }
-.mf-brand-row label { font-size:11px; color:var(--text2); }
+.mf-brand-row label { font-size:11.5px; font-weight:600; color:var(--text2); }
+.mf-field-hint { font-size:10.5px; font-weight:400; line-height:1.5; color:var(--text3); margin:2px 0 0; }
 .mf-brand-logo-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .mf-brand-logo-thumb {
   width:44px; height:44px; border-radius:8px; background:var(--bg3); border:1px solid var(--border);
@@ -9291,7 +9292,8 @@ button.dg-show-chip.active { background:var(--blue); }
             <div class="mf-fields-panel">
               <div class="mf-brand-row">
                 <div class="mf-brand-logo-block">
-                  <label>Logo <span style="color:var(--text3)">(shown top-left of the form)</span></label>
+                  <label>Logo</label>
+                  <p class="mf-field-hint">Shown top-left of the form.</p>
                   <div class="mf-brand-logo-row">
                     <div class="mf-brand-logo-thumb" id="mfLogoThumb">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -9310,7 +9312,8 @@ button.dg-show-chip.active { background:var(--blue); }
                     </label>
                   </div>
                   <div class="mf-brand-logo-block" style="margin-top:14px">
-                    <label>Header Background Image <span style="color:var(--text3)">(upload any image — appears faint behind the title, e.g. for a festival or promotion)</span></label>
+                    <label>Header Background Image</label>
+                    <p class="mf-field-hint">Any image, shown faintly behind the title. Nice touch for a festival or promotion.</p>
                     <div class="mf-brand-logo-row">
                       <div class="mf-brand-logo-thumb" id="mfBannerThumb">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -9335,10 +9338,10 @@ button.dg-show-chip.active { background:var(--blue); }
                        mfOpenAttachmentFile — always opens in a new tab off a
                        blob URL, so in-progress answers are untouched). -->
                   <div class="mf-brand-logo-block mf-attach-block" style="margin-top:14px">
-                    <label>Attachments <span style="color:var(--text3)">(files respondents can open on the live form — organize into named folders, hassle-free)</span></label>
+                    <label>Attachments</label>
                     <div class="mf-attach-folders" id="mfAttachFolders"></div>
                     <div class="mf-attach-add-row">
-                      <button class="btn-secondary" style="padding:7px 12px;font-size:11px" onclick="mfAddAttachmentFolder()">+ New Folder</button>
+                      <button class="btn-secondary" style="padding:7px 12px;font-size:11px;display:inline-flex;align-items:center;gap:6px" onclick="mfOpenNewFolderModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M12 11v4"/><path d="M10 13h4"/></svg>New Folder</button>
                       <input type="file" id="mfAttachFileInput" multiple style="display:none" onchange="mfHandleAttachmentUpload(this)">
                     </div>
                   </div>
@@ -9470,6 +9473,23 @@ button.dg-show-chip.active { background:var(--blue); }
             <div class="mf-fill-attach-col" id="mfFillAttachCol">
               <div class="mf-fill-attach-head">Attachments</div>
               <div class="mf-attach-folders mf-attach-folders-readonly" id="mfFillAttachFolders"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- New attachment folder: a real modal (not window.prompt) so the
+             Create button click itself is the user gesture that opens the
+             browser's file picker right after — chaining a file input
+             .click() after a native prompt() dialog is unreliable and gets
+             silently blocked in some browsers. -->
+        <div class="modal-overlay" id="mfNewFolderModalOverlay" onmousedown="if(event.target===this)mfCloseNewFolderModal()">
+          <div class="modal" style="max-width:380px">
+            <h2>New Folder</h2>
+            <p>Name it, then pick the files to attach.</p>
+            <input type="text" class="mf-field-input" id="mfNewFolderNameInput" placeholder='e.g. "Brochure", "Price List"' style="width:100%" onkeydown="if(event.key==='Enter'){event.preventDefault();mfConfirmNewFolder();}">
+            <div class="modal-actions" style="margin-top:20px">
+              <button class="btn-secondary" onclick="mfCloseNewFolderModal()">Cancel</button>
+              <button class="btn-primary" onclick="mfConfirmNewFolder()">Create &amp; Choose Files</button>
             </div>
           </div>
         </div>
@@ -52807,6 +52827,38 @@ function mfAddAttachmentFolder() {
   toast(`Folder "${trimmed}" added`, 'success');
 }
 
+// Real modal version: used by the "+ New Folder" button instead of
+// mfAddAttachmentFolder/window.prompt above, specifically so the "Create &
+// Choose Files" click is itself the user gesture — that lets the browser's
+// native file picker open reliably right after, which chaining input.click()
+// after a window.prompt() dialog does not reliably do.
+function mfOpenNewFolderModal() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const input = document.getElementById('mfNewFolderNameInput');
+  if (input) input.value = '';
+  document.getElementById('mfNewFolderModalOverlay').classList.add('open');
+  setTimeout(() => input && input.focus(), 50);
+}
+
+function mfCloseNewFolderModal() {
+  const el = document.getElementById('mfNewFolderModalOverlay');
+  if (el) el.classList.remove('open');
+}
+
+function mfConfirmNewFolder() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const input = document.getElementById('mfNewFolderNameInput');
+  const trimmed = (input ? input.value : '').trim();
+  if (!trimmed) { toast('Folder needs a name', 'error'); return; }
+  const folder = { id: mfUid('afold'), name: trimmed, files: [] };
+  mfEnsureAttachmentFolders(f).push(folder);
+  mfTouch(f);
+  mfRenderAttachments();
+  mfCloseNewFolderModal();
+  toast(`Folder "${trimmed}" added`, 'success');
+  mfAttachFileInputClick(folder.id);
+}
+
 function mfRenameAttachmentFolder(folderId) {
   const f = mfGetCurrentForm(); if (!f) return;
   const folder = mfEnsureAttachmentFolders(f).find(x => x.id === folderId);
@@ -55584,6 +55636,16 @@ window.mfExportDOCX = mfExportDOCX;
 window.mfExportImages = mfExportImages;
 window.mfToggleExportDropdown = mfToggleExportDropdown;
 window.mfExportAs = mfExportAs;
+window.mfAddAttachmentFolder = mfAddAttachmentFolder;
+window.mfOpenNewFolderModal = mfOpenNewFolderModal;
+window.mfCloseNewFolderModal = mfCloseNewFolderModal;
+window.mfConfirmNewFolder = mfConfirmNewFolder;
+window.mfRenameAttachmentFolder = mfRenameAttachmentFolder;
+window.mfDeleteAttachmentFolder = mfDeleteAttachmentFolder;
+window.mfAttachFileInputClick = mfAttachFileInputClick;
+window.mfHandleAttachmentUpload = mfHandleAttachmentUpload;
+window.mfRemoveAttachmentFile = mfRemoveAttachmentFile;
+window.mfOpenAttachmentFile = mfOpenAttachmentFile;
 window.mfPushToWorkspace = mfPushToWorkspace;
 window.mfSwitchMode = mfSwitchMode;
 window.mfNewResponseDraft = mfNewResponseDraft;
