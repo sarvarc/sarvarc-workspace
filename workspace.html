@@ -53524,6 +53524,16 @@ function mfStopAutoSync() {
 window.mfPublishForm = mfPublishForm;
 window.mfUnpublishForm = mfUnpublishForm;
 window.mfSyncPublishedResponses = mfSyncPublishedResponses;
+// The form-response notification poller (sarvarcNotifPoll, defined in a
+// separate <script> block further down the page, outside this module's
+// private closure) needs to read the current published-forms list and
+// force a fresh reload from localStorage before each check. Without these
+// being exposed, it silently sees an empty forms list on every poll and
+// returns instantly — no error, no notification, ever.
+window.mfState = mfState;
+window.mfLoad = mfLoad;
+window.mfGetCurrentForm = mfGetCurrentForm;
+window.mfRenderFormsGrid = mfRenderFormsGrid;
 
 // Moves the one real preview-panel node between its off-screen Design home
 // and the visible Fill-mode slot, rather than keeping two copies in sync.
