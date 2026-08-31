@@ -787,7 +787,7 @@ a.nav-item:hover { color: var(--text); }
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
 .feat-card {
@@ -886,6 +886,84 @@ a.nav-item:hover { color: var(--text); }
 @media (max-width: 900px) {
   .dash-recent-cols { grid-template-columns: 1fr; }
 }
+
+/* ─── FORM RESPONSE NOTIFICATIONS ───────────────────────────────────────
+   Bell in the top nav (badge = unread count) + dropdown feed, plus a
+   matching "Form Responses" panel on the Dashboard so new submissions are
+   visible the moment someone opens the tool, without hunting through
+   Make Forms first. */
+.notif-bell-btn {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px;
+  background: transparent; border: 1px solid transparent;
+  color: var(--text2); cursor: pointer; transition: all 0.15s;
+  margin-left: 4px;
+}
+.notif-bell-btn:hover { background: var(--surface2); border-color: var(--border); color: var(--text); }
+.notif-bell-btn.has-unread { color: var(--blue); }
+.notif-bell-btn svg { display: block; }
+.notif-bell-btn.ring svg { animation: notifRing 0.6s ease; }
+@keyframes notifRing {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-14deg); }
+  40% { transform: rotate(11deg); }
+  60% { transform: rotate(-7deg); }
+  80% { transform: rotate(4deg); }
+}
+.notif-badge {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 99px; background: #ef4444; color: #fff;
+  font-size: 9.5px; font-weight: 800; line-height: 16px; text-align: center;
+  border: 2px solid var(--bg1, var(--bg2)); display: none;
+}
+.notif-dropdown {
+  position: absolute; top: 44px; right: 0;
+  width: 340px; max-height: 420px; overflow: hidden;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+  z-index: 900; display: flex; flex-direction: column;
+}
+.notif-dropdown-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 700; flex-shrink: 0;
+}
+.notif-mark-all { font-size: 11px; font-weight: 600; color: var(--blue); cursor: pointer; }
+.notif-mark-all:hover { opacity: 0.75; }
+.notif-list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 10px; border-radius: 9px; cursor: pointer;
+  transition: background 0.15s; position: relative;
+}
+.notif-item:hover { background: var(--surface2); }
+.notif-item.unread { background: rgba(0,115,230,0.07); }
+.notif-item-icon {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.notif-item-body { flex: 1; min-width: 0; }
+.notif-item-title { font-size: 12px; line-height: 1.4; color: var(--text2); }
+.notif-item-title strong { color: var(--text); font-weight: 700; }
+.notif-item-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.notif-item-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; margin-top: 6px; }
+.notif-empty {
+  text-align: center; padding: 26px 16px; color: var(--text3); font-size: 12px; line-height: 1.6;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.notif-empty svg { color: var(--text3); opacity: 0.6; }
+.notif-empty strong { color: var(--text2); font-size: 12.5px; }
+@media (max-width: 480px) {
+  .notif-dropdown { width: 92vw; right: -8px; }
+}
+
+/* Dashboard "Form Responses" panel reuses .dash-recent-card but needs an
+   unread dot + full-width single-panel layout (no second column). */
+.dash-notif-panel .dash-recent-card.unread { border-color: rgba(0,115,230,0.35); background: rgba(0,115,230,0.05); }
+.dash-notif-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
 
 /* ─── UPLOAD / EXTRACT ─── */
 .extract-section { padding: 20px 28px; position: relative; z-index: 1; display:flex; flex-direction:column; gap:14px; }
@@ -1859,22 +1937,6 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 /* Edit in editor btn on gallery cards */
 .overlay-btn.ai-edit { background: rgba(8,12,24,0.85); }
 .overlay-btn.ai-edit:hover { background: linear-gradient(135deg, var(--cyan), var(--purple)); border-color: transparent; }
-
-/* ─── EXPORT ─── */
-.export-section { padding: 28px; position: relative; z-index: 1; }
-.export-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
-.export-card {
-  background: var(--bg2); border: 2px solid var(--border);
-  border-radius: var(--radius); padding: 20px;
-  cursor: pointer; transition: all 0.2s; text-align: center;
-  box-shadow: var(--shadow-card);
-}
-.export-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
-.export-card.selected { border-color: var(--blue); background: rgba(0,194,255,0.07); }
-.export-card .e-icon { font-size: 32px; margin-bottom: 10px; }
-.export-card h3 { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-.export-card p { font-size: 11px; color: var(--text2); }
-.export-badge { background: var(--blue); color: white; font-size: 9px; padding: 2px 6px; border-radius: 20px; font-weight: 700; margin-top: 8px; display: inline-block; }
 
 /* ─── TOAST ─── */
 .toast-container {
@@ -6948,6 +7010,14 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   position: absolute; top: 14px; right: 14px; font-size: 8.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.5px; color: var(--cyan); background: rgba(0,194,255,0.12); padding: 3px 7px; border-radius: 5px;
 }
+/* Per-form unread-response count, shown on its gallery card until the form
+   is opened (mirrors the sidebar bell/nav badges, just scoped to one form). */
+.mf-form-card .mf-form-notif-badge {
+  position: absolute; top: 12px; left: 12px;
+  min-width: 17px; height: 17px; padding: 0 5px;
+  border-radius: 99px; background: #ef4444; color: #fff;
+  font-size: 10px; font-weight: 800; line-height: 17px; text-align: center;
+}
 
 @media print {
   body.mfc-printing * { visibility: hidden; }
@@ -8323,14 +8393,13 @@ button.dg-show-chip.active { background:var(--blue); }
   .nav-logo-link img { height: 22px !important; }
 
   /* Dashboard + generic sections: tighter padding, single-column hero */
-  .dashboard, .export-section { padding: 16px; }
+  .dashboard { padding: 16px; }
   .dash-hero { padding: 22px 18px; }
   .dash-hero h1 { font-size: 26px; line-height: 1.15; }
   .hero-actions { flex-wrap: wrap; }
 
   .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .features-grid { grid-template-columns: 1fr; }
-  .export-grid { grid-template-columns: 1fr; }
   .extract-opts { grid-template-columns: 1fr; }
   .extracted-mini-grid { grid-template-columns: repeat(2, 1fr); }
   .pdfed-fmt-grid { grid-template-columns: repeat(2, 1fr); }
@@ -8755,6 +8824,19 @@ button.dg-show-chip.active { background:var(--blue); }
       <button class="btn-secondary" onclick="sarvarcSettingsOpenModal()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Settings</button>
       <button class="btn-secondary" onclick="sarvarcAuthLogOut()" style="width:100%;padding:8px 10px;font-size:12px;justify-content:flex-start">Log Out</button>
     </div>
+    <div class="notif-wrap" id="sarvarcNotifWrap" style="position:relative;">
+      <button class="notif-bell-btn" id="sarvarcNotifBtn" onclick="sarvarcNotifToggleDropdown(event)" title="Notifications" aria-label="Notifications">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="sarvarcNotifBadge">0</span>
+      </button>
+      <div class="notif-dropdown" id="sarvarcNotifDropdown" style="display:none;">
+        <div class="notif-dropdown-head">
+          <span>Notifications</span>
+          <span class="notif-mark-all" onclick="sarvarcNotifMarkAllRead(event)">Mark all read</span>
+        </div>
+        <div class="notif-list" id="sarvarcNotifList"></div>
+      </div>
+    </div>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
   </nav>
 
@@ -8776,12 +8858,10 @@ button.dg-show-chip.active { background:var(--blue); }
     </div>
     <div class="nav-item" onclick="navigate('makeforms')" title="Make Forms">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></span> Make Forms
+      <span class="nav-badge" id="mfNotifBadge" style="display:none">0</span>
     </div>
     <div class="nav-item" id="navIcon-diagrams" onclick="navigate('diagrams')" title="Diagrams &amp; Graphs">
       <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Diagrams &amp; Graphs
-    </div>
-    <div class="nav-item" onclick="navigate('export')" title="Export Center">
-      <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span> Export Center
     </div>
     <div class="nav-item" onclick="navigate('redact')" title="Privacy Redaction">
       <span class="nav-icon" style="color:#EF4444"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9.5" y1="9.5" x2="14.5" y2="14.5"/><line x1="14.5" y1="9.5" x2="9.5" y2="14.5"/></svg></span> Redact PII
@@ -8907,18 +8987,30 @@ button.dg-show-chip.active { background:var(--blue); }
           </div>
         </div>
 
+        <div class="dash-recent-section">
+          <div class="dash-recent-head">
+            <div>
+              <h2>Form Responses</h2>
+              <p>Live from every form you've published — new submissions show up here the moment they come in</p>
+            </div>
+          </div>
+          <div class="dash-recent-cols dash-notif-panel" style="grid-template-columns:1fr;">
+            <div class="dash-recent-panel">
+              <div class="dash-recent-panel-head">
+                <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Recent Responses <span class="dash-recent-count" id="dashNotifCount" style="display:none">0</span></h3>
+                <span class="dash-open-link" onclick="navigate('makeforms')">Open module →</span>
+              </div>
+              <div class="dash-recent-grid" id="dashNotifGrid"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="features-grid">
           <div class="feat-card" style="--feat-color:#00C2FF" onclick="navigate('extract')">
             <div class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
             <span class="feat-arrow">↗</span>
             <h3>Smart Upload &amp; AI Extraction</h3>
             <p>Drag and drop any PDF, including password-protected client files and multi-PDF batches, and let AI intelligently detect and extract logos, photos, illustrations, and icons with remarkable accuracy — built for the volume of a real business workflow.</p>
-          </div>
-          <div class="feat-card" style="--feat-color:#F59E0B" onclick="navigate('export')">
-            <div class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-            <span class="feat-arrow">↗</span>
-            <h3>Export Center</h3>
-            <p>Export deliverables the way your clients expect them — ZIP, PNG, JPG, WebP, or transparent PNG — with full batch processing built in.</p>
           </div>
           <div class="feat-card" style="--feat-color:#10B981" onclick="navigate('pdfeditor')">
             <div class="feat-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></div>
@@ -9050,133 +9142,6 @@ button.dg-show-chip.active { background:var(--blue); }
           <div class="empty-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
           <h3>No images extracted yet</h3>
           <p>Upload a PDF above to begin extracting its images with precision</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- EXPORT SECTION -->
-    <div class="section" id="sec-export">
-      <div class="export-section">
-        <div class="page-header">
-          <div>
-            <h2>Export Center</h2>
-            <p>Download your extracted and refined assets in the format you need</p>
-          </div>
-          <button class="btn-secondary" onclick="clearAllImages()" style="padding:8px 16px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.35)"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> Clear All Images</span></button>
-        </div>
-        <div class="export-grid">
-          <div class="export-card selected" onclick="selectExport(this,'zip')">
-            <div class="e-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></div>
-            <h3>ZIP Archive</h3>
-            <p>All images bundled neatly into a single download</p>
-            <div class="export-badge">Recommended</div>
-          </div>
-          <div class="export-card" onclick="selectExport(this,'png')">
-            <div class="e-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-            <h3>PNG</h3>
-            <p>Lossless quality with full transparency support</p>
-          </div>
-          <div class="export-card" onclick="selectExport(this,'jpg')">
-            <div class="e-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-            <h3>JPG</h3>
-            <p>Optimized for photographs and fast web delivery</p>
-          </div>
-          <div class="export-card" onclick="selectExport(this,'webp')">
-            <div class="e-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
-            <h3>WebP</h3>
-            <p>A modern format delivering the smallest file size</p>
-          </div>
-          <div class="export-card" onclick="selectExport(this,'individual')">
-            <div class="e-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg></div>
-            <h3>Individual Files</h3>
-            <p>Download each image individually, exactly as needed</p>
-          </div>
-          <div class="export-card" onclick="selectExport(this,'pdf')">
-            <div class="e-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-            <h3>Rebuilt PDF</h3>
-            <p>Export your edited pages as a polished new PDF</p>
-          </div>
-        </div>
-
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px">
-          <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:16px">Export Settings</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-            <div>
-              <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">Quality</label>
-              <input type="range" id="exportQualitySlider" min="60" max="100" value="92" style="width:100%;accent-color:var(--blue)" oninput="document.getElementById('qualityVal').textContent=this.value+'%'">
-              <div style="font-size:11px;color:var(--text3);margin-top:4px"><span id="qualityVal">92%</span></div>
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">Resolution</label>
-              <select id="exportScaleSelect" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:'DM Sans',sans-serif;outline:none" onchange="exportScaleChanged()">
-                <option value="native">1x (Original)</option>
-                <option value="retina">2x (Retina)</option>
-                <option value="4k">4K (Ultra HD)</option>
-                <option value="half">0.5x (Compressed)</option>
-                <option value="custom">Custom size (px)…</option>
-              </select>
-            </div>
-
-            <div class="exp-custom-panel" id="exportCustomPanel" style="display:none">
-              <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:8px">Quick presets</label>
-              <div class="exp-preset-grid" id="exportPresetGrid">
-                <button type="button" class="exp-preset-chip sel" data-w="1080" data-h="1080" onclick="applyExportPreset(1080,1080,this)"><span class="exp-preset-shape" style="width:13px;height:13px"></span><span>Square<span class="exp-preset-sub">1080×1080</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1080" data-h="1350" onclick="applyExportPreset(1080,1350,this)"><span class="exp-preset-shape" style="width:11px;height:14px"></span><span>Portrait<span class="exp-preset-sub">1080×1350</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1080" data-h="1920" onclick="applyExportPreset(1080,1920,this)"><span class="exp-preset-shape" style="width:9px;height:16px"></span><span>Story (9:16)<span class="exp-preset-sub">1080×1920</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1080" data-h="608" onclick="applyExportPreset(1080,608,this)"><span class="exp-preset-shape" style="width:16px;height:9px"></span><span>Landscape<span class="exp-preset-sub">1080×608</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1200" data-h="630" onclick="applyExportPreset(1200,630,this)"><span class="exp-preset-shape" style="width:15px;height:8px"></span><span>Link Preview<span class="exp-preset-sub">1200×630</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1600" data-h="900" onclick="applyExportPreset(1600,900,this)"><span class="exp-preset-shape" style="width:16px;height:9px"></span><span>Widescreen<span class="exp-preset-sub">1600×900</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1200" data-h="627" onclick="applyExportPreset(1200,627,this)"><span class="exp-preset-shape" style="width:15px;height:8px"></span><span>Banner<span class="exp-preset-sub">1200×627</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1000" data-h="1500" onclick="applyExportPreset(1000,1500,this)"><span class="exp-preset-shape" style="width:10px;height:15px"></span><span>Tall Pin<span class="exp-preset-sub">1000×1500</span></span></button>
-                <button type="button" class="exp-preset-chip" data-w="1280" data-h="720" onclick="applyExportPreset(1280,720,this)"><span class="exp-preset-shape" style="width:16px;height:9px"></span><span>Video Thumbnail<span class="exp-preset-sub">1280×720</span></span></button>
-              </div>
-
-              <div class="exp-custom-row">
-                <div class="exp-custom-field">
-                  <label>Width</label>
-                  <input type="number" id="exportCustomW" min="1" max="8000" step="1" value="1080" oninput="exportCustomSizeChanged('w')">
-                </div>
-                <div class="exp-custom-x">×</div>
-                <div class="exp-custom-field">
-                  <label>Height</label>
-                  <input type="number" id="exportCustomH" min="1" max="8000" step="1" value="1080" oninput="exportCustomSizeChanged('h')">
-                </div>
-                <button type="button" class="exp-lock-btn on" id="exportLockBtn" onclick="toggleExportAspectLock()" title="Lock aspect ratio">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                </button>
-                <div class="exp-fit-field">
-                  <label>Fit mode</label>
-                  <select id="exportCustomFit">
-                    <option value="cover">Fill &amp; crop (no bars)</option>
-                    <option value="contain">Fit inside (add padding)</option>
-                    <option value="stretch">Stretch (ignore ratio)</option>
-                  </select>
-                </div>
-              </div>
-              <div class="exp-custom-hint">Every image is fit to exactly <span id="exportCustomHintSize">1080×1080</span>px. "Fill &amp; crop" covers the frame and trims overflow — best for square or fixed-ratio grids. "Fit inside" keeps the whole image and pads empty space. "Stretch" forces the exact size without preserving proportions.</div>
-            </div>
-          </div>
-        </div>
-
-        <div id="exportPasswordField" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px">
-          <label class="pdfed-export-checkbox">
-            <input type="checkbox" id="exportPasswordToggle" onchange="extractToggleExportPassword()">
-            <span class="pdfed-export-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-            Protect this PDF with a password
-          </label>
-          <input type="password" id="exportPasswordInput" class="pdfed-export-range-input" placeholder="Enter a password" autocomplete="new-password" style="display:none;margin-top:10px" oninput="extractExportPasswordChanged()">
-          <div id="exportPasswordError" style="font-size:10px;color:#ef4444;display:none;margin-top:6px"></div>
-          <div id="exportPasswordHint" style="font-size:10.5px;color:var(--text3);display:none;margin-top:6px">Anyone opening this PDF will need this password. There's no way to recover it if it's lost, so keep it somewhere safe.</div>
-        </div>
-
-        <div id="exportSummary" style="background:rgba(0,194,255,0.07);border:1px solid rgba(0,194,255,0.2);border-radius:var(--radius);padding:16px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div>
-              <div style="font-size:12px;color:var(--text2)">Ready to export</div>
-              <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-top:2px" id="exportCount">0 images</div>
-            </div>
-            <button class="btn-primary" onclick="sarvarcGateExport(runExport)" style="padding:12px 28px;font-size:14px"><span class="btn-icon-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Now</span></button>
-          </div>
         </div>
       </div>
     </div>
@@ -15265,7 +15230,6 @@ function navigate(sec) {
   document.querySelectorAll('.nav-item').forEach(n => {
     const t = n.textContent.trim().toLowerCase();
     if(sec === 'extract' && t.includes('extract')) n.classList.add('active');
-    else if(sec === 'export' && t.includes('export')) n.classList.add('active');
     else if(sec === 'pdfeditor' && (t.includes('workspace') || t.includes('editor'))) n.classList.add('active');
     else if(sec === 'dashboard' && t.includes('dashboard')) n.classList.add('active');
     else if(sec === 'makeforms' && t.includes('make forms')) n.classList.add('active');
@@ -15274,9 +15238,6 @@ function navigate(sec) {
     else if(sec === 'savedsessions' && t.includes('saved sessions')) n.classList.add('active');
     else if(sec === 'redact' && t.includes('redact pii')) n.classList.add('active');
   });
-  if(sec === 'export') {
-    document.getElementById('exportCount').textContent = state.extractedImages.length + ' image' + (state.extractedImages.length !== 1 ? 's' : '');
-  }
   if(sec === 'makeforms' && typeof mfBackToGallery === 'function') {
     mfBackToGallery();
   }
@@ -52190,7 +52151,9 @@ function mfRenderFormsGrid() {
     const metaText = isCanvas
       ? (f.pages||[]).length + ' page' + ((f.pages||[]).length !== 1 ? 's' : '') + ' · ' + (f.pages||[]).reduce((n,p) => n + ((p.boxes||[]).length), 0) + ' box' + ((f.pages||[]).reduce((n,p) => n + ((p.boxes||[]).length), 0) !== 1 ? 'es' : '')
       : f.fields.length + ' field' + (f.fields.length !== 1 ? 's' : '');
+    const unread = (typeof sarvarcNotifList !== 'undefined' && Array.isArray(sarvarcNotifList) ? sarvarcNotifList : []).filter(n => !n.read && n.formId === f.id).length;
     return `<div class="mf-form-card" onclick="mfOpenEditor('${f.id}')">
+      ${unread > 0 ? '<span class="mf-form-notif-badge">' + (unread > 99 ? '99+' : unread) + '</span>' : ''}
       ${isCanvas ? '<span class="mf-form-tag">Canvas</span>' : ''}
       <h4>${mfEsc(f.title || 'Untitled Form')}</h4>
       <div class="mf-form-meta">${metaText}${dt ? ' · edited ' + dt : ''}</div>
@@ -52278,6 +52241,7 @@ function mfOpenEditor(id) {
   mfStopAutoSync();
   const f = mfState.forms.find(x => x.id === id);
   if (!f) return;
+  sarvarcNotifMarkFormRead(id);
   if (f.kind === 'canvas') { mfcOpenEditor(id); return; }
   // Old forms saved before the translation/social-links features existed
   // won't have these yet — default them in place so every other function
@@ -65257,6 +65221,7 @@ function dashRenderDataPanel() {
 function dashRenderRecent() {
   try { dashRenderChartsPanel(); } catch (e) { console.warn('[Dashboard] could not render recent charts', e); }
   try { dashRenderDataPanel(); } catch (e) { console.warn('[Dashboard] could not render recent data', e); }
+  try { if (typeof dashRenderFormNotifPanel === 'function') dashRenderFormNotifPanel(); } catch (e) { console.warn('[Dashboard] could not render form responses', e); }
 }
 
 function dashOpenChart(id) {
@@ -68803,7 +68768,441 @@ if (document.readyState === 'loading') {
     // that reload — whichever lost had its work silently discarded by the
     // navigation, which is why some logins needed several attempts and the
     // welcome moment could get cut short or never visibly appear at all.
+
+    // Form-response notifications live entirely off the signed-in state:
+    // start polling the instant a session exists (covers page-load restore
+    // via the INITIAL_SESSION event Supabase fires here, and every real
+    // sign-in), stop the instant it doesn't (sign-out) so nothing keeps
+    // polling — or shows a stale badge — for a logged-out visitor.
+    if (session && session.user) { if (typeof sarvarcNotifStart === 'function') sarvarcNotifStart(); }
+    else { if (typeof sarvarcNotifStop === 'function') sarvarcNotifStop(); if (typeof sarvarcNotifRenderBadge === 'function') { sarvarcNotifList = []; sarvarcNotifRenderBadge(); } }
   });
+</script>
+<script>
+// ─────────────────────────────────────────────────────────────────────────
+// ── FORM RESPONSE NOTIFICATIONS ─────────────────────────────────────────
+// Smart, low-friction "someone filled your form" alerts — the whole point
+// is removing the friction of having to open Make Forms and hit Refresh to
+// find out whether anyone's responded. Polls Supabase for new rows in
+// `form_responses` across every one of the signed-in user's PUBLISHED
+// forms (not just whichever one happens to be open in the editor), so a
+// response surfaces no matter what part of the app the person is looking
+// at — dashboard, PDF editor, wherever.
+//
+// "Smart" here means two things:
+//   1. Only genuinely NEW responses count. The very first check for a
+//      given account silently baselines against whatever already exists in
+//      Supabase — nobody signing in for the first time after this shipped
+//      gets buried under months of "new" alerts for old answers.
+//   2. It stays live. A short interval poll (mirrors the same 15s cadence
+//      the Make Forms Fill tab already uses for its own auto-sync) means
+//      the badge, the toast, and the Dashboard panel all update while the
+//      tab is just sitting open — no manual refresh required.
+//
+// READ STATUS FOLLOWS THE ACCOUNT, NOT THE BROWSER: which notifications are
+// read/unread is mirrored to a `read_at` column on `form_responses` in
+// Supabase (sarvarcNotifMarkResponsesReadRemote), so signing in on a
+// different device shows the same unread badges instead of starting fresh.
+// This needs ONE one-time SQL statement run in the Supabase SQL editor:
+//     ALTER TABLE form_responses ADD COLUMN IF NOT EXISTS read_at timestamptz;
+// Until that's run, everything above still works exactly as before — the
+// poll just quietly falls back to browser-only read tracking (see
+// hasReadColumn below) and starts syncing across devices the moment the
+// column exists, no other change needed.
+// ─────────────────────────────────────────────────────────────────────────
+const SARVARC_NOTIF_STORAGE_KEY = 'sarvarcFormNotifs_v1';
+const SARVARC_NOTIF_SEEN_KEY = 'sarvarcFormNotifSeen_v1';
+const SARVARC_NOTIF_POLL_MS = 15000;
+
+let sarvarcNotifList = [];        // [{id, formId, publishedId, responseId, formTitle, respondentName, respondentEmail, submittedAt, read}]
+let sarvarcNotifSeenIds = null;   // { [publishedFormId]: [remoteResponseId, ...] } — null until first load
+let sarvarcNotifTimer = null;
+let sarvarcNotifPolling = false;  // guards against overlapping polls if one run is still in flight
+let sarvarcNotifBaselinedThisSession = false;
+
+function sarvarcNotifLoad() {
+  try {
+    const raw = localStorage.getItem(SARVARC_NOTIF_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Guard against whatever's under this key not actually being an array
+    // (corrupted write, an older/different shape, manual tampering, etc.) —
+    // every reader downstream assumes .filter/.forEach/.length work, so a
+    // stray object or null here would throw the first time anything touches it.
+    sarvarcNotifList = Array.isArray(parsed) ? parsed : [];
+  } catch (e) { sarvarcNotifList = []; }
+  try {
+    const rawSeen = localStorage.getItem(SARVARC_NOTIF_SEEN_KEY);
+    sarvarcNotifSeenIds = rawSeen ? JSON.parse(rawSeen) : null;
+  } catch (e) { sarvarcNotifSeenIds = null; }
+}
+
+function sarvarcNotifPersist() {
+  try { localStorage.setItem(SARVARC_NOTIF_STORAGE_KEY, JSON.stringify(sarvarcNotifList.slice(0, 60))); } catch (e) {}
+  try { localStorage.setItem(SARVARC_NOTIF_SEEN_KEY, JSON.stringify(sarvarcNotifSeenIds || {})); } catch (e) {}
+}
+
+// Pushes "read" status to the response's row in Supabase (see the read_at
+// migration note near sarvarcNotifPoll) so it follows the account across
+// devices/browsers, not just this one's localStorage. Fire-and-forget —
+// the local read state is already updated by the caller before this runs,
+// so a slow or failed request never blocks the UI; it just means this
+// particular read won't have caught up on other devices yet.
+async function sarvarcNotifMarkResponsesReadRemote(responseIds) {
+  if (!responseIds || !responseIds.length || !window.sarvarcSupabase) return;
+  try {
+    await sarvarcSupabase.from('form_responses')
+      .update({ read_at: new Date().toISOString() })
+      .in('id', responseIds);
+  } catch (e) { /* read_at column may not exist yet, or the request failed — local state still holds */ }
+}
+window.sarvarcNotifMarkResponsesReadRemote = sarvarcNotifMarkResponsesReadRemote;
+
+function sarvarcNotifUnreadCount() {
+  return sarvarcNotifList.filter(n => !n.read).length;
+}
+
+function sarvarcNotifRenderBadge(justArrived) {
+  const badge = document.getElementById('sarvarcNotifBadge');
+  const btn = document.getElementById('sarvarcNotifBtn');
+  if (badge && btn) {
+    const n = sarvarcNotifUnreadCount();
+    if (n > 0) {
+      badge.style.display = 'flex';
+      badge.textContent = n > 99 ? '99+' : String(n);
+    } else {
+      badge.style.display = 'none';
+    }
+    btn.classList.toggle('has-unread', n > 0);
+    if (justArrived) {
+      btn.classList.remove('ring');
+      void btn.offsetWidth; // restart the CSS animation on repeat arrivals
+      btn.classList.add('ring');
+    }
+  }
+  // Bell badge and the Make Forms sidebar badge always share one source of
+  // truth (sarvarcNotifList), so keep them in lockstep from this one spot
+  // instead of hunting down every call site that touches unread state.
+  sarvarcNotifRenderModuleBadge();
+}
+
+// Sidebar "Make Forms" badge — every notification today comes from a form
+// response, so this is currently the same total as the bell. Kept as its
+// own function (rather than inlined) so a future non-form notification
+// type doesn't silently start counting toward Make Forms too.
+function sarvarcNotifRenderModuleBadge() {
+  const badge = document.getElementById('mfNotifBadge');
+  if (!badge) return;
+  const list = Array.isArray(sarvarcNotifList) ? sarvarcNotifList : [];
+  const n = list.filter(x => !x.read && x.formId).length;
+  if (n > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = n > 99 ? '99+' : String(n);
+  } else {
+    badge.style.display = 'none';
+  }
+}
+window.sarvarcNotifRenderModuleBadge = sarvarcNotifRenderModuleBadge;
+
+function sarvarcNotifTimeAgo(ts) {
+  const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  return `${d}d ago`;
+}
+
+function sarvarcNotifRenderList() {
+  const host = document.getElementById('sarvarcNotifList');
+  if (!host) return;
+  if (!sarvarcNotifList.length) {
+    host.innerHTML = `<div class="notif-empty">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <strong>No notifications yet</strong>
+      <span>Publish a form and you'll be pinged here the moment someone responds.</span>
+    </div>`;
+    return;
+  }
+  host.innerHTML = sarvarcNotifList.slice(0, 30).map(n => `
+    <div class="notif-item ${n.read ? '' : 'unread'}" onclick="sarvarcNotifOpen('${n.id}')">
+      <div class="notif-item-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></div>
+      <div class="notif-item-body">
+        <div class="notif-item-title">Received a response through <strong>${escapeHtml(n.formTitle)}</strong></div>
+        <div class="notif-item-meta">${n.respondentName ? escapeHtml(n.respondentName) + ' \u00b7 ' : ''}${sarvarcNotifTimeAgo(n.submittedAt)}</div>
+      </div>
+      ${n.read ? '' : '<span class="notif-item-dot"></span>'}
+    </div>
+  `).join('');
+}
+
+function sarvarcNotifToggleDropdown(e) {
+  if (e) e.stopPropagation();
+  const dd = document.getElementById('sarvarcNotifDropdown');
+  if (!dd) return;
+  const willOpen = dd.style.display !== 'block';
+  dd.style.display = willOpen ? 'block' : 'none';
+  if (willOpen) sarvarcNotifRenderList();
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('sarvarcNotifWrap');
+  const dd = document.getElementById('sarvarcNotifDropdown');
+  if (wrap && dd && dd.style.display === 'block' && !wrap.contains(e.target)) dd.style.display = 'none';
+});
+
+function sarvarcNotifMarkAllRead(e) {
+  if (e) e.stopPropagation();
+  if (!sarvarcNotifList.some(n => !n.read)) return;
+  const responseIds = sarvarcNotifList.filter(n => !n.read).map(n => n.responseId);
+  sarvarcNotifList.forEach(n => n.read = true);
+  sarvarcNotifPersist();
+  sarvarcNotifRenderBadge();
+  sarvarcNotifRenderList();
+  if (typeof dashRenderFormNotifPanel === 'function') { try { dashRenderFormNotifPanel(); } catch (err) {} }
+  if (typeof mfRenderFormsGrid === 'function') { try { mfRenderFormsGrid(); } catch (err) {} }
+  sarvarcNotifMarkResponsesReadRemote(responseIds);
+}
+
+function sarvarcNotifOpen(id) {
+  const n = sarvarcNotifList.find(x => x.id === id);
+  if (!n) return;
+  if (!n.read) {
+    n.read = true;
+    sarvarcNotifPersist();
+    sarvarcNotifRenderBadge();
+    sarvarcNotifRenderList();
+    if (typeof dashRenderFormNotifPanel === 'function') { try { dashRenderFormNotifPanel(); } catch (err) {} }
+    sarvarcNotifMarkResponsesReadRemote([n.responseId]);
+  }
+  const dd = document.getElementById('sarvarcNotifDropdown');
+  if (dd) dd.style.display = 'none';
+  navigate('makeforms');
+  if (typeof mfOpenEditor === 'function' && typeof mfSwitchMode === 'function') {
+    try {
+      mfOpenEditor(n.formId);
+      mfSwitchMode('fill');
+    } catch (err) { /* form may have since been deleted */ }
+  }
+}
+// Opening a form (from its gallery card, not from a notification click)
+// counts as having seen its responses — clears that form's own badge plus
+// its share of the bell/module totals, without touching other forms'
+// unread notifications.
+function sarvarcNotifMarkFormRead(formId) {
+  if (!Array.isArray(sarvarcNotifList) || !sarvarcNotifList.length) return;
+  const toMark = sarvarcNotifList.filter(n => !n.read && n.formId === formId);
+  if (!toMark.length) return;
+  const responseIds = toMark.map(n => n.responseId);
+  toMark.forEach(n => n.read = true);
+  sarvarcNotifPersist();
+  sarvarcNotifRenderBadge();
+  sarvarcNotifRenderList();
+  if (typeof dashRenderFormNotifPanel === 'function') { try { dashRenderFormNotifPanel(); } catch (e) {} }
+  // Don't call mfRenderFormsGrid() here — mfOpenEditor (the only caller)
+  // immediately hides the gallery view and shows the editor, so redrawing
+  // the grid the caller is about to hide would just be wasted work. The
+  // badge disappears correctly the next time mfBackToGallery() runs.
+  sarvarcNotifMarkResponsesReadRemote(responseIds);
+}
+window.sarvarcNotifMarkFormRead = sarvarcNotifMarkFormRead;
+window.sarvarcNotifOpen = sarvarcNotifOpen;
+window.sarvarcNotifToggleDropdown = sarvarcNotifToggleDropdown;
+window.sarvarcNotifMarkAllRead = sarvarcNotifMarkAllRead;
+
+// ─── DASHBOARD PANEL ───
+function dashRenderFormNotifPanel() {
+  const grid = document.getElementById('dashNotifGrid');
+  const headCount = document.getElementById('dashNotifCount');
+  if (!grid) return;
+  const unread = sarvarcNotifUnreadCount();
+  if (headCount) { headCount.textContent = String(unread); headCount.style.display = unread ? '' : 'none'; }
+
+  if (!sarvarcNotifList.length) {
+    grid.innerHTML = `
+      <div class="dash-recent-empty">
+        <strong>No responses yet</strong>
+        Publish a form and every new submission will show up here — and as a notification — the instant it comes in.
+        <div><button type="button" class="btn-pill" onclick="navigate('makeforms')">Open Make Forms →</button></div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = sarvarcNotifList.slice(0, 6).map(n => `
+    <div class="dash-recent-card${n.read ? '' : ' unread'}" onclick="sarvarcNotifOpen('${n.id}')">
+      <div class="dash-recent-card-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+      </div>
+      <div class="dash-recent-card-body">
+        <div class="dash-recent-card-title">${escapeHtml(n.formTitle)}</div>
+        <div class="dash-recent-card-meta">${n.respondentName ? escapeHtml(n.respondentName) + ' \u00b7 ' : 'Response \u00b7 '}${sarvarcNotifTimeAgo(n.submittedAt)}</div>
+      </div>
+      ${n.read ? '' : '<span class="dash-notif-dot"></span>'}
+    </div>
+  `).join('');
+}
+window.dashRenderFormNotifPanel = dashRenderFormNotifPanel;
+
+// ─── POLL: pull every published form's responses and diff against what
+// we've already notified this account about. ───
+async function sarvarcNotifPoll() {
+  if (sarvarcNotifPolling) return; // don't stack up overlapping polls on a slow connection
+  sarvarcNotifPolling = true;
+  try {
+    if (!window.sarvarcSupabase) return;
+    let session = null;
+    try { ({ data: { session } } = await sarvarcSupabase.auth.getSession()); } catch (e) { session = null; }
+    if (!session || !session.user) return;
+
+    if (typeof mfLoad === 'function') { try { mfLoad(); } catch (e) {} }
+    const forms = (typeof mfState !== 'undefined' && mfState && mfState.forms) ? mfState.forms : [];
+    const published = forms.filter(f => f.publishedId);
+    if (!published.length) return;
+
+    if (!sarvarcNotifSeenIds) sarvarcNotifSeenIds = {};
+    // First-ever poll for this signed-in account (nothing baselined yet,
+    // and no notification history) — quietly record every existing remote
+    // response as "already seen" instead of flooding the feed.
+    const isFirstRunForAccount = !sarvarcNotifBaselinedThisSession &&
+      Object.keys(sarvarcNotifSeenIds).length === 0 && sarvarcNotifList.length === 0;
+
+    let anyNew = false;
+    let anySyncChanged = false; // true when another device marked something read/unread since our last poll
+    for (const f of published) {
+      let rows;
+      let hasReadColumn = true;
+      try {
+        const res = await sarvarcSupabase
+          .from('form_responses')
+          .select('id, answers, respondent_name, respondent_email, submitted_at, read_at')
+          .eq('form_id', f.publishedId)
+          .order('submitted_at', { ascending: true })
+          .limit(300);
+        if (res.error) throw res.error;
+        rows = res.data || [];
+      } catch (e) {
+        // read_at doesn't exist on this Supabase project yet (see the
+        // migration note above sarvarcNotifPoll) — retry without it so
+        // notifications keep working exactly as before; cross-device read
+        // syncing just stays off until the column's been added.
+        hasReadColumn = false;
+        try {
+          const res2 = await sarvarcSupabase
+            .from('form_responses')
+            .select('id, answers, respondent_name, respondent_email, submitted_at')
+            .eq('form_id', f.publishedId)
+            .order('submitted_at', { ascending: true })
+            .limit(300);
+          if (res2.error) throw res2.error;
+          rows = res2.data || [];
+        } catch (e2) { continue; } // this form's table read failed outright — skip it, don't break the others
+      }
+
+      // Another device may have marked an already-known response read (or
+      // it's since gone stale) — sync that in, independent of whether this
+      // form has any brand-new rows this cycle.
+      if (hasReadColumn) {
+        rows.forEach(r => {
+          const existing = sarvarcNotifList.find(n => n.responseId === r.id);
+          const remoteRead = !!r.read_at;
+          if (existing && existing.read !== remoteRead) {
+            existing.read = remoteRead;
+            anySyncChanged = true;
+          }
+        });
+      }
+
+      const seenForForm = new Set(sarvarcNotifSeenIds[f.publishedId] || []);
+      const freshRows = rows.filter(r => !seenForForm.has(r.id));
+      if (!freshRows.length) continue;
+
+      if (isFirstRunForAccount) {
+        freshRows.forEach(r => seenForForm.add(r.id));
+        sarvarcNotifSeenIds[f.publishedId] = Array.from(seenForForm);
+        continue;
+      }
+
+      freshRows.forEach(r => {
+        seenForForm.add(r.id);
+        const entry = {
+          id: 'notif_' + r.id,
+          formId: f.id,
+          publishedId: f.publishedId,
+          responseId: r.id,
+          formTitle: f.title || 'Untitled Form',
+          respondentName: r.respondent_name || '',
+          respondentEmail: r.respondent_email || '',
+          submittedAt: r.submitted_at ? new Date(r.submitted_at).getTime() : Date.now(),
+          // If read_at is already set (someone read this on another device
+          // between it arriving and this poll picking it up), respect that
+          // instead of always starting the badge count at unread.
+          read: hasReadColumn ? !!r.read_at : false,
+        };
+        sarvarcNotifList.unshift(entry);
+        if (!entry.read) anyNew = true;
+        if (!entry.read) toast(`Received a response through "${entry.formTitle}"`, 'success');
+      });
+      sarvarcNotifSeenIds[f.publishedId] = Array.from(seenForForm);
+    }
+
+    if (isFirstRunForAccount) sarvarcNotifBaselinedThisSession = true;
+
+    if (sarvarcNotifList.length > 60) sarvarcNotifList.length = 60;
+    sarvarcNotifList.sort((a, b) => b.submittedAt - a.submittedAt);
+    sarvarcNotifPersist();
+    sarvarcNotifRenderBadge(anyNew);
+    const dd = document.getElementById('sarvarcNotifDropdown');
+    if (dd && dd.style.display === 'block') sarvarcNotifRenderList();
+    if ((anyNew || anySyncChanged) && typeof dashRenderFormNotifPanel === 'function') { try { dashRenderFormNotifPanel(); } catch (e) {} }
+    // Keep the Make Forms gallery's per-card badges live too, same as the
+    // dashboard panel above — only matters if that view happens to be the
+    // one currently on screen, but it's cheap enough to just always redraw.
+    // Covers both a genuinely new response AND another device marking one
+    // read/unread — either way this browser's badges need to catch up.
+    if ((anyNew || anySyncChanged) && typeof mfRenderFormsGrid === 'function') { try { mfRenderFormsGrid(); } catch (e) {} }
+
+    // Feed whatever form is currently open in the Make Forms Fill tab too,
+    // so its own response list reflects the same new rows without a
+    // separate network round-trip on top of this one.
+    if (anyNew && typeof mfSyncPublishedResponses === 'function' && typeof mfGetCurrentForm === 'function') {
+      const cur = mfGetCurrentForm();
+      if (cur && cur.publishedId) { try { mfSyncPublishedResponses({ silent: true }); } catch (e) {} }
+    }
+  } catch (e) {
+    console.warn('[Notifications] poll failed', e);
+  } finally {
+    sarvarcNotifPolling = false;
+  }
+}
+
+function sarvarcNotifStart() {
+  sarvarcNotifLoad();
+  sarvarcNotifRenderBadge();
+  if (typeof dashRenderFormNotifPanel === 'function') { try { dashRenderFormNotifPanel(); } catch (e) {} }
+  sarvarcNotifStop();
+  sarvarcNotifPoll();
+  sarvarcNotifTimer = setInterval(sarvarcNotifPoll, SARVARC_NOTIF_POLL_MS);
+}
+function sarvarcNotifStop() {
+  if (sarvarcNotifTimer) { clearInterval(sarvarcNotifTimer); sarvarcNotifTimer = null; }
+}
+window.sarvarcNotifStart = sarvarcNotifStart;
+window.sarvarcNotifStop = sarvarcNotifStop;
+
+// Cold-load safety net: if the auth listener's INITIAL_SESSION event is
+// ever missed (older Supabase client, race on first paint), fall back to
+// checking once directly so the bell doesn't sit dead until the next
+// sign-in/out event.
+(function sarvarcNotifBootFallback() {
+  setTimeout(async () => {
+    if (sarvarcNotifTimer) return; // already started via the auth listener
+    try {
+      if (!window.sarvarcSupabase) return;
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      if (session && session.user) sarvarcNotifStart();
+    } catch (e) {}
+  }, 2500);
+})();
 </script>
 </body>
 </html>
