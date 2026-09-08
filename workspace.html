@@ -2019,6 +2019,14 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .modal p { color: var(--text2); font-size: 13px; margin-bottom: 20px; }
 .modal img { width: 100%; border-radius: 10px; margin-bottom: 16px; }
 .modal-actions { display: flex; gap: 10px; }
+/* Delete-style confirm inside the SARVARC prompt/confirm modal (see
+   sarvarcModalConfirm) — the shared .btn-primary is blue by default, this
+   swaps it to a red action specifically for #sarvarcModalOkBtn so a
+   destructive confirm ("Delete") doesn't look like a routine one. */
+#sarvarcModalOkBtn.danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 4px 20px rgba(239,68,68,0.35);
+}
+#sarvarcModalOkBtn.danger:hover { box-shadow: 0 6px 25px rgba(239,68,68,0.45); }
 
 /* ─── EXPORT PROGRESS OVERLAY, floating 3D sheets ─── */
 .export-overlay {
@@ -4077,6 +4085,40 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 .sarvarc-asset-check input { accent-color: var(--blue); width: 13px; height: 13px; cursor: pointer; margin: 0; }
 
+/* ─── Asset client folders — a horizontal chip row above the grid, "All"
+   plus one chip per folder the person created (Prayag, Ajay, Vijay, etc.),
+   so a freelancer juggling several clients' logos/signatures/images never
+   has to eyeball which asset belongs to which project. Selecting a chip
+   filters the grid below to just that client; right-clicking a folder chip
+   opens rename/delete (reuses the same pdfedOpenCtxMenu system as the
+   right-click menu on canvas objects, for a consistent feel). Assigning an
+   asset TO a folder happens the other way round — right-click the asset
+   tile itself, see sarvarcAssetContextMenu below. */
+.sarvarc-asset-folders {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px;
+}
+.sarvarc-asset-folder-chip {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--text2);
+  background: var(--bg3); border: 1px solid transparent;
+  border-radius: 22px; padding: 8px 16px; cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s, transform .12s;
+  white-space: nowrap;
+}
+.sarvarc-asset-folder-chip:hover { color: var(--text); background: var(--surface2); transform: translateY(-1px); }
+.sarvarc-asset-folder-chip.active { background: rgba(0,194,255,0.14); color: var(--blue); border-color: rgba(0,194,255,0.35); }
+.sarvarc-asset-folder-chip svg { flex-shrink: 0; width: 15px; height: 15px; }
+.sarvarc-asset-folder-add { color: var(--blue); background: transparent; border: 1px dashed var(--border2); }
+.sarvarc-asset-folder-add:hover { background: rgba(0,194,255,0.08); border-color: var(--blue); }
+/* Drop target pulse — briefly rings a folder chip (or the Assets tab, when
+   the panel isn't open on the folders row) once the flying dot from
+   pdfedFlyDotToClientFolder lands on it, confirming "it arrived here". */
+.pdfed-asset-target-pulse { animation: pdfedTargetPulse .55s ease; }
+@keyframes pdfedTargetPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,194,255,0.55); }
+  100% { box-shadow: 0 0 0 14px rgba(0,194,255,0); }
+}
+
 /* ─── Right panel tabbar: icon-only, title reveals on hover ───
    Compact, icon-first tabs (Panel / Assets / My Notes). The active tab keeps
    its label visible as a quiet anchor; every tab expands with a smooth
@@ -4214,6 +4256,36 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 .pdfed-ctx-label {
   font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
   color: var(--text3); padding: 6px 9px 3px;
+}
+
+/* Items with a submenu (e.g. "Send to Client Folder" on a placed image's
+   right-click menu) get a trailing chevron; hovering opens #pdfedCtxSubmenu,
+   a second independently-positioned flyout panel — kept as its own fixed
+   element rather than nested inside .pdfed-ctxmenu so it's never clipped by
+   that menu's own scroll area. See pdfedOpenCtxSubmenu. */
+.pdfed-ctx-item.has-submenu .pdfed-ctx-chevron { margin-left: auto; opacity: 0.55; flex-shrink: 0; }
+#pdfedCtxSubmenu { z-index: 901; }
+
+/* ─── Fly-to-folder dot — the little traveling dot shown when a placed
+   image on the canvas is sent straight into a client folder (right-click →
+   Send to Client Folder → pick a folder). It arcs from the click point to
+   the folder chip (or the Assets tab if the panel isn't open on that row)
+   and gives a small bounce right before landing, so the send feels
+   physical rather than just a silent toast. See pdfedFlyDotToClientFolder. */
+.pdfed-fly-dot {
+  position: fixed; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--blue, #00c2ff);
+  box-shadow: 0 0 10px rgba(0,194,255,.85), 0 0 0 3px rgba(0,194,255,.15);
+  z-index: 99999; pointer-events: none; opacity: 0;
+  transform: translate(-50%, -50%);
+}
+.pdfed-fly-dot.flying { animation: pdfedDotFly .78s cubic-bezier(.32,0,.24,1) forwards; }
+@keyframes pdfedDotFly {
+  0%   { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); }
+  65%  { opacity: 1; transform: translate(-50%, -50%) translate(calc(var(--dx) * 0.92), calc(var(--dy) * 0.92 - 18px)) scale(0.85); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.25); }
+  90%  { opacity: 1; transform: translate(-50%, -50%) translate(calc(var(--dx) * 0.985), calc(var(--dy) * 0.985 - 7px)) scale(0.85); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.55); }
 }
 
 .pdfed-upload-placeholder {
@@ -10934,6 +11006,11 @@ button.dg-show-chip.active { background:var(--blue); }
                   <button type="button" class="sarvarc-assets-tab" id="sarvarcAssetsTab_logo" onclick="sarvarcAssetsShowTab('logo')">Logos</button>
                   <button type="button" class="sarvarc-assets-tab" id="sarvarcAssetsTab_signature" onclick="sarvarcAssetsShowTab('signature')">Signatures</button>
                 </div>
+                <!-- Client folders: "All" plus one chip per folder the person
+                     created (Prayag, Ajay, Vijay...). Right-click an asset
+                     tile to file it into one of these; right-click a folder
+                     chip itself to rename/delete it. -->
+                <div class="sarvarc-asset-folders" id="sarvarcAssetFoldersRow"></div>
                 <div class="sarvarc-assets-grid" id="sarvarcAssetsGrid"></div>
               </div>
 
@@ -12622,6 +12699,25 @@ async function bpInsertTemplateToCanvas(key) {
 
 <!-- PDF EDITOR CANVAS RIGHT-CLICK CONTEXT MENU -->
 <div class="pdfed-ctxmenu" id="pdfedCtxMenu"></div>
+<div class="pdfed-ctxmenu" id="pdfedCtxSubmenu"></div>
+
+<!-- SARVARC's own themed prompt/confirm modal — replaces window.prompt()/
+     window.confirm() for client-folder create, rename, and delete (see
+     sarvarcModalPrompt / sarvarcModalConfirm) so these read as part of the
+     app's own dark UI instead of the browser's native "This page says"
+     dialog. Reuses the same .modal-overlay/.modal/.modal-actions system
+     already used elsewhere in the app (e.g. #mfNewFolderModalOverlay). -->
+<div class="modal-overlay" id="sarvarcModalOverlay" onmousedown="if(event.target===this)sarvarcModalCancel()">
+  <div class="modal" style="max-width:380px">
+    <h2 id="sarvarcModalTitle">Title</h2>
+    <p id="sarvarcModalMessage" style="display:none"></p>
+    <input type="text" class="mf-field-input" id="sarvarcModalInput" style="width:100%; display:none;">
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn-secondary" id="sarvarcModalCancelBtn" onclick="sarvarcModalCancel()">Cancel</button>
+      <button class="btn-primary" id="sarvarcModalOkBtn" onclick="sarvarcModalOk()">OK</button>
+    </div>
+  </div>
+</div>
 
 <!-- PDF EDITOR INSERT PAGE MODAL -->
 <div class="pdfed-insert-modal-overlay" id="pdfedInsertOverlay" onmousedown="if(event.target===this)closeInsertModal()">
@@ -18112,7 +18208,8 @@ async function sarvarcAssetSave(type, dataUrl, name) {
       createdAt: Date.now(),
       checked: false, // currently only meaningful for signatures — behavior TBD
       ownerEmail: ownerEmail || null,
-      driveFileId: null
+      driveFileId: null,
+      folderId: null // unfiled by default — see sarvarcAssetMoveToFolder to assign a client folder
     };
     await new Promise((resolve, reject) => {
       const tx = db.transaction('assets', 'readwrite');
@@ -18221,6 +18318,272 @@ async function sarvarcAssetToggleChecked(id, checked) {
   await sarvarcAssetPut(rec);
 }
 
+// ── SARVARC PROMPT/CONFIRM MODAL ────────────────────────────────────────
+// Themed stand-in for window.prompt()/window.confirm(), used by the client
+// folder flows just below (create, rename, delete) so the person never sees
+// the browser's own unstyled "This page says" dialog. Resolves a Promise —
+// the string typed in (or null if cancelled) for a prompt, true/false for a
+// confirm — so every call site just does `const x = await sarvarcModalPrompt(...)`
+// exactly like it would with window.prompt, no callback plumbing needed.
+let sarvarcModalResolve = null;
+let sarvarcModalIsPrompt = false;
+
+function sarvarcModalOpen(opts) {
+  return new Promise(resolve => {
+    const overlay  = document.getElementById('sarvarcModalOverlay');
+    const titleEl  = document.getElementById('sarvarcModalTitle');
+    const msgEl    = document.getElementById('sarvarcModalMessage');
+    const inputEl  = document.getElementById('sarvarcModalInput');
+    const okBtn    = document.getElementById('sarvarcModalOkBtn');
+    const cancelBtn = document.getElementById('sarvarcModalCancelBtn');
+    if (!overlay || !titleEl || !msgEl || !inputEl || !okBtn || !cancelBtn) { resolve(opts.isPrompt ? null : false); return; }
+
+    sarvarcModalResolve = resolve;
+    sarvarcModalIsPrompt = !!opts.isPrompt;
+
+    titleEl.textContent = opts.title || '';
+    if (opts.message) { msgEl.textContent = opts.message; msgEl.style.display = 'block'; }
+    else { msgEl.style.display = 'none'; }
+    if (opts.isPrompt) {
+      inputEl.style.display = 'block';
+      inputEl.placeholder = opts.placeholder || '';
+      inputEl.value = opts.defaultValue || '';
+    } else {
+      inputEl.style.display = 'none';
+    }
+    okBtn.textContent = opts.okText || 'OK';
+    okBtn.classList.toggle('danger', !!opts.danger);
+    cancelBtn.textContent = opts.cancelText || 'Cancel';
+
+    overlay.classList.add('open');
+    if (opts.isPrompt) setTimeout(() => { inputEl.focus(); inputEl.select(); }, 60);
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') sarvarcModalCancel();
+      else if (e.key === 'Enter' && sarvarcModalIsPrompt) sarvarcModalOk();
+    };
+    overlay._sarvarcKeyHandler = onKey;
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+function sarvarcModalClose() {
+  const overlay = document.getElementById('sarvarcModalOverlay');
+  if (overlay) {
+    overlay.classList.remove('open');
+    if (overlay._sarvarcKeyHandler) { document.removeEventListener('keydown', overlay._sarvarcKeyHandler); overlay._sarvarcKeyHandler = null; }
+  }
+  sarvarcModalResolve = null;
+}
+
+function sarvarcModalOk() {
+  const inputEl = document.getElementById('sarvarcModalInput');
+  const value = sarvarcModalIsPrompt ? (((inputEl && inputEl.value) || '').trim() || null) : true;
+  const resolve = sarvarcModalResolve;
+  sarvarcModalClose();
+  if (resolve) resolve(value);
+}
+
+function sarvarcModalCancel() {
+  const value = sarvarcModalIsPrompt ? null : false;
+  const resolve = sarvarcModalResolve;
+  sarvarcModalClose();
+  if (resolve) resolve(value);
+}
+
+function sarvarcModalPrompt(title, placeholder, defaultValue) {
+  return sarvarcModalOpen({ title, isPrompt: true, placeholder, defaultValue, okText: 'Create', cancelText: 'Cancel' });
+}
+
+function sarvarcModalConfirm(title, message, okText) {
+  return sarvarcModalOpen({ title, message, isPrompt: false, okText: okText || 'Delete', cancelText: 'Cancel', danger: true });
+}
+
+// ── CLIENT FOLDERS ──────────────────────────────────────────────────────
+// Lets a freelancer/agency juggling several clients (Prayag, Ajay, Vijay…)
+// keep each client's logos/signatures/images visually separated inside the
+// one shared Assets library, instead of scrolling past everyone else's
+// files to find the right one. Folders themselves are lightweight metadata
+// (id/name/owner) — small enough that localStorage is the right store for
+// them, same as sarvarcTheme/sarvarcLastSection elsewhere in the app; the
+// actual asset binary data stays in IndexedDB exactly as before. An asset
+// is filed into a folder by adding one field (folderId) to its existing
+// record via sarvarcAssetPut, so this needed no IndexedDB schema change at
+// all — a record with an extra property is still a perfectly valid record.
+const SARVARC_ASSET_FOLDERS_KEY = 'sarvarc_asset_folders_v1';
+
+function sarvarcAssetFolderListRaw() {
+  try { return JSON.parse(localStorage.getItem(SARVARC_ASSET_FOLDERS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function sarvarcAssetFolderSaveRaw(list) {
+  try { localStorage.setItem(SARVARC_ASSET_FOLDERS_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+// Same ownership rule as assets themselves (sarvarcAssetAccessOk): a folder
+// created while signed out has no ownerEmail and is always visible; one
+// created while signed in only shows up again under that same account.
+async function sarvarcAssetFolderList() {
+  const all = sarvarcAssetFolderListRaw();
+  const currentEmail = (typeof smGetCurrentAuthEmail === 'function') ? await smGetCurrentAuthEmail() : null;
+  return all.filter(f => !f.ownerEmail || (currentEmail && currentEmail.toLowerCase() === String(f.ownerEmail).toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function sarvarcAssetFolderCreate(name) {
+  name = (name || '').trim();
+  if (!name) return null;
+  const ownerEmail = (typeof smGetCurrentAuthEmail === 'function') ? await smGetCurrentAuthEmail() : null;
+  const all = sarvarcAssetFolderListRaw();
+  // Reuse an existing folder with the same name (case-insensitive, same
+  // owner scope) instead of creating a confusing duplicate "Prayag" chip.
+  const dup = all.find(f => f.name.toLowerCase() === name.toLowerCase() && (f.ownerEmail || null) === (ownerEmail || null));
+  if (dup) return dup;
+  const folder = { id: sarvarcAssetUid('afolder'), name, createdAt: Date.now(), ownerEmail: ownerEmail || null };
+  all.push(folder);
+  sarvarcAssetFolderSaveRaw(all);
+  return folder;
+}
+
+async function sarvarcAssetFolderRename(id, newName) {
+  newName = (newName || '').trim();
+  if (!newName) return;
+  const all = sarvarcAssetFolderListRaw();
+  const f = all.find(x => x.id === id);
+  if (!f) return;
+  f.name = newName;
+  sarvarcAssetFolderSaveRaw(all);
+  sarvarcAssetsRenderPanel();
+}
+
+// Deleting a folder never deletes the assets inside it — they just fall
+// back to "All"/unfiled, exactly like removing a label rather than
+// shredding the files underneath it.
+async function sarvarcAssetFolderDelete(id) {
+  const all = sarvarcAssetFolderListRaw().filter(f => f.id !== id);
+  sarvarcAssetFolderSaveRaw(all);
+  const items = await sarvarcAssetList();
+  for (const a of items) {
+    if (a.folderId === id) { a.folderId = null; await sarvarcAssetPut(a); }
+  }
+  if (sarvarcAssetsActiveFolder === id) sarvarcAssetsActiveFolder = null;
+  sarvarcAssetsRenderPanel();
+}
+
+async function sarvarcAssetMoveToFolder(id, folderId) {
+  const rec = await sarvarcAssetGet(id);
+  if (!rec) return;
+  rec.folderId = folderId || null;
+  await sarvarcAssetPut(rec);
+  sarvarcAssetsRenderPanel();
+  if (typeof toast === 'function') {
+    if (folderId) {
+      const folders = await sarvarcAssetFolderList();
+      const f = folders.find(x => x.id === folderId);
+      toast(f ? `Moved to "${f.name}"` : 'Moved to folder', 'success');
+    } else {
+      toast('Removed from folder', 'info');
+    }
+  }
+}
+
+// Right-click menu opened FROM an asset tile — lets the person file that
+// one asset into any existing client folder, spin up a brand-new folder on
+// the spot, or clear its folder back to unfiled. Reuses the same
+// pdfedOpenCtxMenu system the canvas's own right-click menus use (see the
+// "PLACED IMAGE" menu), so this reads as one consistent app-wide pattern
+// rather than a bolted-on second context-menu implementation.
+async function sarvarcAssetContextMenu(e, id) {
+  e.preventDefault(); e.stopPropagation();
+  const rec = await sarvarcAssetGet(id);
+  if (!rec) return;
+  const folders = await sarvarcAssetFolderList();
+  const items = [];
+  items.push({ type: 'label', label: 'ADD TO CLIENT FOLDER' });
+  if (!folders.length) {
+    items.push({ id: 'noop', label: 'No client folders yet', disabled: true });
+  } else {
+    folders.forEach(f => {
+      items.push({
+        id: 'folder_' + f.id,
+        label: f.name + (rec.folderId === f.id ? '  ✓' : ''),
+        icon: 'folder',
+        onClick: () => sarvarcAssetMoveToFolder(id, f.id)
+      });
+    });
+  }
+  items.push({ type: 'sep' });
+  items.push({ id: 'newFolder', label: 'New client folder…', icon: 'plus', onClick: () => sarvarcAssetPromptNewFolder(id) });
+  if (rec.folderId) {
+    items.push({ type: 'sep' });
+    items.push({ id: 'removeFolder', label: 'Remove from folder', icon: 'clear', danger: true, onClick: () => sarvarcAssetMoveToFolder(id, null) });
+  }
+  pdfedOpenCtxMenu(e.clientX, e.clientY, items);
+}
+
+// Right-click menu opened FROM a folder chip itself (in the row above the
+// grid) — rename or delete the folder, independent of any one asset.
+function sarvarcAssetFolderChipCtxMenu(e, folderId) {
+  e.preventDefault(); e.stopPropagation();
+  pdfedOpenCtxMenu(e.clientX, e.clientY, [
+    { id: 'rename', label: 'Rename folder', icon: 'draw', onClick: () => sarvarcAssetFolderPromptRename(folderId) },
+    { type: 'sep' },
+    { id: 'delete', label: 'Delete folder', icon: 'trash', danger: true, onClick: () => sarvarcAssetFolderConfirmDelete(folderId) }
+  ]);
+}
+
+function sarvarcAssetPromptNewFolder(assetIdToAssign) {
+  sarvarcModalPrompt('New Client Folder', "Enter client's name", '').then(name => {
+    if (!name) return;
+    sarvarcAssetFolderCreate(name).then(folder => {
+      if (folder && assetIdToAssign) sarvarcAssetMoveToFolder(assetIdToAssign, folder.id);
+      else sarvarcAssetsRenderPanel();
+    });
+  });
+}
+
+async function sarvarcAssetFolderPromptRename(folderId) {
+  const folders = await sarvarcAssetFolderList();
+  const f = folders.find(x => x.id === folderId);
+  const name = await sarvarcModalPrompt('Rename Client Folder', "Enter client's name", f ? f.name : '');
+  if (!name) return;
+  sarvarcAssetFolderRename(folderId, name);
+}
+
+async function sarvarcAssetFolderConfirmDelete(folderId) {
+  const folders = await sarvarcAssetFolderList();
+  const f = folders.find(x => x.id === folderId);
+  const ok = await sarvarcModalConfirm('Delete Client Folder', `Delete "${f ? f.name : 'this folder'}"? Assets inside it are kept — they just move back to "All".`, 'Delete');
+  if (!ok) return;
+  sarvarcAssetFolderDelete(folderId);
+}
+
+// Which folder the grid is currently filtered to — null means "All"
+// (every asset of the active type, regardless of folder).
+let sarvarcAssetsActiveFolder = null;
+
+function sarvarcAssetsSelectFolder(folderId) {
+  sarvarcAssetsActiveFolder = folderId || null;
+  sarvarcAssetsRenderPanel();
+}
+
+// Renders the "All" + per-client chip row above the grid. Rebuilt every
+// time the panel renders so a folder created/renamed/deleted elsewhere is
+// always reflected immediately.
+async function sarvarcAssetFoldersRenderChips() {
+  const row = document.getElementById('sarvarcAssetFoldersRow');
+  if (!row) return;
+  const folders = await sarvarcAssetFolderList();
+  let html = `<div class="sarvarc-asset-folder-chip ${!sarvarcAssetsActiveFolder ? 'active' : ''}" onclick="sarvarcAssetsSelectFolder(null)">All</div>`;
+  folders.forEach(f => {
+    const active = sarvarcAssetsActiveFolder === f.id;
+    const safeName = String(f.name || '').replace(/</g, '&lt;').replace(/'/g, '&#39;');
+    html += `<div class="sarvarc-asset-folder-chip ${active ? 'active' : ''}" data-folder-id="${f.id}" onclick="sarvarcAssetsSelectFolder('${f.id}')" oncontextmenu="sarvarcAssetFolderChipCtxMenu(event,'${f.id}');return false;" title="${safeName} — right-click to rename or delete">${pdfedCtxIcon('folder')}${safeName}</div>`;
+  });
+  html += `<div class="sarvarc-asset-folder-chip sarvarc-asset-folder-add" onclick="sarvarcAssetPromptNewFolder(null)" title="Create a new client folder">${pdfedCtxIcon('plus')}New folder</div>`;
+  row.innerHTML = html;
+}
+
 let sarvarcAssetsActiveTab = 'image';
 
 function sarvarcAssetsShowTab(type) {
@@ -18235,17 +18598,29 @@ function sarvarcAssetsShowTab(type) {
 async function sarvarcAssetsRenderPanel() {
   const grid = document.getElementById('sarvarcAssetsGrid');
   if (!grid) return; // panel not open / not in this view
-  const items = await sarvarcAssetList(sarvarcAssetsActiveTab);
+  sarvarcAssetFoldersRenderChips();
+  let items = await sarvarcAssetList(sarvarcAssetsActiveTab);
+  // Folder filter layers on top of the existing type filter — "All"
+  // (sarvarcAssetsActiveFolder === null) still shows every asset of this
+  // type regardless of which client it's filed under, exactly like before
+  // folders existed at all.
+  if (sarvarcAssetsActiveFolder) items = items.filter(a => a.folderId === sarvarcAssetsActiveFolder);
   if (!items.length) {
     const label = sarvarcAssetsActiveTab === 'image' ? 'images' : sarvarcAssetsActiveTab + 's';
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:18px 8px;color:var(--text3);font-size:11px;line-height:1.6">
-      No ${label} saved yet<br>They'll land here automatically the next time you upload one
-    </div>`;
+    const folders = await sarvarcAssetFolderList();
+    const activeFolderName = sarvarcAssetsActiveFolder ? (folders.find(f => f.id === sarvarcAssetsActiveFolder) || {}).name : null;
+    grid.innerHTML = activeFolderName
+      ? `<div style="grid-column:1/-1;text-align:center;padding:18px 8px;color:var(--text3);font-size:11px;line-height:1.6">
+          No ${label} in "${activeFolderName}" yet<br>Right-click an asset under "All" and choose this folder
+        </div>`
+      : `<div style="grid-column:1/-1;text-align:center;padding:18px 8px;color:var(--text3);font-size:11px;line-height:1.6">
+          No ${label} saved yet<br>They'll land here automatically the next time you upload one
+        </div>`;
     return;
   }
   items.sort((a, b) => b.createdAt - a.createdAt);
   grid.innerHTML = items.map(a => `
-    <div class="sarvarc-asset-tile" title="${(a.name || '').replace(/"/g, '&quot;')}">
+    <div class="sarvarc-asset-tile" title="${(a.name || '').replace(/"/g, '&quot;')}" oncontextmenu="sarvarcAssetContextMenu(event,'${a.id}');return false;">
       ${a.type === 'signature' ? `<label class="sarvarc-asset-check" onclick="event.stopPropagation()" title="Checkbox — behavior coming soon">
         <input type="checkbox" ${a.checked ? 'checked' : ''} onchange="sarvarcAssetToggleChecked('${a.id}', this.checked)">
       </label>` : ''}
@@ -18279,7 +18654,10 @@ async function sarvarcAssetUse(id) {
     }
   }
   if (rec.type === 'signature' && typeof pdfedActivateImgGhost === 'function') {
-    pdfedActivateImgGhost(rec.dataUrl);
+    // Tag the ghost 'signature' (see pdfedActivateImgGhost) so the placed
+    // image on canvas keeps its identity — otherwise re-sending it to a
+    // client folder later would fall back to Images instead of Signatures.
+    pdfedActivateImgGhost(rec.dataUrl, 'signature');
     if (typeof toast === 'function') toast('Position your signature, then click Stamp to place it', 'info');
     return;
   }
@@ -25776,7 +26154,8 @@ const PDFED_CTX_ICONS = {
   fwd:       '<polyline points="18 15 12 9 6 15"/>',
   bwd:       '<polyline points="6 9 12 15 18 9"/>',
   layers:    '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
-  open:      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'
+  open:      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  folder:    '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'
 };
 
 function pdfedCtxIcon(name) {
@@ -25784,30 +26163,52 @@ function pdfedCtxIcon(name) {
   return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
 }
 
+let pdfedCtxSubmenuTimer = null;
+
 function pdfedCloseCtxMenu() {
   const m = document.getElementById('pdfedCtxMenu');
   if (m) { m.classList.remove('open'); m.style.display = 'none'; m.innerHTML = ''; }
+  pdfedCloseCtxSubmenu();
   document.removeEventListener('click', pdfedCloseCtxMenu);
   document.removeEventListener('scroll', pdfedCtxScrollGuard, true);
+}
+
+function pdfedCloseCtxSubmenu() {
+  clearTimeout(pdfedCtxSubmenuTimer);
+  const sm = document.getElementById('pdfedCtxSubmenu');
+  if (sm) { sm.classList.remove('open'); sm.style.display = 'none'; sm.innerHTML = ''; sm.onmouseenter = null; sm.onmouseleave = null; }
+}
+
+// Renders one row of either the main menu or a submenu flyout. Items with a
+// non-empty `children` array (e.g. the placed-image menu's "Send to Client
+// Folder") get a trailing chevron — hovering them opens pdfedOpenCtxSubmenu
+// rather than firing onClick directly.
+function pdfedCtxRenderRow(it) {
+  if (it.type === 'sep') return '<div class="pdfed-ctx-sep"></div>';
+  if (it.type === 'label') return `<div class="pdfed-ctx-label">${it.label}</div>`;
+  const hasChildren = Array.isArray(it.children) && it.children.length > 0;
+  const cls = ['pdfed-ctx-item', it.disabled ? 'disabled' : '', it.danger ? 'danger' : '', hasChildren ? 'has-submenu' : ''].filter(Boolean).join(' ');
+  const chevron = hasChildren ? '<svg class="pdfed-ctx-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>' : '';
+  return `<div class="${cls}" data-act="${it.id || ''}">${pdfedCtxIcon(it.icon)}<span>${it.label}</span>${it.shortcut ? `<span class="pdfed-ctx-shortcut">${it.shortcut}</span>` : ''}${chevron}</div>`;
 }
 
 function pdfedOpenCtxMenu(clientX, clientY, items) {
   const m = document.getElementById('pdfedCtxMenu');
   if (!m) return;
-  m.innerHTML = items.map(it => {
-    if (it.type === 'sep') return '<div class="pdfed-ctx-sep"></div>';
-    if (it.type === 'label') return `<div class="pdfed-ctx-label">${it.label}</div>`;
-    const cls = ['pdfed-ctx-item', it.disabled ? 'disabled' : '', it.danger ? 'danger' : ''].filter(Boolean).join(' ');
-    return `<div class="${cls}" data-act="${it.id}">${pdfedCtxIcon(it.icon)}<span>${it.label}</span>${it.shortcut ? `<span class="pdfed-ctx-shortcut">${it.shortcut}</span>` : ''}</div>`;
-  }).join('');
+  pdfedCloseCtxSubmenu();
+  m.innerHTML = items.map(pdfedCtxRenderRow).join('');
 
-  // wire clicks
-  m.querySelectorAll('.pdfed-ctx-item:not(.disabled)').forEach(el => {
-    el.addEventListener('click', () => {
-      const item = items.find(i => i.id === el.dataset.act);
-      pdfedCloseCtxMenu();
-      if (item && item.onClick) item.onClick();
-    });
+  // wire clicks + hover-to-open-submenu
+  m.querySelectorAll('.pdfed-ctx-item[data-act]:not(.disabled)').forEach(el => {
+    const it = items.find(i => i.id === el.dataset.act);
+    if (!it) return;
+    if (Array.isArray(it.children) && it.children.length) {
+      el.addEventListener('mouseenter', () => pdfedOpenCtxSubmenu(el, it.children));
+      el.addEventListener('mouseleave', () => { pdfedCtxSubmenuTimer = setTimeout(pdfedCloseCtxSubmenu, 220); });
+    }
+    if (it.onClick) {
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); pdfedCloseCtxMenu(); it.onClick(ev); });
+    }
   });
 
   // position, clamped to viewport
@@ -25830,6 +26231,133 @@ function pdfedOpenCtxMenu(clientX, clientY, items) {
     document.addEventListener('scroll', pdfedCtxScrollGuard, true);
   }, 0);
 }
+
+// Opens the hover flyout for a has-submenu item (e.g. the list of client
+// folders under "Send to Client Folder"). Kept as its own fixed panel
+// (#pdfedCtxSubmenu, see markup next to #pdfedCtxMenu) rather than nested
+// inside .pdfed-ctxmenu, since that container's own overflow-y:auto would
+// otherwise clip a flyout extending past its right edge.
+function pdfedOpenCtxSubmenu(parentEl, children) {
+  clearTimeout(pdfedCtxSubmenuTimer);
+  const sm = document.getElementById('pdfedCtxSubmenu');
+  if (!sm) return;
+  sm.innerHTML = children.map(pdfedCtxRenderRow).join('');
+  sm.querySelectorAll('.pdfed-ctx-item[data-act]:not(.disabled)').forEach(el => {
+    const it = children.find(i => i.id === el.dataset.act);
+    if (it && it.onClick) {
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); pdfedCloseCtxMenu(); it.onClick(ev); });
+    }
+  });
+  sm.style.display = 'block';
+  sm.classList.add('open');
+
+  const pRect = parentEl.getBoundingClientRect();
+  const smRect = sm.getBoundingClientRect();
+  let x = pRect.right + 4;
+  if (x + smRect.width > window.innerWidth - 8) x = pRect.left - smRect.width - 4;
+  let y = pRect.top - 6;
+  if (y + smRect.height > window.innerHeight - 8) y = window.innerHeight - smRect.height - 8;
+  if (y < 8) y = 8;
+  sm.style.left = x + 'px';
+  sm.style.top = y + 'px';
+
+  // stay open while the cursor is over the flyout itself, so the person can
+  // move diagonally from the parent row into the folder list without it
+  // vanishing mid-move
+  sm.onmouseenter = () => clearTimeout(pdfedCtxSubmenuTimer);
+  sm.onmouseleave = () => { pdfedCtxSubmenuTimer = setTimeout(pdfedCloseCtxSubmenu, 220); };
+}
+
+// getBoundingClientRect() on a display:none element (which #pdfedTabAssetsBtn
+// and the folder chips both are whenever the right panel is collapsed, or
+// showing a different tab) returns an all-zero rect sitting at the
+// viewport's top-left corner — that's the bug where the fly-dot below
+// looked like it was heading "left" instead of toward the folder: it was
+// honestly flying at its target, the target just wasn't actually visible.
+// This only ever hands back a rect for something with real on-screen size.
+function pdfedElVisibleRect(el) {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return (r.width > 0 && r.height > 0) ? r : null;
+}
+
+// Makes sure the folder the asset just got filed into is actually the thing
+// on screen before the dot flies — expands the right panel if it's
+// collapsed, switches it to the Assets tab, and filters the grid to that
+// folder, so the person watches the dot land on the real chip instead of a
+// stand-in. Waits out the panel's own open/expand transition (0.32s, see
+// .pdfeditor-layout's grid-template-columns transition) before measuring,
+// since animating toward a still-mid-transition rect would be wrong too.
+function pdfedRevealAssetsFolderThenFlyDot(folderId, clientX, clientY, assetType) {
+  const layout = document.querySelector('.pdfeditor-layout');
+  const wasCollapsed = !!(layout && layout.classList.contains('right-collapsed'));
+  const assetsBtn = document.getElementById('pdfedTabAssetsBtn');
+  const wasOnAssetsTab = !!(assetsBtn && assetsBtn.classList.contains('active'));
+
+  if (wasCollapsed && typeof pdfedToggleRightPanel === 'function') pdfedToggleRightPanel();
+  if (typeof pdfedShowRightTab === 'function') pdfedShowRightTab('assets');
+  // Switch the Images/Logos/Signatures type-tab to match what was actually
+  // just filed, BEFORE selecting the folder. Without this, the panel keeps
+  // whatever type tab was already active (defaults to 'image') while the
+  // folder filter is applied on top of it — so sending a signature into a
+  // client folder reveals that folder while still on the Images tab, which
+  // correctly shows zero results (a signature isn't an image) and looks
+  // exactly like the file never made it in, even though it did.
+  if (assetType && typeof sarvarcAssetsShowTab === 'function') sarvarcAssetsShowTab(assetType);
+  if (typeof sarvarcAssetsSelectFolder === 'function') sarvarcAssetsSelectFolder(folderId);
+
+  const run = () => pdfedFlyDotToClientFolder(clientX, clientY, folderId);
+  if (wasCollapsed) {
+    setTimeout(() => requestAnimationFrame(run), 360); // panel expand transition
+  } else if (!wasOnAssetsTab) {
+    requestAnimationFrame(() => requestAnimationFrame(run)); // just a tab swap + re-render, one frame is enough
+  } else {
+    run(); // already sitting on the Assets tab — chip is on screen right now
+  }
+}
+
+// The little traveling dot shown when an asset is sent straight into a
+// client folder from a right-click menu (currently: a placed image's "Send
+// to Client Folder"). Arcs from the click point to the real folder chip —
+// pdfedRevealAssetsFolderThenFlyDot (above) has already made sure that chip
+// is on screen by the time this runs — falling back to the Assets tab
+// button, then the panel's own open/close handle, only if something about
+// that reveal didn't stick; if nothing on the fallback chain is actually
+// visible either, this skips the animation rather than fly to a wrong spot.
+function pdfedFlyDotToClientFolder(startX, startY, folderId) {
+  if (typeof startX !== 'number' || typeof startY !== 'number') return;
+  const candidates = [
+    folderId ? document.querySelector(`.sarvarc-asset-folder-chip[data-folder-id="${folderId}"]`) : null,
+    document.getElementById('pdfedTabAssetsBtn'),
+    document.getElementById('pdfedRightToggleBtn')
+  ];
+  let target = null, tRect = null;
+  for (const c of candidates) {
+    const r = pdfedElVisibleRect(c);
+    if (r) { target = c; tRect = r; break; }
+  }
+  if (!target) return;
+  const endX = tRect.left + tRect.width / 2;
+  const endY = tRect.top + tRect.height / 2;
+
+  const dot = document.createElement('div');
+  dot.className = 'pdfed-fly-dot';
+  dot.style.left = startX + 'px';
+  dot.style.top = startY + 'px';
+  dot.style.setProperty('--dx', (endX - startX) + 'px');
+  dot.style.setProperty('--dy', (endY - startY) + 'px');
+  document.body.appendChild(dot);
+  requestAnimationFrame(() => dot.classList.add('flying'));
+
+  const land = () => {
+    dot.remove();
+    target.classList.add('pdfed-asset-target-pulse');
+    setTimeout(() => target.classList.remove('pdfed-asset-target-pulse'), 550);
+  };
+  dot.addEventListener('animationend', land, { once: true });
+  setTimeout(() => { if (dot.isConnected) land(); }, 900); // safety net if animationend never fires
+}
+
 
 function pdfedCtxScrollGuard(e) {
   const m = document.getElementById('pdfedCtxMenu');
@@ -26110,6 +26638,74 @@ async function pdfedDuplicatePage(idx) {
   });
 }
 
+// Placed Image's right-click menu (see the screenshot-familiar "Lock /
+// Duplicate / Forward / Backward / Bring to Front / Send to Back / Delete
+// Image" list) also gets a "Send to Client Folder" row here. Hovering it
+// opens a flyout of the person's existing client folders (same list as the
+// Assets panel's own folder chips — see CLIENT FOLDERS, above) so one image
+// on the canvas can be filed straight into a client's folder without ever
+// opening the Assets panel first. Building the folder list is async, so the
+// menu opens once that's ready rather than blocking preventDefault above.
+async function pdfedOpenPlacedImageCtxMenu(clientX, clientY, idx, id, item) {
+  const folders = await sarvarcAssetFolderList();
+  const folderItems = folders.length
+    ? folders.map(f => ({
+        id: 'sendfolder_' + f.id, icon: 'folder', label: f.name,
+        onClick: () => pdfedSendPlacedImageToFolder(item, f.id, clientX, clientY)
+      }))
+    : [{ id: 'noFolders', label: 'No client folders yet', disabled: true }];
+  folderItems.push({ type: 'sep' });
+  folderItems.push({
+    id: 'sendNewFolder', icon: 'plus', label: 'New client folder…',
+    onClick: () => pdfedSendPlacedImageToNewFolder(item, clientX, clientY)
+  });
+
+  pdfedOpenCtxMenu(clientX, clientY, [
+    { type: 'label', label: 'Placed Image' },
+    { id: 'lock',   icon: item.locked ? 'unlock' : 'lock', label: item.locked ? 'Unlock' : 'Lock', onClick: () => pdfedTogglePlacedLock(idx, id) },
+    { id: 'dup',    icon: 'duplicate', label: 'Duplicate', onClick: () => pdfedDuplicatePlacedImage(idx, id) },
+    { id: 'assets', icon: 'folder', label: 'Send to Client Folder', children: folderItems },
+    { type: 'sep' },
+    { id: 'fwd',    icon: 'fwd',   label: 'Forward', onClick: () => pdfedReorderPlacedStep('image', idx, id, 1) },
+    { id: 'bwd',    icon: 'bwd',   label: 'Backward', onClick: () => pdfedReorderPlacedStep('image', idx, id, -1) },
+    { id: 'front',  icon: 'front', label: 'Bring to Front', onClick: () => pdfedReorderPlaced('image', idx, id, true) },
+    { id: 'back',   icon: 'back',  label: 'Send to Back', onClick: () => pdfedReorderPlaced('image', idx, id, false) },
+    { type: 'sep' },
+    { id: 'del', icon: 'trash', label: 'Delete Image', danger: true, disabled: item.locked, onClick: () => pdfedDeletePlacedImage(idx, id) }
+  ]);
+}
+
+// Saves the placed image into the Assets library (exactly like any other
+// upload — see sarvarcAssetSave) filed directly into the chosen client
+// folder, then plays the fly-dot so the click has visible, immediate
+// feedback that it landed somewhere. The image stays on the canvas — this
+// only ever adds a copy to the library, never removes it from the page.
+//
+// Respects the placed item's own `kind` (stamped on at insert time — see
+// pdfedActivateImgGhost/pdfedBakeImage) so a logo placed via Refine Report
+// files straight into the Logos tab, a signature into the Signatures tab,
+// and everything else (plain photos, maps, charts, etc.) into Images —
+// instead of every right-click "Send to Client Folder" landing in Images
+// regardless of what was actually placed.
+async function pdfedSendPlacedImageToFolder(item, folderId, clientX, clientY) {
+  if (!item || !item.dataUrl) { if (typeof toast === 'function') toast('Nothing to send', 'error'); return; }
+  const assetType = (item.kind === 'logo' || item.kind === 'signature') ? item.kind : 'image';
+  const label = assetType.charAt(0).toUpperCase() + assetType.slice(1);
+  const rec = await sarvarcAssetSave(assetType, item.dataUrl, 'Placed ' + label.toLowerCase() + ' — ' + new Date().toLocaleDateString());
+  if (!rec) { if (typeof toast === 'function') toast('Could not save to Assets', 'error'); return; }
+  await sarvarcAssetMoveToFolder(rec.id, folderId);
+  pdfedRevealAssetsFolderThenFlyDot(folderId, clientX, clientY, assetType);
+}
+
+function pdfedSendPlacedImageToNewFolder(item, clientX, clientY) {
+  sarvarcModalPrompt('New Client Folder', "Enter client's name", '').then(name => {
+    if (!name) return;
+    sarvarcAssetFolderCreate(name).then(folder => {
+      if (folder) pdfedSendPlacedImageToFolder(item, folder.id, clientX, clientY);
+    });
+  });
+}
+
 function pdfedHandleCanvasContextMenu(e) {
   if (pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
     // no PDF open, offer the one relevant action
@@ -26171,18 +26767,7 @@ function pdfedHandleCanvasContextMenu(e) {
     const id = imgEl.dataset.id;
     const item = (pdfed.pages[idx].placedImages || []).find(i => i.id === id);
     if (!item) return;
-    pdfedOpenCtxMenu(e.clientX, e.clientY, [
-      { type: 'label', label: 'Placed Image' },
-      { id: 'lock',   icon: item.locked ? 'unlock' : 'lock', label: item.locked ? 'Unlock' : 'Lock', onClick: () => pdfedTogglePlacedLock(idx, id) },
-      { id: 'dup',    icon: 'duplicate', label: 'Duplicate', onClick: () => pdfedDuplicatePlacedImage(idx, id) },
-      { type: 'sep' },
-      { id: 'fwd',    icon: 'fwd',   label: 'Forward', onClick: () => pdfedReorderPlacedStep('image', idx, id, 1) },
-      { id: 'bwd',    icon: 'bwd',   label: 'Backward', onClick: () => pdfedReorderPlacedStep('image', idx, id, -1) },
-      { id: 'front',  icon: 'front', label: 'Bring to Front', onClick: () => pdfedReorderPlaced('image', idx, id, true) },
-      { id: 'back',   icon: 'back',  label: 'Send to Back', onClick: () => pdfedReorderPlaced('image', idx, id, false) },
-      { type: 'sep' },
-      { id: 'del', icon: 'trash', label: 'Delete Image', danger: true, disabled: item.locked, onClick: () => pdfedDeletePlacedImage(idx, id) }
-    ]);
+    pdfedOpenPlacedImageCtxMenu(e.clientX, e.clientY, idx, id, item);
     return;
   }
 
@@ -35792,7 +36377,12 @@ function pdfedSigConfirm() {
   }
 
   pdfedCloseSignatureModal();
-  pdfedActivateImgGhost(dataUrl);
+  // 'signature' rides along on the ghost so pdfedBakeImage stamps it onto
+  // the placedImage record (see pdfedActivateImgGhost) — without this the
+  // placed image on canvas is indistinguishable from a plain photo, so a
+  // later right-click "Send to Client Folder" would file it under Images
+  // instead of Signatures.
+  pdfedActivateImgGhost(dataUrl, 'signature');
   // Auto-store in the Assets library (right panel), however it was made —
   // drawn, typed, or uploaded — so it's ready to reuse next time.
   if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('signature', dataUrl);
