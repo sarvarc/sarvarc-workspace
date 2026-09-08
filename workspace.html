@@ -44590,10 +44590,14 @@ function pdfedRefineMeasureCtx() {
 // Re-styles one table to the chosen theme (numeric alignment + total-row
 // bolding recomputed straight from its own content via daBuildCellStyles,
 // then the header row is forced onto the shared theme fill so every table
-// in the report announces itself the same way), and — if requested — picks
-// the largest font size, within a comfortable 8–13px reading range, that
-// still lets every cell's text sit on one line inside its own column.
-function pdfedRefineOneTable(item, theme, autoFit) {
+// in the report announces itself the same way). Font SIZE is deliberately
+// no longer decided in here — see pdfedComputeTableFitSize / the Pass 1
+// caller below, which now picks one shared size across every table in the
+// document rather than letting each table pick its own independently
+// (that per-table freedom is exactly what caused two tables in the same
+// report to land at visibly different sizes even though both had "auto-fit"
+// on).
+function pdfedRefineOneTable(item, theme) {
   if (!item.cells || !item.cells.length) return;
   const styles = daBuildCellStyles(item.cells);
   if (styles.length) {
@@ -44609,24 +44613,30 @@ function pdfedRefineOneTable(item, theme, autoFit) {
   // report reads as "icon + heading" rather than a row of tiny repeated
   // icons packed inside the table itself.
   item.headerIcons = null;
+}
 
-  if (autoFit) {
-    const ctx = pdfedRefineMeasureCtx();
-    const fits = (size) => {
-      ctx.font = `${size}px ${pdfedFontCss(theme.font)}`;
-      for (let r = 0; r < item.rows; r++) {
-        for (let c = 0; c < item.cols; c++) {
-          const text = String((item.cells[r] && item.cells[r][c]) || '');
-          if (!text) continue;
-          if (ctx.measureText(text).width + 14 > (item.colWidths[c] || 60)) return false;
-        }
+// Returns the largest font size, within a comfortable 8–13px reading range,
+// that still lets every cell in this ONE table sit on one line inside its
+// own column. Pure — doesn't mutate the table. Called once per table so the
+// caller can take the smallest result across every table in scope and apply
+// that single shared size everywhere (see Pass 1 below), instead of each
+// table independently maxing out its own size.
+function pdfedComputeTableFitSize(item, theme) {
+  const ctx = pdfedRefineMeasureCtx();
+  const fits = (size) => {
+    ctx.font = `${size}px ${pdfedFontCss(theme.font)}`;
+    for (let r = 0; r < item.rows; r++) {
+      for (let c = 0; c < item.cols; c++) {
+        const text = String((item.cells[r] && item.cells[r][c]) || '');
+        if (!text) continue;
+        if (ctx.measureText(text).width + 14 > (item.colWidths[c] || 60)) return false;
       }
-      return true;
-    };
-    let fs = 13;
-    while (fs > 8 && !fits(fs)) fs -= 0.5;
-    item.fontSize = fs;
-  }
+    }
+    return true;
+  };
+  let fs = 13;
+  while (fs > 8 && !fits(fs)) fs -= 0.5;
+  return fs;
 }
 
 // Plants a small filled badge icon immediately to the left of each section's
@@ -46547,10 +46557,33 @@ async function pdfedApplyReportRefinement(opts) {
 
   // Pass 1: table styling/autofit first — headings size themselves off each
   // table's real, final font, not a guess.
+  //
+  // Font size is resolved in two steps so every table in the document lands
+  // on the SAME size (matching how Pass 3.6 now locks body paragraphs to one
+  // shared size too) instead of each table independently auto-fitting to
+  // its own content and drifting apart from its neighbors:
+  //   1. Style every table (colors/fonts/header treatment — independent of
+  //      size) and, if auto-fit is on, work out the best-fit size for each
+  //      table on its own, without applying it yet.
+  //   2. Take the SMALLEST of those per-table sizes — the most cramped
+  //      table in the report — and apply that one size to every table.
+  //      Using the smallest guarantees every table's content still fits on
+  //      one line per cell (a size that fit the tightest table always fits
+  //      a roomier one too), so consistency never comes at the cost of
+  //      overflow.
+  const _refineTablesInScope = [];
   pages.forEach(pg => {
     if (!inScope(pg)) return;
-    (pg.placedTables || []).forEach(tbl => { pdfedRefineOneTable(tbl, theme, opts.autoFit); tablesFormatted++; });
+    (pg.placedTables || []).forEach(tbl => {
+      pdfedRefineOneTable(tbl, theme);
+      tablesFormatted++;
+      _refineTablesInScope.push(tbl);
+    });
   });
+  if (opts.autoFit && _refineTablesInScope.length) {
+    let sharedTableSize = Math.min(..._refineTablesInScope.map(tbl => pdfedComputeTableFitSize(tbl, theme)));
+    _refineTablesInScope.forEach(tbl => { tbl.fontSize = sharedTableSize; });
+  }
 
   // Pass 2: settle every table's (and other placed item's) final width up
   // front — before headings copy that width, and before the flow measures
@@ -46689,12 +46722,34 @@ async function pdfedApplyReportRefinement(opts) {
   // Runs before Pass 4's flow/stacking so a font swap that changes line count
   // (a different face measures slightly wider/narrower per word) is already
   // reflected in the box's height before anything gets restacked around it.
+  //
+  // Body paragraphs also get their SIZE normalized here (headings are left
+  // completely alone — Pass 3 above already owns heading size). Previously
+  // only fontFamily was touched, so a document with paragraphs typed at
+  // different original sizes (10px here, 14px pasted in there) kept looking
+  // inconsistent even after a refine pass. The fix: read whichever body
+  // paragraph comes first in document order, clamp its size into the normal
+  // reading range (10–12px), and apply that single size to every other body
+  // paragraph in scope — so the whole document's prose reads as one
+  // consistent size instead of whatever each box happened to start at.
   if (opts.syncHeadings) {
+    const PDFED_BODY_SIZE_MIN = 10, PDFED_BODY_SIZE_MAX = 12;
+    let targetBodySize = null;
+    pages.forEach(pg => {
+      if (!inScope(pg) || targetBodySize != null) return;
+      (pg.placedTexts || []).forEach(t => {
+        if (targetBodySize != null || pdfedTextLooksLikeHeading(t)) return;
+        const firstSize = t.fontSize || 11;
+        targetBodySize = Math.min(PDFED_BODY_SIZE_MAX, Math.max(PDFED_BODY_SIZE_MIN, firstSize));
+      });
+    });
+    if (targetBodySize == null) targetBodySize = 11; // no body paragraph found anywhere in scope
     pages.forEach(pg => {
       if (!inScope(pg)) return;
       (pg.placedTexts || []).forEach(t => {
         if (pdfedTextLooksLikeHeading(t)) return;
         t.fontFamily = theme.bodyFont || theme.font;
+        t.fontSize = targetBodySize;
         bodyFontsSynced++;
       });
     });
