@@ -69517,14 +69517,100 @@ VOICE RULES:
   // -----------------------------------------------------------------
   // getLayaContext(): pulls whatever the app currently knows about the
   // active document/panel so Laya can reason about vague feedback like
-  // "this looks awkward" instead of guessing blind. Wire this to your
-  // real app state (selected shape, active dg/da/rdx module, etc).
-  // Currently a stub returning null -- safe to call, does nothing yet.
+  // "this looks awkward" instead of guessing blind.
+  //
+  // Wired so far: Data Arrangement, PDF Editor, Make Forms, Diagrams & Charts.
+  // Redaction isn't wired yet -- that returns null still.
+  //
+  // NOTE ON PRIVACY:
+  // - Data Arrangement: sends a SAMPLE of real cell values (see note below).
+  // - PDF Editor: sends only lightweight page METADATA (page count, current
+  //   page type, whether it's been edited, current tool/zoom). It never
+  //   sends the actual page image/dataUrl -- that would mean uploading the
+  //   user's actual document content, which goes against the "pipeline not
+  //   file collection" stance. This keeps Laya aware of *state*, not *content*.
+  // - Make Forms: sends the form's structure (title, description, field
+  //   labels/types/required flags) -- not any submitted response data.
   // -----------------------------------------------------------------
   function getLayaContext(){
     try{
-      // Example of what to fill in later:
-      // return { activePanel: currentSection, selection: getSelectedShapeData() };
+      const sec = (typeof unifiedActiveSection === 'function') ? unifiedActiveSection() : '';
+
+      if (sec === 'dataarrange' && typeof daState !== 'undefined' && daState.datasets && daState.datasets.length){
+        const ds = (daState.activeId && daState.datasets.find(function(d){ return d.id === daState.activeId; }))
+                   || daState.datasets[0];
+        if(ds){
+          const sampleRows = (ds.rows || []).slice(0, 15);
+          let emptyCells = 0;
+          sampleRows.forEach(function(row){
+            row.forEach(function(cell){
+              if(cell === '' || cell === null || cell === undefined) emptyCells++;
+            });
+          });
+          return {
+            activePanel: 'Data Arrangement',
+            datasetName: ds.name,
+            headers: ds.headers || [],
+            totalRowCount: (ds.rows || []).length,
+            sampleRows: sampleRows,
+            emptyCellsInSample: emptyCells
+          };
+        }
+      }
+
+      if (sec === 'pdfeditor' && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length){
+        const page = pdfed.pages[pdfed.active] || pdfed.pages[0];
+        return {
+          activePanel: 'PDF Editor',
+          totalPages: pdfed.pages.length,
+          activePageNumber: pdfed.active + 1,
+          activePageType: page ? page.type : null,
+          activePageModified: page ? !!page.modified : null,
+          activePageLabel: page ? (page.label || null) : null,
+          currentTool: (typeof pdfedAnnotState !== 'undefined') ? pdfedAnnotState.tool : null,
+          zoom: pdfed.zoom,
+          cropActive: pdfed.cropActive,
+          refineReportUsedOnThisDoc: pdfed.refineReportUsed
+          // Deliberately NOT included: page.dataUrl (the actual rendered image/content)
+        };
+      }
+
+      if (sec === 'makeforms' && typeof mfState !== 'undefined' && mfState.forms && mfState.forms.length){
+        const form = mfState.forms.find(function(f){ return f.id === mfState.currentId; }) || mfState.forms[0];
+        if(form){
+          return {
+            activePanel: 'Make Forms',
+            formTitle: form.title,
+            formDescription: form.desc || '',
+            fieldCount: (form.fields || []).length,
+            fields: (form.fields || []).map(function(f){
+              return { type: f.type, label: f.label, required: !!f.required };
+            })
+          };
+        }
+      }
+
+      if (sec === 'diagrams' && typeof dgState !== 'undefined'){
+        if (dgState.type === 'grouped'){
+          return {
+            activePanel: 'Diagrams & Charts',
+            chartType: 'grouped bar',
+            categories: (dgState.groupedCategories || []).slice(0, 30),
+            series: (dgState.groupedSeries || []).slice(0, 10).map(function(s){
+              return { name: s.name, values: (s.values || []).slice(0, 30) };
+            })
+          };
+        }
+        return {
+          activePanel: 'Diagrams & Charts',
+          chartType: dgState.type,
+          rows: (dgState.rows || []).slice(0, 30).map(function(r){
+            return { label: r.label, value: r.value };
+          }),
+          rowCount: (dgState.rows || []).length
+        };
+      }
+
       return null;
     } catch(e){ return null; }
   }
