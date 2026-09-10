@@ -69477,7 +69477,15 @@ VOICE RULES:
 - Warm work companion, not a therapist -- if the user vents, acknowledge briefly and steer back to the task.
 - Keep replies to 2-4 sentences unless asked for detail.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Charts, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it.`;
+DESIGN JUDGMENT (PDF Editor / document hierarchy and spacing): Your opinions on what "looks good" in a document are NOT generic AI taste -- they come from SARVARC's own Refine Report engine, so what you say matches what the app can actually do. Ground every layout/hierarchy comment in these real rules:
+- Four themes exist, each a paired heading+body font system: General (Inter/Inter), Financial (Georgia headings/Times New Roman body), Corporate (Arial headings/Calibri body), Modern (Poppins headings/Inter body, the only theme with section-title icons). Recommend a theme based on the document's apparent purpose (Financial for numbers-heavy reports, Corporate for formal business docs, Modern for anything wanting a friendlier visual pop, General as the safe default).
+- Consistency beats per-element optimizing: every table in a document should share ONE font size -- specifically the size that fits the most cramped table, applied everywhere -- rather than each table auto-fitting independently and drifting apart in scale. If a user's tables look mismatched in size, that's the tell.
+- Headings should be synced to one consistent style across the document, not sized ad hoc per page.
+- Section icons (Modern theme only) are chosen automatically from the section title's own wording (e.g. "Compliance" gets a shield, "Cash Flow" gets a chart icon) -- mention this as a Modern-theme perk when relevant, not something to hand-place.
+- A logo, watermark, and header/footer text are optional finishing touches, not things a document strictly needs.
+When a user describes a doc looking "off," "messy," or "inconsistent," diagnose it in these terms (mismatched table sizes, ad hoc headings, wrong theme for the content) and point them at Refine Report as the actual fix rather than trying to eyeball pixel adjustments yourself -- you can open that modal for them via your tools when they want to act on it, but the actual refinement runs through the app's own engine, not through you improvising layout changes. When the provided context includes a layoutIssues list, that's real, computed geometry (actual overlaps, off-page content, a logo outside the header band, misaligned left edges) -- cite it specifically ("your logo's sitting well below the header band") instead of speaking generically about spacing. An empty or absent layoutIssues list on a page with content means the geometry checked out fine; don't invent problems that aren't there.
+
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Charts, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and opening Refine Report for the user to review and apply. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -69497,9 +69505,21 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //   mf_update_description {description}    mf_toggle_required {fieldId, required}
   //   mf_remove_field {fieldId}
   //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
-  //   pdfed_remove_page {idx}
+  //   pdfed_remove_page {idx}                pdfed_open_refine_report {}
+  //   pdfed_rotate_page {direction: 'left'|'right'}   pdfed_duplicate_page {}
+  //   pdfed_revert_page {}                   pdfed_zoom {direction: 'in'|'out'}
+  //   pdfed_zoom_fit {}
+  //   pdfed_set_tool {tool: 'draw'|'eraser'|'addtext'|'link'}  -- NOT 'redact', ever
+  //   pdfed_select_shape {shape: 'arrow'|'rect'|'circle'|'line'|'dblarrow'|'roundrect'|'triangle'|'diamond'|'pentagon'|'star'|'hexagon'}
+  //   pdfed_insert_stock_photo {query: string} -- real Pexels search, not AI image generation
+  //   pipeline_da_to_diagram {}              pipeline_da_to_pdf {mode: 'live'|'new'}
+  //   pipeline_diagram_to_pdf {mode: 'live'|'new'}  pipeline_form_to_pdf {}
   // Only offer tools relevant to context.activePanel on each call -- e.g.
-  // don't hand Laya the da_* tools while the user's in Make Forms.
+  // don't hand Laya the da_* tools while the user's in Make Forms. Pipeline
+  // tools are the one exception: offer the relevant pipeline_* tool(s) for
+  // whichever module is active (e.g. pipeline_da_to_diagram + pipeline_da_to_pdf
+  // when in Data Arrangement) since those are meant to move data OUT of the
+  // current module, not act within it.
 
   let history = [];
 
@@ -69687,6 +69707,61 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
 
       if (sec === 'pdfeditor' && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length){
         const page = pdfed.pages[pdfed.active] || pdfed.pages[0];
+        const tableFontSizes = page && page.placedTables ? page.placedTables.map(function(t){ return t.fontSize; }).filter(function(v){ return v != null; }) : [];
+
+        // ── Layout geometry check ──────────────────────────────────────
+        // Real x/y/w/h numbers, not a guess. Page size falls back to A4 at
+        // the same 3.7795 px/mm the rest of the editor uses when a page
+        // hasn't set its own pageMM. Every placed table/text/image becomes
+        // one bounding box; from those we compute concrete, checkable
+        // issues (off-page content, overlapping items, a logo sitting
+        // somewhere other than the header band) instead of asking Laya to
+        // eyeball pixel positions from a description.
+        let layoutIssues = [];
+        let items = [];
+        if (page){
+          const PXMM = 3.7795;
+          const pgMM = page.pageMM || [210, 297];
+          const pageW = pgMM[0] * PXMM, pageH = pgMM[1] * PXMM;
+
+          (page.placedTables || []).forEach(function(t){
+            const w = (t.colWidths || []).reduce(function(a,b){ return a+b; }, 0);
+            const h = (t.rowHeights || []).reduce(function(a,b){ return a+b; }, 0);
+            items.push({ id: t.id, type: 'table', x: t.x, y: t.y, w: w, h: h });
+          });
+          (page.placedTexts || []).forEach(function(t){
+            items.push({ id: t.id, type: t._reportHeaderText ? 'header text' : 'text', x: t.x, y: t.y, w: t.w || 0, h: 0 });
+          });
+          (page.placedImages || []).forEach(function(im){
+            items.push({ id: im.id, type: im.kind === 'logo' ? 'logo' : 'image', x: im.x, y: im.y, w: im.w, h: im.h });
+          });
+
+          items.forEach(function(it){
+            if (it.x < 0 || it.y < 0 || it.x + it.w > pageW || it.y + (it.h || 0) > pageH){
+              layoutIssues.push(it.type + ' (' + it.id + ') extends past the page edge');
+            }
+          });
+
+          for (let i = 0; i < items.length; i++){
+            for (let j = i + 1; j < items.length; j++){
+              const a = items[i], b = items[j];
+              const overlap = a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + (b.h || 20) && a.y + (a.h || 20) > b.y;
+              if (overlap) layoutIssues.push(a.type + ' (' + a.id + ') overlaps ' + b.type + ' (' + b.id + ')');
+            }
+          }
+
+          const logo = items.find(function(it){ return it.type === 'logo'; });
+          if (logo && logo.y > pageH * 0.25){
+            layoutIssues.push('logo sits at y=' + Math.round(logo.y) + ', well below the header band (top ~25% of the page) -- likely misplaced');
+          }
+
+          const bodyXs = items.filter(function(it){ return it.type === 'table' || it.type === 'text'; }).map(function(it){ return it.x; });
+          if (bodyXs.length > 1){
+            const spread = Math.max.apply(null, bodyXs) - Math.min.apply(null, bodyXs);
+            if (spread > 40) layoutIssues.push('content left-edges vary by ~' + Math.round(spread) + 'px -- items don\'t share a common left margin');
+          }
+        }
+
         return {
           activePanel: 'PDF Editor',
           totalPages: pdfed.pages.length,
@@ -69697,8 +69772,14 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
           currentTool: (typeof pdfedAnnotState !== 'undefined') ? pdfedAnnotState.tool : null,
           zoom: pdfed.zoom,
           cropActive: pdfed.cropActive,
-          refineReportUsedOnThisDoc: pdfed.refineReportUsed
+          refineReportUsedOnThisDoc: pdfed.refineReportUsed,
+          tableCount: page && page.placedTables ? page.placedTables.length : 0,
+          textBlockCount: page && page.placedTexts ? page.placedTexts.length : 0,
+          imageCount: page && page.placedImages ? page.placedImages.length : 0,
+          tableFontSizesVary: tableFontSizes.length > 1 && new Set(tableFontSizes).size > 1,
+          layoutIssues: layoutIssues.slice(0, 10)
           // Deliberately NOT included: page.dataUrl (the actual rendered image/content)
+          // or raw item geometry beyond what layoutIssues already summarizes.
         };
       }
 
@@ -69773,7 +69854,80 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
 
     pdfed_toggle_crop: { risk: 'safe',    run: function(){ pdfedToggleCrop(); }, label: function(){ return 'Toggle crop mode on the current page.'; } },
     pdfed_insert_table:{ risk: 'safe',    run: function(p){ pdfedInsertTable(p.rows || 3, p.cols || 3, {}); }, label: function(p){ return 'Insert a ' + (p.rows||3) + 'x' + (p.cols||3) + ' table into the page.'; } },
-    pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } }
+    pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } },
+    // Opens the real Refine Report modal rather than Laya attempting to
+    // restructure the document herself -- she can diagnose and suggest,
+    // but the actual font/spacing/heading pass always runs through the
+    // app's own engine, with the person reviewing options before applying.
+    pdfed_open_refine_report: { risk: 'safe', run: function(){ pdfedOpenRefineReportModal(); }, label: function(){ return 'Open Refine Report so you can review and apply it.'; } },
+
+    // ── DAILY-USE RIBBON ACTIONS ─────────────────────────────────────────
+    pdfed_rotate_page:  { risk: 'safe',    run: function(p){ pdfedRotatePage(p.direction === 'left' ? -90 : 90); }, label: function(p){ return 'Rotate the current page ' + (p.direction === 'left' ? 'left' : 'right') + ' 90°.'; } },
+    pdfed_duplicate_page:{ risk: 'safe',   run: function(){ pdfedDuplicatePage(pdfed.active); }, label: function(){ return 'Duplicate the current page.'; } },
+    // Discards every edit made to this page since it was loaded -- genuinely
+    // destructive (not just "undo one step"), so this gets a confirm even
+    // though the app's own undo history could theoretically claw it back.
+    pdfed_revert_page:  { risk: 'confirm', run: function(){ pdfedRevertPage(); }, label: function(){ return 'Revert this page, discarding all edits made to it. This can be undone with Ctrl+Z right after, but not once you\'ve made further changes.'; } },
+    pdfed_zoom:          { risk: 'safe',    run: function(p){ pdfedZoom(p.direction === 'out' ? -0.1 : 0.1); }, label: function(p){ return 'Zoom ' + (p.direction === 'out' ? 'out' : 'in') + '.'; } },
+    pdfed_zoom_fit:      { risk: 'safe',    run: function(){ pdfedZoomFit(); }, label: function(){ return 'Fit the page to the window.'; } },
+    // Deliberately excludes 'redact' from the allowed tool list -- Laya has
+    // no reach into Redaction, even indirectly through the shared tool
+    // switcher. Only these four are ever passed through.
+    pdfed_set_tool:      { risk: 'safe',    run: function(p){ var allowed = ['draw','eraser','addtext','link']; if (allowed.indexOf(p.tool) === -1) throw new Error('tool not permitted'); pdfedSetAnnotTool(p.tool); }, label: function(p){ return 'Switch to the ' + p.tool + ' tool.'; } },
+    // Selects AND activates a shape tool in one step (mirrors what clicking
+    // a shape in the ribbon's dropdown, then the main shape button, does).
+    pdfed_select_shape:  { risk: 'safe',    run: function(p){ pdfedShapesSelect(p.shape); pdfedSetAnnotTool(p.shape); }, label: function(p){ return 'Switch to the ' + p.shape + ' shape tool.'; } },
+
+    // Real photo SEARCH, not image generation -- SARVARC's stock photo tool
+    // is backed by Pexels, so this finds an actual existing photo matching
+    // the query, it doesn't create a new one from scratch. Bypasses the
+    // search modal's UI entirely (fetches directly, same endpoint) and
+    // reuses pdfedActivateImgGhost's own smart default centering + cascade
+    // logic, then immediately bakes it in -- no drag needed, since that
+    // default position was already good enough for a person to just click
+    // "place" on. If the query returns nothing, throws so the person gets
+    // a clear "no results" message instead of a silent no-op.
+    pdfed_insert_stock_photo: {
+      risk: 'safe',
+      run: async function(p){
+        if (pdfed.active < 0) throw new Error('open a page first');
+        const q = String(p.query || '').trim();
+        if (!q) throw new Error('no search term given');
+        const url = PDFED_STOCK_PROXY_ENDPOINT + '?query=' + encodeURIComponent(q) + '&page=1&per_page=1';
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('stock photo search failed');
+        const data = await res.json();
+        const photo = Array.isArray(data.photos) && data.photos[0];
+        if (!photo) throw new Error('no photos found for "' + q + '"');
+        const large = (photo.src && (photo.src.large2x || photo.src.large || photo.src.original));
+        const imgRes = await fetch(large);
+        if (!imgRes.ok) throw new Error('could not load the photo');
+        const blob = await imgRes.blob();
+        const dataUrl = await new Promise(function(resolve, reject){
+          const reader = new FileReader();
+          reader.onload = function(){ resolve(reader.result); };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        pdfedActivateImgGhost(dataUrl);
+        await pdfedBakeImage();
+      },
+      label: function(p){ return 'Search stock photos for "' + p.query + '" and place the best match.'; }
+    },
+
+    // ── PIPELINE ACTIONS ───────────────────────────────────────────────
+    // These move data BETWEEN modules -- the actual form-to-DA-to-diagram-to-PDF
+    // flow that's SARVARC's core differentiator. Each one calls the exact same
+    // function the person's own push button calls, so it inherits that
+    // function's existing conflict handling (e.g. daPushToDiagrams opens the
+    // app's own overlay if a chart already exists -- Laya doesn't bypass that,
+    // the person still resolves it same as always) and undo/redo behavior.
+    // All marked 'safe' since they're additive (create/replace content the
+    // person can already undo), never destructive on their own.
+    pipeline_da_to_diagram: { risk: 'safe', run: function(){ daPushToDiagrams(null); }, label: function(){ return 'Send this table to Diagrams & Charts.'; } },
+    pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
+    pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
+    pipeline_form_to_pdf:   { risk: 'safe', run: function(){ mfPushToWorkspace(); }, label: function(){ return 'Push this form into the PDF Editor.'; } }
   };
 
   async function layaExecuteAction(action){
@@ -69785,7 +69939,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         const ok = await sarvarcModalConfirm('Let Laya do this?', entry.label(action.params || {}), 'Do it');
         if (!ok) return null; // silent cancel, no need to narrate a no-op
       }
-      entry.run(action.params || {});
+      await entry.run(action.params || {});
       return null; // success is silent -- the workspace UI updating IS the confirmation
     } catch(e){
       return "Couldn't complete that -- " + (e && e.message ? e.message : 'something went wrong') + ".";
