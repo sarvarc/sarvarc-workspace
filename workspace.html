@@ -69489,12 +69489,15 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
-  // back instead of just { reply }. To produce `action`, call the Claude API
-  // with a `tools` array (Anthropic tool-use format) whose tool names match
-  // the LAYA_ACTIONS keys below exactly, then translate any tool_use block
-  // in the response into { type: block.name, params: block.input } for the
-  // action field, and use the accompanying text block(s) as `reply`. Tool
-  // names + expected params (must match 1:1 with LAYA_ACTIONS in this file):
+  // back instead of just { reply }. To produce `action`, call OpenAI's
+  // GPT-5.6 Luna API with a `tools` array (OpenAI function-calling format:
+  // each tool is { type: "function", function: { name, description,
+  // parameters } }) whose function names match the LAYA_ACTIONS keys below
+  // exactly, then translate any tool_calls[] entry in the response message
+  // into { type: call.function.name, params: JSON.parse(call.function.arguments) }
+  // for the action field, and use the response message's `content` string
+  // as `reply`. Tool names + expected params (must match 1:1 with
+  // LAYA_ACTIONS in this file):
   //   da_add_row {}                          da_add_column {}
   //   da_update_cell {rowIdx, colIdx, value} da_delete_row {rowIdx}
   //   da_delete_column {colIdx}
