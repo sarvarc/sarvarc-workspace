@@ -69455,7 +69455,31 @@ VOICE RULES:
 - Never say "As an AI...".
 - For vague feedback (e.g. "this looks awkward"), reason about the likely specific issue given the active feature/context provided, name your best guess, and offer a clear choice.
 - Warm work companion, not a therapist -- if the user vents, acknowledge briefly and steer back to the task.
-- Keep replies to 2-4 sentences unless asked for detail.`;
+- Keep replies to 2-4 sentences unless asked for detail.
+
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Charts, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it.`;
+
+  // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
+  // The frontend now expects { reply: string, action: {type, params} | null }
+  // back instead of just { reply }. To produce `action`, call the Claude API
+  // with a `tools` array (Anthropic tool-use format) whose tool names match
+  // the LAYA_ACTIONS keys below exactly, then translate any tool_use block
+  // in the response into { type: block.name, params: block.input } for the
+  // action field, and use the accompanying text block(s) as `reply`. Tool
+  // names + expected params (must match 1:1 with LAYA_ACTIONS in this file):
+  //   da_add_row {}                          da_add_column {}
+  //   da_update_cell {rowIdx, colIdx, value} da_delete_row {rowIdx}
+  //   da_delete_column {colIdx}
+  //   dg_set_type {chartType}                dg_set_palette {scheme}
+  //   dg_add_row {}                          dg_set_x_axis {colIdx}
+  //   dg_set_y_axis {colIdx}
+  //   mf_add_field {type}                    mf_update_title {title}
+  //   mf_update_description {description}    mf_toggle_required {fieldId, required}
+  //   mf_remove_field {fieldId}
+  //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
+  //   pdfed_remove_page {idx}
+  // Only offer tools relevant to context.activePanel on each call -- e.g.
+  // don't hand Laya the da_* tools while the user's in Make Forms.
 
   let history = [];
 
@@ -69615,6 +69639,56 @@ VOICE RULES:
     } catch(e){ return null; }
   }
 
+  // ── LAYA ACTIONS ──────────────────────────────────────────────────────
+  // "do it for me" powers. Every entry dispatches straight to an existing,
+  // already-tested module function -- Laya never gets a separate code path
+  // that mutates state on its own. That means every action here inherits
+  // that module's existing undo/redo + Yjs collab sync for free.
+  //
+  // risk: 'safe' runs immediately. 'confirm' shows the existing app-wide
+  // confirm modal (sarvarcModalConfirm) first and only runs if the user
+  // taps through. Redaction has no entries here at all, on purpose --
+  // it's the one module Laya doesn't get to touch yet.
+  const LAYA_ACTIONS = {
+    da_add_row:        { risk: 'safe',    run: function(){ daAddRow(); }, label: function(){ return 'Add a new row.'; } },
+    da_add_column:     { risk: 'safe',    run: function(){ daAddColumn(); }, label: function(){ return 'Add a new column.'; } },
+    da_update_cell:    { risk: 'safe',    run: function(p){ daUpdateCell(p.rowIdx, p.colIdx, String(p.value)); }, label: function(p){ return 'Set cell (row ' + (p.rowIdx+1) + ', col ' + (p.colIdx+1) + ') to "' + p.value + '".'; } },
+    da_delete_row:     { risk: 'confirm', run: function(p){ daDeleteRow(p.rowIdx); }, label: function(p){ return 'Delete row ' + (p.rowIdx+1) + '. This can be undone with Ctrl+Z.'; } },
+    da_delete_column:  { risk: 'confirm', run: function(p){ daDeleteColumn(p.colIdx); }, label: function(p){ return 'Delete column ' + (p.colIdx+1) + '. This can be undone with Ctrl+Z.'; } },
+
+    dg_set_type:       { risk: 'safe',    run: function(p){ dgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
+    dg_set_palette:    { risk: 'safe',    run: function(p){ dgSetPaletteScheme(p.scheme); }, label: function(p){ return 'Switch color palette to ' + p.scheme + '.'; } },
+    dg_add_row:        { risk: 'safe',    run: function(){ dgAddRow(); }, label: function(){ return 'Add a new data row to the chart.'; } },
+    dg_set_x_axis:     { risk: 'safe',    run: function(p){ dgQuickSetXAxis(String(p.colIdx)); }, label: function(p){ return 'Set the X-axis column.'; } },
+    dg_set_y_axis:     { risk: 'safe',    run: function(p){ dgQuickSetYAxis(String(p.colIdx)); }, label: function(p){ return 'Set the Y-axis column.'; } },
+
+    mf_add_field:      { risk: 'safe',    run: function(p){ mfAddField(p.type); }, label: function(p){ return 'Add a ' + p.type + ' field to the form.'; } },
+    mf_update_title:   { risk: 'safe',    run: function(p){ mfUpdateTitle(p.title); }, label: function(p){ return 'Rename the form to "' + p.title + '".'; } },
+    mf_update_description: { risk: 'safe', run: function(p){ mfUpdateDesc(p.description); }, label: function(p){ return 'Update the form description.'; } },
+    mf_toggle_required: { risk: 'safe',   run: function(p){ mfToggleFieldRequired(p.fieldId, !!p.required); }, label: function(p){ return (p.required ? 'Mark' : 'Unmark') + ' that field as required.'; } },
+    mf_remove_field:   { risk: 'confirm', run: function(p){ mfRemoveField(p.fieldId); }, label: function(){ return 'Remove that field from the form. This can be undone with Ctrl+Z.'; } },
+
+    pdfed_toggle_crop: { risk: 'safe',    run: function(){ pdfedToggleCrop(); }, label: function(){ return 'Toggle crop mode on the current page.'; } },
+    pdfed_insert_table:{ risk: 'safe',    run: function(p){ pdfedInsertTable(p.rows || 3, p.cols || 3, {}); }, label: function(p){ return 'Insert a ' + (p.rows||3) + 'x' + (p.cols||3) + ' table into the page.'; } },
+    pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } }
+  };
+
+  async function layaExecuteAction(action){
+    if (!action || !action.type) return null;
+    const entry = LAYA_ACTIONS[action.type];
+    if (!entry) return "(Laya suggested an action I don't recognize yet: " + action.type + ")";
+    try{
+      if (entry.risk === 'confirm'){
+        const ok = await sarvarcModalConfirm('Let Laya do this?', entry.label(action.params || {}), 'Do it');
+        if (!ok) return null; // silent cancel, no need to narrate a no-op
+      }
+      entry.run(action.params || {});
+      return null; // success is silent -- the workspace UI updating IS the confirmation
+    } catch(e){
+      return "Couldn't complete that -- " + (e && e.message ? e.message : 'something went wrong') + ".";
+    }
+  }
+
   function demoReply(userText){
     const t = userText.toLowerCase();
     if(t.includes('redact') || t.includes('pii') || t.includes('sensitive')){
@@ -69650,7 +69724,10 @@ VOICE RULES:
       body: JSON.stringify({ system: SYSTEM_PROMPT, messages: messages, context: context })
     });
     const data = await response.json();
-    return data.reply || "Sorry, I didn't catch that -- mind trying again?";
+    return {
+      reply: data.reply || "Sorry, I didn't catch that -- mind trying again?",
+      action: data.action || null
+    };
   }
 
   form.addEventListener('submit', async function(e){
@@ -69666,15 +69743,21 @@ VOICE RULES:
     const thinking = addMsg('laya', 'Laya is thinking...');
 
     try{
-      let reply;
+      let reply, action = null;
       if(LAYA_API.enabled){
-        reply = await callRealLayaAPI(history, getLayaContext());
+        const result = await callRealLayaAPI(history, getLayaContext());
+        reply = result.reply;
+        action = result.action;
       } else {
         await new Promise(function(r){ setTimeout(r, 500); });
         reply = demoReply(text);
       }
       thinking.textContent = reply;
       history.push({ role: 'assistant', content: reply });
+      if (action){
+        const problem = await layaExecuteAction(action);
+        if (problem) addMsg('laya', problem);
+      }
     } catch(err){
       thinking.textContent = "Couldn't reach the server just now. Mind trying again?";
     } finally {
