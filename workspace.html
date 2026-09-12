@@ -32216,6 +32216,8 @@ function pdfedRefreshSelectionPanel() {
     if (e.target.closest('#pdfedRightPanel')) return; // interacting with a sidebar panel (Design presets, Apply Fade, sliders, etc.) must never clear the current selection
     if (!e.target.closest('.pdfed-placed-text, .pdfed-placed-table, .pdfed-placed-img, .pdfed-text-block')) {
       document.querySelectorAll('.pdfed-placed-table.selected, .pdfed-placed-img.selected').forEach(n => n.classList.remove('selected'));
+      if (typeof pdfedSelectedTables !== 'undefined') pdfedSelectedTables.clear();
+      if (typeof pdfedSelectedImgs !== 'undefined') pdfedSelectedImgs.clear();
     }
     scheduleRefresh();
   }, true);
@@ -34941,6 +34943,15 @@ function pdfedStartTableDrag(el, item, idx, e) {
   if (item.locked) return;
   document.querySelectorAll('.pdfed-placed-table.selected').forEach(n => n.classList.remove('selected'));
   el.classList.add('selected');
+  // Keep the internal "selected tables" registry (what keyboard/menu Delete
+  // actually reads, alongside the DOM highlight) in lockstep with this
+  // click. Without this, an id left over from an earlier Select All / paste
+  // stayed in the Set forever — invisible on screen, but still swept up the
+  // next time anything got deleted, so an older table could get removed
+  // instead of (or along with) the one you just clicked.
+  if (typeof pdfedSelectedTables !== 'undefined') { pdfedSelectedTables.clear(); pdfedSelectedTables.add(item.id); }
+  if (typeof pdfedSelected !== 'undefined') pdfedSelected.clear();
+  if (typeof pdfedSelectedImgs !== 'undefined') pdfedSelectedImgs.clear();
   const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
   const sx = e.clientX, sy = e.clientY, ox = item.x, oy = item.y;
   const boxW = item.colWidths.reduce((a, b) => a + b, 0);
@@ -35048,6 +35059,7 @@ function pdfedAttachPlacedTableResizeHandler(el, item, idx, resizeHandle, grid, 
     e.stopPropagation();
     document.querySelectorAll('.pdfed-placed-table.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
+    if (typeof pdfedSelectedTables !== 'undefined') { pdfedSelectedTables.clear(); pdfedSelectedTables.add(item.id); }
 
     const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
     const sx = e.clientX;
@@ -35126,6 +35138,7 @@ function pdfedAttachColDividerHandler(div, el, item, idx, c, grid) {
     e.stopPropagation();
     document.querySelectorAll('.pdfed-placed-table.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
+    if (typeof pdfedSelectedTables !== 'undefined') { pdfedSelectedTables.clear(); pdfedSelectedTables.add(item.id); }
     const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
     const sx = e.clientX;
     const startW = item.colWidths[c];
@@ -35167,6 +35180,7 @@ function pdfedAttachRowDividerHandler(div, el, item, idx, r, grid) {
     e.stopPropagation();
     document.querySelectorAll('.pdfed-placed-table.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected');
+    if (typeof pdfedSelectedTables !== 'undefined') { pdfedSelectedTables.clear(); pdfedSelectedTables.add(item.id); }
     const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
     const sy = e.clientY;
     const startH = item.rowHeights[r];
@@ -69307,7 +69321,17 @@ if (document.readyState === 'loading') {
   // a few times, briefly, before accepting a genuine logged-out state. ----
   async function sarvarcAuthEnterWorkspaceWithRetry() {
     let displayName = await sarvarcAuthEnterWorkspace();
-    for (let i = 0; i < 4 && !displayName; i++) {
+    // navigate('pdfeditor') inside sarvarcAuthEnterWorkspace() silently
+    // no-ops if #sec-pdfeditor isn't in the DOM yet at that exact instant
+    // (see navigate()'s "unknown/removed section, fail safe instead of
+    // throwing" guard) — on a slow device/connection this section can
+    // still be getting built when this first runs. Nothing was ever
+    // retrying that specific call, so login could fully succeed (backend
+    // session established, nav label eventually correct) while the person
+    // stayed stuck on whatever section they landed on instead of being
+    // dropped into the Workspace. Keep trying to actually land there, not
+    // just re-checking the nav label/edit-lock, until it works or we give up.
+    for (let i = 0; i < 4 && (!displayName || !document.getElementById('sec-pdfeditor') || !document.getElementById('sec-pdfeditor').classList.contains('active')); i++) {
       await new Promise(r => setTimeout(r, 400));
       displayName = await sarvarcAuthUpdateNavUI();
       // The nav label isn't the only thing that can lose this race — the
@@ -69317,6 +69341,9 @@ if (document.readyState === 'loading') {
       // every retry so a slow first read can't leave the lock stuck "on"
       // after login has genuinely succeeded.
       await sarvarcUpdateEditLockUI();
+      if (typeof navigate === 'function' && document.getElementById('sec-pdfeditor')) {
+        navigate('pdfeditor');
+      }
     }
   }
   (function() {
