@@ -69522,7 +69522,7 @@ DESIGN JUDGMENT (PDF Editor / document hierarchy and spacing): Your opinions on 
 - A logo, watermark, and header/footer text are optional finishing touches, not things a document strictly needs.
 When a user describes a doc looking "off," "messy," or "inconsistent," diagnose it in these terms (mismatched table sizes, ad hoc headings, wrong theme for the content) and point them at Refine Report as the actual fix rather than trying to eyeball pixel adjustments yourself -- you can open that modal for them via your tools when they want to act on it, but the actual refinement runs through the app's own engine, not through you improvising layout changes. When the provided context includes a layoutIssues list, that's real, computed geometry (actual overlaps, off-page content, a logo outside the header band, misaligned left edges) -- cite it specifically ("your logo's sitting well below the header band") instead of speaking generically about spacing. An empty or absent layoutIssues list on a page with content means the geometry checked out fine; don't invent problems that aren't there.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Charts, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and opening Refine Report for the user to review and apply. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Charts, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and opening Refine Report for the user to review and apply. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -69552,10 +69552,36 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //   mf_update_description {description}    mf_toggle_required {fieldId, required}
   //   mf_remove_field {fieldId}
   //   mf_create_form {title?, description?, fields?: [{type, label?, required?}]}
-  //     -- REQUIRED before any other mf_* call if context.noFormOpenYet is
-  //     true (0 forms in the gallery, or none selected yet). The other
-  //     mf_* actions all silently no-op against an empty form list, so
-  //     always start here for a "create/make me a form" request.
+  //     -- Builds a BLANK form (optionally titled/described, optionally
+  //     with custom fields) from scratch. Use this when the user describes
+  //     the fields they want themselves, or asks for something no template
+  //     below covers. REQUIRED before any other mf_* call if
+  //     context.noFormOpenYet is true (0 forms in the gallery, or none
+  //     selected yet) AND no template is a good fit -- the other mf_*
+  //     actions all silently no-op against an empty form list, so always
+  //     start with either this or mf_create_from_template for a
+  //     "create/make me a form" request.
+  //   mf_create_from_template {template}
+  //     -- Starts from one of SARVARC's own pre-built templates instead of
+  //     a blank form. Prefer this over mf_create_form whenever the user's
+  //     request names or clearly implies one of these (match by meaning,
+  //     e.g. "reg form" / "signup sheet" -> registration; "invoice" ->
+  //     gstInvoice; "new hire form" -> onboarding), since a template
+  //     already ships with the right fields filled in instead of Laya
+  //     guessing them one by one. `template` MUST be one of these exact
+  //     keys: blank, gstInvoice, expenseClaim, kycOnboarding,
+  //     paymentVoucher, receipt, onboarding, leave, exitInterview,
+  //     appraisal, intake, dischargeSummary, medicalConsent,
+  //     appointmentRequest, jobapp, interviewEval, referenceCheck,
+  //     offerAcceptance, feedback, registration. If nothing matches
+  //     confidently, fall back to mf_create_form instead of guessing a key.
+  //   mf_publish_form {}
+  //     -- Publishes the currently open form (generates/updates its public
+  //     shareable link). No-op-safe to call again later to push edits live
+  //     ("update the link"). Requires a form to already be open/created in
+  //     this same turn or a previous one -- if context.noFormOpenYet is
+  //     true, create the form first (same turn is fine, this then runs
+  //     against the form just created).
   //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
   //   pdfed_remove_page {idx}                pdfed_open_refine_report {}
   //   pdfed_rotate_page {direction: 'left'|'right'}   pdfed_duplicate_page {}
@@ -70010,6 +70036,34 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         const n = Array.isArray(p.fields) ? p.fields.length : 0;
         return 'Create a new form' + (p.title ? ' called "' + p.title + '"' : '') + (n ? ' with ' + n + ' field' + (n === 1 ? '' : 's') : '') + '.';
       }
+    },
+    // Template-based creation, the counterpart to mf_create_form above:
+    // reuses the exact same gallery function the "Browse Templates" cards
+    // call (mfCreateFromTemplate), so a Laya-started template form is
+    // identical to one a user picked by hand -- same fields, same
+    // accent color, same opened editor. Guards against an unknown/typo'd
+    // key rather than silently doing nothing, since MF_TEMPLATES is keyed
+    // by camelCase ids the model has to get exactly right.
+    mf_create_from_template: {
+      risk: 'safe',
+      run: function(p){
+        if (!p.template || !MF_TEMPLATES[p.template]) throw new Error('unknown template "' + p.template + '"');
+        mfCreateFromTemplate(p.template);
+      },
+      label: function(p){
+        const tpl = MF_TEMPLATES[p.template];
+        return 'Start a new form from the "' + (tpl ? tpl.name : p.template) + '" template.';
+      }
+    },
+    // Publishing hits the real Supabase-backed publish flow (same code
+    // path as the Publish button), so it needs an actual signed-in user
+    // and a saved form -- mfPublishForm() already handles both cases
+    // (not logged in / no form open) with its own toast, which surfaces
+    // to the user as a normal Laya reply if run() throws.
+    mf_publish_form: {
+      risk: 'confirm',
+      run: function(){ return mfPublishForm(); },
+      label: function(){ return 'Publish this form and generate a shareable link.'; }
     },
     mf_add_field:      { risk: 'safe',    run: function(p){ mfAddField(p.type); }, label: function(p){ return 'Add a ' + p.type + ' field to the form.'; } },
     mf_update_title:   { risk: 'safe',    run: function(p){ mfUpdateTitle(p.title); }, label: function(p){ return 'Rename the form to "' + p.title + '".'; } },
