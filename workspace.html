@@ -66303,7 +66303,23 @@ if (document.readyState === 'loading') {
     });
   }
 
+  // Single-flight guard: on refresh/login, several independent things
+  // (sarvarcDriveSyncDownHard, sarvarcDriveSyncUp, sarvarcAssetsSyncDown,
+  // sarvarcAssetsSyncUp, plus any sarvarcDriveAvailable() check) all fire
+  // at once. Without this, each one that misses the cached-token fast path
+  // would independently call sarvarcSilentDriveTokenRefresh() -> Google's
+  // requestAccessToken(), which is what produced the multiple Google
+  // account-chooser boxes on refresh. Now only the FIRST caller actually
+  // does the work; everyone else just awaits that same in-flight promise.
+  let sarvarcDriveTokenInFlight = null;
   async function sarvarcDriveGetToken() {
+    if (sarvarcDriveTokenInFlight) return sarvarcDriveTokenInFlight;
+    sarvarcDriveTokenInFlight = sarvarcDriveGetTokenInner().finally(() => {
+      sarvarcDriveTokenInFlight = null;
+    });
+    return sarvarcDriveTokenInFlight;
+  }
+  async function sarvarcDriveGetTokenInner() {
     try {
       let { data: { session } } = await sarvarcSupabase.auth.getSession();
       if (!session) { sarvarcDriveClearCachedToken(); return null; }
