@@ -69522,7 +69522,7 @@ DESIGN JUDGMENT (PDF Editor / document hierarchy and spacing): Your opinions on 
 - A logo, watermark, and header/footer text are optional finishing touches, not things a document strictly needs.
 When a user describes a doc looking "off," "messy," or "inconsistent," diagnose it in these terms (mismatched table sizes, ad hoc headings, wrong theme for the content) and point them at Refine Report as the actual fix rather than trying to eyeball pixel adjustments yourself -- you can open that modal for them via your tools when they want to act on it, but the actual refinement runs through the app's own engine, not through you improvising layout changes. When the provided context includes a layoutIssues list, that's real, computed geometry (actual overlaps, off-page content, a logo outside the header band, misaligned left edges) -- cite it specifically ("your logo's sitting well below the header band") instead of speaking generically about spacing. An empty or absent layoutIssues list on a page with content means the geometry checked out fine; don't invent problems that aren't there.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Charts, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and opening Refine Report for the user to review and apply. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and opening Refine Report for the user to review and apply. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -69691,7 +69691,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         'Almost there'
       ];
     }
-    if (ctx.activePanel === 'Diagrams & Charts'){
+    if (ctx.activePanel === 'Diagrams & Graphs'){
       return [
         'Laya is thinking',
         'Studying your ' + ctx.chartType + ' chart',
@@ -69744,7 +69744,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   // active document/panel so Laya can reason about vague feedback like
   // "this looks awkward" instead of guessing blind.
   //
-  // Wired so far: Data Arrangement, PDF Editor, Make Forms, Diagrams & Charts.
+  // Wired so far: Data Arrangement, PDF Editor, Make Forms, Diagrams & Graphs.
   // Redaction isn't wired yet -- that returns null still.
   //
   // NOTE ON PRIVACY:
@@ -69930,7 +69930,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         }
 
         const base = {
-          activePanel: 'Diagrams & Charts',
+          activePanel: 'Diagrams & Graphs',
           availableColumns: availableColumns.slice(0, 40),
           chartTypeGuidance: 'availableColumns lists every column in the source table the user pasted/uploaded here, with its detected kind (text/numeric/date/identifier). The user will often name a field by abbreviation, business jargon, or a rough paraphrase rather than the exact header text -- e.g. "CAC" for a column literally named "Customer Acquisition Cost", "rev" for "Revenue", "qty" for "Quantity". Resolve by MEANING, not literal string closeness: read each available column name for what it represents and pick the one the user\'s term most plausibly refers to. If exactly one column is a confident semantic match for each side of the request, call dg_set_x_axis/dg_set_y_axis with those colIdx values, then dg_set_type. Suggested type defaults: categorical or identifier X + numeric Y -> bar; date X + numeric Y -> line; numeric X + numeric Y -> scatter; more than one Y column selected -> grouped bar. If a named field has no plausible match in availableColumns at all, or if two+ columns could equally be what they mean (e.g. both "Cost" and "Cost per Unit" could be "cst"), do NOT guess -- name the columns you considered and ask which one in a short reply instead of calling an action. Only fall back to the currently-plotted chartType/rows below if the user\'s request doesn\'t clearly name different columns.'
         };
@@ -70143,17 +70143,38 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     // the person still resolves it same as always) and undo/redo behavior.
     // All marked 'safe' since they're additive (create/replace content the
     // person can already undo), never destructive on their own.
-    pipeline_da_to_diagram: { risk: 'safe', run: function(){ daPushToDiagrams(null); }, label: function(){ return 'Send this table to Diagrams & Charts.'; } },
+    pipeline_da_to_diagram: { risk: 'safe', run: function(){ daPushToDiagrams(null); }, label: function(){ return 'Send this table to Diagrams & Graphs.'; } },
     pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     pipeline_form_to_pdf:   { risk: 'safe', run: function(){ mfPushToWorkspace(); }, label: function(){ return 'Push this form into the PDF Editor.'; } },
 
+    // GUARD (added after Laya was observed calling this on the panel the
+    // user was ALREADY in -- e.g. asked for "make a pie chart" while
+    // sitting in Diagrams & Graphs, and Laya replied "I'll switch you to
+    // Diagrams & Graphs" instead of just calling dg_set_type). With
+    // reasoning_effort forced to "none" for tool calls (see the Worker),
+    // navigate_to_panel is the one tool that's ALWAYS offered regardless
+    // of context, which makes it an easy low-effort fallback for the
+    // model to reach for when it's unsure which panel-specific tool
+    // actually does the job -- especially since it was always listed
+    // FIRST in the tools array the Worker sends. Two independent fixes:
+    // this client-side guard (so a same-panel call surfaces a real
+    // message instead of silently doing nothing) and, on the Worker
+    // side, an explicit system-prompt rule plus reordering navigate_to_panel
+    // to last in the tools array.
     navigate_to_panel: {
       risk: 'safe',
       run: function(p){
-        var map = { 'Dashboard': 'dashboard', 'PDF Editor': 'pdfeditor', 'Extract Images': 'extract', 'Data Arrangement': 'dataarrange', 'Make Forms': 'makeforms', 'Diagrams & Charts': 'diagrams', 'Redact PII': 'redact' };
+        var map = { 'Dashboard': 'dashboard', 'PDF Editor': 'pdfeditor', 'Extract Images': 'extract', 'Data Arrangement': 'dataarrange', 'Make Forms': 'makeforms', 'Diagrams & Graphs': 'diagrams', 'Redact PII': 'redact' };
         var sec = map[p.panel];
         if (!sec) throw new Error('unknown panel "' + p.panel + '"');
+        if (sec === unifiedActiveSection()){
+          // Already here -- navigating again is a silent no-op that would
+          // otherwise look like Laya did nothing at all. Throw so the
+          // caller surfaces a real line instead, and nudge toward
+          // actually finishing the request.
+          throw new Error("you're already in " + p.panel + ", so there's nothing to switch. Tell me what you'd like changed here and I'll do it directly");
+        }
         navigate(sec);
       },
       label: function(p){ return 'Open ' + p.panel + '.'; }
@@ -70187,7 +70208,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     if(t.includes('redact') || t.includes('pii') || t.includes('sensitive')){
       return "Once connected, I'll scan the doc and redact anything sensitive, quick and quiet. Right now I'm just running in demo mode, no live scan yet.";
     }
-    if((t.includes('awkward') || t.includes('chart') || t.includes('diagram') || t.includes('shape')) && ctx && ctx.activePanel === 'Diagrams & Charts'){
+    if((t.includes('awkward') || t.includes('chart') || t.includes('diagram') || t.includes('shape')) && ctx && ctx.activePanel === 'Diagrams & Graphs'){
       return "Looking at your " + ctx.chartType + " chart with " + (ctx.rowCount != null ? ctx.rowCount : ctx.series.length) + (ctx.rowCount != null ? " rows" : " series") + " -- once I'm fully wired in I can tell you exactly what's off (spacing, overlap, sizing) and offer a fix. Demo mode can flag it but can't push the change yet.";
     }
     if(t.includes('awkward') || t.includes('chart') || t.includes('diagram') || t.includes('shape')){
