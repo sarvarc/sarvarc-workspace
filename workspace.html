@@ -61450,6 +61450,23 @@ function dgEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// Converts "#rgb" / "#rrggbb" to an "r, g, b" string for rgba(var(...), alpha).
+// Returns null for anything unparseable so callers can fall back safely.
+// (Local copy: the Make Forms module has its own private hexToRgbStr, but
+// it's scoped inside that module's IIFE and isn't reachable from here — the
+// Diagrams engine needs its own.)
+function hexToRgbStr(hex) {
+  if (!hex) return null;
+  const m = String(hex).trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
 function dgRenderRows() {
   const wrap = document.getElementById('dgRows');
   if (!wrap) return;
@@ -69524,9 +69541,21 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //   dg_set_type {chartType}                dg_set_palette {scheme}
   //   dg_add_row {}                          dg_set_x_axis {colIdx}
   //   dg_set_y_axis {colIdx}
+  //   dg_configure_chart {xColIdx?, yColIdx?, chartType?} -- combined
+  //     one-shot version of the three dg_set_* calls above. Prefer this
+  //     whenever a request implies setting more than one of x/y/type at
+  //     once (e.g. "chart of customer vs CAC"), since each field is
+  //     optional and it collapses what would otherwise be 2-3 separate
+  //     tool calls (and this backend currently only returns the FIRST
+  //     tool call per turn) into one.
   //   mf_add_field {type}                    mf_update_title {title}
   //   mf_update_description {description}    mf_toggle_required {fieldId, required}
   //   mf_remove_field {fieldId}
+  //   mf_create_form {title?, description?, fields?: [{type, label?, required?}]}
+  //     -- REQUIRED before any other mf_* call if context.noFormOpenYet is
+  //     true (0 forms in the gallery, or none selected yet). The other
+  //     mf_* actions all silently no-op against an empty form list, so
+  //     always start here for a "create/make me a form" request.
   //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
   //   pdfed_remove_page {idx}                pdfed_open_refine_report {}
   //   pdfed_rotate_page {direction: 'left'|'right'}   pdfed_duplicate_page {}
@@ -69806,40 +69835,96 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         };
       }
 
-      if (sec === 'makeforms' && typeof mfState !== 'undefined' && mfState.forms && mfState.forms.length){
-        const form = mfState.forms.find(function(f){ return f.id === mfState.currentId; }) || mfState.forms[0];
-        if(form){
-          return {
-            activePanel: 'Make Forms',
-            formTitle: form.title,
-            formDescription: form.desc || '',
-            fieldCount: (form.fields || []).length,
-            fields: (form.fields || []).map(function(f){
-              return { type: f.type, label: f.label, required: !!f.required };
-            })
-          };
+      if (sec === 'makeforms' && typeof mfState !== 'undefined'){
+        if (mfState.forms && mfState.forms.length){
+          const form = mfState.forms.find(function(f){ return f.id === mfState.currentId; }) || mfState.forms[0];
+          if(form){
+            return {
+              activePanel: 'Make Forms',
+              formTitle: form.title,
+              formDescription: form.desc || '',
+              fieldCount: (form.fields || []).length,
+              fields: (form.fields || []).map(function(f){
+                return { type: f.type, label: f.label, required: !!f.required };
+              })
+            };
+          }
         }
+        // No form open yet (fresh "My Forms" gallery, 0 forms, or none
+        // selected). Without this branch, getLayaContext fell through to
+        // `return null` here, which meant context.activePanel was
+        // undefined -- and since toolsForContext() looks up tools by
+        // activePanel, that silently hid EVERY Make Forms tool (including
+        // mf_create_form) any time the gallery was empty. That's the
+        // second half of why "create a form" did nothing: even after
+        // adding mf_create_form, the backend would never have been told
+        // it was allowed to offer it.
+        return {
+          activePanel: 'Make Forms',
+          formTitle: null,
+          formDescription: '',
+          fieldCount: 0,
+          fields: [],
+          noFormOpenYet: true
+        };
       }
 
       if (sec === 'diagrams' && typeof dgState !== 'undefined'){
+        // The chart-so-far (chartType/rows) only tells Laya what's CURRENTLY plotted.
+        // If the user asks for a diagram of columns that aren't the current X/Y pick
+        // (e.g. "customers vs unit price" while a Date/Quantity chart is showing),
+        // Laya needs the full source-table column list -- with types -- to know
+        // those columns exist at all and which colIdx to hand dg_set_x_axis /
+        // dg_set_y_axis. dgUploadParsed holds that raw table once anything's been
+        // pasted/uploaded into this module; expose it (trimmed) alongside the
+        // current chart state rather than only the current chart state.
+        let availableColumns = [];
+        if (typeof dgUploadParsed !== 'undefined' && dgUploadParsed && Array.isArray(dgUploadParsed.headers)){
+          availableColumns = dgUploadParsed.headers.map(function(h, i){
+            let kind = 'text';
+            try {
+              if (dgColumnIsDate(i)) kind = 'date';
+              else if (dgColumnIsNumeric(i)) kind = 'numeric';
+              else if (dgIsIdentifierColumn(i)) kind = 'identifier';
+            } catch(e){ /* leave as text if a detector throws on odd data */ }
+            return { colIdx: i, name: h, kind: kind };
+          });
+        }
+
+        // Quick heuristic so Laya doesn't have to re-derive basic chart-shape rules
+        // every turn: categorical-or-date x paired with a numeric y almost always
+        // wants bar (categories) or line (dates); two numeric columns want scatter.
+        // This is a suggestion in the context, not a hard rule -- Laya still reads
+        // the user's actual wording (e.g. an explicit "line chart" ask wins).
+        function suggestType(xKind, yKinds){
+          if (xKind === 'date') return 'line';
+          if (xKind === 'numeric' && yKinds.every(function(k){ return k === 'numeric'; })) return 'scatter';
+          if (yKinds.length > 1) return 'grouped';
+          return 'bar';
+        }
+
+        const base = {
+          activePanel: 'Diagrams & Charts',
+          availableColumns: availableColumns.slice(0, 40),
+          chartTypeGuidance: 'availableColumns lists every column in the source table the user pasted/uploaded here, with its detected kind (text/numeric/date/identifier). The user will often name a field by abbreviation, business jargon, or a rough paraphrase rather than the exact header text -- e.g. "CAC" for a column literally named "Customer Acquisition Cost", "rev" for "Revenue", "qty" for "Quantity". Resolve by MEANING, not literal string closeness: read each available column name for what it represents and pick the one the user\'s term most plausibly refers to. If exactly one column is a confident semantic match for each side of the request, call dg_set_x_axis/dg_set_y_axis with those colIdx values, then dg_set_type. Suggested type defaults: categorical or identifier X + numeric Y -> bar; date X + numeric Y -> line; numeric X + numeric Y -> scatter; more than one Y column selected -> grouped bar. If a named field has no plausible match in availableColumns at all, or if two+ columns could equally be what they mean (e.g. both "Cost" and "Cost per Unit" could be "cst"), do NOT guess -- name the columns you considered and ask which one in a short reply instead of calling an action. Only fall back to the currently-plotted chartType/rows below if the user\'s request doesn\'t clearly name different columns.'
+        };
+
         if (dgState.type === 'grouped'){
-          return {
-            activePanel: 'Diagrams & Charts',
+          return Object.assign(base, {
             chartType: 'grouped bar',
             categories: (dgState.groupedCategories || []).slice(0, 30),
             series: (dgState.groupedSeries || []).slice(0, 10).map(function(s){
               return { name: s.name, values: (s.values || []).slice(0, 30) };
             })
-          };
+          });
         }
-        return {
-          activePanel: 'Diagrams & Charts',
+        return Object.assign(base, {
           chartType: dgState.type,
           rows: (dgState.rows || []).slice(0, 30).map(function(r){
             return { label: r.label, value: r.value };
           }),
           rowCount: (dgState.rows || []).length
-        };
+        });
       }
 
       return null;
@@ -69864,11 +69949,68 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     da_delete_column:  { risk: 'confirm', run: function(p){ daDeleteColumn(p.colIdx); }, label: function(p){ return 'Delete column ' + (p.colIdx+1) + '. This can be undone with Ctrl+Z.'; } },
 
     dg_set_type:       { risk: 'safe',    run: function(p){ dgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
+    // One-shot version of "set X, set Y, set type" for building a whole new
+    // chart from a request like "customer vs CAC" in a single turn, instead
+    // of needing three separate actions (and three round-trips) to finish.
+    // colIdx params are optional so Laya can still adjust just one axis
+    // without having to already know the other.
+    dg_configure_chart: {
+      risk: 'safe',
+      run: function(p){
+        if (p.xColIdx !== undefined && p.xColIdx !== null && p.xColIdx !== '') dgQuickSetXAxis(String(p.xColIdx));
+        if (p.yColIdx !== undefined && p.yColIdx !== null && p.yColIdx !== '') dgQuickSetYAxis(String(p.yColIdx));
+        if (p.chartType) dgSetType(p.chartType);
+      },
+      label: function(p){
+        const parts = [];
+        if (p.xColIdx !== undefined && p.xColIdx !== '') parts.push('X-axis to column ' + p.xColIdx);
+        if (p.yColIdx !== undefined && p.yColIdx !== '') parts.push('Y-axis to column ' + p.yColIdx);
+        if (p.chartType) parts.push('chart type to ' + p.chartType);
+        return 'Set ' + (parts.join(', ') || 'up the chart') + '.';
+      }
+    },
     dg_set_palette:    { risk: 'safe',    run: function(p){ dgSetPaletteScheme(p.scheme); }, label: function(p){ return 'Switch color palette to ' + p.scheme + '.'; } },
     dg_add_row:        { risk: 'safe',    run: function(){ dgAddRow(); }, label: function(){ return 'Add a new data row to the chart.'; } },
     dg_set_x_axis:     { risk: 'safe',    run: function(p){ dgQuickSetXAxis(String(p.colIdx)); }, label: function(p){ return 'Set the X-axis column.'; } },
     dg_set_y_axis:     { risk: 'safe',    run: function(p){ dgQuickSetYAxis(String(p.colIdx)); }, label: function(p){ return 'Set the Y-axis column.'; } },
 
+    // Previously there was NO way for Laya to start a brand-new form at
+    // all -- mf_add_field/_update_title/etc. all silently no-op via
+    // mfGetCurrentForm() returning undefined when mfState.currentId is
+    // unset (no form open yet, e.g. a fresh "My Forms" gallery with 0
+    // forms). That's why "create a registration form" would say "On it"
+    // and then visibly do nothing: there was no active form for any of
+    // the real mf_* actions to act on. This creates the blank form first
+    // (mirroring the "New Form" button), then optionally sets its title/
+    // description and adds every requested field with its real label and
+    // required flag, all in the same action so the whole form appears in
+    // one go instead of needing an add_field round trip per field.
+    mf_create_form: {
+      risk: 'safe',
+      run: function(p){
+        mfCreateFromTemplate('blank');
+        const f = mfGetCurrentForm();
+        if (!f) throw new Error('form did not open after creation');
+        if (p.title) { f.title = p.title; }
+        if (p.description) { f.desc = p.description; }
+        if (Array.isArray(p.fields)){
+          p.fields.forEach(function(spec){
+            if (!spec || !spec.type) return;
+            const field = mfNewField(spec.type);
+            if (spec.label) field.label = spec.label;
+            if (spec.required) field.required = true;
+            f.fields.push(field);
+          });
+        }
+        mfTouch(f);
+        mfRenderFieldList();
+        mfRenderPreview();
+      },
+      label: function(p){
+        const n = Array.isArray(p.fields) ? p.fields.length : 0;
+        return 'Create a new form' + (p.title ? ' called "' + p.title + '"' : '') + (n ? ' with ' + n + ' field' + (n === 1 ? '' : 's') : '') + '.';
+      }
+    },
     mf_add_field:      { risk: 'safe',    run: function(p){ mfAddField(p.type); }, label: function(p){ return 'Add a ' + p.type + ' field to the form.'; } },
     mf_update_title:   { risk: 'safe',    run: function(p){ mfUpdateTitle(p.title); }, label: function(p){ return 'Rename the form to "' + p.title + '".'; } },
     mf_update_description: { risk: 'safe', run: function(p){ mfUpdateDesc(p.description); }, label: function(p){ return 'Update the form description.'; } },
@@ -70048,9 +70190,13 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
       body: JSON.stringify({ system: SYSTEM_PROMPT, messages: messages, context: context })
     });
     const data = await response.json();
+    // actions: prefer the new multi-action array; fall back to wrapping
+    // the legacy single `action` field so this still works against an
+    // older Worker deploy that hasn't been updated yet.
+    const actions = Array.isArray(data.actions) ? data.actions : (data.action ? [data.action] : []);
     return {
       reply: data.reply || "Sorry, I didn't catch that -- mind trying again?",
-      action: data.action || null
+      actions: actions
     };
   }
 
@@ -70071,11 +70217,11 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     const thinking = addThinkingMsg(ctx);
 
     try{
-      let reply, action = null;
+      let reply, actions = [];
       if(LAYA_API.enabled){
         const result = await callRealLayaAPI(history, ctx);
         reply = result.reply;
-        action = result.action;
+        actions = result.actions;
       } else {
         await new Promise(function(r){ setTimeout(r, 500); });
         reply = demoReply(text, ctx);
@@ -70083,7 +70229,11 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
       reply = sarvarcLayaStripEmDash(reply);
       resolveThinkingMsg(thinking, reply);
       history.push({ role: 'assistant', content: reply });
-      if (action){
+      // Run every action the model asked for, in order (e.g. set X-axis,
+      // then Y-axis, then chart type all in one turn) rather than only
+      // the first -- a single request can legitimately need several
+      // small, sequential state changes to finish.
+      for (const action of actions){
         const problem = await layaExecuteAction(action);
         if (problem) addMsg('laya', sarvarcLayaStripEmDash(problem));
       }
