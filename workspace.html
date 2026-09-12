@@ -33718,7 +33718,18 @@ function pdfedParseRichLines(html) {
   const normalized = html
     .replace(/<\/(div|p)>\s*<(div|p)[^>]*>/gi, '<br>')
     .replace(/<(div|p)[^>]*>/gi, '')
-    .replace(/<\/(div|p)>/gi, '');
+    .replace(/<\/(div|p)>/gi, '')
+    // The live box renders with white-space:pre-wrap, so a plain '\n'
+    // character sitting inside a text node (e.g. text set via paste, AI
+    // content generation, or translation — anything that assigns
+    // item.text/item.html directly instead of going through real Enter-key
+    // <br>/<div> splitting) shows as a visual line break on-screen but was
+    // previously invisible to this parser: it split lines on <br> tags only,
+    // so raw '\n's got treated as ordinary whitespace by the word-wrap pass
+    // and every paragraph silently ran together into one flowing block in
+    // the exported PDF/PNG. Converting '\n' to '<br>' here keeps export in
+    // sync with what pre-wrap already shows in the editor.
+    .replace(/\n/g, '<br>');
   const lineHtmls = normalized.split(/<br\s*\/?>/i);
   return lineHtmls.map(lineHtml => {
     const tmp = document.createElement('div');
