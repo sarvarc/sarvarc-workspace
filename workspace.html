@@ -70291,38 +70291,67 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   // the element that holds the real rendered content (canvas + any
   // overlays drawn on top of it), so what she sees matches what the user
   // sees, not just the raw canvas pixels underneath annotations.
-  async function captureVisionSnapshot(context){
-    const visionPanels = { 'Diagrams & Graphs': 'dgCanvasHolder', 'PDF Editor': 'pdfedCanvasWrap' };
-    const containerId = context && visionPanels[context.activePanel];
-    if (!containerId) return null; // not a vision-enabled panel, skip entirely
-
-    const el = document.getElementById(containerId);
-    if (!el || el.offsetParent === null) return null; // not currently visible
-
-    try{
-      const canvas = await html2canvas(el, { backgroundColor: null, scale: 1 });
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // compressed base64, keeps payload small
-
-      // DEBUG ONLY: turn this on from the browser console with
-      // LAYA_VISION_DEBUG = true, then ask Laya something. A new tab
-      // opens showing exactly the image she received, so you can check
-      // with your own eyes whether it's the right thing (main canvas)
-      // or the wrong thing (e.g. a stale frame, or the wrong element).
-      if (window.LAYA_VISION_DEBUG) {
-        const win = window.open();
-        if (win) {
-          win.document.write(
-            '<title>Laya vision debug — element: ' + containerId + '</title>' +
-            '<body style="margin:0;background:#222"><img src="' + dataUrl + '" style="max-width:100%;display:block;margin:auto"></body>'
-          );
-        }
-      }
-
-      return dataUrl;
-    } catch(e){
-      console.warn('Laya vision snapshot failed:', e);
-      return null;
+  // Shared debug popup: opens a new tab showing exactly what image (if
+  // any) Laya received, so you can check with your own eyes whether the
+  // capture is right. Turn on from the console with
+  // LAYA_VISION_DEBUG = true.
+  function layaVisionDebugPopup(label, dataUrl){
+    if (!window.LAYA_VISION_DEBUG) return;
+    const win = window.open();
+    if (win) {
+      win.document.write(
+        '<title>Laya vision debug — ' + label + '</title>' +
+        '<body style="margin:0;background:#222"><img src="' + dataUrl + '" style="max-width:100%;display:block;margin:auto"></body>'
+      );
     }
+  }
+
+  async function captureVisionSnapshot(context){
+    if (!context) return null;
+
+    // Diagrams & Graphs: read the chart canvas directly instead of
+    // html2canvas-ing the container. dgCanvasHolder has two stacked
+    // canvases (#dgCanvas for 2D, #dgCanvas3D for WebGL/3D mode), and
+    // html2canvas chokes on that combo -- it throws partway through, the
+    // try/catch below swallows it, and captureVisionSnapshot silently
+    // returned null every time, which is why Laya kept saying she had no
+    // image. dgGetExportCanvas() already solves this correctly (it's the
+    // same function the PNG/JPEG/PDF export buttons use): it forces a
+    // fresh WebGL frame and grabs #dgCanvas3D when a 3D chart is active,
+    // or composites #dgCanvas plus any placed text overlays onto a clean
+    // offscreen canvas otherwise. Reading straight off that instead of
+    // screenshotting the DOM sidesteps the whole html2canvas/WebGL issue.
+    if (context.activePanel === 'Diagrams & Graphs'){
+      try{
+        if (typeof dgGetExportCanvas !== 'function') return null;
+        const canvas = dgGetExportCanvas();
+        if (!canvas) return null;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        layaVisionDebugPopup('Diagrams & Graphs', dataUrl);
+        return dataUrl;
+      } catch(e){
+        console.warn('Laya vision snapshot failed (Diagrams & Graphs):', e);
+        return null;
+      }
+    }
+
+    // PDF Editor: unchanged -- this path was already working correctly.
+    if (context.activePanel === 'PDF Editor'){
+      const el = document.getElementById('pdfedCanvasWrap');
+      if (!el || el.offsetParent === null) return null; // not currently visible
+
+      try{
+        const canvas = await html2canvas(el, { backgroundColor: null, scale: 1, useCORS: true });
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // compressed base64, keeps payload small
+        layaVisionDebugPopup('PDF Editor', dataUrl);
+        return dataUrl;
+      } catch(e){
+        console.warn('Laya vision snapshot failed (PDF Editor):', e);
+        return null;
+      }
+    }
+
+    return null; // not a vision-enabled panel, skip entirely
   }
 
   async function callRealLayaAPI(messages, context){
