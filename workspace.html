@@ -16678,6 +16678,106 @@ function pdfedDesignApplyFade() {
   }).catch(() => toast('Could not apply that fade', 'error'));
 }
 
+// ─── DESIGN — LAYA PROGRAMMATIC APPLY ──────────────────────────────────
+// Lets Laya bake ANY of the 21 Cinematic Fade / Premium 3D Cinematic /
+// Cosmic presets directly onto placed image(s) from a tool call, with no
+// requirement that the Design panel even be open or a preset pre-picked
+// by hand first. Mirrors pdfedDesignApplyFade's own decode -> bake ->
+// pushAppHistory -> mark-modified -> re-render pipeline exactly, so a
+// Laya-applied fade is indistinguishable from a manually-applied one for
+// undo, export, thumbnails, and reload -- the only thing that differs is
+// where preset/strength/target come from.
+//
+// `target` resolution mirrors what a person would mean in the same
+// sentence: an explicit 'all' always means every placed image on the
+// current page; otherwise reuse whatever's already selected on the
+// canvas (pdfedDesignGetSelectedImageItems, same Set the panel itself
+// reads), and if nothing is selected but the page only has ONE image,
+// treat "this image" as unambiguous and use it. With nothing selected
+// and more than one image present there's a real ambiguity, so this
+// throws rather than guessing which one the person meant.
+function pdfedLayaResolveDesignTargets(target) {
+  if (typeof pdfed === 'undefined' || pdfed.active < 0) return [];
+  const pg = pdfed.pages[pdfed.active];
+  if (!pg || !pg.placedImages || !pg.placedImages.length) return [];
+  if (target === 'all') return pg.placedImages.slice();
+  const selected = pdfedDesignGetSelectedImageItems();
+  if (selected.length) return selected;
+  return pg.placedImages.length === 1 ? pg.placedImages.slice() : [];
+}
+
+async function pdfedLayaApplyImageDesign(p) {
+  p = p || {};
+  const preset = PDFED_DESIGN_PRESETS.find(pr => pr.id === p.preset);
+  if (!preset) throw new Error('unknown design preset "' + p.preset + '"');
+  const parsedStrength = parseInt(p.strength, 10);
+  const strength = isNaN(parsedStrength) ? 50 : Math.max(0, Math.min(100, parsedStrength));
+  const items = pdfedLayaResolveDesignTargets(p.target);
+  if (items.length === 0) {
+    const pg = (pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
+    if (pg && pg.placedImages && pg.placedImages.length > 1) {
+      throw new Error('there are several images on this page, select the one you mean first (or say "all images")');
+    }
+    throw new Error('no image to apply this to, place or select one first');
+  }
+  const pageIdx = pdfed.active;
+
+  const results = await Promise.all(items.map(item => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      pdfedDesignApplyPresetToCtx(ctx, w, h, preset.id, strength);
+      resolve({ item, prevDataUrl: item.dataUrl, newDataUrl: c.toDataURL('image/png') });
+    };
+    img.onerror = reject;
+    img.src = item.dataUrl;
+  })));
+
+  results.forEach(r => { r.item.dataUrl = r.newDataUrl; });
+  pdfedMarkModified(pageIdx);
+  pdfedRenderPlacedImages(pageIdx);
+
+  pushAppHistory({
+    label: preset.name + ' (Laya)',
+    undo: () => {
+      results.forEach(r => { r.item.dataUrl = r.prevDataUrl; });
+      pdfedMarkModified(pageIdx);
+      pdfedRenderPlacedImages(pageIdx);
+      toast(preset.name + ' undone', 'info');
+    },
+    redo: () => {
+      results.forEach(r => { r.item.dataUrl = r.newDataUrl; });
+      pdfedMarkModified(pageIdx);
+      pdfedRenderPlacedImages(pageIdx);
+      toast(preset.name + ' reapplied', 'success');
+    }
+  });
+
+  // Keeps the Design panel's own preset grid + strength slider honest if
+  // it happens to be open while Laya applies this -- same courtesy
+  // pdfedLayaSetCanvasFill pays the canvas-tint controls.
+  pdfedDesignState.preset = preset.id;
+  pdfedDesignState.strength = strength;
+  if (typeof pdfedDesignRenderGrid === 'function') pdfedDesignRenderGrid();
+  const strengthSlider = document.getElementById('pdfedDesignStrengthSlider');
+  const strengthLabel = document.getElementById('pdfedDesignStrengthVal');
+  if (strengthSlider) strengthSlider.value = strength;
+  if (strengthLabel) strengthLabel.textContent = strength;
+
+  swTrack('laya_image_design_applied', {
+    module: 'pdf_editor',
+    preset: preset.id,
+    tier: preset.cosmic ? 'cosmic' : (preset.premium ? 'premium' : 'basic'),
+    strength: strength,
+    count: items.length
+  });
+  return preset.name + ' applied' + (items.length > 1 ? ' to ' + items.length + ' images' : '') + '.';
+}
+
 // ─── DESIGN — CINEMATIC MERGE ───────────────────────────────────────────
 // Auto-blends exactly two selected, overlapping placed images at their
 // shared edge: whichever pair of edges overlaps gets a cross-dissolve
@@ -69918,6 +70018,17 @@ DESIGN JUDGMENT (PDF Editor / document hierarchy and spacing): Your opinions on 
 - A logo, watermark, and header/footer text are optional finishing touches, not things a document strictly needs.
 When a user describes a doc looking "off," "messy," or "inconsistent," diagnose it in these terms (mismatched table sizes, ad hoc headings, wrong theme for the content) and point them at Refine Report as the actual fix rather than trying to eyeball pixel adjustments yourself -- you can open that modal for them via your tools when they want to act on it, but the actual refinement runs through the app's own engine, not through you improvising layout changes. When the provided context includes a layoutIssues list, that's real, computed geometry (actual overlaps, off-page content, a logo outside the header band, misaligned left edges) -- cite it specifically ("your logo's sitting well below the header band") instead of speaking generically about spacing. An empty or absent layoutIssues list on a page with content means the geometry checked out fine; don't invent problems that aren't there.
 
+DESIGN STUDIO JUDGMENT (Cinematic Fade / Cosmic image filters in PDF Editor): This is real creative authority, not a menu-reader. When someone describes a mood, a vague nudge, or an intent for a placed image instead of naming an exact preset -- "I want this image bit faded," "this needs some uniqueness," "give it a moody vibe," "make it pop for a poster" -- you decide BOTH the preset and the strength yourself and call pdfed_apply_image_design directly. Never make the person pick from the 21 preset names, and never just describe what you'd do without also doing it once you have enough to act. Use this as your actual palette:
+- Gentle, soft-edged, "a bit faded," "smooth it out": feather or vignette, strength 25-40.
+- A directional fade -- "fade the top," "blend the bottom into the page," "fade it into the background" on one side only: fadeIn / fadeOut / fadeLeft / fadeRight, strength 35-55.
+- Classic photo-strip border or a cut-corner diagonal look: filmstrip or diagonal, strength 40-60.
+- Cinematic, movie-poster, widescreen: cinemaBars, strength 40-60. An embossed, raised, "3D framed" look: depth3d, strength 30-50.
+- Warm, golden, sunset, inviting, nostalgic: goldenGrade, strength 35-55. A retro lens-fringe/colour-split edge: chromaPulse, strength 25-45. Moody black-and-white, dramatic, "noir," high-contrast: noirGrain, strength 40-65.
+- "Unique," "something different," "make it stand out," dreamy/otherworldly, event-poster or album-art energy, anything space-themed: reach into the Cosmic tier and pick whichever fits the rest of what they said -- nebulaGlow (soft dreamy glow), galaxyGrade (cool cinematic colour grade), aurora (flowing colour band across the top), starfield (night sky plus sparkle), deepSpaceVignette (hard, near-black falloff), eclipseRing (glowing ring silhouette), timeBend (warped gravity-well swirl), timeStretch (radial light-speed streak) -- strength 45-65, leaning warm/cool or calm/energetic based on their other words.
+- "Barely noticeable" / "subtle" / "just a touch" lowers whatever strength you'd otherwise pick by roughly 15-20 points; "dramatic" / "heavy" / "really faded" / "go all in" raises it by roughly 15-20, clamped to 0-100.
+- If several images are on the page and none is selected, you genuinely can't guess which one they mean -- ask, in one short line, rather than calling the tool with target:'all' as a default. Only use target:'all' when they actually say "all"/"every image."
+Once applied, name the look you picked in plain language in your reply ("gave it a warm golden-hour fade," "went with a starfield look since you wanted something unique") rather than the raw preset id -- the person should never need to know these are internally called goldenGrade or nebulaGlow.
+
 ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. context.pendingAttachments (an ARRAY -- present only on a turn where the person just attached one or more files) tells you everything staged this turn; a person handing you a logo plus a spreadsheet plus a Word doc in one go all show up here together, not just the last one. Read the whole array before deciding what to do, not just its first or last entry. If it contains ONLY logo entries, treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If it contains ONLY data entries (kind: 'data', from a Word/Excel/CSV/PDF), you're given real sample content for each one (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. If it contains BOTH a logo entry AND one or more data entries -- someone just handed you their brand plus their content in the same breath -- that whole batch together IS the "build me the finished report" request, even with a minimal or synthesized caption: push the newly-ingested dataset(s) onto the PDF with pipeline_da_to_pdf (mode 'new' unless the current page already has content worth keeping, in which case 'live'), then call pdfed_auto_refine_report with add_logo_to_header true and theme/align chosen the normal DESIGN JUDGMENT way, both as actions in this same turn -- don't stop after only pushing the data and wait for a second message asking to polish it, and don't ask which file to use first when more than one data entry is present, just work through them in the order given. If several data entries arrived with no logo, still offer (or just do, if the ask is clearly "make this a report") the same pipeline_da_to_pdf + pdfed_auto_refine_report pairing minus add_logo_to_header. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
@@ -70033,6 +70144,27 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //   pdfed_set_tool {tool: 'draw'|'eraser'|'addtext'|'link'}  -- NOT 'redact', ever
   //   pdfed_select_shape {shape: 'arrow'|'rect'|'circle'|'line'|'dblarrow'|'roundrect'|'triangle'|'diamond'|'pentagon'|'star'|'hexagon'}
   //   pdfed_insert_stock_photo {query: string} -- real Pexels search, not AI image generation
+  //   pdfed_apply_image_design {preset, strength?: 0-100, target?: 'selected'|'all'}
+  //     -- Bakes one of the Design panel's Cinematic Fade / Premium 3D
+  //     Cinematic / Cosmic presets directly onto placed image(s), the exact
+  //     same engine as the panel's own Apply Fade button. `preset` MUST be
+  //     one of these exact keys: feather, vignette, fadeIn, fadeOut,
+  //     fadeLeft, fadeRight, filmstrip, diagonal, cinemaBars, depth3d,
+  //     goldenGrade, chromaPulse, noirGrain, nebulaGlow, galaxyGrade,
+  //     aurora, starfield, deepSpaceVignette, eclipseRing, timeBend,
+  //     timeStretch -- see DESIGN STUDIO JUDGMENT above for what each one
+  //     looks like and which mood/intent words map to which. `strength` is
+  //     0-100, defaults to 50 if omitted -- actually use the range to
+  //     express "subtle"/"barely there" (15-30) vs "a bit"/"some" (35-55)
+  //     vs "dramatic"/"heavy"/"really faded" (65-90) rather than always
+  //     defaulting to 50. `target` picks which placed image(s) it acts on:
+  //     omit it (or 'selected') to use whatever the person currently has
+  //     selected on the canvas, same as the panel would; 'all' applies it
+  //     to every placed image on the current page at once -- only choose
+  //     'all' when the person actually says "all"/"every image", never as
+  //     a silent default. Throws when nothing is selected and the page has
+  //     more than one image -- ask which one they mean rather than
+  //     guessing, exactly like a missing required param elsewhere.
   //   pipeline_da_to_diagram {}              pipeline_da_to_pdf {mode: 'live'|'new'}
   //   pipeline_diagram_to_pdf {mode: 'live'|'new'}  pipeline_form_to_pdf {}
   // Only offer tools relevant to context.activePanel on each call -- e.g.
@@ -70817,6 +70949,27 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         return (p.mode === 'solid')
           ? 'Fill this page\'s canvas with ' + (p.color1 || 'the chosen colour') + '.'
           : 'Apply a ' + (p.color1 || 'colour') + ' \u2192 ' + (p.color2 || 'colour') + ' gradient to this page\'s canvas.';
+      }
+    },
+    // Bakes any of the Design panel's Cinematic Fade / Premium 3D Cinematic /
+    // Cosmic presets onto placed image(s) directly, via the exact same engine
+    // as the panel's own Apply Fade button (see pdfedLayaApplyImageDesign
+    // above) -- undo, export, and thumbnails all treat this identically to a
+    // manual apply. This is the tool DESIGN STUDIO JUDGMENT in the system
+    // prompt above pairs with: for a vague mood/intent request ("make this
+    // a bit faded," "give it some uniqueness") Laya picks BOTH preset and
+    // strength herself and calls this directly, she does not ask the person
+    // to choose from the 21 names first.
+    pdfed_apply_image_design: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaApplyImageDesign(p || {}); },
+      label: function(p){
+        p = p || {};
+        const preset = PDFED_DESIGN_PRESETS.find(function(pr){ return pr.id === p.preset; });
+        const name = preset ? preset.name : (p.preset || 'that fade');
+        const strengthNote = (p.strength !== undefined && p.strength !== null && p.strength !== '') ? ' at ' + p.strength + '% strength' : '';
+        const targetNote = p.target === 'all' ? ' to every image on this page' : '';
+        return 'Apply the ' + name + ' effect' + strengthNote + targetNote + '.';
       }
     },
     pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } },
