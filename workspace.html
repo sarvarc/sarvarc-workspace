@@ -70285,6 +70285,29 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
       .trim();
   }
 
+  // Laya's vision: only these two panels get screenshotted, since these
+  // are the ones where seeing the actual page/chart matters (business
+  // docs and design), not the data-only panels. containerId points at
+  // the element that holds the real rendered content (canvas + any
+  // overlays drawn on top of it), so what she sees matches what the user
+  // sees, not just the raw canvas pixels underneath annotations.
+  async function captureVisionSnapshot(context){
+    const visionPanels = { 'Diagrams & Graphs': 'dgCanvasHolder', 'PDF Editor': 'pdfedCanvasWrap' };
+    const containerId = context && visionPanels[context.activePanel];
+    if (!containerId) return null; // not a vision-enabled panel, skip entirely
+
+    const el = document.getElementById(containerId);
+    if (!el || el.offsetParent === null) return null; // not currently visible
+
+    try{
+      const canvas = await html2canvas(el, { backgroundColor: null, scale: 1 });
+      return canvas.toDataURL('image/jpeg', 0.7); // compressed base64, keeps payload small
+    } catch(e){
+      console.warn('Laya vision snapshot failed:', e);
+      return null;
+    }
+  }
+
   async function callRealLayaAPI(messages, context){
     // Grab the user's current Supabase login token so the Worker can verify
     // who's asking (never trust a client-supplied user id).
@@ -70294,13 +70317,16 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
       accessToken = session ? session.access_token : '';
     } catch(e){ /* not signed in, or Supabase not ready yet */ }
 
+    // Only fires for Diagrams & Graphs / PDF Editor; null everywhere else.
+    const snapshot = await captureVisionSnapshot(context);
+
     const response = await fetch(LAYA_API.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + accessToken
       },
-      body: JSON.stringify({ system: SYSTEM_PROMPT, messages: messages, context: context })
+      body: JSON.stringify({ system: SYSTEM_PROMPT, messages: messages, context: context, image: snapshot })
     });
     const data = await response.json();
     // actions: prefer the new multi-action array; fall back to wrapping
