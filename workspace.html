@@ -65098,6 +65098,11 @@ function dgGetExportCanvas() {
   dgDrawTextsOnCtx(ctx);
   return out;
 }
+// Exposed globally so the Laya assistant module (its own separate IIFE,
+// further down the file) can call this to grab a clean chart image for
+// vision -- without this, dgGetExportCanvas is only visible inside this
+// closure, and calling it from elsewhere quietly fails.
+window.dgGetExportCanvas = dgGetExportCanvas;
 
 // ── High-resolution ("4K") export ────────────────────────────────────────────
 // Built for the World Map's choropleth — a fixed-size, flat-shaded map is exactly
