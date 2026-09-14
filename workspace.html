@@ -69533,6 +69533,13 @@ if (document.readyState === 'loading') {
     padding:0; overflow:hidden;
   }
   #laya-launcher:hover{ filter:brightness(1.04); }
+  /* Small red dot shown when Laya has an unread proactive "eyes on it"
+     message waiting -- e.g. flagged while the panel was closed -- so it's
+     never silently lost, just deferred until the person opens the panel. */
+  #laya-launcher.laya-has-proactive::after{
+    content:''; position:absolute; top:2px; right:2px; width:12px; height:12px;
+    border-radius:50%; background:#ff5a5a; border:2px solid var(--bg, #0A0F1E);
+  }
   #laya-launcher-core{
     width:34px; height:auto; display:block;
     animation: layaBreatheCore 4s ease-in-out infinite;
@@ -69572,13 +69579,39 @@ if (document.readyState === 'loading') {
   #laya-send:disabled{ opacity:0.5; }
   #laya-attach-btn{ flex:0 0 auto; width:34px; height:34px; border-radius:9px; border:1px solid var(--border, rgba(0,194,255,0.10)); background:var(--surface, rgba(255,255,255,0.04)); color:var(--text3, #3A5A70); display:flex; align-items:center; justify-content:center; cursor:pointer; }
   #laya-attach-btn:hover{ color:var(--cyan, #00C2FF); border-color:var(--cyan, #00C2FF); }
-  #laya-attach-chip{ display:none; align-items:center; gap:6px; background:rgba(0,194,255,0.08); border:1px solid rgba(0,194,255,0.25); border-radius:8px; padding:5px 8px; font-size:12px; color:var(--text, #E8F4FF); }
-  #laya-attach-chip.show{ display:flex; }
-  #laya-attach-chip img{ width:18px; height:18px; border-radius:4px; object-fit:cover; }
-  #laya-attach-chip-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  #laya-attach-chip-remove{ cursor:pointer; color:var(--text3, #3A5A70); border:none; background:none; font-size:15px; line-height:1; padding:0 2px; }
-  #laya-attach-chip-remove:hover{ color:#ff6b6b; }
+  /* Container holds one chip per staged file -- a logo, a spreadsheet, and a
+     Word doc attached in the same turn all sit here side by side, instead of
+     the newest one silently bumping the others out of view (and out of
+     Laya's context -- see layaPendingAttachments in the script below). */
+  #laya-attach-chips{ display:none; flex-wrap:wrap; gap:6px; }
+  #laya-attach-chips.show{ display:flex; }
+  .laya-attach-chip{ display:flex; align-items:center; gap:6px; background:rgba(0,194,255,0.08); border:1px solid rgba(0,194,255,0.25); border-radius:8px; padding:5px 8px; font-size:12px; color:var(--text, #E8F4FF); max-width:100%; }
+  .laya-attach-chip img.laya-attach-thumb-img{ width:18px; height:18px; border-radius:4px; object-fit:cover; flex:0 0 auto; }
+  .laya-attach-chip-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px; }
+  .laya-attach-chip-remove{ cursor:pointer; color:var(--text3, #3A5A70); border:none; background:none; font-size:15px; line-height:1; padding:0 2px; flex:0 0 auto; }
+  .laya-attach-chip-remove:hover{ color:#ff6b6b; }
   #laya-mode-tag{ font-size:10px; color:var(--text2, #7BA8C4); text-align:center; padding:4px 0 0; background:var(--bg, #0A0F1E); margin:0; }
+
+  /* ── ATTACHMENT THUMBNAILS: shared by the pre-send chip AND the sent
+     message bubble, so a file reads as a small file-type icon (or an
+     actual image thumbnail for a logo) everywhere it appears -- never
+     just a bare filename floating in empty space. */
+  .laya-attach-thumb{ width:18px; height:18px; border-radius:4px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .laya-attach-thumb svg{ width:100%; height:100%; display:block; }
+  .laya-attach-thumb.type-pdf{ background:rgba(255,90,90,0.16); }
+  .laya-attach-thumb.type-doc{ background:rgba(60,130,255,0.16); }
+  .laya-attach-thumb.type-xls{ background:rgba(46,196,140,0.16); }
+  .laya-attach-thumb.type-csv{ background:rgba(46,196,140,0.16); }
+  .laya-attach-thumb.type-file{ background:rgba(122,168,196,0.16); }
+
+  /* ── SENT MESSAGE ATTACHMENT ROW: once a message is sent, the staged
+     chips clear -- but what actually traveled with that turn should stay
+     visible as thumbnails inside the bubble itself, so the thread never
+     shows a plain caption with no visual record of what Laya received. */
+  .laya-msg-attachments{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:7px; }
+  .laya-msg-attach-item{ display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.10); border-radius:7px; padding:3px 7px 3px 3px; font-size:11px; max-width:100%; }
+  .laya-msg-attach-item span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:130px; opacity:0.9; }
+  .laya-msg-text{ white-space:pre-wrap; }
 
   /* ── LAYA THINKING INDICATOR: particles collapsing into a core ── */
   .laya-msg.laya-thinking{ display:flex; align-items:center; gap:10px; padding:8px 12px; }
@@ -69612,13 +69645,9 @@ if (document.readyState === 'loading') {
   <div id="laya-thread"></div>
   <p id="laya-mode-tag"></p>
   <form id="laya-form">
-    <div id="laya-attach-chip">
-      <img id="laya-attach-chip-thumb" style="display:none">
-      <span id="laya-attach-chip-name"></span>
-      <button type="button" id="laya-attach-chip-remove" title="Remove attachment">&times;</button>
-    </div>
+    <div id="laya-attach-chips"></div>
     <div id="laya-form-row">
-      <button type="button" id="laya-attach-btn" title="Attach a file (logo, .docx, .xlsx, image)">
+      <button type="button" id="laya-attach-btn" title="Attach files (logo, .docx, .xlsx, image -- drop in as many as you like)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       </button>
       <input type="file" id="laya-attach-input" accept=".png,.jpg,.jpeg,.webp,.docx,.xlsx,.xls,.csv,.pdf" multiple style="display:none">
@@ -69668,7 +69697,7 @@ DESIGN JUDGMENT (PDF Editor / document hierarchy and spacing): Your opinions on 
 - A logo, watermark, and header/footer text are optional finishing touches, not things a document strictly needs.
 When a user describes a doc looking "off," "messy," or "inconsistent," diagnose it in these terms (mismatched table sizes, ad hoc headings, wrong theme for the content) and point them at Refine Report as the actual fix rather than trying to eyeball pixel adjustments yourself -- you can open that modal for them via your tools when they want to act on it, but the actual refinement runs through the app's own engine, not through you improvising layout changes. When the provided context includes a layoutIssues list, that's real, computed geometry (actual overlaps, off-page content, a logo outside the header band, misaligned left edges) -- cite it specifically ("your logo's sitting well below the header band") instead of speaking generically about spacing. An empty or absent layoutIssues list on a page with content means the geometry checked out fine; don't invent problems that aren't there.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. If a logo was supplied this turn (context.pendingAttachment.kind === 'logo'), treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If a Word/Excel/CSV/PDF was supplied instead (context.pendingAttachment.kind === 'data'), you're given real sample content (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. context.pendingAttachments (an ARRAY -- present only on a turn where the person just attached one or more files) tells you everything staged this turn; a person handing you a logo plus a spreadsheet plus a Word doc in one go all show up here together, not just the last one. Read the whole array before deciding what to do, not just its first or last entry. If it contains ONLY logo entries, treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If it contains ONLY data entries (kind: 'data', from a Word/Excel/CSV/PDF), you're given real sample content for each one (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. If it contains BOTH a logo entry AND one or more data entries -- someone just handed you their brand plus their content in the same breath -- that whole batch together IS the "build me the finished report" request, even with a minimal or synthesized caption: push the newly-ingested dataset(s) onto the PDF with pipeline_da_to_pdf (mode 'new' unless the current page already has content worth keeping, in which case 'live'), then call pdfed_auto_refine_report with add_logo_to_header true and theme/align chosen the normal DESIGN JUDGMENT way, both as actions in this same turn -- don't stop after only pushing the data and wait for a second message asking to polish it, and don't ask which file to use first when more than one data entry is present, just work through them in the order given. If several data entries arrived with no logo, still offer (or just do, if the ask is clearly "make this a report") the same pipeline_da_to_pdf + pdfed_auto_refine_report pairing minus add_logo_to_header. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -69745,7 +69774,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //     alongside other content and forcing it to full width would look
   //     empty/sparse. `add_logo_to_header` only has an effect if the
   //     document (or an attachment this turn) actually has a logo -- see
-  //     context.pendingAttachment below. Use this tool -- never
+  //     context.pendingAttachments below. Use this tool -- never
   //     pdfed_open_refine_report -- whenever the person asks for the
   //     "professional"/"final"/"client-ready" version and hasn't asked to
   //     review options first; save pdfed_open_refine_report for when they
@@ -69765,35 +69794,37 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   // when in Data Arrangement) since those are meant to move data OUT of the
   // current module, not act within it.
   //
-  // context.pendingAttachment (present only on a turn where the person just
-  // used Laya's attach icon, absent otherwise):
+  // context.pendingAttachments (an ARRAY, present only on a turn where the
+  // person just used Laya's attach icon, absent otherwise -- one entry per
+  // file staged since the last message, so a logo + a spreadsheet + a Word
+  // doc attached together arrive as three entries in ONE array, not three
+  // separate turns):
   //   { kind: 'logo', name: string, accentColor: string|null }
   //     -- an image was attached. It has ALREADY been written into the
   //     document's logo slot client-side (pdfedRefineState.logoDataUrl) by
   //     the time this request reaches you -- there is no separate "accept
   //     the logo" tool call to make. accentColor is the brand color already
   //     extracted from it (or null if extraction failed/it was flat white).
-  //     The attachment itself IS the "make it professional" request -- you
-  //     do not need the person's caption to separately ask for that. Call
-  //     pdfed_auto_refine_report with add_logo_to_header: true in the same
-  //     turn (deciding theme/align the normal DESIGN JUDGMENT way), unless
-  //     there's no content on the page yet to refine -- in that case just
-  //     confirm the logo landed and that you'll use it once there's a report
-  //     to apply it to.
   //   { kind: 'data', name: string, datasetName: string, headers: string[], rowCount: number, sampleRows: any[][] }
   //     -- a .docx/.xlsx/.csv/.pdf was attached and its content has ALREADY
   //     been parsed and added as a new dataset in Data Arrangement
   //     (daIngestFiles ran client-side before this request was sent) --
-  //     there is no separate "import the file" tool call to make either.
-  //     sampleRows gives you the actual cell content (up to 15 rows) of that
-  //     new dataset -- read it the same way you'd read a table pasted in by
-  //     hand, not just the row count -- so you can react to it by name (e.g.
-  //     confirm what came in, answer a question about the figures/text it
-  //     contains, then push it onward with pipeline_da_to_pdf if that's what
-  //     the person's message asks for).
-  //   Either way: your job on a pendingAttachment turn is deciding what to
-  //   DO next with what's already landed, not accepting or importing it --
-  //   that part is done.
+  //     there is no separate "import the file" tool call to make either. A
+  //     single multi-sheet workbook produces one entry PER SHEET, all
+  //     sharing the same `name` (the original filename) but different
+  //     `datasetName`s -- treat those as one attachment with several tables,
+  //     not several unrelated attachments. sampleRows gives you the actual
+  //     cell content (up to 15 rows) of that dataset -- read it the same way
+  //     you'd read a table pasted in by hand, not just the row count.
+  //   Your job on a pendingAttachments turn is deciding what to DO next with
+  //   what's already landed, not accepting or importing it -- that part is
+  //   done. Read every entry in the array, not just one, before deciding:
+  //   a logo-only array means "make it professional" (see the ACTIONS
+  //   paragraph above); a data-only array means read/react to that content;
+  //   an array with BOTH a logo and data entries means "here's my branding
+  //   and my content, build me the finished report" -- see the ACTIONS
+  //   paragraph above for the exact pipeline_da_to_pdf + pdfed_auto_refine_report
+  //   pairing that turn calls for.
 
   let history = [];
 
@@ -69807,10 +69838,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   const modeTag = document.getElementById('laya-mode-tag');
   const attachBtn = document.getElementById('laya-attach-btn');
   const attachInput = document.getElementById('laya-attach-input');
-  const attachChip = document.getElementById('laya-attach-chip');
-  const attachChipThumb = document.getElementById('laya-attach-chip-thumb');
-  const attachChipName = document.getElementById('laya-attach-chip-name');
-  const attachChipRemove = document.getElementById('laya-attach-chip-remove');
+  const attachChipsEl = document.getElementById('laya-attach-chips');
 
   modeTag.textContent = LAYA_API.enabled ? '' : 'Demo mode -- no API key connected yet';
 
@@ -69827,30 +69855,98 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //     parser Data Arrangement's own upload button calls, which lands
   //     the real table/content straight into a dataset Laya (or the
   //     person) can then push to Diagrams or the PDF.
-  // Only one attachment is staged at a time -- attaching a new file
-  // replaces the pending one. It's cleared automatically once sent,
-  // so it never silently reattaches itself to a later, unrelated message.
+  //
+  // MULTIPLE FILES STAGE TOGETHER: a person handing Laya "logo + excel +
+  // Word doc" in one go (the whole point of "give her the pieces, she
+  // handles the rest") used to only leave the LAST file attached -- every
+  // earlier one silently fell out of the chip and out of Laya's context,
+  // even though it had already landed in the app (logo written, dataset
+  // ingested). She'd only ever reason about one file per turn, so a
+  // three-file drop never produced the one-shot "here's your finished
+  // report" she's supposed to give. Now every file attached before Send
+  // stays staged -- its own chip, its own entry in the array below -- so
+  // the whole batch travels to Laya together and she can read it all
+  // (see layaAttachmentContextSummary() and context.pendingAttachments).
+  // Removing one chip only drops it from the NEXT message; a logo already
+  // written into pdfedRefineState or data already pushed into Data
+  // Arrangement stays exactly where it landed either way.
   // -----------------------------------------------------------------
-  let layaPendingAttachment = null; // { kind: 'logo'|'data', name, dataUrl? }
+  let layaPendingAttachments = []; // [{ id, kind: 'logo'|'data', name, ext, dataUrl?, datasets? }]
+  let layaAttachmentSeq = 0;
 
-  function layaClearAttachment(){
-    layaPendingAttachment = null;
-    attachChip.classList.remove('show');
-    attachChipThumb.style.display = 'none';
-    attachChipThumb.src = '';
-    attachChipName.textContent = '';
-    attachInput.value = '';
+  // Small set of inline SVG glyphs so a staged (or already-sent) file reads
+  // as an actual file-type icon -- a little PDF/Word/Excel/CSV mark -- not
+  // just a name with nothing next to it. Logos get their own real image
+  // thumbnail elsewhere (layaAttachThumbEl below); this only covers the
+  // 'data' kind, keyed off the file extension.
+  const LAYA_FILE_ICONS = {
+    pdf: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v15H6z" stroke="#ff6b6b" stroke-width="1.4" stroke-linejoin="round"/><path d="M15 2v5h5" stroke="#ff6b6b" stroke-width="1.4" stroke-linejoin="round"/><text x="7.5" y="17" font-size="6.5" fill="#ff6b6b" font-family="Arial" font-weight="700">PDF</text></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v15H6z" stroke="#5b9bff" stroke-width="1.4" stroke-linejoin="round"/><path d="M15 2v5h5" stroke="#5b9bff" stroke-width="1.4" stroke-linejoin="round"/><text x="7" y="17" font-size="6" fill="#5b9bff" font-family="Arial" font-weight="700">DOC</text></svg>',
+    xls: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v15H6z" stroke="#2ec48c" stroke-width="1.4" stroke-linejoin="round"/><path d="M15 2v5h5" stroke="#2ec48c" stroke-width="1.4" stroke-linejoin="round"/><text x="7" y="17" font-size="6" fill="#2ec48c" font-family="Arial" font-weight="700">XLS</text></svg>',
+    csv: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v15H6z" stroke="#2ec48c" stroke-width="1.4" stroke-linejoin="round"/><path d="M15 2v5h5" stroke="#2ec48c" stroke-width="1.4" stroke-linejoin="round"/><text x="7" y="17" font-size="6" fill="#2ec48c" font-family="Arial" font-weight="700">CSV</text></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v15H6z" stroke="#7BA8C4" stroke-width="1.4" stroke-linejoin="round"/><path d="M15 2v5h5" stroke="#7BA8C4" stroke-width="1.4" stroke-linejoin="round"/></svg>'
+  };
+  function layaFileIconKey(ext){
+    if (ext === 'pdf') return 'pdf';
+    if (ext === 'doc' || ext === 'docx') return 'doc';
+    if (ext === 'xls' || ext === 'xlsx') return 'xls';
+    if (ext === 'csv') return 'csv';
+    return 'file';
+  }
+  // Builds the one thumbnail element used both in the pre-send chip and in
+  // the sent message bubble, so an attachment looks the same wherever it
+  // shows up: a real image crop for a logo, a colored file-type glyph for
+  // everything else (never a blank space next to the filename).
+  function layaAttachThumbEl(a){
+    if (a.kind === 'logo' && a.dataUrl){
+      const img = document.createElement('img');
+      img.className = 'laya-attach-thumb-img';
+      img.src = a.dataUrl;
+      img.alt = a.name;
+      return img;
+    }
+    const key = layaFileIconKey(a.ext);
+    const box = document.createElement('div');
+    box.className = 'laya-attach-thumb type-' + key;
+    box.innerHTML = LAYA_FILE_ICONS[key];
+    return box;
   }
 
-  function layaShowAttachmentChip(name, dataUrlForThumb){
-    attachChip.classList.add('show');
-    attachChipName.textContent = name;
-    if (dataUrlForThumb){
-      attachChipThumb.src = dataUrlForThumb;
-      attachChipThumb.style.display = '';
-    } else {
-      attachChipThumb.style.display = 'none';
+  function layaClearAttachments(){
+    layaPendingAttachments = [];
+    attachInput.value = '';
+    layaRenderAttachmentChips();
+  }
+
+  function layaRemoveAttachment(id){
+    layaPendingAttachments = layaPendingAttachments.filter(function(a){ return a.id !== id; });
+    layaRenderAttachmentChips();
+  }
+
+  function layaRenderAttachmentChips(){
+    attachChipsEl.innerHTML = '';
+    if (!layaPendingAttachments.length){
+      attachChipsEl.classList.remove('show');
+      return;
     }
+    attachChipsEl.classList.add('show');
+    layaPendingAttachments.forEach(function(a){
+      const chip = document.createElement('div');
+      chip.className = 'laya-attach-chip';
+      chip.appendChild(layaAttachThumbEl(a));
+      const name = document.createElement('span');
+      name.className = 'laya-attach-chip-name';
+      name.textContent = a.name;
+      chip.appendChild(name);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'laya-attach-chip-remove';
+      remove.title = 'Remove attachment';
+      remove.textContent = '\u00d7';
+      remove.addEventListener('click', function(){ layaRemoveAttachment(a.id); });
+      chip.appendChild(remove);
+      attachChipsEl.appendChild(chip);
+    });
   }
 
   async function layaHandleAttachmentFile(file){
@@ -69866,8 +69962,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         // this just means the logo is ALREADY in place the moment she
         // decides to use it, no extra round trip needed.
         const dataUrl = await pdfedSetRefineLogoFromFile(file);
-        layaPendingAttachment = { kind: 'logo', name: file.name, dataUrl: dataUrl };
-        layaShowAttachmentChip(file.name, dataUrl);
+        layaPendingAttachments.push({ id: ++layaAttachmentSeq, kind: 'logo', name: file.name, ext: ext, dataUrl: dataUrl });
       } else {
         // Word/Excel/CSV/PDF -- straight into Data Arrangement via the
         // app's own real parser (mammoth for .docx, SheetJS for .xlsx,
@@ -69875,14 +69970,21 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
         // on attach, not on send, so the person sees the result land in
         // Data Arrangement right away and Laya gets a finished dataset
         // to work from rather than a raw file to somehow parse herself.
+        // Snapshot which datasets exist before/after so THIS attachment
+        // keeps a pointer to exactly the dataset(s) it created (usually
+        // one, occasionally more for a multi-sheet workbook), even when
+        // other files are ingested before or after it in the same batch.
+        const before = (typeof daState !== 'undefined' && daState.datasets) ? daState.datasets.length : 0;
         await daIngestFiles([file]);
-        layaPendingAttachment = { kind: 'data', name: file.name };
-        layaShowAttachmentChip(file.name, null);
+        const after = (typeof daState !== 'undefined' && daState.datasets) ? daState.datasets.length : before;
+        const newDatasets = (typeof daState !== 'undefined' && daState.datasets) ? daState.datasets.slice(before, after) : [];
+        layaPendingAttachments.push({ id: ++layaAttachmentSeq, kind: 'data', name: file.name, ext: ext, datasets: newDatasets });
       }
     } catch (err){
       console.error('Laya attachment failed', file.name, err);
       toast('Couldn\'t read "' + file.name + '", ' + (err && err.message ? err.message : 'unsupported or corrupted file'), 'error');
-      layaClearAttachment();
+    } finally {
+      layaRenderAttachmentChips();
     }
   }
 
@@ -69890,19 +69992,13 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   attachInput.addEventListener('change', async function(){
     const files = Array.from(attachInput.files || []);
     if (!files.length) return;
-    // Only one attachment travels with the next message -- if several
-    // files are picked at once, the LAST one staged is what's sent
-    // (data files still land fully in Data Arrangement either way, since
-    // daIngestFiles runs for every file; only the "what do I tell Laya
-    // about this turn" chip reflects the most recent one).
+    // Every file picked (or dropped in across several attach clicks before
+    // Send) stages as its own chip and its own entry -- a logo plus an
+    // excel plus a Word doc all travel together on the next message. Files
+    // are handled one at a time (not Promise.all) so two ingests never
+    // race on daState.datasets while snapshotting before/after lengths above.
     for (const f of files) await layaHandleAttachmentFile(f);
-  });
-  attachChipRemove.addEventListener('click', function(){
-    // Only clears the staged pointer/chip, not anything already placed --
-    // a logo already written into pdfedRefineState or data already
-    // pushed into Data Arrangement stays exactly where it landed. This
-    // only undoes "and tell Laya about it on the next message."
-    layaClearAttachment();
+    attachInput.value = '';
   });
 
   // -----------------------------------------------------------------
@@ -69934,16 +70030,50 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
 
   launcher.addEventListener('click', function(){
     panel.classList.toggle('open');
-    if(panel.classList.contains('open') && thread.children.length === 0){
-      addMsg('laya', "Hi, I'm Laya. Ask me about redacting a file, tidying a messy chart, or refining a report into your letterhead.");
+    if(panel.classList.contains('open')){
+      if(thread.children.length === 0){
+        addMsg('laya', "Hi, I'm Laya. Ask me about redacting a file, tidying a messy chart, or refining a report into your letterhead.");
+      }
+      // Flush anything the background watcher noticed while the panel was
+      // closed -- it was held back rather than dropped, so opening the
+      // panel is when the person actually sees it.
+      if(layaEyesPendingProactive.length){
+        layaEyesPendingProactive.forEach(function(t){ addMsg('laya', t); });
+        layaEyesPendingProactive = [];
+      }
+      layaEyesShowBadge(false);
     }
   });
   closeBtn.addEventListener('click', function(){ panel.classList.remove('open'); });
 
-  function addMsg(who, text){
+  function addMsg(who, text, attachments){
     const div = document.createElement('div');
     div.className = 'laya-msg ' + who;
-    div.textContent = text;
+    // When this turn carried files, show what was actually sent/received as
+    // small thumbnails inside the bubble itself -- otherwise, once the
+    // staged chips clear after Send, the thread has no visual record at all
+    // that anything was attached, and the message reads as an unexplained
+    // blank caption ("Here's the file, use it..." with nothing to look at).
+    if (attachments && attachments.length){
+      const row = document.createElement('div');
+      row.className = 'laya-msg-attachments';
+      attachments.forEach(function(a){
+        const item = document.createElement('div');
+        item.className = 'laya-msg-attach-item';
+        item.appendChild(layaAttachThumbEl(a));
+        const label = document.createElement('span');
+        label.textContent = a.name;
+        item.appendChild(label);
+        row.appendChild(item);
+      });
+      div.appendChild(row);
+    }
+    if (text){
+      const textEl = document.createElement('span');
+      textEl.className = 'laya-msg-text';
+      textEl.textContent = text;
+      div.appendChild(textEl);
+    }
     thread.appendChild(div);
     thread.scrollTop = thread.scrollHeight;
     return div;
@@ -70670,61 +70800,164 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     };
   }
 
-  // Builds the lightweight, LLM-facing summary of whatever's staged --
-  // never the raw dataUrl (that would blow up the request size for no
-  // reason the model needs), just enough for Laya to reason about and act
-  // on: for a logo, its name and the accent color already extracted from
-  // it; for data, the same dataset-summary shape Data Arrangement's own
-  // context uses, so Laya treats an attached file the same way she'd
-  // treat a table pasted in by hand.
-  function layaAttachmentContextSummary(){
-    if (!layaPendingAttachment) return null;
-    if (layaPendingAttachment.kind === 'logo'){
-      return {
-        kind: 'logo',
-        name: layaPendingAttachment.name,
-        accentColor: pdfedRefineState.logoAccent || null
-      };
+  // -----------------------------------------------------------------
+  // EYES-ON-IT BACKGROUND WATCHER
+  // -----------------------------------------------------------------
+  // The Worker already ships a full "eyes" mode (mode: 'eyes') that
+  // fingerprints each current layout issue and only tells us about one
+  // once it's persisted across several checks -- and SYSTEM_PROMPT above
+  // spends a whole paragraph telling Laya how to speak once that happens.
+  // But nothing ever actually CALLED that endpoint: without this, Laya
+  // could only ever mention layoutIssues passively, on a turn the person
+  // started themselves. This loop is what makes the unprompted "got eyes
+  // on it" behavior real.
+  //
+  // Runs on a plain timer rather than hooking every one of PDF Editor's
+  // many edit call sites -- the Worker's own KV counter is what enforces
+  // "persisted across several checks", so evenly spaced polling satisfies
+  // that contract exactly as well as an edit-by-edit hook would, without
+  // touching dozens of unrelated functions. Scoped to PDF Editor client-
+  // side too (not just relying on the Worker's own no-op for other
+  // panels) so a tick outside that panel never even makes a network call.
+  const LAYA_EYES_INTERVAL_MS = 6000;
+  const LAYA_EYES_SCOPE_ID = (function(){
+    try { return crypto.randomUUID(); } catch(e){ return 'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2); }
+  })();
+  let layaEyesBusy = false;
+  // Held here instead of shown immediately when the panel is closed --
+  // flushed into the thread (and the badge cleared) the moment the person
+  // opens Laya, so a background flag is deferred, never lost.
+  let layaEyesPendingProactive = [];
+
+  function layaEyesShowBadge(show){
+    launcher.classList.toggle('laya-has-proactive', !!show);
+  }
+
+  async function layaEyesTick(){
+    if (layaEyesBusy) return; // never overlap with a check already in flight
+    if (document.hidden) return; // don't spend calls on a backgrounded tab
+    if (!LAYA_API.enabled) return; // demo mode has no Worker to ask
+    if (launcher.style.display === 'none') return; // not signed in
+
+    const ctx = getLayaContext();
+    if (!ctx || ctx.activePanel !== 'PDF Editor') return; // the only panel with real layoutIssues today
+    if (!Array.isArray(ctx.layoutIssues)) return;
+
+    layaEyesBusy = true;
+    try{
+      let accessToken = '';
+      try{
+        const { data: { session } } = await sarvarcSupabase.auth.getSession();
+        accessToken = session ? session.access_token : '';
+      } catch(e){ /* not signed in / Supabase not ready */ }
+      if (!accessToken) return;
+
+      const response = await fetch(LAYA_API.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+        body: JSON.stringify({ mode: 'eyes', scopeId: LAYA_EYES_SCOPE_ID, context: ctx })
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!data || !data.proactive) return;
+
+      const text = sarvarcLayaStripEmDash(data.proactive);
+      // This wasn't a real conversational turn, so it's kept out of
+      // `history` (the OpenAI-facing transcript) -- but it still needs to
+      // be visible: shown right away if the panel's already open, held
+      // and badged if it's closed.
+      if (panel.classList.contains('open')){
+        addMsg('laya', text);
+      } else {
+        layaEyesPendingProactive.push(text);
+        layaEyesShowBadge(true);
+      }
+    } catch(e){
+      // Silent -- a background watcher's network hiccup shouldn't ever
+      // interrupt the person's actual work with a visible error.
+    } finally {
+      layaEyesBusy = false;
     }
-    try {
-      if (typeof daState !== 'undefined' && daState.datasets && daState.datasets.length){
-        const ds = daState.datasets[daState.datasets.length - 1];
-        // sampleRows carries the actual cell content (up to 15 rows), not just
-        // a count -- mirrors the shape getLayaContext() already sends when the
-        // person is just browsing Data Arrangement (see the 'dataarrange'
-        // branch above). Without this, an attached Word/Excel file only ever
-        // told Laya a row count and header list -- she never saw a single word
-        // or number that was actually in the file, so she couldn't reason
-        // about the content itself (only its shape). This is what lets her
-        // genuinely read a report's paragraphs or a spreadsheet's figures the
-        // moment they're attached, the same way she reads a table someone
-        // pastes into Data Arrangement by hand.
-        return {
+  }
+
+  setInterval(layaEyesTick, LAYA_EYES_INTERVAL_MS);
+
+  // Builds the lightweight, LLM-facing summary of the WHOLE batch that's
+  // staged -- never the raw dataUrl (that would blow up the request size
+  // for no reason the model needs), just enough for Laya to reason about
+  // and act on each piece: for a logo, its name and the accent color
+  // already extracted from it; for data, the same dataset-summary shape
+  // Data Arrangement's own context uses, so Laya treats an attached file
+  // the same way she'd treat a table pasted in by hand. Returns an ARRAY
+  // (one entry per staged file, plus one entry per sheet for a multi-sheet
+  // workbook) so a "logo + excel + Word doc" drop reads to Laya as one
+  // batch she can act on together, not three separate one-file turns.
+  function layaAttachmentContextSummary(){
+    if (!layaPendingAttachments.length) return null;
+    const out = [];
+    layaPendingAttachments.forEach(function(a){
+      if (a.kind === 'logo'){
+        out.push({
+          kind: 'logo',
+          name: a.name,
+          accentColor: pdfedRefineState.logoAccent || null
+        });
+        return;
+      }
+      // sampleRows carries the actual cell content (up to 15 rows), not just
+      // a count -- mirrors the shape getLayaContext() already sends when the
+      // person is just browsing Data Arrangement (see the 'dataarrange'
+      // branch above). Without this, an attached Word/Excel file only ever
+      // told Laya a row count and header list -- she never saw a single word
+      // or number that was actually in the file, so she couldn't reason
+      // about the content itself (only its shape). This is what lets her
+      // genuinely read a report's paragraphs or a spreadsheet's figures the
+      // moment they're attached, the same way she reads a table someone
+      // pastes into Data Arrangement by hand.
+      const datasets = a.datasets || [];
+      if (!datasets.length){
+        out.push({ kind: 'data', name: a.name });
+        return;
+      }
+      datasets.forEach(function(ds){
+        out.push({
           kind: 'data',
-          name: layaPendingAttachment.name,
+          name: a.name,
           datasetName: ds.name,
           headers: ds.headers || [],
           rowCount: (ds.rows || []).length,
           sampleRows: (ds.rows || []).slice(0, 15)
-        };
-      }
-    } catch(e){ /* fall through to minimal */ }
-    return { kind: 'data', name: layaPendingAttachment.name };
+        });
+      });
+    });
+    return out;
   }
 
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     let text = input.value.trim();
-    if(!text && !layaPendingAttachment) return;
-    if(!text && layaPendingAttachment){
+    if(!text && !layaPendingAttachments.length) return;
+    if(!text && layaPendingAttachments.length){
       // No caption typed -- synthesize a sensible default so the turn
       // still reads naturally in the thread instead of sending nothing.
-      text = layaPendingAttachment.kind === 'logo'
-        ? "Here's our logo, use it."
-        : "Here's the file, use it to prepare the report.";
+      // A single file gets its old, specific phrasing; a batch (the "here's
+      // everything, you handle it" case this exists for) names every piece
+      // so it's obvious in the thread what actually traveled with the turn.
+      if (layaPendingAttachments.length === 1){
+        text = layaPendingAttachments[0].kind === 'logo'
+          ? "Here's our logo, use it."
+          : "Here's the file, use it to prepare the report.";
+      } else {
+        const names = layaPendingAttachments.map(function(a){ return a.name; }).join(', ');
+        text = "Here's " + names + ". Put together the finished report.";
+      }
     }
 
-    addMsg('user', text);
+    // Snapshot now -- layaClearAttachments() (in `finally` below) wipes
+    // layaPendingAttachments once the turn is sent, but the bubble in the
+    // thread needs to go on showing exactly what traveled with it.
+    const sentAttachments = layaPendingAttachments.slice();
+    addMsg('user', text, sentAttachments);
     history.push({ role: 'user', content: text });
     input.value = '';
     sendBtn.disabled = true;
@@ -70735,7 +70968,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     let ctx = getLayaContext();
     const attachmentSummary = layaAttachmentContextSummary();
     if (attachmentSummary){
-      ctx = Object.assign({}, ctx || {}, { pendingAttachment: attachmentSummary });
+      ctx = Object.assign({}, ctx || {}, { pendingAttachments: attachmentSummary });
     }
     const thinking = addThinkingMsg(ctx);
 
@@ -70765,10 +70998,10 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     } finally {
       sendBtn.disabled = false;
       input.focus();
-      // One-shot: this attachment traveled with this message only. Whatever
-      // it did (logo set, data imported) already happened and stays; only
-      // the "tell Laya about it" pointer/chip is cleared.
-      layaClearAttachment();
+      // One-shot: this batch traveled with this message only. Whatever it
+      // did (logo set, data imported) already happened and stays; only the
+      // "tell Laya about it" chips are cleared.
+      layaClearAttachments();
     }
   });
 
