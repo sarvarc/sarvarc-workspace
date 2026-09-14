@@ -43781,24 +43781,38 @@ async function pdfedExtractLogoColors(dataUrl) {
     });
 }
 
+// Reads a logo File, extracts its brand colors, and stores it into
+// pdfedRefineState -- the single place both the modal's own file input and
+// Laya's attachment icon (see LAYA ASSISTANT MODULE) feed a logo through,
+// so a logo handed to Laya in chat behaves identically to one uploaded by
+// hand in the Refine Report modal. Returns the dataUrl via the promise so a
+// caller (like Laya's attachment handler) can also show a thumbnail chip.
+function pdfedSetRefineLogoFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      pdfedRefineState.logoDataUrl = dataUrl;
+      let colors = [];
+      try { colors = await pdfedExtractLogoColors(dataUrl); } catch (err) { console.error('Logo color extraction failed', err); }
+      pdfedRefineState.logoColors = colors;
+      pdfedRefineState.logoAccent = colors[0] || null;
+      pdfedUpdateLogoPreviewUI();
+      pdfedUpdateRefinePreview();
+      resolve(dataUrl);
+    };
+    reader.onerror = () => reject(new Error('Could not read that logo file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 // Reads the uploaded logo file, extracts its brand colors, and updates the
-// modal's preview/swatch UI. Runs entirely client-side.
+// modal's preview/swatch UI. Thin wrapper around pdfedSetRefineLogoFromFile
+// for the modal's own <input type=file> onchange handler.
 function pdfedHandleLogoFileInput(inputEl) {
   const file = inputEl.files && inputEl.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const dataUrl = e.target.result;
-    pdfedRefineState.logoDataUrl = dataUrl;
-    let colors = [];
-    try { colors = await pdfedExtractLogoColors(dataUrl); } catch (err) { console.error('Logo color extraction failed', err); }
-    pdfedRefineState.logoColors = colors;
-    pdfedRefineState.logoAccent = colors[0] || null;
-    pdfedUpdateLogoPreviewUI();
-    pdfedUpdateRefinePreview();
-  };
-  reader.onerror = () => toast('Could not read that logo file', 'error');
-  reader.readAsDataURL(file);
+  pdfedSetRefineLogoFromFile(file).catch(() => toast('Could not read that logo file', 'error'));
 }
 
 function pdfedClearRefineLogo() {
@@ -46877,7 +46891,74 @@ async function pdfedRunRefineReportFromModal() {
     footerEnabled: !!pdfedRefineState.footerEnabled,
   };
   pdfedCloseRefineModal();
+  await pdfedExecuteRefineReport(opts);
+}
 
+// ── Refine Report — autopilot entry point (no modal, no manual steps) ──────
+// Laya's "give me the professional output" flow calls this directly. She
+// supplies whatever she's decided (theme, whether to stretch tables, logo
+// placement, etc.) based on the page content/logo she's been given as
+// context; anything she leaves unspecified falls back to pdfedRefineState's
+// current value, so a partial decision still produces a complete, valid
+// options object. Runs the exact same pipeline as the modal's Apply button
+// via pdfedExecuteRefineReport -- one engine, two ways to reach it. Throws
+// on the same "nothing to refine yet" cases the modal itself guards against
+// on open, since there's no modal here to have already caught them -- the
+// thrown message surfaces to the user as a normal Laya reply.
+async function pdfedRunRefineReportAuto(overrides) {
+  const pages = (typeof pdfed !== 'undefined' && pdfed.pages) || [];
+  if (!pages.length) { toast('Open or build a report first', 'info'); throw new Error('Open or build a report first.'); }
+  const hasFormPages = pages.some(pg => pg.fromMakeForm);
+  const scopePages = hasFormPages ? pages.filter(pg => !pg.fromMakeForm) : pages;
+  if (hasFormPages && !scopePages.length) {
+    toast('Insert a page and add content to refine it — pushed form pages are left as they are', 'info');
+    throw new Error('Insert a page and add content to refine it — pushed form pages are left as they are.');
+  }
+  const hasContent = scopePages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length));
+  if (!hasContent) {
+    const msg = hasFormPages ? 'Add some content to the inserted page first.' : 'Add some tables, text, or images to the canvas first.';
+    toast(msg, 'info');
+    throw new Error(msg);
+  }
+
+  const o = overrides || {};
+  const themeChoice = o.theme || pdfedRefineState.theme || 'general';
+  const opts = {
+    theme: themeChoice,
+    align: o.align || pdfedRefineState.align || 'left', // 'left' | 'center' | 'stretch' -- 'stretch' is the "should tables fill the page width" call
+    autoFit: o.autoFit !== undefined ? !!o.autoFit : true,
+    syncHeadings: o.syncHeadings !== undefined ? !!o.syncHeadings : true,
+    adjustA4: o.adjustA4 !== undefined ? !!o.adjustA4 : true,
+    // Section-icon badges are Modern-theme-only art (see pdfedUpdateSectionIconsVisibility);
+    // defaulting them on whenever Modern is the chosen theme mirrors that UI's own on-by-default behavior.
+    sectionIcons: o.sectionIcons !== undefined ? !!o.sectionIcons : (themeChoice === 'modern'),
+    useLogoColors: o.useLogoColors !== undefined ? !!o.useLogoColors : !!pdfedRefineState.useLogoColors,
+    logoAccent: pdfedRefineState.logoAccent,
+    addLogoToHeader: o.addLogoToHeader !== undefined ? !!o.addLogoToHeader : !!pdfedRefineState.logoDataUrl,
+    logoDataUrl: pdfedRefineState.logoDataUrl,
+    logoPosition: o.logoPosition || pdfedRefineState.logoPosition || 'right',
+    watermarkEnabled: o.watermarkEnabled !== undefined ? !!o.watermarkEnabled : !!pdfedRefineState.watermarkEnabled,
+    watermarkOpacity: pdfedRefineState.watermarkOpacity != null ? pdfedRefineState.watermarkOpacity : 0.1,
+    headerTitle: o.headerTitle != null ? o.headerTitle : (pdfedRefineState.headerTitle || ''),
+    headerSubheading: o.headerSubheading != null ? o.headerSubheading : (pdfedRefineState.headerSubheading || ''),
+    headerContact: o.headerContact != null ? o.headerContact : (pdfedRefineState.headerContact || ''),
+    headerAddress: o.headerAddress != null ? o.headerAddress : (pdfedRefineState.headerAddress || ''),
+    headerTextPosition: o.headerTextPosition || pdfedRefineState.headerTextPosition || 'left',
+    footerEnabled: o.footerEnabled !== undefined ? !!o.footerEnabled : !!pdfedRefineState.footerEnabled,
+  };
+  swTrack('refine_report_run', {
+    theme: opts.theme, align: opts.align, autoFit: opts.autoFit, syncHeadings: opts.syncHeadings,
+    sectionIcons: opts.sectionIcons, logoUsed: !!opts.logoDataUrl, watermarkUsed: opts.watermarkEnabled,
+    footerUsed: opts.footerEnabled, auto: true
+  });
+  return pdfedExecuteRefineReport(opts);
+}
+
+// ── Refine Report — shared engine ───────────────────────────────────────────
+// Both the modal's Apply button (pdfedRunRefineReportFromModal) and Laya's
+// autopilot (pdfedRunRefineReportAuto) build a complete `opts` object their
+// own way, then hand it here. One pipeline, two ways to arrive at it.
+async function pdfedExecuteRefineReport(opts) {
   let before;
   try { before = JSON.parse(JSON.stringify(pdfed.pages)); } catch (e) { before = null; }
 
@@ -47001,7 +47082,9 @@ async function pdfedRunRefineReportFromModal() {
   if (headerFooterResult.footerPages) parts.push(`footer added to ${headerFooterResult.footerPages} page${headerFooterResult.footerPages !== 1 ? 's' : ''}`);
   if (opts.useLogoColors && opts.logoAccent) parts.push('logo colors applied');
   if (scopeToInsertedOnly) parts.push('pushed form page(s) left as-is');
-  toast(parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined', 'success');
+  const summaryLine = parts.length ? `Report refined — ${parts.join(', ')}` : 'Report refined';
+  toast(summaryLine, 'success');
+  return Object.assign({}, summary, { summaryLine });
 }
 
 async function daPushToWorkflow(mode) {
@@ -69480,12 +69563,21 @@ if (document.readyState === 'loading') {
   .laya-msg{ max-width:82%; padding:9px 12px; border-radius:12px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; }
   .laya-msg.user{ align-self:flex-end; background:var(--surface2, rgba(255,255,255,0.07)); color:var(--text, #E8F4FF); border-bottom-right-radius:3px; border:1px solid var(--border, rgba(0,194,255,0.10)); }
   .laya-msg.laya{ align-self:flex-start; background:rgba(0,194,255,0.10); color:var(--text, #E8F4FF); border-bottom-left-radius:3px; border:1px solid var(--border2, rgba(0,194,255,0.30)); }
-  #laya-form{ display:flex; gap:6px; padding:10px; border-top:1px solid var(--border, rgba(0,194,255,0.10)); background:var(--bg2, #0D1528); }
+  #laya-form{ display:flex; flex-direction:column; gap:6px; padding:10px; border-top:1px solid var(--border, rgba(0,194,255,0.10)); background:var(--bg2, #0D1528); }
+  #laya-form-row{ display:flex; gap:6px; align-items:flex-end; }
   #laya-input{ flex:1; resize:none; background:var(--surface, rgba(255,255,255,0.04)); color:var(--text, #E8F4FF); border:1px solid var(--border, rgba(0,194,255,0.10)); border-radius:9px; padding:8px 10px; font-size:13.5px; font-family:inherit; max-height:70px; outline:none; }
   #laya-input:focus{ border-color:var(--cyan, #00C2FF); }
   #laya-input::placeholder{ color:var(--text3, #3A5A70); }
   #laya-send{ border:none; background:linear-gradient(135deg, var(--cyan, #00C2FF), var(--purple, #0073E6)); color:#fff; padding:0 14px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; }
   #laya-send:disabled{ opacity:0.5; }
+  #laya-attach-btn{ flex:0 0 auto; width:34px; height:34px; border-radius:9px; border:1px solid var(--border, rgba(0,194,255,0.10)); background:var(--surface, rgba(255,255,255,0.04)); color:var(--text3, #3A5A70); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  #laya-attach-btn:hover{ color:var(--cyan, #00C2FF); border-color:var(--cyan, #00C2FF); }
+  #laya-attach-chip{ display:none; align-items:center; gap:6px; background:rgba(0,194,255,0.08); border:1px solid rgba(0,194,255,0.25); border-radius:8px; padding:5px 8px; font-size:12px; color:var(--text, #E8F4FF); }
+  #laya-attach-chip.show{ display:flex; }
+  #laya-attach-chip img{ width:18px; height:18px; border-radius:4px; object-fit:cover; }
+  #laya-attach-chip-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #laya-attach-chip-remove{ cursor:pointer; color:var(--text3, #3A5A70); border:none; background:none; font-size:15px; line-height:1; padding:0 2px; }
+  #laya-attach-chip-remove:hover{ color:#ff6b6b; }
   #laya-mode-tag{ font-size:10px; color:var(--text2, #7BA8C4); text-align:center; padding:4px 0 0; background:var(--bg, #0A0F1E); margin:0; }
 
   /* ── LAYA THINKING INDICATOR: particles collapsing into a core ── */
@@ -69520,8 +69612,19 @@ if (document.readyState === 'loading') {
   <div id="laya-thread"></div>
   <p id="laya-mode-tag"></p>
   <form id="laya-form">
-    <textarea id="laya-input" rows="1" placeholder="Ask Laya..."></textarea>
-    <button id="laya-send" type="submit">Send</button>
+    <div id="laya-attach-chip">
+      <img id="laya-attach-chip-thumb" style="display:none">
+      <span id="laya-attach-chip-name"></span>
+      <button type="button" id="laya-attach-chip-remove" title="Remove attachment">&times;</button>
+    </div>
+    <div id="laya-form-row">
+      <button type="button" id="laya-attach-btn" title="Attach a file (logo, .docx, .xlsx, image)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+      <input type="file" id="laya-attach-input" accept=".png,.jpg,.jpeg,.webp,.docx,.xlsx,.xls,.csv,.pdf" multiple style="display:none">
+      <textarea id="laya-input" rows="1" placeholder="Ask Laya..."></textarea>
+      <button id="laya-send" type="submit">Send</button>
+    </div>
   </form>
 </div>
 
@@ -69565,7 +69668,7 @@ DESIGN JUDGMENT (PDF Editor / document hierarchy and spacing): Your opinions on 
 - A logo, watermark, and header/footer text are optional finishing touches, not things a document strictly needs.
 When a user describes a doc looking "off," "messy," or "inconsistent," diagnose it in these terms (mismatched table sizes, ad hoc headings, wrong theme for the content) and point them at Refine Report as the actual fix rather than trying to eyeball pixel adjustments yourself -- you can open that modal for them via your tools when they want to act on it, but the actual refinement runs through the app's own engine, not through you improvising layout changes. When the provided context includes a layoutIssues list, that's real, computed geometry (actual overlaps, off-page content, a logo outside the header band, misaligned left edges) -- cite it specifically ("your logo's sitting well below the header band") instead of speaking generically about spacing. An empty or absent layoutIssues list on a page with content means the geometry checked out fine; don't invent problems that aren't there.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and opening Refine Report for the user to review and apply. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. If a logo was supplied this turn (context.pendingAttachment.kind === 'logo'), treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If a Word/Excel/CSV/PDF was supplied instead (context.pendingAttachment.kind === 'data'), you're given real sample content (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. Once a form exists and the user asks to share it, put it live, or send people a link, call mf_publish_form. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -69627,6 +69730,26 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //     against the form just created).
   //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
   //   pdfed_remove_page {idx}                pdfed_open_refine_report {}
+  //   pdfed_auto_refine_report {theme?, align?, section_icons?, add_logo_to_header?,
+  //     logo_position?, watermark_enabled?, footer_enabled?, header_title?,
+  //     header_subheading?, header_contact?, header_address?}
+  //     -- The "no manual work" version of pdfed_open_refine_report. Runs the
+  //     WHOLE Refine Report pass immediately -- no modal, nothing for the
+  //     person to click -- using whichever of these Laya fills in; anything
+  //     omitted falls back to the document's current Refine Report settings.
+  //     `theme` MUST be one of: general, financial, corporate, modern (see
+  //     the DESIGN JUDGMENT section above for which fits which content).
+  //     `align` MUST be one of: left, center, stretch -- this is the "should
+  //     tables/images fill the page width" call; pick 'stretch' for a single
+  //     wide table or a one-table-per-page layout, 'left' when a table sits
+  //     alongside other content and forcing it to full width would look
+  //     empty/sparse. `add_logo_to_header` only has an effect if the
+  //     document (or an attachment this turn) actually has a logo -- see
+  //     context.pendingAttachment below. Use this tool -- never
+  //     pdfed_open_refine_report -- whenever the person asks for the
+  //     "professional"/"final"/"client-ready" version and hasn't asked to
+  //     review options first; save pdfed_open_refine_report for when they
+  //     explicitly want to tweak settings themselves.
   //   pdfed_rotate_page {direction: 'left'|'right'}   pdfed_duplicate_page {}
   //   pdfed_revert_page {}                   pdfed_zoom {direction: 'in'|'out'}
   //   pdfed_zoom_fit {}
@@ -69641,6 +69764,36 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   // whichever module is active (e.g. pipeline_da_to_diagram + pipeline_da_to_pdf
   // when in Data Arrangement) since those are meant to move data OUT of the
   // current module, not act within it.
+  //
+  // context.pendingAttachment (present only on a turn where the person just
+  // used Laya's attach icon, absent otherwise):
+  //   { kind: 'logo', name: string, accentColor: string|null }
+  //     -- an image was attached. It has ALREADY been written into the
+  //     document's logo slot client-side (pdfedRefineState.logoDataUrl) by
+  //     the time this request reaches you -- there is no separate "accept
+  //     the logo" tool call to make. accentColor is the brand color already
+  //     extracted from it (or null if extraction failed/it was flat white).
+  //     The attachment itself IS the "make it professional" request -- you
+  //     do not need the person's caption to separately ask for that. Call
+  //     pdfed_auto_refine_report with add_logo_to_header: true in the same
+  //     turn (deciding theme/align the normal DESIGN JUDGMENT way), unless
+  //     there's no content on the page yet to refine -- in that case just
+  //     confirm the logo landed and that you'll use it once there's a report
+  //     to apply it to.
+  //   { kind: 'data', name: string, datasetName: string, headers: string[], rowCount: number, sampleRows: any[][] }
+  //     -- a .docx/.xlsx/.csv/.pdf was attached and its content has ALREADY
+  //     been parsed and added as a new dataset in Data Arrangement
+  //     (daIngestFiles ran client-side before this request was sent) --
+  //     there is no separate "import the file" tool call to make either.
+  //     sampleRows gives you the actual cell content (up to 15 rows) of that
+  //     new dataset -- read it the same way you'd read a table pasted in by
+  //     hand, not just the row count -- so you can react to it by name (e.g.
+  //     confirm what came in, answer a question about the figures/text it
+  //     contains, then push it onward with pipeline_da_to_pdf if that's what
+  //     the person's message asks for).
+  //   Either way: your job on a pendingAttachment turn is deciding what to
+  //   DO next with what's already landed, not accepting or importing it --
+  //   that part is done.
 
   let history = [];
 
@@ -69652,8 +69805,105 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   const input = document.getElementById('laya-input');
   const sendBtn = document.getElementById('laya-send');
   const modeTag = document.getElementById('laya-mode-tag');
+  const attachBtn = document.getElementById('laya-attach-btn');
+  const attachInput = document.getElementById('laya-attach-input');
+  const attachChip = document.getElementById('laya-attach-chip');
+  const attachChipThumb = document.getElementById('laya-attach-chip-thumb');
+  const attachChipName = document.getElementById('laya-attach-chip-name');
+  const attachChipRemove = document.getElementById('laya-attach-chip-remove');
 
   modeTag.textContent = LAYA_API.enabled ? '' : 'Demo mode -- no API key connected yet';
+
+  // -----------------------------------------------------------------
+  // ATTACHMENTS -- lets a person hand Laya a file (a logo, a Word doc,
+  // a spreadsheet, a photo) instead of typing everything out or doing
+  // the placement by hand. Reuses the app's OWN existing parsers rather
+  // than building new ones:
+  //   - images  -> fed straight into pdfedSetRefineLogoFromFile (the
+  //     exact function the Refine Report modal's own logo upload uses),
+  //     so an attached logo is immediately ready for Laya's
+  //     pdfed_auto_refine_report call, no separate confirmation step.
+  //   - .docx/.xlsx/.xls/.csv/.pdf -> handed to daIngestFiles, the same
+  //     parser Data Arrangement's own upload button calls, which lands
+  //     the real table/content straight into a dataset Laya (or the
+  //     person) can then push to Diagrams or the PDF.
+  // Only one attachment is staged at a time -- attaching a new file
+  // replaces the pending one. It's cleared automatically once sent,
+  // so it never silently reattaches itself to a later, unrelated message.
+  // -----------------------------------------------------------------
+  let layaPendingAttachment = null; // { kind: 'logo'|'data', name, dataUrl? }
+
+  function layaClearAttachment(){
+    layaPendingAttachment = null;
+    attachChip.classList.remove('show');
+    attachChipThumb.style.display = 'none';
+    attachChipThumb.src = '';
+    attachChipName.textContent = '';
+    attachInput.value = '';
+  }
+
+  function layaShowAttachmentChip(name, dataUrlForThumb){
+    attachChip.classList.add('show');
+    attachChipName.textContent = name;
+    if (dataUrlForThumb){
+      attachChipThumb.src = dataUrlForThumb;
+      attachChipThumb.style.display = '';
+    } else {
+      attachChipThumb.style.display = 'none';
+    }
+  }
+
+  async function layaHandleAttachmentFile(file){
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp'];
+    try {
+      if (IMAGE_EXTS.indexOf(ext) !== -1){
+        // Images are staged as a logo candidate right away -- the same
+        // action a person takes by uploading a logo in the Refine Report
+        // modal, just triggered from chat instead. If Laya's reply makes
+        // clear the person meant something else (a photo to insert, a
+        // screenshot of a table), she can still act on it differently;
+        // this just means the logo is ALREADY in place the moment she
+        // decides to use it, no extra round trip needed.
+        const dataUrl = await pdfedSetRefineLogoFromFile(file);
+        layaPendingAttachment = { kind: 'logo', name: file.name, dataUrl: dataUrl };
+        layaShowAttachmentChip(file.name, dataUrl);
+      } else {
+        // Word/Excel/CSV/PDF -- straight into Data Arrangement via the
+        // app's own real parser (mammoth for .docx, SheetJS for .xlsx,
+        // the smart multi-strategy parser for csv/pdf). Runs immediately
+        // on attach, not on send, so the person sees the result land in
+        // Data Arrangement right away and Laya gets a finished dataset
+        // to work from rather than a raw file to somehow parse herself.
+        await daIngestFiles([file]);
+        layaPendingAttachment = { kind: 'data', name: file.name };
+        layaShowAttachmentChip(file.name, null);
+      }
+    } catch (err){
+      console.error('Laya attachment failed', file.name, err);
+      toast('Couldn\'t read "' + file.name + '", ' + (err && err.message ? err.message : 'unsupported or corrupted file'), 'error');
+      layaClearAttachment();
+    }
+  }
+
+  attachBtn.addEventListener('click', function(){ attachInput.click(); });
+  attachInput.addEventListener('change', async function(){
+    const files = Array.from(attachInput.files || []);
+    if (!files.length) return;
+    // Only one attachment travels with the next message -- if several
+    // files are picked at once, the LAST one staged is what's sent
+    // (data files still land fully in Data Arrangement either way, since
+    // daIngestFiles runs for every file; only the "what do I tell Laya
+    // about this turn" chip reflects the most recent one).
+    for (const f of files) await layaHandleAttachmentFile(f);
+  });
+  attachChipRemove.addEventListener('click', function(){
+    // Only clears the staged pointer/chip, not anything already placed --
+    // a logo already written into pdfedRefineState or data already
+    // pushed into Data Arrangement stays exactly where it landed. This
+    // only undoes "and tell Laya about it on the next message."
+    layaClearAttachment();
+  });
 
   // -----------------------------------------------------------------
   // Only show Laya to signed-in users. Hidden by default; revealed
@@ -70128,6 +70378,30 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     // but the actual font/spacing/heading pass always runs through the
     // app's own engine, with the person reviewing options before applying.
     pdfed_open_refine_report: { risk: 'safe', run: function(){ pdfedOpenRefineReportModal(); }, label: function(){ return 'Open Refine Report so you can review and apply it.'; } },
+    // Autopilot version of the tool above -- runs the full Refine Report
+    // pipeline immediately with the theme/table-width/logo/header choices
+    // Laya herself decided, no modal, nothing for the person to click. This
+    // is what "give me the professional output" / "make this look
+    // professional" should call, not pdfed_open_refine_report -- see the
+    // ACTIONS section of SYSTEM_PROMPT below for when to use which.
+    pdfed_auto_refine_report: {
+      risk: 'safe',
+      run: async function(p){
+        const result = await pdfedRunRefineReportAuto({
+          theme: p.theme, align: p.align, sectionIcons: p.section_icons,
+          addLogoToHeader: p.add_logo_to_header, logoPosition: p.logo_position,
+          watermarkEnabled: p.watermark_enabled, footerEnabled: p.footer_enabled,
+          headerTitle: p.header_title, headerSubheading: p.header_subheading,
+          headerContact: p.header_contact, headerAddress: p.header_address,
+        });
+        return result && result.summaryLine;
+      },
+      label: function(p){
+        const themeLabel = (PDFED_REFINE_THEMES[p.theme] || PDFED_REFINE_THEMES.general).label;
+        const widthNote = p.align === 'stretch' ? ', tables stretched to full width' : '';
+        return 'Refine this into a polished ' + themeLabel + ' report' + widthNote + ' -- applying now, no review step.';
+      }
+    },
 
     // ── DAILY-USE RIBBON ACTIONS ─────────────────────────────────────────
     pdfed_rotate_page:  { risk: 'safe',    run: function(p){ pdfedRotatePage(p.direction === 'left' ? -90 : 90); }, label: function(p){ return 'Rotate the current page ' + (p.direction === 'left' ? 'left' : 'right') + ' 90°.'; } },
@@ -70396,10 +70670,59 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     };
   }
 
+  // Builds the lightweight, LLM-facing summary of whatever's staged --
+  // never the raw dataUrl (that would blow up the request size for no
+  // reason the model needs), just enough for Laya to reason about and act
+  // on: for a logo, its name and the accent color already extracted from
+  // it; for data, the same dataset-summary shape Data Arrangement's own
+  // context uses, so Laya treats an attached file the same way she'd
+  // treat a table pasted in by hand.
+  function layaAttachmentContextSummary(){
+    if (!layaPendingAttachment) return null;
+    if (layaPendingAttachment.kind === 'logo'){
+      return {
+        kind: 'logo',
+        name: layaPendingAttachment.name,
+        accentColor: pdfedRefineState.logoAccent || null
+      };
+    }
+    try {
+      if (typeof daState !== 'undefined' && daState.datasets && daState.datasets.length){
+        const ds = daState.datasets[daState.datasets.length - 1];
+        // sampleRows carries the actual cell content (up to 15 rows), not just
+        // a count -- mirrors the shape getLayaContext() already sends when the
+        // person is just browsing Data Arrangement (see the 'dataarrange'
+        // branch above). Without this, an attached Word/Excel file only ever
+        // told Laya a row count and header list -- she never saw a single word
+        // or number that was actually in the file, so she couldn't reason
+        // about the content itself (only its shape). This is what lets her
+        // genuinely read a report's paragraphs or a spreadsheet's figures the
+        // moment they're attached, the same way she reads a table someone
+        // pastes into Data Arrangement by hand.
+        return {
+          kind: 'data',
+          name: layaPendingAttachment.name,
+          datasetName: ds.name,
+          headers: ds.headers || [],
+          rowCount: (ds.rows || []).length,
+          sampleRows: (ds.rows || []).slice(0, 15)
+        };
+      }
+    } catch(e){ /* fall through to minimal */ }
+    return { kind: 'data', name: layaPendingAttachment.name };
+  }
+
   form.addEventListener('submit', async function(e){
     e.preventDefault();
-    const text = input.value.trim();
-    if(!text) return;
+    let text = input.value.trim();
+    if(!text && !layaPendingAttachment) return;
+    if(!text && layaPendingAttachment){
+      // No caption typed -- synthesize a sensible default so the turn
+      // still reads naturally in the thread instead of sending nothing.
+      text = layaPendingAttachment.kind === 'logo'
+        ? "Here's our logo, use it."
+        : "Here's the file, use it to prepare the report.";
+    }
 
     addMsg('user', text);
     history.push({ role: 'user', content: text });
@@ -70409,7 +70732,11 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     // Pull real workspace state ONCE per turn so the thinking indicator,
     // the live API call, and the demo fallback all reason about the exact
     // same snapshot of reality instead of drifting out of sync with each other.
-    const ctx = getLayaContext();
+    let ctx = getLayaContext();
+    const attachmentSummary = layaAttachmentContextSummary();
+    if (attachmentSummary){
+      ctx = Object.assign({}, ctx || {}, { pendingAttachment: attachmentSummary });
+    }
     const thinking = addThinkingMsg(ctx);
 
     try{
@@ -70438,8 +70765,13 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     } finally {
       sendBtn.disabled = false;
       input.focus();
+      // One-shot: this attachment traveled with this message only. Whatever
+      // it did (logo set, data imported) already happened and stays; only
+      // the "tell Laya about it" pointer/chip is cleared.
+      layaClearAttachment();
     }
   });
+
 
   input.addEventListener('keydown', function(e){
     if(e.key === 'Enter' && !e.shiftKey){
