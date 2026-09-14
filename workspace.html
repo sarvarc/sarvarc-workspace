@@ -69939,62 +69939,68 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
       }
 
       if (sec === 'diagrams' && typeof dgState !== 'undefined'){
-        // The chart-so-far (chartType/rows) only tells Laya what's CURRENTLY plotted.
-        // If the user asks for a diagram of columns that aren't the current X/Y pick
-        // (e.g. "customers vs unit price" while a Date/Quantity chart is showing),
-        // Laya needs the full source-table column list -- with types -- to know
-        // those columns exist at all and which colIdx to hand dg_set_x_axis /
-        // dg_set_y_axis. dgUploadParsed holds that raw table once anything's been
-        // pasted/uploaded into this module; expose it (trimmed) alongside the
-        // current chart state rather than only the current chart state.
-        let availableColumns = [];
-        if (typeof dgUploadParsed !== 'undefined' && dgUploadParsed && Array.isArray(dgUploadParsed.headers)){
-          availableColumns = dgUploadParsed.headers.map(function(h, i){
-            let kind = 'text';
-            try {
-              if (dgColumnIsDate(i)) kind = 'date';
-              else if (dgColumnIsNumeric(i)) kind = 'numeric';
-              else if (dgIsIdentifierColumn(i)) kind = 'identifier';
-            } catch(e){ /* leave as text if a detector throws on odd data */ }
-            return { colIdx: i, name: h, kind: kind };
-          });
-        }
+        // Wrapped separately from the outer function-level try/catch: if any
+        // of the richer detail-gathering below (column type detection,
+        // grouped-series mapping, etc.) throws on some real-world dataset
+        // shape we didn't anticipate, the OUTER catch used to discard the
+        // ENTIRE context -- including activePanel -- which meant Laya lost
+        // track of even being in Diagrams & Graphs at all, and (since
+        // captureVisionSnapshot bails out on a null context) the chart
+        // screenshot silently stopped being sent too. Now a failure here
+        // still falls through to a minimal but valid context below, so
+        // Laya at minimum always knows what panel she's in and gets the
+        // chart image, even if the extra column/type details couldn't be
+        // computed this turn.
+        try {
+          // The chart-so-far (chartType/rows) only tells Laya what's CURRENTLY plotted.
+          // If the user asks for a diagram of columns that aren't the current X/Y pick
+          // (e.g. "customers vs unit price" while a Date/Quantity chart is showing),
+          // Laya needs the full source-table column list -- with types -- to know
+          // those columns exist at all and which colIdx to hand dg_set_x_axis /
+          // dg_set_y_axis. dgUploadParsed holds that raw table once anything's been
+          // pasted/uploaded into this module; expose it (trimmed) alongside the
+          // current chart state rather than only the current chart state.
+          let availableColumns = [];
+          if (typeof dgUploadParsed !== 'undefined' && dgUploadParsed && Array.isArray(dgUploadParsed.headers)){
+            availableColumns = dgUploadParsed.headers.map(function(h, i){
+              let kind = 'text';
+              try {
+                if (dgColumnIsDate(i)) kind = 'date';
+                else if (dgColumnIsNumeric(i)) kind = 'numeric';
+                else if (dgIsIdentifierColumn(i)) kind = 'identifier';
+              } catch(e){ /* leave as text if a detector throws on odd data */ }
+              return { colIdx: i, name: h, kind: kind };
+            });
+          }
 
-        // Quick heuristic so Laya doesn't have to re-derive basic chart-shape rules
-        // every turn: categorical-or-date x paired with a numeric y almost always
-        // wants bar (categories) or line (dates); two numeric columns want scatter.
-        // This is a suggestion in the context, not a hard rule -- Laya still reads
-        // the user's actual wording (e.g. an explicit "line chart" ask wins).
-        function suggestType(xKind, yKinds){
-          if (xKind === 'date') return 'line';
-          if (xKind === 'numeric' && yKinds.every(function(k){ return k === 'numeric'; })) return 'scatter';
-          if (yKinds.length > 1) return 'grouped';
-          return 'bar';
-        }
+          const base = {
+            activePanel: 'Diagrams & Graphs',
+            availableColumns: availableColumns.slice(0, 40),
+            chartTypeGuidance: 'availableColumns lists every column in the source table the user pasted/uploaded here, with its detected kind (text/numeric/date/identifier). The user will often name a field by abbreviation, business jargon, or a rough paraphrase rather than the exact header text -- e.g. "CAC" for a column literally named "Customer Acquisition Cost", "rev" for "Revenue", "qty" for "Quantity". Resolve by MEANING, not literal string closeness: read each available column name for what it represents and pick the one the user\'s term most plausibly refers to. If exactly one column is a confident semantic match for each side of the request, call dg_set_x_axis/dg_set_y_axis with those colIdx values, then dg_set_type. Suggested type defaults: categorical or identifier X + numeric Y -> bar; date X + numeric Y -> line; numeric X + numeric Y -> scatter; more than one Y column selected -> grouped bar. If a named field has no plausible match in availableColumns at all, or if two+ columns could equally be what they mean (e.g. both "Cost" and "Cost per Unit" could be "cst"), do NOT guess -- name the columns you considered and ask which one in a short reply instead of calling an action. Only fall back to the currently-plotted chartType/rows below if the user\'s request doesn\'t clearly name different columns.'
+          };
 
-        const base = {
-          activePanel: 'Diagrams & Graphs',
-          availableColumns: availableColumns.slice(0, 40),
-          chartTypeGuidance: 'availableColumns lists every column in the source table the user pasted/uploaded here, with its detected kind (text/numeric/date/identifier). The user will often name a field by abbreviation, business jargon, or a rough paraphrase rather than the exact header text -- e.g. "CAC" for a column literally named "Customer Acquisition Cost", "rev" for "Revenue", "qty" for "Quantity". Resolve by MEANING, not literal string closeness: read each available column name for what it represents and pick the one the user\'s term most plausibly refers to. If exactly one column is a confident semantic match for each side of the request, call dg_set_x_axis/dg_set_y_axis with those colIdx values, then dg_set_type. Suggested type defaults: categorical or identifier X + numeric Y -> bar; date X + numeric Y -> line; numeric X + numeric Y -> scatter; more than one Y column selected -> grouped bar. If a named field has no plausible match in availableColumns at all, or if two+ columns could equally be what they mean (e.g. both "Cost" and "Cost per Unit" could be "cst"), do NOT guess -- name the columns you considered and ask which one in a short reply instead of calling an action. Only fall back to the currently-plotted chartType/rows below if the user\'s request doesn\'t clearly name different columns.'
-        };
-
-        if (dgState.type === 'grouped'){
+          if (dgState.type === 'grouped'){
+            return Object.assign(base, {
+              chartType: 'grouped bar',
+              categories: (dgState.groupedCategories || []).slice(0, 30),
+              series: (dgState.groupedSeries || []).slice(0, 10).map(function(s){
+                return { name: s.name, values: (s.values || []).slice(0, 30) };
+              })
+            });
+          }
           return Object.assign(base, {
-            chartType: 'grouped bar',
-            categories: (dgState.groupedCategories || []).slice(0, 30),
-            series: (dgState.groupedSeries || []).slice(0, 10).map(function(s){
-              return { name: s.name, values: (s.values || []).slice(0, 30) };
-            })
+            chartType: dgState.type,
+            rows: (dgState.rows || []).slice(0, 30).map(function(r){
+              return { label: r.label, value: r.value };
+            }),
+            rowCount: (dgState.rows || []).length
           });
+        } catch(e){
+          console.warn('getLayaContext: Diagrams detail-gathering failed, falling back to minimal context', e);
+          return { activePanel: 'Diagrams & Graphs', chartType: (dgState && dgState.type) || null };
         }
-        return Object.assign(base, {
-          chartType: dgState.type,
-          rows: (dgState.rows || []).slice(0, 30).map(function(r){
-            return { label: r.label, value: r.value };
-          }),
-          rowCount: (dgState.rows || []).length
-        });
       }
+
 
       return null;
     } catch(e){ return null; }
