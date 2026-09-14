@@ -26680,6 +26680,159 @@ async function confirmInsertPage() {
   }
 }
 
+// ─── LAYA: INSERT PAGE (programmatic, no modal) ─────────────────────────
+// Same core page-creation path confirmInsertPage() above uses (blank page
+// only -- Laya can't attach an image file mid-conversation, so the
+// image-insert type stays a manual-only affordance), but driven entirely
+// by explicit params instead of reading the Insert Page modal's DOM state.
+// Lets Laya insert a page anywhere in the open document -- between two
+// existing pages, right after whichever page is currently open, or at the
+// very end -- at a real physical size (A4/A3/A5/Legal or a fully custom
+// width/height), matching what a person could do by hand through the same
+// modal, including its A4 default and format→mm table.
+function pdfedLayaResolveInsertMM(p) {
+  const fmt = String(p.format || 'a4').toLowerCase();
+  let mmW, mmH;
+  if (fmt === 'custom') {
+    mmW = Number(p.width_mm) > 0 ? Number(p.width_mm) : 210;
+    mmH = Number(p.height_mm) > 0 ? Number(p.height_mm) : 297;
+  } else {
+    const preset = PDFED_FORMAT_MM[fmt];
+    if (!preset) throw new Error('unknown page format "' + p.format + '"');
+    mmW = preset[0]; mmH = preset[1];
+    if (p.orientation === 'landscape') { const t = mmW; mmW = mmH; mmH = t; }
+  }
+  return [mmW, mmH];
+}
+
+// Turns Laya's flat content blocks into the exact contenteditable-shaped
+// HTML pdfedParseBlankContent()/pdfedDrawBlankContent() already know how to
+// read (h1/h2/div with a text-align style, b/i/u inline) -- the same markup
+// the modal's own "Content" editor produces by hand, just built from
+// structured params instead of a live DOM. Anything malformed or missing
+// text is skipped rather than thrown on, so one bad block in the array
+// never kills the whole page insert.
+function pdfedLayaEscapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = (s === null || s === undefined) ? '' : String(s);
+  return d.innerHTML;
+}
+
+function pdfedLayaBuildContentHtml(blocks) {
+  if (!Array.isArray(blocks) || !blocks.length) return '';
+  return blocks.map(function(b){
+    if (!b || !b.text) return '';
+    const tag = b.type === 'heading' ? 'h1' : (b.type === 'subheading' ? 'h2' : 'div');
+    const align = ['left', 'center', 'right'].indexOf(b.align) !== -1 ? b.align : 'left';
+    let inner = pdfedLayaEscapeHtml(b.text).replace(/\n/g, '<br>');
+    if (b.bold) inner = '<b>' + inner + '</b>';
+    if (b.italic) inner = '<i>' + inner + '</i>';
+    if (b.underline) inner = '<u>' + inner + '</u>';
+    return '<' + tag + ' style="text-align:' + align + '">' + inner + '</' + tag + '>';
+  }).join('');
+}
+
+async function pdfedLayaInsertPage(p) {
+  const [mmW, mmH] = pdfedLayaResolveInsertMM(p);
+  const bg = /^#[0-9a-fA-F]{6}$/.test(p.bg_color || '') ? p.bg_color : '#ffffff';
+  const contentHtml = pdfedLayaBuildContentHtml(p.content);
+  const isNewDoc = !pdfed.pages.length;
+
+  // Resolve where the new page lands: an explicit 0-based after_idx inserts
+  // the page right AFTER that index (after_idx 0 = "between page 1 and 2"),
+  // 'end' appends, and omitting both falls back to right after whichever
+  // page is currently open -- the same default the ribbon's own hover
+  // insert-zone uses.
+  let at;
+  if (isNewDoc || p.position === 'end') {
+    at = pdfed.pages.length;
+  } else if (p.after_idx !== undefined && p.after_idx !== null && p.after_idx !== '') {
+    const idx = Math.max(-1, Math.min(pdfed.pages.length - 1, parseInt(p.after_idx, 10)));
+    at = idx + 1;
+  } else {
+    at = (pdfed.active >= 0 ? pdfed.active : pdfed.pages.length - 1) + 1;
+  }
+
+  const url = await pdfedRenderBlankPage(contentHtml, bg, mmW, mmH);
+  const newPg = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], label: 'New Page', bgColor: bg, pageMM: [mmW, mmH] };
+  pdfed.pages.splice(at, 0, newPg);
+
+  if (isNewDoc) {
+    // No document was open -- bring up the editor chrome the same way
+    // confirmInsertPage()'s isNewDoc branch (and opening a PDF) does.
+    pdfed.pdfDoc = null;
+    pdfed.file = { name: 'Untitled Document' };
+    ['pdfedExportBtn','pdfedRefineBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    const upBtn = document.getElementById('pdfedUploadBtn'); if (upBtn) upBtn.style.display = 'none';
+    const fnEl = document.getElementById('pdfedFileName'); if (fnEl) fnEl.textContent = pdfed.file.name;
+    document.getElementById('pdfedPlaceholder').style.display = 'none';
+    document.getElementById('pdfedCanvasWrap').style.display = 'inline-block';
+    const tb = document.getElementById('pdfedToolbar'); if (tb) tb.style.visibility = 'visible';
+    state.stats.pdfs++;
+  }
+
+  document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+  state.stats.pages++;
+  updateStats();
+  await pdfedBuildStrip();
+  await pdfedGoto(at);
+  if (isNewDoc) { setTimeout(pdfedZoomFit, 50); pdfedScheduleAutoCollapse(); }
+
+  pushAppHistory({
+    label: 'Insert page (Laya)',
+    undo: async () => {
+      if (pdfed.pages.length <= 1) { toast('Cannot remove last page', 'error'); return; }
+      pdfed.pages.splice(at, 1);
+      if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
+      await pdfedBuildStrip();
+      await pdfedGoto(pdfed.active);
+      document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+      toast('Inserted page removed', 'info');
+    },
+    redo: async () => {
+      pdfed.pages.splice(at, 0, newPg);
+      await pdfedBuildStrip();
+      await pdfedGoto(at);
+      document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+      toast('Page inserted at position ' + (at + 1), 'success');
+    }
+  });
+
+  return { at, mmW, mmH };
+}
+
+// ─── LAYA: CANVAS FILL / GRADIENT (programmatic, no panel needed) ───────
+// Drives the exact same Canvas Color engine the Design panel's Solid/
+// Gradient controls use (pdfedCanvasTintState + pdfedApplyCanvasTint), so a
+// gradient Laya applies bakes into the page pixels identically to one built
+// by hand -- same angle math (pdfedGradientLine), same opacity blend, same
+// one-level "Remove Tint" safety net via pg.edits.preTintDataUrl.
+function pdfedLayaValidHex(v, fallback) {
+  return /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : fallback;
+}
+
+async function pdfedLayaSetCanvasFill(p) {
+  if (pdfed.active < 0) throw new Error('open a page first');
+  const mode = p.mode === 'solid' ? 'solid' : 'gradient';
+  const s = pdfedCanvasTintState;
+  s.mode = mode;
+  s.color1 = pdfedLayaValidHex(p.color1, s.color1);
+  s.color2 = mode === 'gradient' ? pdfedLayaValidHex(p.color2, s.color2) : s.color1;
+  if (p.angle !== undefined && p.angle !== null && p.angle !== '') {
+    s.angle = Math.max(0, Math.min(360, parseInt(p.angle, 10) || 0));
+  }
+  if (p.opacity !== undefined && p.opacity !== null && p.opacity !== '') {
+    s.opacity = Math.max(0, Math.min(100, parseInt(p.opacity, 10) || 0));
+  }
+  // Keeps the Design panel's own swatches/sliders honest if the person has
+  // it open while Laya applies this, exactly as picking a saved preset does.
+  if (typeof pdfedCanvasSyncControls === 'function') pdfedCanvasSyncControls();
+  await pdfedApplyCanvasTint(true);
+}
+
 // ─── MERGE PDF INTO DOCUMENT (connected workflow inside PDF Editor) ───
 const pdfedMerge = { srcDoc: null, srcFile: null, pages: [] }; // pages: {pageNum, thumbUrl, selected}
 
@@ -69826,6 +69979,33 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //     true, create the form first (same turn is fine, this then runs
   //     against the form just created).
   //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
+  //   pdfed_insert_page {position?: 'end', after_idx?: number,
+  //     format?: 'a4'|'a3'|'a5'|'legal'|'custom', width_mm?, height_mm?,
+  //     orientation?: 'portrait'|'landscape', bg_color?,
+  //     content?: [{type: 'heading'|'subheading'|'paragraph', text: string,
+  //       align?: 'left'|'center'|'right', bold?, italic?, underline?}]}
+  //     -- Inserts a new blank page anywhere in the document. Pass
+  //     after_idx (0-based) to slot it BETWEEN two existing pages -- it
+  //     lands right after that index, so after_idx:0 puts it between page
+  //     1 and page 2. Pass position:'end' to append. Omit both to insert
+  //     right after whichever page the person currently has open -- that's
+  //     the default and covers most "add a page" asks. format picks a real
+  //     physical size (a4/a3/a5/legal); use format:'custom' with width_mm/
+  //     height_mm for anything else the person names in mm. bg_color is a
+  //     hex string, defaults to white. content is optional and mirrors the
+  //     modal's own "Content" editor -- one block per heading/subheading/
+  //     paragraph, rendered top to bottom in array order; omit it entirely
+  //     for a genuinely blank page.
+  //   pdfed_set_canvas_gradient {mode?: 'solid'|'gradient', color1: hex,
+  //     color2?: hex, angle?: 0-360, opacity?: 0-100}
+  //     -- Bakes a solid colour or 2-colour linear gradient onto the page
+  //     the person currently has open (never a page they're not looking
+  //     at -- tell Laya to navigate there first if they mean a different
+  //     one). angle follows CSS linear-gradient() convention (0deg = up,
+  //     90deg = left-to-right, clockwise); omit for gradient's existing
+  //     angle. opacity blends the fill over the page's current content,
+  //     100 fully replaces it; omit to keep the current opacity. color2 is
+  //     required for mode:'gradient' and ignored for mode:'solid'.
   //   pdfed_remove_page {idx}                pdfed_open_refine_report {}
   //   pdfed_auto_refine_report {theme?, align?, section_icons?, add_logo_to_header?,
   //     logo_position?, watermark_enabled?, footer_enabled?, header_title?,
@@ -70605,6 +70785,40 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
 
     pdfed_toggle_crop: { risk: 'safe',    run: function(){ pdfedToggleCrop(); }, label: function(){ return 'Toggle crop mode on the current page.'; } },
     pdfed_insert_table:{ risk: 'safe',    run: function(p){ pdfedInsertTable(p.rows || 3, p.cols || 3, {}); }, label: function(p){ return 'Insert a ' + (p.rows||3) + 'x' + (p.cols||3) + ' table into the page.'; } },
+    // Inserts a brand-new blank page anywhere in the document -- between
+    // two existing pages (after_idx), at the end (position:'end'), or right
+    // after whichever page is open (both omitted) -- at a real page size.
+    // See pdfedLayaInsertPage above for the full param resolution.
+    pdfed_insert_page: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaInsertPage(p || {}); },
+      label: function(p){
+        p = p || {};
+        const posLabel = p.position === 'end' ? 'at the end of the document'
+          : (p.after_idx !== undefined && p.after_idx !== null && p.after_idx !== '') ? ('between page ' + (parseInt(p.after_idx,10)+1) + ' and the next')
+          : 'right after the current page';
+        const fmt = String(p.format || 'a4').toLowerCase() === 'custom'
+          ? ((p.width_mm||210) + '×' + (p.height_mm||297) + 'mm')
+          : String(p.format || 'a4').toUpperCase();
+        const withText = Array.isArray(p.content) && p.content.length ? ', with text on it' : '';
+        return 'Insert a new ' + fmt + ' page ' + posLabel + withText + '.';
+      }
+    },
+    // Bakes a solid colour or 2-colour gradient onto the CURRENTLY OPEN
+    // page's canvas, via the same engine as the Design panel's Solid/
+    // Gradient controls (see pdfedLayaSetCanvasFill above). Acts on
+    // pdfed.active -- Laya should navigate to / land on the intended page
+    // first if the person means a page other than the one they're viewing.
+    pdfed_set_canvas_gradient: {
+      risk: 'safe',
+      run: async function(p){ await pdfedLayaSetCanvasFill(p || {}); },
+      label: function(p){
+        p = p || {};
+        return (p.mode === 'solid')
+          ? 'Fill this page\'s canvas with ' + (p.color1 || 'the chosen colour') + '.'
+          : 'Apply a ' + (p.color1 || 'colour') + ' \u2192 ' + (p.color2 || 'colour') + ' gradient to this page\'s canvas.';
+      }
+    },
     pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } },
     // Opens the real Refine Report modal rather than Laya attempting to
     // restructure the document herself -- she can diagnose and suggest,
