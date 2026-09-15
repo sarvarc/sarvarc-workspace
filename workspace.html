@@ -23867,7 +23867,7 @@ async function teFafApply() {
     toast(skippedPages
       ? `No matches found for "${query}" (${skippedPages} scanned page${skippedPages !== 1 ? 's' : ''} with no text layer couldn't be searched)`
       : `No matches found for "${query}"`, 'info');
-    return;
+    return 0;
   }
 
   if (changes.length) {
@@ -23884,6 +23884,72 @@ async function teFafApply() {
   let msg = `Styled ${total} match${total !== 1 ? 'es' : ''} across ${pagesHit} page${pagesHit !== 1 ? 's' : ''} · Ctrl+Z to undo`;
   if (skippedPages) msg += `, ${skippedPages} scanned page${skippedPages !== 1 ? 's' : ''} skipped (no text layer)`;
   toast(msg, 'success');
+  return total;
+}
+
+// ── Laya hook ────────────────────────────────────────────────────────────
+// Lets Laya drive this panel exactly the way a person would: type a query,
+// pick style(s), hit Apply -- except she can do it in one call instead of
+// several clicks. Deliberately re-syncs the actual on-screen panel (input
+// value, B/I toggle state, font dropdown, colour swatches) before applying,
+// not just the underlying teFafState, so if the person opens this panel
+// afterward it shows exactly what Laya just set rather than stale controls
+// left over from whatever they last touched by hand. Reuses teFafApply()
+// itself for the actual work, so undo/redo, the thumbnail refresh, and the
+// toast are all identical to a manual Apply click.
+//
+// bold/italic default to false, font/color default to "leave unchanged"
+// (empty string / null) when omitted -- callers must be explicit about
+// what they want, since silently inheriting whatever was left over in the
+// panel from a previous manual edit would make Laya's result depend on
+// state she can't see. Pass clear_color: true to explicitly remove an
+// existing colour (the same as clicking the "no colour" button) rather
+// than just leaving colour unspecified.
+async function pdfedLayaStyleSpecificText(p) {
+  p = p || {};
+  const query = String(p.query || '').trim();
+  if (!query) throw new Error('no search text given');
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    throw new Error('open a document first');
+  }
+
+  const bold = !!p.bold;
+  const italic = !!p.italic;
+  const font = p.font ? String(p.font) : '';
+  const color = p.clear_color ? null : (p.color ? String(p.color) : null);
+
+  if (!bold && !italic && !font && !color) {
+    throw new Error('pick at least one style change -- bold, italic, a font, or a colour');
+  }
+
+  teFafState.bold = bold;
+  teFafState.italic = italic;
+  teFafState.font = font;
+  teFafState.color = color;
+
+  const input = document.getElementById('teFafInput');
+  if (input) input.value = query;
+
+  const boldBtn = document.getElementById('teFafBoldBtn');
+  if (boldBtn) boldBtn.classList.toggle('on', bold);
+  const italicBtn = document.getElementById('teFafItalicBtn');
+  if (italicBtn) italicBtn.classList.toggle('on', italic);
+  const fontSelect = document.getElementById('teFafFontSelect');
+  if (fontSelect) fontSelect.value = font;
+
+  document.querySelectorAll('#teFafColorRow .te-color-swatch').forEach(function (s) {
+    s.classList.toggle('sel', !!(color && s.dataset.color === color));
+  });
+  const colorPicker = document.getElementById('teFafColorPicker');
+  if (colorPicker && color) colorPicker.value = color;
+  const clearColorBtn = document.getElementById('teFafClearColorBtn');
+  if (clearColorBtn) clearColorBtn.classList.toggle('on', !color);
+
+  teFafRefreshPreview();
+
+  const total = await teFafApply();
+  if (!total) throw new Error('no matches found for "' + query + '"');
+  return total;
 }
 
 function teResetBlock() {
@@ -70090,6 +70156,30 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //     true, create the form first (same turn is fine, this then runs
   //     against the form just created).
   //   pdfed_toggle_crop {}                   pdfed_insert_table {rows, cols}
+  //   pdfed_style_specific_text {query: string, bold?: boolean, italic?: boolean,
+  //     font?: css-font-family-string, color?: hex, clear_color?: boolean}
+  //     -- Drives the "Style Specific Text" panel: finds every occurrence of
+  //     `query` across the WHOLE document (every page, including ones never
+  //     opened in Edit Text, plus typed-in text boxes on blank/diagram/
+  //     data-table pages) and applies the given style to all of them in one
+  //     pass -- exactly like a person typing the query and hitting "Apply
+  //     across document" themselves. Matching is automatic, no param for it:
+  //     a single word matches whole-word only ("cat" won't hit "category"),
+  //     a phrase/sentence matches exactly as typed. Needs at least one of
+  //     bold/italic/font/color/clear_color set to something -- throws
+  //     otherwise, same as the panel's own "pick at least one style" guard.
+  //     bold/italic default to false and font defaults to "leave unchanged"
+  //     when omitted -- never inherit whatever the panel was last left at,
+  //     always state explicitly what this call should change. `font` MUST
+  //     be one of these exact CSS values (matches the panel's dropdown):
+  //     "'Inter', sans-serif", "'DM Sans', sans-serif", "'Syne', sans-serif",
+  //     "Arial, sans-serif", "Georgia, serif", "'Times New Roman', serif",
+  //     "Verdana, sans-serif", "'Courier New', monospace". `color` is a hex
+  //     string; pass clear_color:true instead to explicitly strip an
+  //     existing colour (the panel's "no colour" button) -- omitting color
+  //     entirely just leaves colour untouched. Throws if nothing in the
+  //     document matches `query`, so a zero-match run surfaces to the person
+  //     as a real reply instead of a silent no-op.
   //   pdfed_insert_page {position?: 'end', after_idx?: number,
   //     format?: 'a4'|'a3'|'a5'|'legal'|'custom', width_mm?, height_mm?,
   //     orientation?: 'portrait'|'landscape', bg_color?,
@@ -70917,6 +71007,31 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
 
     pdfed_toggle_crop: { risk: 'safe',    run: function(){ pdfedToggleCrop(); }, label: function(){ return 'Toggle crop mode on the current page.'; } },
     pdfed_insert_table:{ risk: 'safe',    run: function(p){ pdfedInsertTable(p.rows || 3, p.cols || 3, {}); }, label: function(p){ return 'Insert a ' + (p.rows||3) + 'x' + (p.cols||3) + ' table into the page.'; } },
+    // Drives the "Style Specific Text" panel directly -- finds every
+    // occurrence of p.query across the WHOLE document (all pages, including
+    // ones never opened in Edit Text, plus typed-in text boxes) and applies
+    // bold/italic/font/colour to each one in a single pass, exactly like a
+    // person typing the query and hitting Apply themselves. See
+    // pdfedLayaStyleSpecificText's own comment for the param defaults
+    // (bold/italic default false, font/color default "unchanged" -- must
+    // be explicit, never inherited from whatever the panel last held) and
+    // clear_color for explicitly removing an existing colour. 'safe' since
+    // every change lands on the existing teFaf undo stack (Ctrl+Z).
+    pdfed_style_specific_text: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaStyleSpecificText(p || {}); },
+      label: function(p){
+        p = p || {};
+        const bits = [];
+        if (p.bold) bits.push('bold');
+        if (p.italic) bits.push('italic');
+        if (p.font) bits.push('a new font');
+        if (p.clear_color) bits.push('no colour');
+        else if (p.color) bits.push(p.color + ' colour');
+        const styleNote = bits.length ? bits.join(', ') : 'the chosen style';
+        return 'Find "' + p.query + '" everywhere in the document and apply ' + styleNote + '.';
+      }
+    },
     // Inserts a brand-new blank page anywhere in the document -- between
     // two existing pages (after_idx), at the end (position:'end'), or right
     // after whichever page is open (both omitted) -- at a real page size.
