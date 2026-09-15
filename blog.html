@@ -2,6 +2,15 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-RN93D87JZH"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-RN93D87JZH');
+</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SARVARC Workspace Blog</title>
@@ -51,7 +60,7 @@ body {
 }
 main { flex: 1 0 auto; }
 footer { flex-shrink: 0; }
-.wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px; }
 
 /* nav — exact conv-nav spec */
 .conv-nav {
@@ -122,7 +131,7 @@ h1.title {
 
 /* index */
 .index { padding: 40px 0 90px; }
-.post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 320px)); gap: 24px; }
+.post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 380px)); gap: 28px; }
 .post-card {
   position: relative; overflow: hidden;
   aspect-ratio: 1 / 1;
@@ -211,9 +220,41 @@ footer {
   .footer-links { gap: 12px 16px; flex-wrap: wrap; justify-content: center; }
 }
 
+/* ── AMBIENT BLOBS ─────────────────────────────────────── */
+.blog-ambient {
+  position: fixed; inset: 0;
+  overflow: hidden; pointer-events: none; z-index: -1;
+}
+.blog-ambient .blob { position: absolute; border-radius: 50%; will-change: transform; }
+.blog-ambient .blob-1 {
+  width: 560px; height: 560px; top: -120px; left: -100px;
+  background: radial-gradient(circle at 35% 35%, rgba(0,174,255,0.13), transparent 70%);
+  animation: blogDrift1 38s ease-in-out infinite;
+}
+.blog-ambient .blob-2 {
+  width: 460px; height: 460px; top: 30%; right: -120px;
+  background: radial-gradient(circle at 60% 40%, rgba(26,79,216,0.10), transparent 70%);
+  animation: blogDrift2 44s ease-in-out infinite;
+}
+[data-theme="dark"] .blog-ambient .blob-1 { background: radial-gradient(circle at 35% 35%, rgba(0,174,255,0.20), transparent 70%); }
+[data-theme="dark"] .blog-ambient .blob-2 { background: radial-gradient(circle at 60% 40%, rgba(43,110,245,0.15), transparent 70%); }
+@keyframes blogDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,45px) scale(1.07); } }
+@keyframes blogDrift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px,60px) scale(1.06); } }
+@media (max-width: 768px) {
+  .blog-ambient .blob-1, .blog-ambient .blob-2 { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blog-ambient .blob { animation: none; }
+}
+
 </style>
 </head>
 <body>
+
+<div class="blog-ambient">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+</div>
 
 <nav class="conv-nav">
     <a href="https://sarvarc.com" class="nav-brand" style="text-decoration:none;">
