@@ -53611,6 +53611,44 @@ function mfHandleLogoUpload(input) {
   input.value = '';
 }
 
+// Same processing as mfHandleLogoUpload above, but takes an already-decoded
+// image data URL directly instead of reading a <input type=file> -- this is
+// what lets Laya apply a logo the person attached in chat (see
+// layaPendingAttachments in the LAYA ASSISTANT MODULE) without needing a
+// fake file input round trip. Returns a promise so the caller can report
+// whether a brand color was actually picked up.
+function mfSetLogoFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const f = mfGetCurrentForm();
+    if (!f) { reject(new Error('no form open')); return; }
+    const img = new Image();
+    img.onload = async () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, MF_LOGO_MAX_DIM / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      f.logoDataUrl = c.toDataURL('image/png');
+      if (f.watermarkOn == null) f.watermarkOn = true;
+      if (f.watermarkOpacity == null) f.watermarkOpacity = 8;
+      if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('logo', f.logoDataUrl, 'logo.png');
+      let brandColors = [];
+      try { brandColors = await pdfedExtractLogoColors(f.logoDataUrl); } catch (err) { console.error('Logo color extraction failed', err); }
+      if (brandColors.length) f.accentColor = brandColors[0];
+      mfTouch(f);
+      mfRenderLogoThumb();
+      mfRenderWatermarkControls();
+      mfRenderAccentSwatches();
+      mfRenderPreview();
+      resolve({ brandColorApplied: brandColors.length > 0 });
+    };
+    img.onerror = () => reject(new Error('could not read that image'));
+    img.src = dataUrl;
+  });
+}
+
 function mfRemoveLogo() {
   const f = mfGetCurrentForm(); if (!f) return;
   f.logoDataUrl = null;
@@ -53685,6 +53723,35 @@ function mfHandleBannerUpload(input) {
   reader.onerror = () => toast('Could not read that file', 'error');
   reader.readAsDataURL(file);
   input.value = '';
+}
+
+// dataUrl-based counterpart to mfHandleBannerUpload, mirroring the
+// mfSetLogoFromDataUrl pattern above -- lets Laya apply a header banner
+// image from something the person attached in chat.
+function mfSetBannerFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const f = mfGetCurrentForm();
+    if (!f) { reject(new Error('no form open')); return; }
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, MF_BANNER_MAX_DIM / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      f.bannerImageDataUrl = c.toDataURL('image/jpeg', 0.9);
+      if (f.bannerImageOpacity == null) f.bannerImageOpacity = 15;
+      if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('banner', f.bannerImageDataUrl, 'banner.jpg');
+      mfTouch(f);
+      mfRenderBannerControls();
+      mfRenderPreview();
+      resolve();
+    };
+    img.onerror = () => reject(new Error('could not read that image'));
+    img.src = dataUrl;
+  });
 }
 
 function mfRemoveBanner() {
@@ -56544,6 +56611,17 @@ async function mfcPushToWorkspace(mode) {
 window.mfToggleTemplatePicker = mfToggleTemplatePicker;
 window.mfCreateFromTemplate = mfCreateFromTemplate;
 window.MF_TEMPLATES = MF_TEMPLATES;
+window.mfState = mfState;
+window.mfGetResponses = mfGetResponses;
+window.SARVARC_FORMS_PUBLIC_BASE_URL = SARVARC_FORMS_PUBLIC_BASE_URL;
+window.mfGetCurrentForm = mfGetCurrentForm;
+window.mfNewField = mfNewField;
+window.mfRenderFieldList = mfRenderFieldList;
+window.mfRenderPreview = mfRenderPreview;
+window.mfTouch = mfTouch;
+window.mfSetLogoFromDataUrl = mfSetLogoFromDataUrl;
+window.mfSetBannerFromDataUrl = mfSetBannerFromDataUrl;
+window.mfRenderSocialLinks = mfRenderSocialLinks;
 window.mfDuplicateForm = mfDuplicateForm;
 window.mfDuplicateCurrent = mfDuplicateCurrent;
 window.mfDeleteForm = mfDeleteForm;
@@ -70113,7 +70191,7 @@ DESIGN STUDIO JUDGMENT (Cinematic Fade / Cosmic image filters in PDF Editor): Th
 - If several images are on the page and none is selected, you genuinely can't guess which one they mean -- ask, in one short line, rather than calling the tool with target:'all' as a default. Only use target:'all' when they actually say "all"/"every image."
 Once applied, name the look you picked in plain language in your reply ("gave it a warm golden-hour fade," "went with a starfield look since you wanted something unique") rather than the raw preset id -- the person should never need to know these are internally called goldenGrade or nebulaGlow.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. context.pendingAttachments (an ARRAY -- present only on a turn where the person just attached one or more files) tells you everything staged this turn; a person handing you a logo plus a spreadsheet plus a Word doc in one go all show up here together, not just the last one. Read the whole array before deciding what to do, not just its first or last entry. If it contains ONLY logo entries, treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If it contains ONLY data entries (kind: 'data', from a Word/Excel/CSV/PDF), you're given real sample content for each one (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. If it contains BOTH a logo entry AND one or more data entries -- someone just handed you their brand plus their content in the same breath -- that whole batch together IS the "build me the finished report" request, even with a minimal or synthesized caption: push the newly-ingested dataset(s) onto the PDF with pipeline_da_to_pdf (mode 'new' unless the current page already has content worth keeping, in which case 'live'), then call pdfed_auto_refine_report with add_logo_to_header true and theme/align chosen the normal DESIGN JUDGMENT way, both as actions in this same turn -- don't stop after only pushing the data and wait for a second message asking to polish it, and don't ask which file to use first when more than one data entry is present, just work through them in the order given. If several data entries arrived with no logo, still offer (or just do, if the ask is clearly "make this a report") the same pipeline_da_to_pdf + pdfed_auto_refine_report pairing minus add_logo_to_header. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. CRITICAL: mf_create_form and mf_create_from_template now work from ANY panel, not just while already in Make Forms -- calling either one builds the form AND switches the user into Make Forms to see it, in one step. So when someone asks for a form while sitting in Dashboard, PDF Editor, wherever, call mf_create_from_template/mf_create_form DIRECTLY in that same turn -- never call navigate_to_panel to "Make Forms" first and leave the actual creation for a follow-up message, that just moves the person to an empty gallery and makes it look like nothing happened. navigate_to_panel only earns its keep here if the person explicitly wants to browse the gallery or template picker themselves rather than have you build something. Once a form exists (created this turn or earlier) and the user asks to share it, put it live, or send people a link, call mf_publish_form -- and if a single request clearly asks for both ("make me an invoice form and publish it"), call mf_create_from_template (or mf_create_form) and mf_publish_form together in the same turn rather than waiting for a second message to publish. For responses: context.responseCount tells you how many saved responses the open form already has and context.isPublished tells you whether it can even collect online ones -- when the person asks to see, analyze, or "send responses to Data Arrangement," call mf_export_responses_to_da directly (don't make them find the button); if the form is published and they want the latest, call mf_sync_responses first in the same turn so nothing recent is missed. If responseCount is 0, say so plainly instead of calling mf_export_responses_to_da, it will just fail. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. context.pendingAttachments (an ARRAY -- present only on a turn where the person just attached one or more files) tells you everything staged this turn; a person handing you a logo plus a spreadsheet plus a Word doc in one go all show up here together, not just the last one. Read the whole array before deciding what to do, not just its first or last entry. If it contains ONLY logo entries, treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If it contains ONLY data entries (kind: 'data', from a Word/Excel/CSV/PDF), you're given real sample content for each one (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. If it contains BOTH a logo entry AND one or more data entries -- someone just handed you their brand plus their content in the same breath -- that whole batch together IS the "build me the finished report" request, even with a minimal or synthesized caption: push the newly-ingested dataset(s) onto the PDF with pipeline_da_to_pdf (mode 'new' unless the current page already has content worth keeping, in which case 'live'), then call pdfed_auto_refine_report with add_logo_to_header true and theme/align chosen the normal DESIGN JUDGMENT way, both as actions in this same turn -- don't stop after only pushing the data and wait for a second message asking to polish it, and don't ask which file to use first when more than one data entry is present, just work through them in the order given. If several data entries arrived with no logo, still offer (or just do, if the ask is clearly "make this a report") the same pipeline_da_to_pdf + pdfed_auto_refine_report pairing minus add_logo_to_header. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. CRITICAL: mf_create_form and mf_create_from_template now work from ANY panel, not just while already in Make Forms -- calling either one builds the form AND switches the user into Make Forms to see it, in one step. So when someone asks for a form while sitting in Dashboard, PDF Editor, wherever, call mf_create_from_template/mf_create_form DIRECTLY in that same turn -- never call navigate_to_panel to "Make Forms" first and leave the actual creation for a follow-up message, that just moves the person to an empty gallery and makes it look like nothing happened. navigate_to_panel only earns its keep here if the person explicitly wants to browse the gallery or template picker themselves rather than have you build something. Once a form exists (created this turn or earlier) and the user asks to share it, put it live, or send people a link, call mf_publish_form -- and if a single request clearly asks for both ("make me an invoice form and publish it"), call mf_create_from_template (or mf_create_form) and mf_publish_form together in the same turn rather than waiting for a second message to publish. Once a form is published, context.shareUrl holds its real public link -- when the person asks for the link, to share it, or where people can fill it out, read context.shareUrl and give them that exact URL in your reply; never say you are pulling up or getting the link without actually stating it, and never invent or guess a URL. If context.isPublished is false, say the form is not published yet instead of claiming to fetch a link. If the person gives you their company name or brand for a form, set it as the title (and description if given) via mf_create_form/mf_create_from_template/mf_update_title rather than just acknowledging it. If they give you a social handle or link (Instagram, LinkedIn, WhatsApp, X/Twitter, YouTube, or a website), call mf_set_social_link with the matching platform key (instagram, linkedin, whatsapp, x, youtube, website) and the value they gave -- do not just say you have added it without calling the tool. When context.pendingAttachments contains an image while the person is working on a form (context.activePanel is Make Forms), that image is a logo or header banner candidate for the open form: if they call it a logo, brand mark, or just hand it over with a form-branding intent, call mf_set_logo; if they call it a banner, header image, or festival/campaign graphic, call mf_set_banner instead. Only one of the two per image. If no form is open yet when a branding image arrives, create the form first (mf_create_form or mf_create_from_template, per the normal rules above) in the same turn, then apply the image. For responses: context.responseCount tells you how many saved responses the open form already has and context.isPublished tells you whether it can even collect online ones -- when the person asks to see, analyze, or "send responses to Data Arrangement," call mf_export_responses_to_da directly (don't make them find the button); if the form is published and they want the latest, call mf_sync_responses first in the same turn so nothing recent is missed. If responseCount is 0, say so plainly instead of calling mf_export_responses_to_da, it will just fail. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -70852,6 +70930,7 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
                 return { type: f.type, label: f.label, required: !!f.required };
               }),
               isPublished: !!form.publishedId,
+              shareUrl: form.publishedId ? (SARVARC_FORMS_PUBLIC_BASE_URL + '/?f=' + form.shareSlug) : null,
               responseCount: responses.length
             };
           }
@@ -71054,6 +71133,50 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     mf_add_field:      { risk: 'safe',    run: function(p){ mfAddField(p.type); }, label: function(p){ return 'Add a ' + p.type + ' field to the form.'; } },
     mf_update_title:   { risk: 'safe',    run: function(p){ mfUpdateTitle(p.title); }, label: function(p){ return 'Rename the form to "' + p.title + '".'; } },
     mf_update_description: { risk: 'safe', run: function(p){ mfUpdateDesc(p.description); }, label: function(p){ return 'Update the form description.'; } },
+    // Sets one social/contact link shown as an icon row on the published
+    // form. Guards against an unknown platform key the same way
+    // mf_create_from_template guards against an unknown template, since a
+    // typo'd key would otherwise silently do nothing (mfSetSocialLink has
+    // no validation of its own). Passing an empty value clears that link.
+    mf_set_social_link: {
+      risk: 'safe',
+      run: function(p){
+        const validPlatforms = ['instagram', 'linkedin', 'whatsapp', 'x', 'youtube', 'website'];
+        if (!p.platform || validPlatforms.indexOf(p.platform) === -1) throw new Error('unknown social platform "' + p.platform + '"');
+        mfSetSocialLink(p.platform, p.value || '');
+        mfRenderSocialLinks();
+      },
+      label: function(p){
+        return (p.value ? 'Set' : 'Clear') + ' the form\'s ' + p.platform + ' link' + (p.value ? ' to "' + p.value + '"' : '') + '.';
+      }
+    },
+    // Applies an image the person attached this turn as the form's logo
+    // (centered watermark + auto-matched accent color) -- mirrors the
+    // PDF Editor's pdfedSetRefineLogoFromFile flow, reading from
+    // layaPendingAttachments (in scope here, see LAYA ASSISTANT MODULE)
+    // rather than asking the model to echo back raw image data as a param.
+    mf_set_logo: {
+      risk: 'safe',
+      run: async function(){
+        const entry = layaPendingAttachments.find(function(a){ return a.kind === 'logo'; });
+        if (!entry) throw new Error('no image attached this turn to use as a logo');
+        await mfSetLogoFromDataUrl(entry.dataUrl);
+      },
+      label: function(){ return 'Set the attached image as this form\'s logo.'; }
+    },
+    // Same attachment as above, applied as the faint full-width header
+    // banner instead of the centered logo watermark -- Laya picks whichever
+    // of mf_set_logo / mf_set_banner matches how the person described the
+    // image (see SYSTEM_PROMPT).
+    mf_set_banner: {
+      risk: 'safe',
+      run: async function(){
+        const entry = layaPendingAttachments.find(function(a){ return a.kind === 'logo'; });
+        if (!entry) throw new Error('no image attached this turn to use as a banner');
+        await mfSetBannerFromDataUrl(entry.dataUrl);
+      },
+      label: function(){ return 'Set the attached image as this form\'s header banner.'; }
+    },
     mf_toggle_required: { risk: 'safe',   run: function(p){ mfToggleFieldRequired(p.fieldId, !!p.required); }, label: function(p){ return (p.required ? 'Mark' : 'Unmark') + ' that field as required.'; } },
     mf_remove_field:   { risk: 'confirm', run: function(p){ mfRemoveField(p.fieldId); }, label: function(){ return 'Remove that field from the form. This can be undone with Ctrl+Z.'; } },
     // Pulls in whatever new submissions have landed on the published form's
