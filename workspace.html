@@ -7519,6 +7519,43 @@ th:hover .da-th-del { opacity:1; }
 }
 .da-collabels-row .da-rownum { padding:4px; font-size:9.5px; }
 
+/* ─── Row / column / cell selection, and the color-tag highlighting built on
+   top of it — lets someone mark "these rows are Q1 invoices" and see it at
+   a glance, instead of just painting color with no meaning behind it. ─── */
+.da-rownum, .da-collabel { cursor:pointer; user-select:none; }
+.da-rownum.da-rownum-selected,
+.da-collabel.da-collabel-selected {
+  background:rgba(0,194,255,0.28) !important; color:var(--text);
+}
+.da-td-cell.da-cell-selected,
+.da-td-select.da-cell-selected {
+  box-shadow:0 0 0 1.5px rgba(0,194,255,0.6) inset !important;
+}
+.da-highlight-summary {
+  display:flex; flex-direction:column; gap:7px; padding:11px 15px; margin-bottom:6px;
+  background:var(--surface); border:1px solid var(--border2); border-radius:10px;
+}
+.da-hl-legend-label {
+  font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text3);
+}
+.da-hl-legend-list { display:flex; flex-direction:column; gap:6px; }
+.da-hl-legend-item { display:flex; align-items:center; gap:9px; font-size:12px; }
+.da-hl-legend-dot {
+  width:11px; height:11px; border-radius:50%; flex:none;
+  box-shadow:0 0 0 1px rgba(255,255,255,0.12);
+}
+.da-hl-legend-tag { color:var(--text); font-weight:600; min-width:110px; }
+.da-hl-legend-meta { color:var(--text3); font-variant-numeric:tabular-nums; }
+.da-hl-swatch-row { display:flex; gap:9px; flex-wrap:wrap; }
+.da-hl-swatch {
+  width:27px; height:27px; border-radius:7px; cursor:pointer; border:2px solid transparent;
+  transition:transform 0.12s ease, border-color 0.12s ease; display:flex; align-items:center; justify-content:center;
+}
+.da-hl-swatch:hover { transform:scale(1.1); }
+.da-hl-swatch.active { border-color:var(--text); }
+.da-hl-swatch svg { display:none; color:#111; }
+.da-hl-swatch.active svg { display:block; }
+
 /* Formula bar: mirrors the ref box + fx input every spreadsheet app has, so
    editing a formula isn't confined to the tiny grid cell. Sits flush under
    the toolbar — same side borders, no shared border between them, rounded
@@ -10998,6 +11035,7 @@ button.dg-show-chip.active { background:var(--blue); }
             <div class="da-toolbar-group">
               <button class="da-tool-btn" onclick="daOpenDropdownModal()" title="Turn a cell (or a whole column) into an Excel-style dropdown list — right-click any cell for the same option"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="8 10 12 14 16 10"/></svg> Dropdown</button>
               <button class="da-tool-btn" onclick="daOpenLinkModal()" title="Attach a clickable link to the selected cell — carries over into Excel and CSV exports too. Right-click any cell for the same option"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Link</button>
+              <button class="da-tool-btn" onclick="daOpenHighlightModal()" title="Color-tag the selected rows, columns, or cells to group them at a glance -- click row numbers, column letters, or drag across cells to select first"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l6-6 4 4-6 6H9v-4z"/><path d="M3 21l4-1 9-9-3-3-9 9-1 4z"/></svg> Highlight</button>
             </div>
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
@@ -11036,6 +11074,8 @@ button.dg-show-chip.active { background:var(--blue); }
           <!-- /da-sticky-head -->
 
           <!-- Grid (columns and rows) — fourth, exactly like a spreadsheet body -->
+          <div class="da-highlight-summary" id="daHighlightSummary" style="display:none"></div>
+
           <div class="da-grid-wrap" id="daGridWrap"></div>
         </div>
 
@@ -13558,6 +13598,50 @@ async function bpInsertTemplateToCanvas(key) {
       <button class="btn-secondary" onclick="daCloseLinkModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
       <button class="pdfed-export-download-btn" onclick="daSaveLinkModal()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- DATA ARRANGEMENT: Highlight modal — color-tags whatever's currently
+     selected (rows, columns, cell ranges, or just the focused cell if
+     nothing's selected) so groups of data stand out with meaning attached,
+     not just a color with nothing behind it. -->
+<div class="pdfed-insert-modal-overlay" id="daHighlightOverlay" onmousedown="if(event.target===this)daCloseHighlightModal()">
+  <div class="pdfed-export-modal da-dropdown-modal">
+
+    <div class="pdfed-export-head">
+      <div>
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l6-6 4 4-6 6H9v-4z"/><path d="M3 21l4-1 9-9-3-3-9 9-1 4z"/></svg> Highlight</h3>
+        <div class="pdfed-export-sub">Color-tag rows, columns, or cells to group them at a glance</div>
+      </div>
+      <button type="button" class="pdfed-export-close" onclick="daCloseHighlightModal()" aria-label="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="da-dropdown-body">
+      <div class="da-dropdown-target">Applies to <b id="daHighlightTargetLabel">—</b></div>
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Color</label>
+        <div class="da-hl-swatch-row" id="daHighlightSwatchRow"></div>
+      </div>
+
+      <div class="pdfed-export-field">
+        <label class="pdfed-export-label">Tag (optional — shows in the summary strip above the table)</label>
+        <input type="text" id="daHighlightTagInput" class="pdfed-export-range-input" placeholder="e.g. Needs Review, Paid, Q1" spellcheck="false">
+      </div>
+
+      <div class="pdfed-export-note">Tip: click a row number or column letter to select a whole row/column, or drag across cells to select a range. Ctrl/Cmd+click adds more rows, columns, or cell blocks to the selection.</div>
+    </div>
+
+    <div class="pdfed-export-footer">
+      <button type="button" class="da-dropdown-remove-btn" id="daHighlightRemoveBtn" onclick="daRemoveHighlightFromModal()" style="display:none">Remove Highlight</button>
+      <button class="btn-secondary" onclick="daCloseHighlightModal()" style="padding:9px 18px;font-size:12px">Cancel</button>
+      <button class="pdfed-export-download-btn" onclick="daSaveHighlightModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Apply
       </button>
     </div>
 
@@ -40870,7 +40954,7 @@ function daAddDataset(name, aoa, titleOverride) {
   // titleOverride wins when supplied (e.g. a heading detected from pasted
   // clipboard HTML) — otherwise fall back to whatever daNormalize found as
   // a literal title row baked into the data itself.
-  const ds = { id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, title: titleOverride || titleRow || null, frozen: true, colDropdowns: {}, cellDropdowns: {} };
+  const ds = { id, name: name || `Dataset ${daState.datasets.length + 1}`, headers, rows, title: titleOverride || titleRow || null, frozen: true, colDropdowns: {}, cellDropdowns: {}, rowHighlights: {}, colHighlights: {}, cellHighlights: {} };
 
   // Bank-statement awareness: whatever the source (uploaded PDF/CSV/Excel
   // statement, a scanned image run through OCR, or a pasted table), if the
@@ -40955,7 +41039,7 @@ function daCreateBlankTable() {
   const rows = Array.from({ length: rowCount }, () => new Array(colCount).fill(''));
   const existingBlankCount = daState.datasets.filter(d => /^Table \d+$/.test(d.name)).length;
   const id = 'ds' + (++daIdCounter);
-  daState.datasets.push({ id, name: `Table ${existingBlankCount + 1}`, headers, rows, frozen: true, colDropdowns: {}, cellDropdowns: {} });
+  daState.datasets.push({ id, name: `Table ${existingBlankCount + 1}`, headers, rows, frozen: true, colDropdowns: {}, cellDropdowns: {}, rowHighlights: {}, colHighlights: {}, cellHighlights: {} });
   daState.activeId = id;
   daWorkspaceRefreshVisibility();
   daRenderTabs();
@@ -42109,6 +42193,157 @@ let daActiveCell = null; // { row, col } into the active dataset, or null
 let daFillSeedRange = null;
 let daFillDrag = null;
 
+// ─── Selection (rows / columns / cell ranges) — the basis for highlighting
+// & grouping. Independent of daActiveCell (which is just "where typing
+// currently goes") and of daFillSeedRange/daFillDrag above (autofill only),
+// so none of this touches that existing behavior.
+//   daSelection.rows        Set<rowIdx>   whole rows selected
+//   daSelection.cols        Set<colIdx>   whole columns selected
+//   daSelection.cellRanges  [{r1,c1,r2,c2}, ...]  one or more rectangular
+//                           cell blocks (drag-select, or Ctrl/Cmd+click to
+//                           add a non-contiguous extra block)
+let daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+let daRowAnchor = null;   // last row clicked, for Shift+click range-extend
+let daColAnchor = null;   // last column clicked, for Shift+click range-extend
+let daCellDrag = null;    // { r1, c1, idx } anchor + which cellRanges entry is being dragged
+let daSelectionDsId = null; // which dataset the current selection belongs to
+// Fixed corner while extending a cell-range selection with Shift+Arrow
+// keys (see daHandleCellKeydown below) -- separate from daActiveCell,
+// which tracks the moving edge instead. Cleared by any direct click
+// (daCellMouseDown / daCellRangeMouseDown / daSelectRow / daSelectCol /
+// daClearSelection) so a fresh click always starts a brand-new range
+// rather than continuing wherever the keyboard last left off.
+let daShiftAnchor = null;
+
+function daClearSelection() {
+  daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+  daRowAnchor = null; daColAnchor = null; daShiftAnchor = null;
+  daRenderTable();
+}
+
+function daHasSelection() {
+  return daSelection.rows.size > 0 || daSelection.cols.size > 0 || daSelection.cellRanges.length > 0;
+}
+
+function daIsRowSelected(ri) { return daSelection.rows.has(ri); }
+function daIsColSelected(ci) { return daSelection.cols.has(ci); }
+function daIsCellSelected(ri, ci) {
+  if (daSelection.rows.has(ri) || daSelection.cols.has(ci)) return true;
+  return daSelection.cellRanges.some(rg => ri >= rg.r1 && ri <= rg.r2 && ci >= rg.c1 && ci <= rg.c2);
+}
+
+// Click a row number to select that whole row. Shift+click extends a
+// contiguous range from the last-clicked row; Ctrl/Cmd+click toggles a row
+// into (or out of) a non-contiguous multi-row selection.
+function daSelectRow(ri, e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  daShiftAnchor = null;
+  if (e && (e.ctrlKey || e.metaKey)) {
+    if (daSelection.rows.has(ri)) daSelection.rows.delete(ri); else daSelection.rows.add(ri);
+  } else if (e && e.shiftKey && daRowAnchor !== null) {
+    const lo = Math.min(daRowAnchor, ri), hi = Math.max(daRowAnchor, ri);
+    for (let r = lo; r <= hi; r++) daSelection.rows.add(r);
+  } else {
+    daSelection = { rows: new Set([ri]), cols: new Set(), cellRanges: [] };
+  }
+  daRowAnchor = ri;
+  daRenderTable();
+}
+
+// Same idea, for a column letter in the ruler row.
+function daSelectCol(ci, e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  daShiftAnchor = null;
+  if (e && (e.ctrlKey || e.metaKey)) {
+    if (daSelection.cols.has(ci)) daSelection.cols.delete(ci); else daSelection.cols.add(ci);
+  } else if (e && e.shiftKey && daColAnchor !== null) {
+    const lo = Math.min(daColAnchor, ci), hi = Math.max(daColAnchor, ci);
+    for (let c = lo; c <= hi; c++) daSelection.cols.add(c);
+  } else {
+    daSelection = { rows: new Set(), cols: new Set([ci]), cellRanges: [] };
+  }
+  daColAnchor = ci;
+  daRenderTable();
+}
+
+// Starts a rectangular cell-range selection by dragging across cells.
+// Plain click does NOT paint a standalone "selected" box on the anchor
+// cell -- the native :focus outline on the cell itself already shows
+// which cell is active, exactly like Excel/Sheets (click once, see ONE
+// box). A highlighted range only appears once the drag actually reaches a
+// DIFFERENT cell (see daCellRangeMouseEnter below), so a plain click that
+// never drags leaves daSelection empty. Ctrl/Cmd+click is the one
+// exception -- it's explicitly asking to mark this one cell as its own
+// standalone selected block (e.g. to tag/highlight it), so that still
+// gets its 1x1 range immediately. Shift+click is left alone entirely —
+// that gesture is already claimed by the autofill seed-range above.
+function daCellRangeMouseDown(e, ri, ci) {
+  if (e.shiftKey) return;
+  daShiftAnchor = null;
+  if (e.ctrlKey || e.metaKey) {
+    daSelection.cellRanges.push({ r1: ri, c1: ci, r2: ri, c2: ci });
+    daCellDrag = { r1: ri, c1: ci, idx: daSelection.cellRanges.length - 1 };
+  } else {
+    daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+    daCellDrag = { r1: ri, c1: ci, idx: -1 }; // -1: no range committed yet -- see daCellRangeMouseEnter
+  }
+  // Don't touch the DOM in this same synchronous handler. The browser's
+  // own "focus whatever the mouse went down on" default action hasn't run
+  // yet at this point -- it fires right after this handler returns, and it
+  // needs the ORIGINAL clicked node to still be attached and untouched to
+  // do its normal job (focus it, place the caret). If we rebuild the grid
+  // (daRenderTable) here, that node gets torn out from under the browser
+  // mid-flight, and the focus/blur sequence that follows ends up fighting
+  // our own explicit focus() call -- which is what made a click seem to
+  // focus a cell for an instant and then immediately kick you back out of
+  // it, unable to type. Deferring one tick lets the browser's natural
+  // focus land first (on the still-intact original node) exactly like a
+  // plain contenteditable click always has; THEN we rebuild the grid to
+  // reflect the selection change and re-focus the freshly-rendered node by
+  // id (since the rebuild detaches the node the browser just focused).
+  setTimeout(() => {
+    daRenderTable();
+    const dsNow = daGetActive();
+    if (dsNow) {
+      const el = document.getElementById(`daCell_${dsNow.id}_${ri}_${ci}`);
+      if (el && typeof el.focus === 'function') el.focus();
+    }
+  }, 0);
+}
+
+// Fires (cheaply, via onmouseenter — a no-op when nothing is being
+// dragged) as the mouse moves over other cells while a range drag is live,
+// growing the active range to cover the rectangle between the drag's
+// anchor and the cell now under the pointer. The anchor cell only turns
+// into an actual highlighted range the first time the drag reaches a
+// DIFFERENT cell (idx === -1 below) -- a click that never drags anywhere
+// stays a single focused cell with no separate selection box.
+function daCellRangeMouseEnter(ri, ci) {
+  if (!daCellDrag) return;
+  if (daCellDrag.idx === -1) {
+    if (ri === daCellDrag.r1 && ci === daCellDrag.c1) return; // still sitting on the anchor cell -- not a drag yet
+    daSelection.cellRanges.push({ r1: daCellDrag.r1, c1: daCellDrag.c1, r2: daCellDrag.r1, c2: daCellDrag.c1 });
+    daCellDrag.idx = daSelection.cellRanges.length - 1;
+  }
+  const active = daSelection.cellRanges[daCellDrag.idx];
+  if (!active) return;
+  const nr1 = Math.min(daCellDrag.r1, ri), nr2 = Math.max(daCellDrag.r1, ri);
+  const nc1 = Math.min(daCellDrag.c1, ci), nc2 = Math.max(daCellDrag.c1, ci);
+  if (active.r1 === nr1 && active.r2 === nr2 && active.c1 === nc1 && active.c2 === nc2) return;
+  active.r1 = nr1; active.r2 = nr2; active.c1 = nc1; active.c2 = nc2;
+  daRenderTable();
+  // Same detached-node problem as above: this rebuild can knock real focus
+  // off the anchor cell mid-drag. Put it back so releasing the mouse and
+  // immediately typing or arrow-key-navigating still works.
+  const dsDrag = daGetActive();
+  if (dsDrag) {
+    const anchorEl = document.getElementById(`daCell_${dsDrag.id}_${daCellDrag.r1}_${daCellDrag.c1}`);
+    if (anchorEl && typeof anchorEl.focus === 'function' && document.activeElement !== anchorEl) anchorEl.focus();
+  }
+}
+
+document.addEventListener('mouseup', () => { daCellDrag = null; });
+
 function daCellMouseDown(e, ri, ci) {
   if (e.shiftKey && daActiveCell && daActiveCell.col === ci) {
     daFillSeedRange = { col: ci, r1: Math.min(daActiveCell.row, ri), r2: Math.max(daActiveCell.row, ri) };
@@ -42119,6 +42354,7 @@ function daCellMouseDown(e, ri, ci) {
   if (daFillSeedRange && !(daFillSeedRange.col === ci && ri >= daFillSeedRange.r1 && ri <= daFillSeedRange.r2)) {
     daFillSeedRange = null;
   }
+  daCellRangeMouseDown(e, ri, ci);
 }
 
 // Redraws the seed-range outline and (re)places the single fill-handle DOM
@@ -42439,6 +42675,73 @@ function daCellFocus(el, ri, ci) {
   daFillPlaceHandle();
 }
 
+// Shared keydown handler for every grid cell (both contenteditable text
+// cells and <select> dropdown cells) -- wired via onkeydown so Enter-to-
+// commit, plain-Arrow navigation, and Shift+Arrow range-select all behave
+// the same everywhere.
+//
+// Plain Arrow (no Shift) moves the active cell one step in that direction,
+// clamped to the table's edges -- click any cell, then the arrows just
+// drive you around the grid from there, same as a normal spreadsheet.
+// Precise mid-text cursor editing still works fine through the formula
+// bar input above the grid, which is a real <input> and isn't touched by
+// this handler at all.
+//
+// Shift+Arrow instead grows a rectangular cellRanges selection one cell at
+// a time from wherever the user last clicked (daShiftAnchor, the fixed
+// corner), moving focus along with the growing edge -- same feel as
+// Excel/Sheets. The anchor persists across repeated presses so "click a
+// cell, hold shift, tap Down three times" grows one continuous range
+// instead of resetting each time; it only clears on a fresh direct click
+// (see the daShiftAnchor resets in daSelectRow/daSelectCol/
+// daCellRangeMouseDown/daClearSelection above) or a plain (non-Shift)
+// arrow move, which starts fresh from wherever you land.
+function daHandleCellKeydown(e, ri, ci) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (e.target && typeof e.target.blur === 'function') e.target.blur();
+    return;
+  }
+
+  const dirs = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+  const dir = dirs[e.key];
+  if (!dir) return;
+
+  const ds = daGetActive(); if (!ds) return;
+  e.preventDefault();
+  const [dr, dc] = dir;
+  const newRow = Math.max(0, Math.min(ds.rows.length - 1, ri + dr));
+  const newCol = Math.max(0, Math.min(ds.headers.length - 1, ci + dc));
+
+  if (e.shiftKey) {
+    if (!daShiftAnchor) daShiftAnchor = { row: ri, col: ci };
+    daSelection = {
+      rows: new Set(), cols: new Set(),
+      cellRanges: [{
+        r1: Math.min(daShiftAnchor.row, newRow), c1: Math.min(daShiftAnchor.col, newCol),
+        r2: Math.max(daShiftAnchor.row, newRow), c2: Math.max(daShiftAnchor.col, newCol)
+      }]
+    };
+  } else {
+    // Plain navigation starts fresh -- it replaces any existing
+    // highlight-style selection, same as a plain click on the destination
+    // cell would.
+    daShiftAnchor = null;
+    if (daHasSelection()) daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+  }
+
+  if (newRow === ri && newCol === ci) { daRenderTable(); return; } // already at the edge -- nothing to move to, just refresh in case the selection changed
+
+  // Commit whatever's in the cell we're leaving BEFORE rebuilding the
+  // grid, so onblur's own daUpdateCell/daRenderTable runs first -- then we
+  // grab the destination cell from the freshly-rendered DOM rather than a
+  // reference that render would otherwise have torn out from under us.
+  if (e.target && typeof e.target.blur === 'function') e.target.blur();
+  daRenderTable();
+  const nextEl = document.getElementById(`daCell_${ds.id}_${newRow}_${newCol}`);
+  if (nextEl && typeof nextEl.focus === 'function') nextEl.focus();
+}
+
 function daUpdateFormulaBar(ri, ci, raw) {
   const refEl = document.getElementById('daFormulaBarRef');
   const inputEl = document.getElementById('daFormulaBarInput');
@@ -42652,7 +42955,16 @@ function daRenderTable() {
     document.activeElement.blur();
   }
   const ds = daGetActive();
-  if (!ds) { gridWrap.innerHTML = ''; if (meta) meta.textContent = ''; return; }
+  if (!ds) { gridWrap.innerHTML = ''; if (meta) meta.textContent = ''; daRenderHighlightSummary(null); return; }
+  daEnsureHighlightStore(ds);
+  // A selection belongs to one dataset's row/column indices — switching
+  // tabs invalidates it, so drop it silently rather than let stale indices
+  // highlight the wrong rows/cells on the newly active table.
+  if (daSelectionDsId !== ds.id) {
+    daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+    daRowAnchor = null; daColAnchor = null;
+    daSelectionDsId = ds.id;
+  }
 
   const query = (document.getElementById('daSearchInput')?.value || '').trim().toLowerCase();
   const visibleRowIdx = [];
@@ -42705,7 +43017,12 @@ function daRenderTable() {
 
   let html = emptyHintHtml + titleHtml + `<table class="da-table${ds.frozen ? ' da-frozen' : ''}"><thead>`;
   html += `<tr class="da-collabels-row"><th class="da-rownum"></th>`;
-  ds.headers.forEach((_, ci) => { html += `<th class="da-collabel">${daColToLetters(ci)}</th>`; });
+  ds.headers.forEach((_, ci) => {
+    const colHl = ds.colHighlights[ci];
+    const colSelCls = daIsColSelected(ci) ? ' da-collabel-selected' : '';
+    const colStyle = colHl ? ` style="background:${daHlBg(colHl.color)}"` : '';
+    html += `<th class="da-collabel${colSelCls}"${colStyle} title="${colHl && colHl.tag ? daEsc(colHl.tag) + ' — click to select this column' : 'Click to select this column'}" onmousedown="daSelectCol(${ci}, event)">${daColToLetters(ci)}</th>`;
+  });
   html += `</tr><tr>`;
   html += `<th class="da-rownum">#</th>`;
   ds.headers.forEach((h, ci) => {
@@ -42733,7 +43050,10 @@ function daRenderTable() {
   } else {
     visibleRowIdx.forEach(ri => {
       const row = ds.rows[ri];
-      html += `<tr><td class="da-rownum"><div class="da-rownum-inner"><span class="da-row-num-text">${ri + 1}</span><span class="da-row-del-btn" title="Delete row" onclick="daDeleteRow(${ri})">×</span></div></td>`;
+      const rowHl = ds.rowHighlights[ri];
+      const rowSelCls = daIsRowSelected(ri) ? ' da-rownum-selected' : '';
+      const rowStyle = rowHl ? ` style="background:${daHlBg(rowHl.color)}"` : '';
+      html += `<tr><td class="da-rownum${rowSelCls}"${rowStyle} title="${rowHl && rowHl.tag ? daEsc(rowHl.tag) + ' — click to select this row' : 'Click to select this row'}" onmousedown="daSelectRow(${ri}, event)"><div class="da-rownum-inner"><span class="da-row-num-text">${ri + 1}</span><span class="da-row-del-btn" title="Delete row" onmousedown="event.stopPropagation()" onclick="daDeleteRow(${ri})">×</span></div></td>`;
       row.forEach((cell, ci) => {
         const val = String(cell ?? '');
         const isFormula = val.trim().startsWith('=');
@@ -42755,6 +43075,10 @@ function daRenderTable() {
         ].filter(Boolean).join(' ');
         const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
         const linkUrl = daGetCellLink(ds, ri, ci);
+        const hl = daGetEffectiveHighlight(ds, ri, ci);
+        const hlStyle = hl ? ` style="background:${daHlBg(hl.color)}"` : '';
+        const hlTitle = hl && hl.tag ? daEsc(hl.tag) : '';
+        const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' : '';
         const linkBadge = linkUrl ? `<span class="da-td-link-badge" title="Open link: ${daEsc(linkUrl)}"
              onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">
              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -42769,19 +43093,21 @@ function daRenderTable() {
           if (!matched) {
             optsHtml = `<option value="${daEsc(val)}" selected>${val === '' ? '—' : daEsc(val)}</option>` + optsHtml;
           }
-          html += `<td data-r="${ri}" data-c="${ci}"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select" data-da-dropdown="1"
+          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}" data-da-dropdown="1"${hlStyle}
+               onmousedown="daCellRangeMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
+               onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
                onchange="daUpdateCell(${ri}, ${ci}, this.value)"
                oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
-               title="Dropdown list, right-click to edit choices">${optsHtml}</select>${linkBadge}</td>`;
+               title="${hlTitle ? hlTitle + ' — ' : ''}Dropdown list, right-click to edit choices">${optsHtml}</select>${linkBadge}</td>`;
         } else {
-          html += `<td data-r="${ri}" data-c="${ci}"><div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}" contenteditable="true" spellcheck="false"
+          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}${cellSelCls}" contenteditable="true" spellcheck="false"${hlStyle}
                onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+               onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
                oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
-               title="${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : (linkUrl ? 'Linked to ' + linkUrl + ' — right-click to edit' : 'Right-click to add a dropdown list or link'))}">${!isFormula && displayRaw === '' ? '—' : showVal}</div>${linkBadge}</td>`;
+               title="${hlTitle ? hlTitle + ' — ' : ''}${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : (linkUrl ? 'Linked to ' + linkUrl + ' — right-click to edit' : 'Right-click to add a dropdown list or link'))}">${!isFormula && displayRaw === '' ? '—' : showVal}</div>${linkBadge}</td>`;
         }
       });
       html += `</tr>`;
@@ -42790,6 +43116,7 @@ function daRenderTable() {
   html += `</tbody></table>`;
   gridWrap.innerHTML = html;
   daFillPlaceHandle();
+  daRenderHighlightSummary(ds);
 }
 
 function daHighlight(val, query) {
@@ -42903,6 +43230,26 @@ function daDeleteRow(rowIdx) {
     });
     ds.links = shiftedLinks;
   }
+  // Same shift for row/cell highlights, plus dropping any selection — its
+  // row indices no longer point at the same rows once this one is gone.
+  daEnsureHighlightStore(ds);
+  const shiftedRowHl = {};
+  Object.keys(ds.rowHighlights).forEach(k => {
+    const r = Number(k);
+    if (r === rowIdx) return;
+    shiftedRowHl[r > rowIdx ? r - 1 : r] = ds.rowHighlights[k];
+  });
+  ds.rowHighlights = shiftedRowHl;
+  const shiftedCellHl = {};
+  Object.keys(ds.cellHighlights).forEach(k => {
+    const [rStr, cStr] = k.split('_');
+    const r = Number(rStr), c = Number(cStr);
+    if (r === rowIdx) return;
+    shiftedCellHl[(r > rowIdx ? r - 1 : r) + '_' + c] = ds.cellHighlights[k];
+  });
+  ds.cellHighlights = shiftedCellHl;
+  daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+  daRowAnchor = null; daColAnchor = null;
   daRecalcColumnOps(ds);
   daRenderTable();
   daPersist();
@@ -42952,6 +43299,26 @@ function daDeleteColumn(colIdx) {
     });
     ds.links = shiftedLinks;
   }
+  // Same left-shift for column/cell highlights, plus dropping any
+  // selection — its column indices no longer point at the same columns.
+  daEnsureHighlightStore(ds);
+  const shiftedColHl = {};
+  Object.keys(ds.colHighlights).forEach(k => {
+    const ci = Number(k);
+    if (ci === colIdx) return;
+    shiftedColHl[ci > colIdx ? ci - 1 : ci] = ds.colHighlights[k];
+  });
+  ds.colHighlights = shiftedColHl;
+  const shiftedCellHl2 = {};
+  Object.keys(ds.cellHighlights).forEach(k => {
+    const [rStr, cStr] = k.split('_');
+    const r = Number(rStr), c = Number(cStr);
+    if (c === colIdx) return;
+    shiftedCellHl2[r + '_' + (c > colIdx ? c - 1 : c)] = ds.cellHighlights[k];
+  });
+  ds.cellHighlights = shiftedCellHl2;
+  daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+  daRowAnchor = null; daColAnchor = null;
   daRecalcColumnOps(ds);
   daRenderTable();
   daPersist();
@@ -42976,6 +43343,106 @@ function daEnsureDropdownStore(ds) {
 // defends against that with daEnsureLinksStore.
 function daEnsureLinksStore(ds) {
   if (!ds.links) ds.links = {};
+}
+
+// ─── Highlighting ("color-tag to group") ───
+// Attaches at three levels, same "most specific wins" idea as dropdowns:
+//   ds.cellHighlights["r_c"] -> { color, tag } for one specific cell (wins)
+//   ds.rowHighlights[ri]     -> { color, tag } for a whole row
+//   ds.colHighlights[ci]     -> { color, tag } for a whole column
+// A row or column highlight applies to every cell in it, including ones
+// added later — that's the point of tagging the row/column itself instead
+// of just painting the cells that happen to exist right now.
+function daEnsureHighlightStore(ds) {
+  if (!ds.rowHighlights) ds.rowHighlights = {};
+  if (!ds.colHighlights) ds.colHighlights = {};
+  if (!ds.cellHighlights) ds.cellHighlights = {};
+}
+
+function daGetEffectiveHighlight(ds, ri, ci) {
+  daEnsureHighlightStore(ds);
+  return ds.cellHighlights[ri + '_' + ci] || ds.rowHighlights[ri] || ds.colHighlights[ci] || null;
+}
+
+// Hex -> low-alpha rgba, so a highlight tints a cell without drowning out
+// its text on this dark theme.
+function daHlBg(hex, alpha) {
+  alpha = alpha == null ? 0.32 : alpha;
+  const h = String(hex || '#888888').replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16) || 0, g = parseInt(h.substring(2, 4), 16) || 0, b = parseInt(h.substring(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+const DA_HIGHLIGHT_COLORS = ['#f2c94c', '#6fcf97', '#56ccf2', '#bb6bd9', '#eb5757', '#9aa5b1'];
+
+// Same six swatches, keyed by plain-English name instead of hex, so Laya's
+// highlight tools take a color like "yellow" or "red" rather than needing
+// the model to remember/guess a hex code. Shared by every da_highlight_*
+// LAYA_ACTIONS entry below and their label() text, so what Laya says she
+// picked always matches what actually got applied.
+const DA_HIGHLIGHT_COLOR_NAMES = { yellow: '#f2c94c', green: '#6fcf97', blue: '#56ccf2', purple: '#bb6bd9', red: '#eb5757', gray: '#9aa5b1', grey: '#9aa5b1' };
+
+// Renders the small "legend" strip above the grid: one chip per tag in use,
+// with a live row count and — when the table has a numeric column — a
+// running total for that group, so a highlight tells you something about
+// the data instead of just coloring it.
+// Renders the "Highlights" legend panel above the grid: which rows and
+// columns are tagged, in which color — no totals, since the numbers are
+// already sitting right there in the table itself.
+function daRenderHighlightSummary(ds) {
+  const el = document.getElementById('daHighlightSummary');
+  if (!el) return;
+  if (!ds) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  daEnsureHighlightStore(ds);
+
+  // Row-level groups (whole-row highlights + individually-tagged cells),
+  // keyed by color+tag so two same-tag groups in different colors don't merge.
+  const rowGroups = {};
+  const addRow = (color, tag, ri) => {
+    const key = color + '|' + (tag || '');
+    if (!rowGroups[key]) rowGroups[key] = { color, tag, rows: new Set() };
+    rowGroups[key].rows.add(ri);
+  };
+  Object.keys(ds.rowHighlights).forEach(k => { const { color, tag } = ds.rowHighlights[k]; addRow(color, tag, +k); });
+  Object.keys(ds.cellHighlights).forEach(k => { const { color, tag } = ds.cellHighlights[k]; addRow(color, tag, +k.split('_')[0]); });
+
+  // Column-level groups, listed separately since these tag a whole column
+  // rather than a set of rows.
+  const colGroups = {};
+  Object.keys(ds.colHighlights).forEach(k => {
+    const { color, tag } = ds.colHighlights[k];
+    const key = color + '|' + (tag || '');
+    if (!colGroups[key]) colGroups[key] = { color, tag, cols: new Set() };
+    colGroups[key].cols.add(+k);
+  });
+
+  const rowKeys = Object.keys(rowGroups), colKeys = Object.keys(colGroups);
+  if (!rowKeys.length && !colKeys.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+
+  const fmtList = (nums) => nums.length <= 6 ? nums.join(', ') : nums.slice(0, 6).join(', ') + `, +${nums.length - 6} more`;
+
+  const rowItems = rowKeys.map(key => {
+    const g = rowGroups[key];
+    const nums = [...g.rows].sort((a, b) => a - b).map(r => r + 1);
+    return `<div class="da-hl-legend-item">
+      <span class="da-hl-legend-dot" style="background:${daEsc(g.color)}"></span>
+      <span class="da-hl-legend-tag">${daEsc(g.tag || 'Untagged')}</span>
+      <span class="da-hl-legend-meta">${g.rows.size} row${g.rows.size === 1 ? '' : 's'} · #${fmtList(nums)}</span>
+    </div>`;
+  }).join('');
+
+  const colItems = colKeys.map(key => {
+    const g = colGroups[key];
+    const letters = [...g.cols].sort((a, b) => a - b).map(c => daColToLetters(c));
+    return `<div class="da-hl-legend-item">
+      <span class="da-hl-legend-dot" style="background:${daEsc(g.color)}"></span>
+      <span class="da-hl-legend-tag">${daEsc(g.tag || 'Untagged')}</span>
+      <span class="da-hl-legend-meta">Column${letters.length === 1 ? '' : 's'} ${letters.join(', ')}</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="da-hl-legend-label">Highlights</div><div class="da-hl-legend-list">${rowItems}${colItems}</div>`;
 }
 
 function daGetCellLink(ds, ri, ci) {
@@ -43050,6 +43517,10 @@ function daCellContextMenu(e, ri, ci) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
       ${removeLabel}
     </div>` : ''}
+    <div class="da-ctx-item" onclick="daCloseCellCtxMenu();daContextHighlight(${ri}, ${ci})">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l6-6 4 4-6 6H9v-4z"/><path d="M3 21l4-1 9-9-3-3-9 9-1 4z"/></svg>
+      ${isHeader ? 'Highlight Column…' : 'Highlight Cell…'}
+    </div>
     ${linkItems}
   `;
   menu.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
@@ -43238,6 +43709,115 @@ function daRemoveLink(ri, ci) {
   daPersist();
   daRenderTable();
   toast('Link removed', 'info');
+}
+
+// ─── Highlight modal — color-tag whatever's currently selected ───
+let daHighlightColor = DA_HIGHLIGHT_COLORS[0];
+
+// Right-click "Highlight Cell…" / "Highlight Column…" — sets the selection
+// to just the clicked target (row headers have no cell of their own to
+// highlight individually, so ri === -1 always means "this column") and
+// opens the modal on it, regardless of whatever was selected before.
+function daContextHighlight(ri, ci) {
+  if (ri === -1) {
+    daSelection = { rows: new Set(), cols: new Set([ci]), cellRanges: [] };
+  } else {
+    daSelection = { rows: new Set(), cols: new Set(), cellRanges: [{ r1: ri, c1: ci, r2: ri, c2: ci }] };
+  }
+  daRenderTable();
+  daOpenHighlightModal();
+}
+
+// Opens the modal against the current selection (rows/cols/cell ranges).
+// If nothing is selected, falls back to the focused cell, same convention
+// as the Dropdown/Link toolbar buttons.
+function daOpenHighlightModal() {
+  const ds = daGetActive();
+  if (!ds) { toast('Upload or create a table first', 'info'); return; }
+  daEnsureHighlightStore(ds);
+
+  if (!daHasSelection()) {
+    if (!daActiveCell) { toast('Select a row, column, or cell range first (or click a cell), then Highlight', 'info'); return; }
+    daSelection = { rows: new Set(), cols: new Set(), cellRanges: [{ r1: daActiveCell.row, c1: daActiveCell.col, r2: daActiveCell.row, c2: daActiveCell.col }] };
+    daRenderTable();
+  }
+
+  const parts = [];
+  if (daSelection.rows.size) parts.push(`${daSelection.rows.size} row${daSelection.rows.size === 1 ? '' : 's'}`);
+  if (daSelection.cols.size) parts.push(`${daSelection.cols.size} column${daSelection.cols.size === 1 ? '' : 's'}`);
+  if (daSelection.cellRanges.length) {
+    let cellCount = 0;
+    daSelection.cellRanges.forEach(rg => { cellCount += (rg.r2 - rg.r1 + 1) * (rg.c2 - rg.c1 + 1); });
+    parts.push(`${cellCount} cell${cellCount === 1 ? '' : 's'}`);
+  }
+  document.getElementById('daHighlightTargetLabel').textContent = parts.join(', ') || 'the current selection';
+
+  // Pre-fill from an existing highlight if the selection is a single
+  // already-tagged row/column/cell, so re-opening to tweak a tag doesn't
+  // start blank.
+  let existing = null;
+  if (daSelection.rows.size === 1 && !daSelection.cols.size && !daSelection.cellRanges.length) {
+    existing = ds.rowHighlights[[...daSelection.rows][0]];
+  } else if (daSelection.cols.size === 1 && !daSelection.rows.size && !daSelection.cellRanges.length) {
+    existing = ds.colHighlights[[...daSelection.cols][0]];
+  } else if (daSelection.cellRanges.length === 1) {
+    const rg = daSelection.cellRanges[0];
+    if (rg.r1 === rg.r2 && rg.c1 === rg.c2) existing = ds.cellHighlights[rg.r1 + '_' + rg.c1];
+  }
+  daHighlightColor = (existing && existing.color) || DA_HIGHLIGHT_COLORS[0];
+  document.getElementById('daHighlightTagInput').value = (existing && existing.tag) || '';
+  document.getElementById('daHighlightRemoveBtn').style.display = existing ? '' : 'none';
+
+  const swatchRow = document.getElementById('daHighlightSwatchRow');
+  swatchRow.innerHTML = DA_HIGHLIGHT_COLORS.map(c => `<div class="da-hl-swatch${c === daHighlightColor ? ' active' : ''}" style="background:${c}" onclick="daPickHighlightColor('${c}', this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>`).join('');
+
+  document.getElementById('daHighlightOverlay').classList.add('open');
+}
+
+function daPickHighlightColor(color, el) {
+  daHighlightColor = color;
+  document.querySelectorAll('#daHighlightSwatchRow .da-hl-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function daCloseHighlightModal() {
+  document.getElementById('daHighlightOverlay').classList.remove('open');
+}
+
+function daSaveHighlightModal() {
+  const ds = daGetActive(); if (!ds || !daHasSelection()) { daCloseHighlightModal(); return; }
+  daEnsureHighlightStore(ds);
+  const tag = document.getElementById('daHighlightTagInput').value.trim();
+  const entry = { color: daHighlightColor, tag };
+
+  daSelection.rows.forEach(ri => { ds.rowHighlights[ri] = entry; });
+  daSelection.cols.forEach(ci => { ds.colHighlights[ci] = entry; });
+  daSelection.cellRanges.forEach(rg => {
+    for (let r = rg.r1; r <= rg.r2; r++) {
+      for (let c = rg.c1; c <= rg.c2; c++) ds.cellHighlights[r + '_' + c] = entry;
+    }
+  });
+
+  daPersist();
+  daRenderTable();
+  daCloseHighlightModal();
+  toast('Highlight applied', 'success');
+}
+
+function daRemoveHighlightFromModal() {
+  const ds = daGetActive(); if (!ds || !daHasSelection()) { daCloseHighlightModal(); return; }
+  daEnsureHighlightStore(ds);
+  daSelection.rows.forEach(ri => { delete ds.rowHighlights[ri]; });
+  daSelection.cols.forEach(ci => { delete ds.colHighlights[ci]; });
+  daSelection.cellRanges.forEach(rg => {
+    for (let r = rg.r1; r <= rg.r2; r++) {
+      for (let c = rg.c1; c <= rg.c2; c++) delete ds.cellHighlights[r + '_' + c];
+    }
+  });
+  daPersist();
+  daRenderTable();
+  daCloseHighlightModal();
+  toast('Highlight removed', 'info');
 }
 
 // Opens a cell's linked URL in a new tab. Kept as its own function (rather
@@ -70191,7 +70771,7 @@ DESIGN STUDIO JUDGMENT (Cinematic Fade / Cosmic image filters in PDF Editor): Th
 - If several images are on the page and none is selected, you genuinely can't guess which one they mean -- ask, in one short line, rather than calling the tool with target:'all' as a default. Only use target:'all' when they actually say "all"/"every image."
 Once applied, name the look you picked in plain language in your reply ("gave it a warm golden-hour fade," "went with a starfield look since you wanted something unique") rather than the raw preset id -- the person should never need to know these are internally called goldenGrade or nebulaGlow.
 
-ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. context.pendingAttachments (an ARRAY -- present only on a turn where the person just attached one or more files) tells you everything staged this turn; a person handing you a logo plus a spreadsheet plus a Word doc in one go all show up here together, not just the last one. Read the whole array before deciding what to do, not just its first or last entry. If it contains ONLY logo entries, treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If it contains ONLY data entries (kind: 'data', from a Word/Excel/CSV/PDF), you're given real sample content for each one (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. If it contains BOTH a logo entry AND one or more data entries -- someone just handed you their brand plus their content in the same breath -- that whole batch together IS the "build me the finished report" request, even with a minimal or synthesized caption: push the newly-ingested dataset(s) onto the PDF with pipeline_da_to_pdf (mode 'new' unless the current page already has content worth keeping, in which case 'live'), then call pdfed_auto_refine_report with add_logo_to_header true and theme/align chosen the normal DESIGN JUDGMENT way, both as actions in this same turn -- don't stop after only pushing the data and wait for a second message asking to polish it, and don't ask which file to use first when more than one data entry is present, just work through them in the order given. If several data entries arrived with no logo, still offer (or just do, if the ask is clearly "make this a report") the same pipeline_da_to_pdf + pdfed_auto_refine_report pairing minus add_logo_to_header. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. CRITICAL: mf_create_form and mf_create_from_template now work from ANY panel, not just while already in Make Forms -- calling either one builds the form AND switches the user into Make Forms to see it, in one step. So when someone asks for a form while sitting in Dashboard, PDF Editor, wherever, call mf_create_from_template/mf_create_form DIRECTLY in that same turn -- never call navigate_to_panel to "Make Forms" first and leave the actual creation for a follow-up message, that just moves the person to an empty gallery and makes it look like nothing happened. navigate_to_panel only earns its keep here if the person explicitly wants to browse the gallery or template picker themselves rather than have you build something. Once a form exists (created this turn or earlier) and the user asks to share it, put it live, or send people a link, call mf_publish_form -- and if a single request clearly asks for both ("make me an invoice form and publish it"), call mf_create_from_template (or mf_create_form) and mf_publish_form together in the same turn rather than waiting for a second message to publish. Once a form is published, context.shareUrl holds its real public link -- when the person asks for the link, to share it, or where people can fill it out, read context.shareUrl and give them that exact URL in your reply; never say you are pulling up or getting the link without actually stating it, and never invent or guess a URL. If context.isPublished is false, say the form is not published yet instead of claiming to fetch a link. If the person gives you their company name or brand for a form, set it as the title (and description if given) via mf_create_form/mf_create_from_template/mf_update_title rather than just acknowledging it. If they give you a social handle or link (Instagram, LinkedIn, WhatsApp, X/Twitter, YouTube, or a website), call mf_set_social_link with the matching platform key (instagram, linkedin, whatsapp, x, youtube, website) and the value they gave -- do not just say you have added it without calling the tool. When context.pendingAttachments contains an image while the person is working on a form (context.activePanel is Make Forms), that image is a logo or header banner candidate for the open form: if they call it a logo, brand mark, or just hand it over with a form-branding intent, call mf_set_logo; if they call it a banner, header image, or festival/campaign graphic, call mf_set_banner instead. Only one of the two per image. If no form is open yet when a branding image arrives, create the form first (mf_create_form or mf_create_from_template, per the normal rules above) in the same turn, then apply the image. For responses: context.responseCount tells you how many saved responses the open form already has and context.isPublished tells you whether it can even collect online ones -- when the person asks to see, analyze, or "send responses to Data Arrangement," call mf_export_responses_to_da directly (don't make them find the button); if the form is published and they want the latest, call mf_sync_responses first in the same turn so nothing recent is missed. If responseCount is 0, say so plainly instead of calling mf_export_responses_to_da, it will just fail. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
+ACTIONS: You are not just advisory anymore -- you can actually perform actions in Data Arrangement, Diagrams & Graphs, Make Forms, and PDF Editor (never Redaction; you have no action powers there, only conversation). For Data Arrangement highlight requests ("highlight the Status column red," "color-tag rows 3 and 7 as Paid," "mark this cell yellow"), work out the row/column/cell indices yourself from context.headers and the sample rows rather than asking the person to click anything, and call da_highlight_rows/da_highlight_columns/da_highlight_cells directly -- these are the exact same feature as the manual Highlight button, just driven by you. Pick a color from the six named ones (yellow, green, blue, purple, red, gray) based on what the person said or implied (e.g. "flag the errors" leans red, "mark as done" leans green); default to yellow if nothing suggests otherwise. A request naming both a row/column and specific cells, or spanning several rows/columns at once, is still one call with an array of indices, not several separate calls. "Un-highlight," "remove the color from," or "clear the tag on" means da_remove_highlight with the matching target. da_highlight_rows/_columns/_cells only work when YOU already know the exact indices -- fine for "highlight row 3" but not for anything that requires judging every row against a rule ("mark important values," "flag anything over budget," "highlight the errors," "mark the top 5"), since context.sampleRows only shows you the first 15 rows and a real table can have far more. For that whole-table class of request, use context.columnStats instead (per column: numeric min/max/avg/count, or the most common values and their counts for a text column -- computed over EVERY row, not just the sample) to decide the actual rule, then call da_highlight_by_condition ({colIdx, operator: '>'|'>='|'<'|'<='|'=='|'!='|'contains'|'empty'|'not_empty', value, color?, tag?}) or da_highlight_top_bottom ({colIdx, count, which: 'top'|'bottom', color?, tag?}) -- both run against the full column locally, not just what you can see. "Mark important values" with no other detail in view of numeric columnStats leans toward flagging outliers (e.g. values well above avg, or the top few) -- pick the column that most plausibly means "important" for this table (totals, amounts, overdue counts) and say in your reply which rule you went with, since you're making a judgment call the person can correct. This includes PIPELINE actions that move data between modules (table to a chart, a chart or table or form into the PDF), and two ways to run Refine Report: pdfed_open_refine_report (opens the modal for the person to review and apply themselves) and pdfed_auto_refine_report (runs the whole pass immediately with YOUR choices, no modal). Default to the autopilot one. A request like "give me the professional output," "make this client-ready," "finalize this report," or similar means: decide the theme yourself from the DESIGN JUDGMENT rules above (what the content actually is -- numbers-heavy is Financial, formal business is Corporate, anything wanting a visual pop is Modern, General otherwise), decide table/image width yourself (align: 'stretch' for a single wide table or one-table-per-page content, 'left' when a table sits beside other material), and call pdfed_auto_refine_report with those choices in the same turn -- don't ask the person to pick a template or confirm settings first, and don't just open the modal for them unless they specifically say they want to review or adjust it themselves. context.pendingAttachments (an ARRAY -- present only on a turn where the person just attached one or more files) tells you everything staged this turn; a person handing you a logo plus a spreadsheet plus a Word doc in one go all show up here together, not just the last one. Read the whole array before deciding what to do, not just its first or last entry. If it contains ONLY logo entries, treat the attachment itself as the request: decide theme/align the same way you would for a "give me the professional output" ask, then call pdfed_auto_refine_report immediately with add_logo_to_header true -- even if the person's caption is just "here's our logo" or similarly minimal. Attaching a logo IS asking for the finished, professional version; you don't need them to separately say "make it professional" in the same message. This only applies once there's actual content on the page to refine -- if pdfed_auto_refine_report throws because the canvas is empty, just tell them the logo's saved and ready for when they add content, don't retry or treat it as an error to work around. If it contains ONLY data entries (kind: 'data', from a Word/Excel/CSV/PDF), you're given real sample content for each one (headers plus up to 15 actual rows, not just a count) -- read it like any table pasted in by hand and act on what the person's message asks for (answer a question about it, push it onward with a pipeline_* tool, etc.); don't wait for them to re-describe what's in the file. If it contains BOTH a logo entry AND one or more data entries -- someone just handed you their brand plus their content in the same breath -- that whole batch together IS the "build me the finished report" request, even with a minimal or synthesized caption: push the newly-ingested dataset(s) onto the PDF with pipeline_da_to_pdf (mode 'new' unless the current page already has content worth keeping, in which case 'live'), then call pdfed_auto_refine_report with add_logo_to_header true and theme/align chosen the normal DESIGN JUDGMENT way, both as actions in this same turn -- don't stop after only pushing the data and wait for a second message asking to polish it, and don't ask which file to use first when more than one data entry is present, just work through them in the order given. If several data entries arrived with no logo, still offer (or just do, if the ask is clearly "make this a report") the same pipeline_da_to_pdf + pdfed_auto_refine_report pairing minus add_logo_to_header. For a "make me a form" request specifically: if what they describe clearly matches one of SARVARC's built-in templates (by meaning, not exact wording -- "reg form" or "signup sheet" is the registration template, "invoice" is gstInvoice, and so on), start from that template with mf_create_from_template rather than building field-by-field; only fall back to a blank form via mf_create_form when nothing fits or they've described custom fields of their own. CRITICAL: mf_create_form and mf_create_from_template now work from ANY panel, not just while already in Make Forms -- calling either one builds the form AND switches the user into Make Forms to see it, in one step. So when someone asks for a form while sitting in Dashboard, PDF Editor, wherever, call mf_create_from_template/mf_create_form DIRECTLY in that same turn -- never call navigate_to_panel to "Make Forms" first and leave the actual creation for a follow-up message, that just moves the person to an empty gallery and makes it look like nothing happened. navigate_to_panel only earns its keep here if the person explicitly wants to browse the gallery or template picker themselves rather than have you build something. Once a form exists (created this turn or earlier) and the user asks to share it, put it live, or send people a link, call mf_publish_form -- and if a single request clearly asks for both ("make me an invoice form and publish it"), call mf_create_from_template (or mf_create_form) and mf_publish_form together in the same turn rather than waiting for a second message to publish. Once a form is published, context.shareUrl holds its real public link -- when the person asks for the link, to share it, or where people can fill it out, read context.shareUrl and give them that exact URL in your reply; never say you are pulling up or getting the link without actually stating it, and never invent or guess a URL. If context.isPublished is false, say the form is not published yet instead of claiming to fetch a link. If the person gives you their company name or brand for a form, set it as the title (and description if given) via mf_create_form/mf_create_from_template/mf_update_title rather than just acknowledging it. If they give you a social handle or link (Instagram, LinkedIn, WhatsApp, X/Twitter, YouTube, or a website), call mf_set_social_link with the matching platform key (instagram, linkedin, whatsapp, x, youtube, website) and the value they gave -- do not just say you have added it without calling the tool. When context.pendingAttachments contains an image while the person is working on a form (context.activePanel is Make Forms), that image is a logo or header banner candidate for the open form: if they call it a logo, brand mark, or just hand it over with a form-branding intent, call mf_set_logo; if they call it a banner, header image, or festival/campaign graphic, call mf_set_banner instead. Only one of the two per image. If no form is open yet when a branding image arrives, create the form first (mf_create_form or mf_create_from_template, per the normal rules above) in the same turn, then apply the image. For responses: context.responseCount tells you how many saved responses the open form already has and context.isPublished tells you whether it can even collect online ones -- when the person asks to see, analyze, or "send responses to Data Arrangement," call mf_export_responses_to_da directly (don't make them find the button); if the form is published and they want the latest, call mf_sync_responses first in the same turn so nothing recent is missed. If responseCount is 0, say so plainly instead of calling mf_export_responses_to_da, it will just fail. When the user asks you to do something concrete and you have enough info from the conversation + provided context to do it, call the matching tool. NAVIGATION: context.activePanel always tells you exactly where the user already is. Never call navigate_to_panel targeting that same panel -- the user is already there, so it accomplishes nothing and looks to them like you did nothing at all. If the request is actually about changing something ON the current screen (a chart type, a form field, a page edit), find and call the specific tool for that instead of reaching for navigate_to_panel as a default. Only call navigate_to_panel when the request truly means a DIFFERENT module than context.activePanel. If a required parameter is missing (e.g. which row, which field), ask a short clarifying question in your reply instead of guessing. Never invent an action that isn't in your tool list. Never say you will do something (e.g. "I'll open X for you") unless you are calling the matching tool in that same turn -- if no tool fits the request, say so plainly instead of claiming to act. When you use pdfed_insert_stock_photo, be accurate about what happened: you searched and placed a real photo (from Pexels), you did not generate or create an image -- never claim to have "made" or "drawn" one. Some actions (deleting a row/column/field/page) will prompt the user for a confirmation tap client-side -- you don't need to ask permission yourself, just narrate briefly in your reply what you're about to do, in one line, before the app confirms it. When a pipeline push or a Refine Report pass naturally follows from what the user is doing (e.g. they just finished cleaning a table and ask "what next," or their document sounds visually inconsistent), you may proactively suggest it in your reply -- but only ACT when the user actually asks for it or clearly confirms; don't move their data or restructure their document unprompted.`;
 
   // NOTE FOR THE WORKER (laya-backend.sarvarcworkspace.workers.dev):
   // The frontend now expects { reply: string, action: {type, params} | null }
@@ -70207,6 +70787,34 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
   //   da_add_row {}                          da_add_column {}
   //   da_update_cell {rowIdx, colIdx, value} da_delete_row {rowIdx}
   //   da_delete_column {colIdx}
+  //   da_highlight_rows {rowIdxs: number[], color?: 'yellow'|'green'|'blue'|
+  //     'purple'|'red'|'gray', tag?: string}
+  //   da_highlight_columns {colIdxs: number[], color?, tag?}
+  //   da_highlight_cells {cells: [{rowIdx, colIdx}], color?, tag?}
+  //     -- Color-tags rows/columns/individual cells, same feature as the
+  //     manual Highlight toolbar button. color names map to the app's 6
+  //     fixed swatches (see DA_HIGHLIGHT_COLOR_NAMES) -- omit for yellow.
+  //     tag is optional free text shown in the summary strip above the
+  //     table. rowIdx/colIdx are 0-based, same convention as da_update_cell;
+  //     context.headers (in order) is how you know which colIdx is which
+  //     named column. All three throw a plain error (surfaced to the user
+  //     as a normal reply) if an index is out of range or no table is open.
+  //   da_remove_highlight {rowIdxs?: number[], colIdxs?: number[],
+  //     cells?: [{rowIdx, colIdx}]} -- clears highlights in any combination
+  //     of the three target shapes in one call.
+  //   da_highlight_by_condition {colIdx, operator: '>'|'>='|'<'|'<='|'=='|
+  //     '!='|'contains'|'empty'|'not_empty', value?, color?, tag?}
+  //   da_highlight_top_bottom {colIdx, count, which: 'top'|'bottom', color?, tag?}
+  //     -- NEW: these two are the whole-table versions -- they run the rule
+  //     against ds.rows IN FULL on the client, not just the ~15-row sample
+  //     sent up in context.sampleRows. This is what lets Laya act on
+  //     "mark important values" / "flag the top 5" type requests correctly
+  //     on tables bigger than the sample -- she decides the RULE from
+  //     context.columnStats (also new: per-column min/max/avg or top text
+  //     values, computed over every row) rather than needing every row in
+  //     front of her. Add both tool definitions to the `tools` array
+  //     alongside the others above -- without a matching entry here, the
+  //     model can't call them even though the client is ready to run them.
   //   dg_set_type {chartType}                dg_set_palette {scheme}
   //   dg_add_row {}                          dg_set_x_axis {colIdx}
   //   dg_set_y_axis {colIdx}
@@ -70822,13 +71430,56 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
               if(cell === '' || cell === null || cell === undefined) emptyCells++;
             });
           });
+          // Raw rows beyond #15 are never sent (payload size), but Laya
+          // still needs to reason about the WHOLE column for things like
+          // "mark important values" or "flag anything above average" --
+          // so instead of more rows, she gets a per-column summary computed
+          // over every row. For a numeric column that's min/max/avg/count;
+          // for a text column it's the most common values and their
+          // counts (capped at 5) so she can reason about categories
+          // ("mostly 'Paid', a few 'Overdue'") without seeing every row.
+          // This is what backs da_highlight_by_condition/_top_bottom, which
+          // apply against ds.rows in full, not this summary -- the summary
+          // is only for Laya to DECIDE the rule, the actions do the actual
+          // whole-table scan themselves.
+          const columnStats = (ds.headers || []).map(function(h, ci){
+            const nums = [];
+            const textCounts = {};
+            let nonEmpty = 0;
+            (ds.rows || []).forEach(function(row, ri){
+              let v = row[ci];
+              if (typeof v === 'string' && v.trim().startsWith('=')) {
+                v = daFormulaDisplayValue(ds, ri, ci).display;
+              }
+              if (v === '' || v === null || v === undefined) return;
+              nonEmpty++;
+              const n = parseFloat(v);
+              if (!isNaN(n) && String(v).trim() !== '') nums.push(n);
+              const key = String(v).trim();
+              textCounts[key] = (textCounts[key] || 0) + 1;
+            });
+            const stat = { colIdx: ci, header: h, nonEmptyCount: nonEmpty };
+            if (nums.length) {
+              stat.numericCount = nums.length;
+              stat.min = Math.min.apply(null, nums);
+              stat.max = Math.max.apply(null, nums);
+              stat.avg = Math.round((nums.reduce(function(a,b){ return a+b; }, 0) / nums.length) * 100) / 100;
+            } else {
+              stat.topValues = Object.keys(textCounts)
+                .sort(function(a, b){ return textCounts[b] - textCounts[a]; })
+                .slice(0, 5)
+                .map(function(k){ return { value: k, count: textCounts[k] }; });
+            }
+            return stat;
+          });
           return {
             activePanel: 'Data Arrangement',
             datasetName: ds.name,
             headers: ds.headers || [],
             totalRowCount: (ds.rows || []).length,
             sampleRows: sampleRows,
-            emptyCellsInSample: emptyCells
+            emptyCellsInSample: emptyCells,
+            columnStats: columnStats
           };
         }
       }
@@ -71038,6 +71689,204 @@ ACTIONS: You are not just advisory anymore -- you can actually perform actions i
     da_update_cell:    { risk: 'safe',    run: function(p){ daUpdateCell(p.rowIdx, p.colIdx, String(p.value)); }, label: function(p){ return 'Set cell (row ' + (p.rowIdx+1) + ', col ' + (p.colIdx+1) + ') to "' + p.value + '".'; } },
     da_delete_row:     { risk: 'confirm', run: function(p){ daDeleteRow(p.rowIdx); }, label: function(p){ return 'Delete row ' + (p.rowIdx+1) + '. This can be undone with Ctrl+Z.'; } },
     da_delete_column:  { risk: 'confirm', run: function(p){ daDeleteColumn(p.colIdx); }, label: function(p){ return 'Delete column ' + (p.colIdx+1) + '. This can be undone with Ctrl+Z.'; } },
+
+    // Color-tag actions -- the same feature as the manual Highlight button
+    // (see daSaveHighlightModal / daOpenHighlightModal above), just driven
+    // by indices Laya works out from the conversation + context.headers
+    // instead of a live row/column/cell drag-selection in the UI. All three
+    // write straight into ds.rowHighlights/colHighlights/cellHighlights and
+    // reuse daPersist + daRenderTable so a Laya-applied highlight looks and
+    // syncs (Yjs) exactly like one applied by hand. color is a plain name
+    // (yellow/green/blue/purple/red/gray) resolved via DA_HIGHLIGHT_COLOR_NAMES
+    // rather than a hex code, so the model never has to guess a swatch value;
+    // an unrecognized name quietly falls back to yellow rather than failing
+    // the whole call over a color typo. tag is optional, shown in the
+    // summary strip above the table, same as typing one into the modal.
+    da_highlight_rows: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureHighlightStore(ds);
+        const rowIdxs = Array.isArray(p.rowIdxs) ? p.rowIdxs : [];
+        if (!rowIdxs.length) throw new Error('no rows given to highlight');
+        const bad = rowIdxs.some(function(ri){ return ri < 0 || ri >= ds.rows.length; });
+        if (bad) throw new Error('one of those row numbers is outside the table');
+        const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
+        const entry = { color: color, tag: p.tag || '' };
+        rowIdxs.forEach(function(ri){ ds.rowHighlights[ri] = entry; });
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        const n = Array.isArray(p.rowIdxs) ? p.rowIdxs.length : 0;
+        return 'Highlight ' + n + ' row' + (n === 1 ? '' : 's') + ' in ' + (p.color || 'yellow') + (p.tag ? ', tagged "' + p.tag + '"' : '') + '.';
+      }
+    },
+    da_highlight_columns: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureHighlightStore(ds);
+        const colIdxs = Array.isArray(p.colIdxs) ? p.colIdxs : [];
+        if (!colIdxs.length) throw new Error('no columns given to highlight');
+        const bad = colIdxs.some(function(ci){ return ci < 0 || ci >= ds.headers.length; });
+        if (bad) throw new Error('one of those columns is outside the table');
+        const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
+        const entry = { color: color, tag: p.tag || '' };
+        colIdxs.forEach(function(ci){ ds.colHighlights[ci] = entry; });
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        const n = Array.isArray(p.colIdxs) ? p.colIdxs.length : 0;
+        return 'Highlight ' + n + ' column' + (n === 1 ? '' : 's') + ' in ' + (p.color || 'yellow') + (p.tag ? ', tagged "' + p.tag + '"' : '') + '.';
+      }
+    },
+    // Individual cells, given as an explicit {rowIdx, colIdx} list rather
+    // than a range -- this is the one shape the manual modal CAN'T do in a
+    // single step for non-rectangular picks (e.g. "highlight row 2's Status
+    // cell and row 9's Status cell"), so it's worth its own param shape
+    // instead of forcing everything through a rectangular r1/c1/r2/c2 box.
+    da_highlight_cells: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureHighlightStore(ds);
+        const cells = Array.isArray(p.cells) ? p.cells : [];
+        if (!cells.length) throw new Error('no cells given to highlight');
+        const bad = cells.some(function(c){ return c.rowIdx < 0 || c.rowIdx >= ds.rows.length || c.colIdx < 0 || c.colIdx >= ds.headers.length; });
+        if (bad) throw new Error('one of those cells is outside the table');
+        const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
+        const entry = { color: color, tag: p.tag || '' };
+        cells.forEach(function(c){ ds.cellHighlights[c.rowIdx + '_' + c.colIdx] = entry; });
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        const n = Array.isArray(p.cells) ? p.cells.length : 0;
+        return 'Highlight ' + n + ' cell' + (n === 1 ? '' : 's') + ' in ' + (p.color || 'yellow') + (p.tag ? ', tagged "' + p.tag + '"' : '') + '.';
+      }
+    },
+    // The two actions above need Laya to already know the exact rows/cells
+    // to hit -- fine for "highlight row 3" but useless for "mark important
+    // values" on any table bigger than the ~15-row sample she's given in
+    // getLayaContext (see the dataarrange branch there). These two instead
+    // take a RULE and get evaluated locally against ds.rows in full, so
+    // Laya can act on a 500-row table exactly as well as a 5-row one --
+    // she doesn't need to see every row, just decide the condition.
+    //
+    // Formula cells are compared by their COMPUTED display value (via
+    // daFormulaDisplayValue), not the raw "=SUM(...)" text, so a rule like
+    // "values over 10000" matches what the user actually sees in the cell.
+    da_highlight_by_condition: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureHighlightStore(ds);
+        const colIdx = Number(p.colIdx);
+        if (!(colIdx >= 0 && colIdx < ds.headers.length)) throw new Error('that column is outside the table');
+        const op = String(p.operator || '').toLowerCase();
+        const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
+        const entry = { color: color, tag: p.tag || '' };
+        const isNumericOp = ['>', '>=', '<', '<='].includes(op);
+        let hits = 0;
+        ds.rows.forEach(function(row, ri){
+          let cell = row[colIdx];
+          if (typeof cell === 'string' && cell.trim().startsWith('=')) {
+            cell = daFormulaDisplayValue(ds, ri, colIdx).display;
+          }
+          let matched = false;
+          if (isNumericOp) {
+            const num = parseFloat(cell);
+            if (!isNaN(num)) {
+              const target = Number(p.value);
+              if (op === '>') matched = num > target;
+              else if (op === '>=') matched = num >= target;
+              else if (op === '<') matched = num < target;
+              else if (op === '<=') matched = num <= target;
+            }
+          } else if (op === '==' || op === 'equals') {
+            matched = String(cell ?? '').trim().toLowerCase() === String(p.value ?? '').trim().toLowerCase();
+          } else if (op === '!=' || op === 'not_equals') {
+            matched = String(cell ?? '').trim().toLowerCase() !== String(p.value ?? '').trim().toLowerCase();
+          } else if (op === 'contains') {
+            matched = String(cell ?? '').toLowerCase().includes(String(p.value ?? '').toLowerCase());
+          } else if (op === 'empty') {
+            matched = (cell === '' || cell === null || cell === undefined);
+          } else if (op === 'not_empty') {
+            matched = !(cell === '' || cell === null || cell === undefined);
+          } else {
+            throw new Error('"' + op + '" is not a comparison I understand');
+          }
+          if (matched) { ds.cellHighlights[ri + '_' + colIdx] = entry; hits++; }
+        });
+        if (!hits) throw new Error('nothing in that column matched');
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        return 'Highlight every cell in column ' + (p.colIdx + 1) + ' where the value ' + p.operator + ' ' + p.value + ', in ' + (p.color || 'yellow') + '.';
+      }
+    },
+    // "Mark the top 5 values" / "flag the 3 lowest" -- also a whole-column
+    // scan, so it needs the same full-dataset pass rather than the sample.
+    // Non-numeric cells in the column are simply skipped when ranking.
+    da_highlight_top_bottom: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureHighlightStore(ds);
+        const colIdx = Number(p.colIdx);
+        if (!(colIdx >= 0 && colIdx < ds.headers.length)) throw new Error('that column is outside the table');
+        const n = Math.max(1, Number(p.count) || 1);
+        const which = (p.which === 'bottom') ? 'bottom' : 'top';
+        const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
+        const entry = { color: color, tag: p.tag || '' };
+        const scored = [];
+        ds.rows.forEach(function(row, ri){
+          let cell = row[colIdx];
+          if (typeof cell === 'string' && cell.trim().startsWith('=')) {
+            cell = daFormulaDisplayValue(ds, ri, colIdx).display;
+          }
+          const num = parseFloat(cell);
+          if (!isNaN(num)) scored.push({ ri: ri, num: num });
+        });
+        if (!scored.length) throw new Error('that column has no numeric values to rank');
+        scored.sort(function(a, b){ return which === 'top' ? b.num - a.num : a.num - b.num; });
+        scored.slice(0, n).forEach(function(s){ ds.cellHighlights[s.ri + '_' + colIdx] = entry; });
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        return 'Highlight the ' + (Math.max(1, Number(p.count) || 1)) + ' ' + (p.which === 'bottom' ? 'lowest' : 'highest') + ' value' + (Number(p.count) === 1 ? '' : 's') + ' in column ' + (p.colIdx + 1) + ', in ' + (p.color || 'yellow') + '.';
+      }
+    },
+
+
+    // shapes as the actions above, all in one call -- "remove the highlight
+    // from row 3 and the Status column" is one tool call, not two.
+    da_remove_highlight: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureHighlightStore(ds);
+        (Array.isArray(p.rowIdxs) ? p.rowIdxs : []).forEach(function(ri){ delete ds.rowHighlights[ri]; });
+        (Array.isArray(p.colIdxs) ? p.colIdxs : []).forEach(function(ci){ delete ds.colHighlights[ci]; });
+        (Array.isArray(p.cells) ? p.cells : []).forEach(function(c){ delete ds.cellHighlights[c.rowIdx + '_' + c.colIdx]; });
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        const parts = [];
+        const rowIdxs = Array.isArray(p.rowIdxs) ? p.rowIdxs : [];
+        const colIdxs = Array.isArray(p.colIdxs) ? p.colIdxs : [];
+        const cells = Array.isArray(p.cells) ? p.cells : [];
+        if (rowIdxs.length) parts.push(rowIdxs.length + ' row' + (rowIdxs.length === 1 ? '' : 's'));
+        if (colIdxs.length) parts.push(colIdxs.length + ' column' + (colIdxs.length === 1 ? '' : 's'));
+        if (cells.length) parts.push(cells.length + ' cell' + (cells.length === 1 ? '' : 's'));
+        return 'Remove the highlight from ' + (parts.join(', ') || 'the selection') + '.';
+      }
+    },
 
     dg_set_type:       { risk: 'safe',    run: function(p){ dgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
     // One-shot version of "set X, set Y, set type" for building a whole new
