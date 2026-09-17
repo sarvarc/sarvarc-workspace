@@ -21634,7 +21634,12 @@ function teSetOverlayZoom(overlay, z) {
   overlay.style.setProperty('--pdfed-inv-zoom', (1 / (z || 1)).toFixed(4));
 }
 
-async function pdfedStartTextEdit() {
+async function pdfedStartTextEdit(opts) {
+  // opts.allowVision + opts.visionFetcher: only ever passed by Laya's
+  // pdfed_make_editable action (see LAYA_ACTIONS below) -- the manual "Edit
+  // Text" button never sets these, so nothing changes for a person clicking
+  // it themselves. See pdfedOcrExtract's own comment for what these do.
+  opts = opts || {};
   // turn off crop if on
   pdfedCropOff();
   teState.active = true;
@@ -21719,16 +21724,16 @@ async function pdfedStartTextEdit() {
         // PDF page (or a re-uploaded export that flattened everything into an
         // image) with no real text layer at all. OCR is the only way to make
         // it editable, so fall back to it instead of giving up.
-        await pdfedOcrExtract(overlay);
+        await pdfedOcrExtract(overlay, opts);
       }
     } catch (err) {
       console.warn('Text extraction failed:', err);
-      await pdfedOcrExtract(overlay);
+      await pdfedOcrExtract(overlay, opts);
     }
   } else {
     // Image-type pages (photos/scans dropped straight in) never had a PDF text
     // layer to begin with, OCR is the only path to editable text for them too.
-    await pdfedOcrExtract(overlay);
+    await pdfedOcrExtract(overlay, opts);
   }
 }
 
@@ -22163,7 +22168,15 @@ async function pdfedRetryWeakLines(srcCanvas, lines, scale, worker) {
   }
 }
 
-async function pdfedOcrExtract(overlay) {
+// opts.allowVision + opts.visionFetcher(dataUrl, priorOcrText) -> Promise<string>:
+// only ever set by Laya's pdfed_make_editable action, never by the manual
+// "OCR" button (which always calls this with no opts, i.e. free/local-only,
+// exactly as before). visionFetcher is injected by the caller rather than
+// this function reaching for callLayaVisionOcr itself, since that lives in a
+// different scope (the Laya module) -- keeps this function self-contained
+// and usable with or without Laya around.
+async function pdfedOcrExtract(overlay, opts) {
+  opts = opts || {};
   const srcCanvas = document.getElementById('pdfedPageCanvas');
   if (!srcCanvas || !srcCanvas.width) { teShowFreeOnly(overlay, 'This page hasn\'t finished rendering yet, so there\'s nothing to read text from. Try again in a moment.'); return; }
 
@@ -22185,6 +22198,54 @@ async function pdfedOcrExtract(overlay) {
 
     let blockCount = 0;
     const lines = (data.lines || []).filter(l => l.text && l.text.trim() && l.confidence >= 35);
+
+    // ---- Accuracy cross-check: AI vision, only when it's actually needed --
+    // Local OCR gives us WHERE each word sits and how it's styled -- vision
+    // never touches any of that, it only ever gets asked to re-read the raw
+    // wording of the whole page as plain text. So this pass can correct what
+    // a line SAYS, never where a block sits or how it looks; position, font,
+    // color, bold/italic all still come entirely from local OCR's own word
+    // boxes, exactly as they did before this pass existed.
+    //
+    // Gated three ways so it never fires needlessly or silently mis-maps a
+    // correction to the wrong line:
+    //   1. Only when the caller explicitly allowed it (Laya, after the
+    //      person confirmed the action -- see pdfed_make_editable).
+    //   2. Only when the page's overall local-OCR confidence actually came
+    //      back uncertain -- a confident read has nothing for vision to
+    //      improve, so we don't spend real money re-checking it.
+    //   3. Only applied to a given line when vision reported the SAME
+    //      number of lines, in the same order, as local OCR did. If vision
+    //      merged/split a line differently, that 1-for-1 mapping can't be
+    //      trusted, so nothing gets overridden at all rather than risk
+    //      attaching the wrong correction to the wrong line.
+    let visionCorrections = null; // Map<line, correctedText>
+    if (opts.allowVision && typeof opts.visionFetcher === 'function' && lines.length) {
+      const orderedLocal = lines.slice().sort((a, b) => a.bbox.y0 - b.bbox.y0);
+      const avgLineConf = orderedLocal.reduce((a, l) => a + (l.confidence || 0), 0) / orderedLocal.length;
+      if (avgLineConf < PDFED_VISION_FALLBACK_MAX_CONF) {
+        try {
+          pdfedUpdateOcrProgress(0.98, 'Double-checking unclear text with AI vision…');
+          const localText = orderedLocal.map(l => l.text.trim()).join('\n');
+          const dataUrl = srcCanvas.toDataURL('image/jpeg', 0.85);
+          const visionText = await opts.visionFetcher(dataUrl, localText);
+          const visionArr = (visionText || '').split('\n').map(s => s.trim()).filter(Boolean);
+          if (visionArr.length === orderedLocal.length) {
+            visionCorrections = new Map();
+            orderedLocal.forEach((l, i) => {
+              if (visionArr[i] && visionArr[i] !== l.text.trim()) visionCorrections.set(l, visionArr[i]);
+            });
+          } else {
+            console.warn('Laya vision accuracy pass: line count didn\'t match local OCR (' + visionArr.length + ' vs ' + orderedLocal.length + '), keeping local OCR text everywhere on this page.');
+          }
+        } catch (e) {
+          console.warn('Laya vision accuracy pass failed, keeping local OCR text:', e);
+        }
+      }
+    }
+    let visionCorrectedCount = 0;
+    // ------------------------------------------------------------------------
+
     lines.forEach(line => {
       // Tesseract groups a whole visual "line" together, including any nearby
       // graphic (icon badges, decorative glyphs) it happens to misread as a
@@ -22253,7 +22314,18 @@ async function pdfedOcrExtract(overlay) {
       }
 
       clusters.forEach(cluster => {
-        const text = cluster.map(m => m.w.text.trim()).join(' ');
+        let text = cluster.map(m => m.w.text.trim()).join(' ');
+        // Only substitute vision's corrected wording when this line produced
+        // exactly ONE cluster -- a plain, uniformly-styled run of text with
+        // no color/weight/size change and no wide gap splitting it into
+        // separate blocks. If OCR split the line into several styled
+        // pieces, vision's single merged string can't be mapped back to
+        // which piece it belongs to, so every piece is left exactly as
+        // local OCR read it instead of risking a corrupted split.
+        if (visionCorrections && clusters.length === 1 && visionCorrections.has(line)) {
+          text = visionCorrections.get(line);
+          visionCorrectedCount++;
+        }
         const x0 = Math.min(...cluster.map(m => m.w.bbox.x0));
         const y0 = Math.min(...cluster.map(m => m.w.bbox.y0));
         const x1 = Math.max(...cluster.map(m => m.w.bbox.x1));
@@ -22293,7 +22365,11 @@ async function pdfedOcrExtract(overlay) {
     if (blockCount) {
       teHideNoTextAlert();
       document.getElementById('teBlockCount').textContent = blockCount + ' line' + (blockCount !== 1 ? 's' : '') + ' found (OCR)';
-      toast('OCR text ready, blurry scans can still misread a character here and there, so give it a check', 'info');
+      if (visionCorrectedCount) {
+        toast('OCR text ready -- AI vision corrected ' + visionCorrectedCount + ' unclear line' + (visionCorrectedCount !== 1 ? 's' : '') + ', still worth a quick check on a blurry scan', 'info');
+      } else {
+        toast('OCR text ready, blurry scans can still misread a character here and there, so give it a check', 'info');
+      }
     } else {
       teShowFreeOnly(overlay, 'We scanned this page with OCR but couldn\'t find any readable text on it, it may be blank, too blurry, or an image without real text. You can still type text directly onto the page.');
     }
@@ -72190,6 +72266,39 @@ if (document.readyState === 'loading') {
         }
       },
       label: function(){ return "Get an exact AI vision re-read of the page that came back unclear from local OCR (uses GPT-5.6 Luna vision -- costs more than the free local read)."; }
+    },
+    // Actually makes a page live-editable on the canvas, in place -- the gap
+    // pdfed_read_page/pdfed_vision_reread_page above deliberately don't
+    // close, since those are read-only (they hand text back in a modal).
+    // This drives the SAME pipeline the manual "Edit Text" button uses
+    // (pdfedStartTextEdit -> pdfedOcrExtract), so a real PDF text layer is
+    // used exactly as-is (no OCR, no AI, nothing to get wrong), and only a
+    // flattened/scanned page or a photo falls through to OCR at all.
+    // risk:'confirm' because for THAT case, if the local OCR read comes back
+    // uncertain, this automatically cross-checks the unclear wording against
+    // GPT-5.6 Luna vision before finalizing the text (see pdfedOcrExtract's
+    // own comment for exactly how that correction is scoped so it can only
+    // ever fix wording, never move or restyle anything) -- a real, paid API
+    // call, so the person confirms once up front rather than being asked
+    // mid-flow. If the page is already editable (saved textBlocks from an
+    // earlier session), this just reopens them -- no OCR or vision at all.
+    pdfed_make_editable: {
+      risk: 'confirm',
+      run: async function(p){
+        p = p || {};
+        if (pdfed.active < 0) throw new Error('no PDF is open');
+        const idx = (p.pageNumber != null && p.pageNumber !== '') ? (Number(p.pageNumber) - 1) : pdfed.active;
+        if (!(idx >= 0 && idx < pdfed.pages.length)) throw new Error('page ' + p.pageNumber + ' does not exist in this document');
+        if (pdfed.active !== idx) await pdfedGoto(idx);
+        if (teState.active && pdfed.active === idx) {
+          return { pageNumber: idx + 1, note: 'page was already open in Edit Text' };
+        }
+        await pdfedStartTextEdit({ allowVision: true, visionFetcher: callLayaVisionOcr });
+        return { pageNumber: idx + 1 };
+      },
+      label: function(p){
+        return 'Make page ' + ((p && p.pageNumber) || 'the current page') + ' live-editable right on the canvas -- real PDF text is used exactly as-is, a flattened/scanned page or photo gets read with local OCR and turned into positioned, styled editable boxes in place, and if that local read comes back unclear anywhere, it\'s automatically cross-checked against GPT-5.6 Luna vision before finalizing the text (only for the unclear parts, and only then -- costs more only in that case).';
+      }
     },
 
     pdfed_toggle_crop: { risk: 'safe',    run: function(){ pdfedToggleCrop(); }, label: function(){ return 'Toggle crop mode on the current page.'; } },
