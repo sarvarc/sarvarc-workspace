@@ -24172,6 +24172,211 @@ async function pdfedLayaStyleSpecificText(p) {
   return total;
 }
 
+// ── Laya hooks: RESIZE & OPACITY for placed images/text (programmatic,
+// no panel needed) ──────────────────────────────────────────────────────
+// Gives Laya the same hands-on control over a placed image or text box
+// that a person gets from the drag-resize handles and the opacity
+// popover/toolbar slider — set a size directly, scale by a percentage,
+// or dial opacity up/down — all in one call instead of walking her
+// through "select it, then drag this handle". Every setter below writes
+// straight to the same item.x/y/w/h/fontSize/opacity fields the manual
+// UI already reads (see pdfedPositionPlacedEl, pdfedPtxtSetSize,
+// pdfedPtxtSetOpacity, pdfedOpacityPopoverInput above), then reuses
+// pdfedMarkModified + a real re-render so the result is pixel-identical
+// to a manual edit — same undo/redo, same thumbnail refresh.
+
+function pdfedLayaActivePage(p) {
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    throw new Error('open a document first');
+  }
+  const idx = (p && p.page_idx !== undefined && p.page_idx !== null && p.page_idx !== '')
+    ? Math.max(0, Math.min(pdfed.pages.length - 1, parseInt(p.page_idx, 10)))
+    : pdfed.active;
+  const pg = pdfed.pages[idx];
+  if (!pg) throw new Error('that page does not exist');
+  return { pg, idx };
+}
+
+// Picks one image out of pg.placedImages: by explicit id, by 1-based
+// z-order position ("which": a number), or by "first"/"last" (z-order,
+// default "last" — the most recently placed/most likely one someone
+// means by "the image" when there's more than one). Throws a clear error
+// rather than silently acting on the wrong picture when nothing matches.
+function pdfedLayaFindImage(pg, p) {
+  const list = pg.placedImages || [];
+  if (!list.length) throw new Error('this page has no placed images');
+  if (p.id) {
+    const byId = list.find(it => it.id === p.id);
+    if (!byId) throw new Error('no image with that id on this page');
+    return byId;
+  }
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  if (p.which === 'first') return ordered[0];
+  if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') return ordered[ordered.length - 1];
+  const n = parseInt(p.which, 10);
+  if (n >= 1 && n <= ordered.length) return ordered[n - 1];
+  throw new Error('could not find image #' + p.which + ' — this page only has ' + ordered.length + ' image' + (ordered.length === 1 ? '' : 's'));
+}
+
+// Picks one text box out of pg.placedTexts by a case-insensitive substring
+// match against its content (mirrors the "query" semantics of
+// pdfedLayaStyleSpecificText above, just scoped to placed text boxes
+// rather than the document's underlying text layer). Falls back to
+// "which"/"first"/"last" the same way pdfedLayaFindImage does when no
+// query is given, so "resize the last text box" still works.
+function pdfedLayaFindPlacedText(pg, p) {
+  const list = pg.placedTexts || [];
+  if (!list.length) throw new Error('this page has no placed text boxes');
+  if (p.id) {
+    const byId = list.find(it => it.id === p.id);
+    if (!byId) throw new Error('no text box with that id on this page');
+    return byId;
+  }
+  const query = p.query ? String(p.query).trim().toLowerCase() : '';
+  if (query) {
+    const hits = list.filter(it => String(it.text || '').toLowerCase().includes(query));
+    if (!hits.length) throw new Error('no text box matching "' + p.query + '" on this page');
+    if (hits.length > 1) {
+      // Same disambiguation Laya already has to do for pdfed_style_specific_text --
+      // rather than silently picking one, prefer the most recently placed match.
+      hits.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    }
+    return hits[hits.length - 1];
+  }
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  if (p.which === 'first') return ordered[0];
+  if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') return ordered[ordered.length - 1];
+  const n = parseInt(p.which, 10);
+  if (n >= 1 && n <= ordered.length) return ordered[n - 1];
+  throw new Error('could not find that text box — give a query to search its text, or "first"/"last".');
+}
+
+// Resizes a placed IMAGE. Either give an explicit target size
+// (width_px/height_px, in the same raw canvas-pixel units item.w/item.h
+// already use), or a scale_pct (e.g. 150 = 150% of its current size,
+// 50 = half). Aspect ratio is preserved by default (matching the
+// Shift-drag behaviour of the manual resize handle) unless
+// lock_aspect: false and both width_px and height_px are given.
+async function pdfedLayaResizeImage(p) {
+  p = p || {};
+  const { pg, idx } = pdfedLayaActivePage(p);
+  const item = pdfedLayaFindImage(pg, p);
+  if (item.locked) throw new Error('that image is locked — unlock it first');
+
+  const MIN = 12; // matches the manual drag-resize handle's own floor
+  const curW = item.w, curH = item.h;
+  const aspect = curW / (curH || 1);
+  let newW, newH;
+
+  if (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '') {
+    const scale = Math.max(0.05, Number(p.scale_pct) / 100);
+    newW = curW * scale;
+    newH = curH * scale;
+  } else if (p.width_px || p.height_px) {
+    const lockAspect = p.lock_aspect !== false;
+    if (p.width_px && p.height_px && !lockAspect) {
+      newW = Number(p.width_px);
+      newH = Number(p.height_px);
+    } else if (p.width_px) {
+      newW = Number(p.width_px);
+      newH = lockAspect ? newW / aspect : curH;
+    } else {
+      newH = Number(p.height_px);
+      newW = lockAspect ? newH * aspect : curW;
+    }
+  } else {
+    throw new Error('give scale_pct, or width_px and/or height_px, to resize by');
+  }
+
+  item.w = Math.max(MIN, Math.round(newW));
+  item.h = Math.max(MIN, Math.round(newH));
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedImages(idx);
+  return { w: item.w, h: item.h };
+}
+
+// Resizes a placed TEXT box's font size, exactly like dragging the size
+// handle or typing into the toolbar's size field (pdfedPtxtSetSize),
+// clamped to the same 6–300px range that control already enforces. Give
+// either font_size_px directly, or scale_pct to grow/shrink relative to
+// its current size (e.g. 150 = 150%). If resize_box is true (default),
+// the box's own width/height are scaled by the same factor so long text
+// doesn't suddenly overflow its container -- set it to false to change
+// only the type size and leave the box as-is.
+async function pdfedLayaResizeText(p) {
+  p = p || {};
+  const { pg, idx } = pdfedLayaActivePage(p);
+  const item = pdfedLayaFindPlacedText(pg, p);
+  if (item.locked) throw new Error('that text box is locked — unlock it first');
+
+  const curSize = item.fontSize || 14;
+  let newSize;
+  let factor = 1;
+  if (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '') {
+    factor = Math.max(0.05, Number(p.scale_pct) / 100);
+    newSize = curSize * factor;
+  } else if (p.font_size_px) {
+    newSize = Number(p.font_size_px);
+    factor = curSize ? (newSize / curSize) : 1;
+  } else {
+    throw new Error('give font_size_px, or scale_pct, to resize the text by');
+  }
+  item.fontSize = Math.max(6, Math.min(300, Math.round(newSize)));
+
+  if (p.resize_box !== false && item.w) {
+    item.w = Math.max(24, Math.round(item.w * factor));
+    if (item.h) item.h = Math.max(20, Math.round(item.h * factor));
+  }
+
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTexts(idx);
+  return { fontSize: item.fontSize, w: item.w, h: item.h };
+}
+
+// Sets opacity on any placed object -- image, text box, table, shape, or
+// border -- reusing the exact same item.opacity field and 10–100% clamp
+// the manual opacity popover/slider already use (see pdfedGetOpacity,
+// pdfedOpacityPopoverInput, pdfedPtxtSetOpacity above), so a Laya-set
+// opacity is indistinguishable from one dragged in by hand.
+async function pdfedLayaSetOpacity(p) {
+  p = p || {};
+  const { pg, idx } = pdfedLayaActivePage(p);
+  const kind = String(p.kind || 'image').toLowerCase();
+  const validKinds = ['image', 'text', 'table', 'shape', 'border'];
+  if (validKinds.indexOf(kind) === -1) throw new Error('unknown kind "' + p.kind + '" — use image, text, table, shape, or border');
+  const key = pdfedPlacedKeyForKind(kind);
+  const list = pg[key] || [];
+  if (!list.length) throw new Error('this page has no placed ' + kind + 's');
+
+  let item;
+  if (p.id) {
+    item = list.find(it => it.id === p.id);
+    if (!item) throw new Error('no ' + kind + ' with that id on this page');
+  } else if (kind === 'text' && p.query) {
+    item = pdfedLayaFindPlacedText(pg, p);
+  } else {
+    const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    if (p.which === 'first') item = ordered[0];
+    else if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') item = ordered[ordered.length - 1];
+    else {
+      const n = parseInt(p.which, 10);
+      item = (n >= 1 && n <= ordered.length) ? ordered[n - 1] : null;
+    }
+    if (!item) throw new Error('could not find that ' + kind + ' — give an id, or "first"/"last"/a position number');
+  }
+  if (item.locked) throw new Error('that ' + kind + ' is locked — unlock it first');
+
+  if (p.opacity === undefined || p.opacity === null || p.opacity === '') {
+    throw new Error('give an opacity from 0-100');
+  }
+  const v = Math.max(0.1, Math.min(1, Number(p.opacity) / 100));
+  item.opacity = v;
+
+  pdfedMarkModified(idx);
+  pdfedRenderAllPlaced(idx);
+  return { opacity: Math.round(v * 100) };
+}
+
 function teResetBlock() {
   const bd = teState.focusedBlock;
   if (!bd) return;
@@ -71245,6 +71450,48 @@ if (document.readyState === 'loading') {
   //     entirely just leaves colour untouched. Throws if nothing in the
   //     document matches `query`, so a zero-match run surfaces to the person
   //     as a real reply instead of a silent no-op.
+  //   The pdfeditor context (getLayaContext) includes context.placedItems --
+  //   each placed table/text/image on the current page with its real id,
+  //   x/y/w/h, opacityPct, and (for text) a short content snippet. Prefer
+  //   matching a resize/opacity request against a real id from that list
+  //   over guessing "first"/"last"/a position number -- it's exact, and it's
+  //   what lets a vision-grounded read of the page (pdfed_read_page) turn
+  //   into a precise action instead of an ambiguous one.
+  //   pdfed_resize_image {page_idx?, id?, which?: 'first'|'last'|number,
+  //     scale_pct?: number, width_px?: number, height_px?: number,
+  //     lock_aspect?: boolean}
+  //     -- Resizes a placed image on the current (or given) page, exactly
+  //     like dragging its corner handle. Prefer scale_pct for a relative
+  //     request ("make it 50% smaller" -> scale_pct: 50, "double it" ->
+  //     scale_pct: 200). Use width_px/height_px for an explicit size in
+  //     raw canvas pixels (aspect ratio is preserved automatically when
+  //     only one of the two is given). `which` picks the target when there
+  //     are multiple images and no id is known -- 'first'/'last' by
+  //     stacking order, or a 1-based position number; defaults to 'last'
+  //     (the most recently placed image), which is usually what "the
+  //     image" means. Throws if the image is locked or if nothing matches.
+  //   pdfed_resize_text {page_idx?, id?, query?: string,
+  //     which?: 'first'|'last'|number, scale_pct?: number,
+  //     font_size_px?: number, resize_box?: boolean}
+  //     -- Resizes a placed text box's font size (and, by default, its
+  //     box) exactly like the size handle/toolbar field. `query` finds the
+  //     box by matching its actual text content (case-insensitive
+  //     substring) -- prefer this whenever the person names or quotes the
+  //     text ("make the heading bigger", "shrink the 'Terms & Conditions'
+  //     box"). Falls back to which/'first'/'last'/position the same way
+  //     pdfed_resize_image does when no query or id is given. scale_pct is
+  //     relative to current size; font_size_px sets it directly (clamped
+  //     6-300px). Set resize_box:false to change only the type size and
+  //     leave the box's own width/height untouched.
+  //   pdfed_set_opacity {page_idx?, kind?: 'image'|'text'|'table'|'shape'|
+  //     'border', id?, query?: string, which?: 'first'|'last'|number,
+  //     opacity: number}
+  //     -- Sets transparency (0-100, where 100 is fully opaque) on any
+  //     placed object, reusing the same field the opacity popover/slider
+  //     already controls. `kind` defaults to 'image'. For text, `query`
+  //     matches by content the same way pdfed_resize_text does. `opacity`
+  //     is required and gets clamped to a 10-100 floor/ceiling, matching
+  //     the manual slider's own limits.
   //   pdfed_insert_page {position?: 'end', after_idx?: number,
   //     format?: 'a4'|'a3'|'a5'|'legal'|'custom', width_mm?, height_mm?,
   //     orientation?: 'portrait'|'landscape', bg_color?,
@@ -71902,13 +72149,25 @@ if (document.readyState === 'loading') {
           (page.placedTables || []).forEach(function(t){
             const w = (t.colWidths || []).reduce(function(a,b){ return a+b; }, 0);
             const h = (t.rowHeights || []).reduce(function(a,b){ return a+b; }, 0);
-            items.push({ id: t.id, type: 'table', x: t.x, y: t.y, w: w, h: h });
+            items.push({ id: t.id, type: 'table', x: t.x, y: t.y, w: w, h: h, locked: !!t.locked });
           });
           (page.placedTexts || []).forEach(function(t){
-            items.push({ id: t.id, type: t._reportHeaderText ? 'header text' : 'text', x: t.x, y: t.y, w: t.w || 0, h: 0 });
+            items.push({
+              id: t.id, type: t._reportHeaderText ? 'header text' : 'text', x: t.x, y: t.y, w: t.w || 0, h: t.h || 0,
+              locked: !!t.locked,
+              // A short snippet, not the full string -- enough for Laya to match "the
+              // heading" / a quoted phrase to a real id without bloating the payload.
+              text: String(t.text || '').slice(0, 60),
+              fontSizePx: t.fontSize || null,
+              opacityPct: Math.round((typeof pdfedGetOpacity === 'function' ? pdfedGetOpacity(t) : (t.opacity != null ? t.opacity : 1)) * 100)
+            });
           });
           (page.placedImages || []).forEach(function(im){
-            items.push({ id: im.id, type: im.kind === 'logo' ? 'logo' : 'image', x: im.x, y: im.y, w: im.w, h: im.h });
+            items.push({
+              id: im.id, type: im.kind === 'logo' ? 'logo' : 'image', x: im.x, y: im.y, w: im.w, h: im.h,
+              locked: !!im.locked,
+              opacityPct: Math.round((typeof pdfedGetOpacity === 'function' ? pdfedGetOpacity(im) : (im.opacity != null ? im.opacity : 1)) * 100)
+            });
           });
 
           items.forEach(function(it){
@@ -71952,9 +72211,17 @@ if (document.readyState === 'loading') {
           textBlockCount: page && page.placedTexts ? page.placedTexts.length : 0,
           imageCount: page && page.placedImages ? page.placedImages.length : 0,
           tableFontSizesVary: tableFontSizes.length > 1 && new Set(tableFontSizes).size > 1,
-          layoutIssues: layoutIssues.slice(0, 10)
-          // Deliberately NOT included: page.dataUrl (the actual rendered image/content)
-          // or raw item geometry beyond what layoutIssues already summarizes.
+          layoutIssues: layoutIssues.slice(0, 10),
+          // Real per-item id + geometry + (for text) a short content snippet, so a
+          // resize/opacity request Laya has already understood visually (via
+          // pdfed_read_page) or from the person's own description can be grounded
+          // to an exact id instead of guessing by "first"/"last"/position -- see
+          // pdfed_resize_image/pdfed_resize_text/pdfed_set_opacity. Capped so this
+          // never balloons the context on a page with dozens of small placed items.
+          placedItems: items.slice(0, 25)
+          // Deliberately NOT included: page.dataUrl (the actual rendered image/content),
+          // and text/tables beyond the 60-char snippet above -- use pdfed_read_page for
+          // the full page content.
         };
       }
 
@@ -72579,6 +72846,44 @@ if (document.readyState === 'loading') {
         else if (p.color) bits.push(p.color + ' colour');
         const styleNote = bits.length ? bits.join(', ') : 'the chosen style';
         return 'Find "' + p.query + '" everywhere in the document and apply ' + styleNote + '.';
+      }
+    },
+    // Hands-on resize/opacity control over placed images and text boxes --
+    // see pdfedLayaResizeImage/pdfedLayaResizeText/pdfedLayaSetOpacity above
+    // for the full param resolution (id / query / "first"/"last"/position,
+    // scale_pct vs explicit px, aspect lock, etc).
+    pdfed_resize_image: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaResizeImage(p || {}); },
+      label: function(p){
+        p = p || {};
+        const which = p.id ? 'that image' : (p.which ? 'image ' + p.which : 'the image');
+        const how = (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '')
+          ? 'to ' + p.scale_pct + '% of its current size'
+          : (p.width_px && p.height_px ? 'to ' + p.width_px + '×' + p.height_px + 'px' : (p.width_px ? 'to a width of ' + p.width_px + 'px' : 'to a height of ' + p.height_px + 'px'));
+        return 'Resize ' + which + ' ' + how + '.';
+      }
+    },
+    pdfed_resize_text: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaResizeText(p || {}); },
+      label: function(p){
+        p = p || {};
+        const which = p.query ? '"' + p.query + '"' : (p.id ? 'that text box' : (p.which ? 'text box ' + p.which : 'the text box'));
+        const how = (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '')
+          ? 'to ' + p.scale_pct + '% of its current size'
+          : 'to ' + p.font_size_px + 'px';
+        return 'Resize ' + which + ' ' + how + '.';
+      }
+    },
+    pdfed_set_opacity: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaSetOpacity(p || {}); },
+      label: function(p){
+        p = p || {};
+        const kind = p.kind || 'image';
+        const which = p.query ? '"' + p.query + '"' : (p.id ? 'that ' + kind : (p.which ? kind + ' ' + p.which : 'the ' + kind));
+        return 'Set ' + which + ' opacity to ' + p.opacity + '%.';
       }
     },
     // Inserts a brand-new blank page anywhere in the document -- between
