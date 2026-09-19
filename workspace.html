@@ -9363,6 +9363,28 @@ button.dg-show-chip.active { background:var(--blue); }
                 <textarea id="mfFormDescInput" rows="2" oninput="mfUpdateDesc(this.value)" placeholder="e.g. Please fill out all required fields before submitting."></textarea>
               </div>
 
+              <div class="mf-desc-row" id="mfExpiryRow">
+                <label>Form Expiration <span style="color:var(--text3)">(automatically stop accepting responses)</span></label>
+                <div class="mf-expiry-controls" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
+                  <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px;color:var(--text2)">
+                    <input type="radio" name="mfExpiryMode" id="mfExpiryModeNever" onchange="mfSetExpiryMode('never')"> Never expires
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px;color:var(--text2)">
+                    <input type="radio" name="mfExpiryMode" id="mfExpiryModeTimed" onchange="mfSetExpiryMode('timed')"> Expires after
+                  </label>
+                  <input type="number" min="1" step="1" id="mfExpiryValue" style="width:64px" oninput="mfSetExpiryValue(this.value)">
+                  <select id="mfExpiryUnit" onchange="mfSetExpiryUnit(this.value)">
+                    <option value="minutes">Minutes</option>
+                    <option value="hours">Hours</option>
+                    <option value="days">Days</option>
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                  <button class="btn-secondary" id="mfExpiryRenewBtn" style="display:none;padding:6px 10px;font-size:11px" onclick="mfRenewFormExpiry()">Renew now</button>
+                </div>
+                <div class="mf-expiry-status" id="mfExpiryStatus" style="margin-top:6px;font-size:12px;color:var(--text3)"></div>
+              </div>
+
               <div class="mf-field-list" id="mfFieldList"></div>
 
               <div class="mf-add-field-row">
@@ -53656,6 +53678,7 @@ async function mfReconcilePublishState() {
     f.publishedId = reg.publishedId;
     f.shareSlug = reg.shareSlug;
     f.publishedAt = reg.publishedAt;
+    if (reg.expiresAt !== undefined) f.expiresAt = reg.expiresAt;
     relinkedAny = true;
   });
   if (relinkedAny) {
@@ -54333,6 +54356,9 @@ function mfCreateFromTemplate(key) {
     bannerImageDataUrl: null,
     bannerImageOpacity: 15,
     socialLinks: {},
+    expiryMode: 'never',
+    expiryValue: 1,
+    expiryUnit: 'days',
     activeLang: 'original',
     translations: {},
     updatedAt: Date.now()
@@ -54356,6 +54382,18 @@ function mfDuplicateForm(id) {
   copy.title = (f.title || 'Untitled Form') + ' (Copy)';
   copy.fields = copy.fields.map(fl => ({ ...fl, id: mfUid('fld') }));
   copy.updatedAt = Date.now();
+  // A duplicate is a fresh, unpublished form — it must NOT inherit the
+  // original's live link. Left as-is, both forms would point at the same
+  // publishedId, and syncing/relinking either one would get confused about
+  // which local copy the online responses actually belong to. Expiry state
+  // is tied to that same publish, so it resets together with it.
+  delete copy.publishedId;
+  delete copy.shareSlug;
+  delete copy.publishedAt;
+  copy.expiresAt = null;
+  copy.expiryAppliedMode = undefined;
+  copy.expiryAppliedValue = undefined;
+  copy.expiryAppliedUnit = undefined;
   mfState.forms.push(copy);
   mfPersist();
   mfRenderFormsGrid();
@@ -54395,6 +54433,9 @@ function mfOpenEditor(id) {
   if (f.translations == null) f.translations = {};
   if (f.socialLinks == null) f.socialLinks = {};
   if (f.attachmentFolders == null) f.attachmentFolders = [];
+  if (f.expiryMode == null) f.expiryMode = 'never';
+  if (f.expiryValue == null) f.expiryValue = 1;
+  if (f.expiryUnit == null) f.expiryUnit = 'days';
   mfState.currentId = id;
   mfMode = 'design';
   mfActiveResponseId = null;
@@ -54422,10 +54463,13 @@ function mfOpenEditor(id) {
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
+  mfRenderExpiryControls();
+  mfStartExpiryClock();
 }
 
 function mfBackToGallery() {
   mfStopAutoSync();
+  mfStopExpiryClock();
   mfState.currentId = null;
   const gv = document.getElementById('mfGalleryView');
   const ev = document.getElementById('mfEditorView');
@@ -54447,6 +54491,127 @@ function mfUpdateDesc(val) {
   const f = mfGetCurrentForm(); if (!f) return;
   f.desc = val; mfTouch(f); mfRenderPreview();
 }
+
+// ─── FORM EXPIRATION ───
+// A form can be set to 'never' expire, or 'timed' — accept responses for a
+// set duration then automatically stop, without the owner having to
+// remember to manually unpublish it. The actual cutoff timestamp
+// (f.expiresAt) is computed once, at publish time (see mfPublishForm),
+// from real calendar arithmetic (setMonth/setFullYear, not a fixed ms
+// approximation) so "3 months" and "1 year" land on the real corresponding
+// calendar date rather than a rough 30/365-day estimate. Enforcement of the
+// cutoff happens server-side in the Worker — this local state only decides
+// WHAT to compute and lets the owner see/manage it from the editor.
+function mfComputeExpiresAt(fromTs, value, unit) {
+  const d = new Date(fromTs);
+  const n = Math.max(1, Math.round(Number(value) || 1));
+  switch (unit) {
+    case 'minutes': d.setMinutes(d.getMinutes() + n); break;
+    case 'hours':   d.setHours(d.getHours() + n); break;
+    case 'days':    d.setDate(d.getDate() + n); break;
+    case 'months':  d.setMonth(d.getMonth() + n); break;
+    case 'years':   d.setFullYear(d.getFullYear() + n); break;
+    default:        d.setDate(d.getDate() + n);
+  }
+  return d.getTime();
+}
+
+function mfSetExpiryMode(mode) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  f.expiryMode = mode;
+  if (mode === 'never') f.expiresAt = null;
+  mfTouch(f);
+  mfRenderExpiryControls();
+}
+function mfSetExpiryValue(val) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  f.expiryValue = val === '' ? '' : Math.max(1, Math.round(Number(val) || 1));
+  mfTouch(f);
+  mfRenderExpiryControls();
+}
+function mfSetExpiryUnit(unit) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  f.expiryUnit = unit;
+  mfTouch(f);
+  mfRenderExpiryControls();
+}
+
+function mfExpiryStatusText(f) {
+  if (!f.expiryMode || f.expiryMode === 'never') return 'This form never expires.';
+  if (!f.publishedId) return 'Timer starts once you publish.';
+  if (!f.expiresAt) return 'Will start accepting responses once published.';
+  const now = Date.now();
+  if (now >= f.expiresAt) return 'Expired on ' + new Date(f.expiresAt).toLocaleString() + ' — no longer accepting responses.';
+  const diffMs = f.expiresAt - now;
+  const mins = Math.round(diffMs / 60000);
+  let label;
+  if (mins < 60) label = mins + ' minute' + (mins === 1 ? '' : 's');
+  else if (mins < 1440) label = Math.round(mins / 60) + ' hour' + (Math.round(mins / 60) === 1 ? '' : 's');
+  else label = Math.round(mins / 1440) + ' day' + (Math.round(mins / 1440) === 1 ? '' : 's');
+  return 'Expires in ' + label + ' (' + new Date(f.expiresAt).toLocaleString() + ').';
+}
+
+function mfRenderExpiryControls() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const modeNever = document.getElementById('mfExpiryModeNever');
+  const modeTimed = document.getElementById('mfExpiryModeTimed');
+  const valueInput = document.getElementById('mfExpiryValue');
+  const unitSelect = document.getElementById('mfExpiryUnit');
+  const status = document.getElementById('mfExpiryStatus');
+  const renewBtn = document.getElementById('mfExpiryRenewBtn');
+  if (!modeNever) return;
+  const mode = f.expiryMode || 'never';
+  modeNever.checked = mode === 'never';
+  modeTimed.checked = mode === 'timed';
+  if (valueInput) { valueInput.value = f.expiryValue == null ? 1 : f.expiryValue; valueInput.disabled = mode !== 'timed'; }
+  if (unitSelect) { unitSelect.value = f.expiryUnit || 'days'; unitSelect.disabled = mode !== 'timed'; }
+  if (status) status.textContent = mfExpiryStatusText(f);
+  const isExpired = mode === 'timed' && f.expiresAt && Date.now() >= f.expiresAt;
+  if (renewBtn) renewBtn.style.display = isExpired ? 'inline-flex' : 'none';
+}
+
+// Keeps the "Expires in Xh" line honest without needing a page reload —
+// mirrors the existing mfAutoSyncTickTimer pattern used for sync status.
+let mfExpiryClockTimer = null;
+function mfStartExpiryClock() {
+  mfStopExpiryClock();
+  mfExpiryClockTimer = setInterval(function () {
+    if (document.getElementById('mfExpiryRow') && mfMode === 'design') mfRenderExpiryControls();
+  }, 30000);
+}
+function mfStopExpiryClock() {
+  if (mfExpiryClockTimer) { clearInterval(mfExpiryClockTimer); mfExpiryClockTimer = null; }
+}
+
+// Lets the owner reactivate an already-expired form without changing its
+// duration setting — re-arms the same "3 days" (etc.) starting from right
+// now, and pushes just that one field to Supabase rather than a full
+// republish, since nothing else about the form changed.
+async function mfRenewFormExpiry() {
+  const f = mfGetCurrentForm(); if (!f || !f.publishedId) return;
+  const newExpiresAt = mfComputeExpiresAt(Date.now(), f.expiryValue || 1, f.expiryUnit || 'days');
+  try {
+    const { error } = await sarvarcSupabase
+      .from('forms')
+      .update({ expires_at: new Date(newExpiresAt).toISOString(), status: 'active' })
+      .eq('id', f.publishedId);
+    if (error) throw error;
+    f.expiresAt = newExpiresAt;
+    f.expiryAppliedMode = f.expiryMode;
+    f.expiryAppliedValue = f.expiryValue;
+    f.expiryAppliedUnit = f.expiryUnit;
+    mfPersist();
+    mfRegisterPublish(f.id, { publishedId: f.publishedId, shareSlug: f.shareSlug, publishedAt: f.publishedAt, expiresAt: f.expiresAt });
+    mfRenderExpiryControls();
+    toast('Form renewed — accepting responses again', 'success');
+  } catch (err) {
+    toast('Could not renew: ' + (err.message || 'unknown error'), 'error');
+  }
+}
+window.mfSetExpiryMode = mfSetExpiryMode;
+window.mfSetExpiryValue = mfSetExpiryValue;
+window.mfSetExpiryUnit = mfSetExpiryUnit;
+window.mfRenewFormExpiry = mfRenewFormExpiry;
 
 function mfAddField(type) {
   const f = mfGetCurrentForm(); if (!f) return;
@@ -55541,6 +55706,7 @@ async function mfPublishForm() {
       f.publishedId = reg.publishedId;
       f.shareSlug = reg.shareSlug;
       f.publishedAt = reg.publishedAt;
+      if (reg.expiresAt !== undefined) f.expiresAt = reg.expiresAt;
     }
   }
   const btn = document.getElementById('mfPublishBtn');
@@ -55561,6 +55727,28 @@ async function mfPublishForm() {
     await mfWait(220);
     updateExportProgress(30, hasAssets ? 'Packaging branding & attachments…' : 'Validating fields…');
 
+    // Expiration: compute a fresh cutoff only the first time this form goes
+    // live, or when the owner has actually changed the mode/value/unit since
+    // it was last computed. Without this check, hitting "Update Link" for a
+    // routine edit (fixing a typo, adding a field) would quietly push an
+    // already-running countdown back out to full length every single time —
+    // which defeats the point of setting a fixed expiry in the first place.
+    const expiryMode = f.expiryMode || 'never';
+    const expirySettingsChanged =
+      f.expiryAppliedMode !== expiryMode ||
+      f.expiryAppliedValue !== f.expiryValue ||
+      f.expiryAppliedUnit !== f.expiryUnit;
+    if (expiryMode === 'timed') {
+      if (!f.expiresAt || expirySettingsChanged) {
+        f.expiresAt = mfComputeExpiresAt(Date.now(), f.expiryValue || 1, f.expiryUnit || 'days');
+      }
+    } else {
+      f.expiresAt = null;
+    }
+    f.expiryAppliedMode = expiryMode;
+    f.expiryAppliedValue = f.expiryValue;
+    f.expiryAppliedUnit = f.expiryUnit;
+
     const payload = {
       owner_id: user.id,
       title: f.title || 'Untitled Form',
@@ -55568,6 +55756,9 @@ async function mfPublishForm() {
       fields: f.fields || [],
       require_identity: !!f.requireIdentity,
       status: 'active',
+      // null = never expires. A timestamptz the Worker compares against on
+      // every read/submit — see handleGetForm/handleSubmit.
+      expires_at: f.expiresAt ? new Date(f.expiresAt).toISOString() : null,
       // Branding/appearance — everything filled in while building the form
       // (logo, watermark, accent color) must carry over to the published,
       // publicly-shared version, not just live locally in the editor.
@@ -55619,8 +55810,10 @@ async function mfPublishForm() {
     mfPersist();
     // Record the link somewhere Sessions can never overwrite, so a future
     // "load an older session" can always find its way back to this exact
-    // live row instead of showing the form as unpublished.
-    mfRegisterPublish(f.id, { publishedId: f.publishedId, shareSlug: f.shareSlug, publishedAt: f.publishedAt });
+    // live row instead of showing the form as unpublished. expiresAt rides
+    // along so a session-proof reconnect also restores the correct countdown.
+    mfRegisterPublish(f.id, { publishedId: f.publishedId, shareSlug: f.shareSlug, publishedAt: f.publishedAt, expiresAt: f.expiresAt || null });
+    mfRenderExpiryControls();
 
     const link = `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${row.share_slug}`;
     completeExportOverlay(isUpdate ? 'Link updated!' : 'Form published!', { module: 'make-forms', format: 'publish' });
