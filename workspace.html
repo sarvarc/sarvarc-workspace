@@ -27345,16 +27345,295 @@ function pdfedLayaBuildContentHtml(blocks) {
   }).join('');
 }
 
+// ─── LAYA: EDITABLE TEXT ENGINE (build 242) ─────────────────────────────
+// Before this build, text Laya put on a new page (a menu, carousel slides,
+// anything that came from an attached Word file) was painted straight into
+// the page bitmap by pdfedRenderBlankPage(), so it came out as a flat
+// picture nobody could click or edit. Now the text is laid out as real
+// placed text boxes (pg.placedTexts): the very same objects the Add Text
+// tool makes. Every word can be retyped, moved, restyled, recoloured, and it
+// exports as real vector text. The same engine also drops text onto a page
+// that already has a design (pdfed_add_text_to_page), fitting it into the
+// open space Laya picked by looking at the page.
+//
+// Block shapes Laya sends (see the Worker's tool definitions):
+//   heading / subheading / paragraph  {type, text, align?, bold?, italic?, underline?, color?}
+//   item  {type:'item', text (dish or product name), price?, note?}
+//         -> name on the left, price aligned right on the same line, small
+//            italic note underneath. Built for menus and price lists.
+// Page-wide look: heading_font, body_font, text_color, text_scale,
+// default_align, v_align ('top' | 'middle').
+//
+// Fit rules: type is shrunk a little (down to 70%) to fit the space. If it
+// still does not fit, the rest continues on extra pages, so nothing is ever
+// cut off or dropped.
+const PDFED_LAYA_BASE_PX = 794;        // A4 width in canvas px; every type size below is tuned for this width
+const PDFED_LAYA_MAX_EXTRA_PAGES = 12; // safety stop for runaway content
+
+// Real canvas-pixel size of a page. For the open page this reads the actual
+// canvas, so it is exact even for uploaded PDFs; otherwise it falls back to
+// pageMM (A4 if unset) at the editor's 3.7795 px per mm.
+function pdfedLayaPageSizePx(pg, idx) {
+  const pc = document.getElementById('pdfedPageCanvas');
+  if (pg && idx === pdfed.active && pc && pc.width > 0 && pc.height > 0) return [pc.width, pc.height];
+  const mm = (pg && pg.pageMM) || [210, 297];
+  return [Math.max(1, Math.round(mm[0] * 3.7795)), Math.max(1, Math.round(mm[1] * 3.7795))];
+}
+
+// Lowest point (canvas px) already used by anything on the page. Text boxes
+// have no stored height, so the open page's real DOM height is used when it
+// is on screen.
+function pdfedLayaContentBottomPx(pg, idx) {
+  let low = 0;
+  if (!pg) return low;
+  (pg.placedTexts || []).forEach(function(t) {
+    const el = (idx === pdfed.active) ? document.querySelector('.pdfed-placed-text[data-id="' + t.id + '"]') : null;
+    const hh = el ? el.offsetHeight : (t.h || 24);
+    low = Math.max(low, (t.y || 0) + hh);
+  });
+  (pg.placedImages || []).forEach(function(im) { low = Math.max(low, (im.y || 0) + (im.h || 0)); });
+  (pg.placedTables || []).forEach(function(t) {
+    const th = (t.rowHeights || []).reduce(function(a, b) { return a + b; }, 0);
+    low = Math.max(low, (t.y || 0) + th);
+  });
+  return low;
+}
+
+function pdfedLayaLuma(hex) {
+  const x = String(hex || '#ffffff').replace('#', '');
+  const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), b = parseInt(x.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return 255;
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+// Average brightness (0 to 255) of the page bitmap behind a region. Used to
+// choose dark or light text when Laya did not pick a colour herself.
+async function pdfedLayaBackdropLuma(pg, region, sizePx) {
+  try {
+    if (!pg || !pg.dataUrl) throw new Error('no bitmap');
+    const img = await new Promise(function(res, rej) {
+      const im = new Image();
+      im.onload = function() { res(im); };
+      im.onerror = rej;
+      im.src = pg.dataUrl;
+    });
+    const cw = 48, ch = Math.max(8, Math.round(48 * sizePx[1] / sizePx[0]));
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0, cw, ch);
+    const rx = Math.max(0, Math.min(cw - 1, Math.floor(region.x / sizePx[0] * cw)));
+    const ry = Math.max(0, Math.min(ch - 1, Math.floor(region.y / sizePx[1] * ch)));
+    const rw = Math.max(1, Math.min(cw - rx, Math.ceil(region.w / sizePx[0] * cw)));
+    const rh = Math.max(1, Math.min(ch - ry, Math.ceil(region.h / sizePx[1] * ch)));
+    const d = cx.getImageData(rx, ry, rw, rh).data;
+    let sum = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 20) continue;
+      sum += (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+      n++;
+    }
+    if (n) return sum / n;
+  } catch (e) { /* fall through to the page's own background colour */ }
+  return pdfedLayaLuma(pg && pg.bgColor);
+}
+
+async function pdfedLayaEnsureFont(fam) {
+  if (!fam || fam.indexOf(',') !== -1) return;
+  try {
+    const isSystem = (typeof SARVARC_SYSTEM_FONTS !== 'undefined') && SARVARC_SYSTEM_FONTS.has(fam);
+    const fresh = !isSystem && (typeof sarvarcLoadedFonts !== 'undefined') && !sarvarcLoadedFonts.has(fam);
+    if (typeof sarvarcLoadFont === 'function') sarvarcLoadFont(fam);
+    if (fresh) await new Promise(function(r) { setTimeout(r, 700); }); // let the stylesheet arrive
+    if (document.fonts && document.fonts.load) {
+      await Promise.race([document.fonts.load('16px "' + fam + '"'), new Promise(function(r) { setTimeout(r, 1500); })]);
+    }
+  } catch (e) { /* measuring with the fallback font is fine */ }
+}
+
+// Height a text box will really have, using the same font stack, wrapping,
+// line height, border and padding the on-canvas box uses.
+function pdfedLayaMeasure(text, fam, size, bold, italic, boxW) {
+  const inner = Math.max(10, boxW - 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_X));
+  const d = document.createElement('div');
+  d.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;line-height:1.25;';
+  d.style.fontFamily = pdfedFontCss(fam);
+  d.style.fontSize = size + 'px';
+  d.style.fontWeight = bold ? '700' : '400';
+  d.style.fontStyle = italic ? 'italic' : 'normal';
+  d.style.width = inner + 'px';
+  d.textContent = text;
+  document.body.appendChild(d);
+  const h = d.offsetHeight;
+  document.body.removeChild(d);
+  return h + 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_Y);
+}
+
+// Tidies whatever the model sent. Bad blocks are skipped rather than thrown
+// on, and long paragraphs are split at blank lines so a very long one can
+// spill onto the next page instead of running off the bottom.
+function pdfedLayaCleanBlocks(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  arr.forEach(function(b) {
+    if (!b || typeof b !== 'object') return;
+    const raw = (b.text === null || b.text === undefined) ? '' : String(b.text).replace(/\r/g, '');
+    if (!raw.trim()) return;
+    const type = ['heading', 'subheading', 'paragraph', 'item'].indexOf(b.type) !== -1 ? b.type : 'paragraph';
+    const common = {
+      type: type,
+      price: b.price ? String(b.price).trim() : '',
+      note: b.note ? String(b.note).trim() : '',
+      align: ['left', 'center', 'right'].indexOf(b.align) !== -1 ? b.align : '',
+      bold: !!b.bold, italic: !!b.italic, underline: !!b.underline,
+      color: /^#[0-9a-fA-F]{6}$/.test(b.color || '') ? b.color : ''
+    };
+    if (type === 'paragraph') {
+      raw.split(/\n{2,}/).forEach(function(part) {
+        if (part.trim()) out.push(Object.assign({}, common, { text: part.trim() }));
+      });
+    } else {
+      out.push(Object.assign({}, common, { text: raw.trim() }));
+    }
+  });
+  return out;
+}
+
+function pdfedLayaDefaultRegion(W, H) {
+  const x = Math.round(W * 0.085), y = Math.round(H * 0.07);
+  return { x: x, y: y, w: W - 2 * x, h: Math.round(H * 0.93) - y };
+}
+
+function pdfedLayaMakeGeo(p, W, H, region, color) {
+  const ts = Number(p.text_scale);
+  const scale = Math.max(0.4, Math.min(2.5, W / PDFED_LAYA_BASE_PX)) * ((ts > 0) ? Math.max(0.5, Math.min(3, ts)) : 1);
+  const okFont = function(f) { return (typeof f === 'string' && /^[\w \-'",]{2,60}$/.test(f.trim())) ? f.trim() : ''; };
+  const body = okFont(p.body_font) || 'Inter';
+  return {
+    x: region.x, y: region.y, w: region.w, h: region.h,
+    s: scale, color: color,
+    headFont: okFont(p.heading_font) || body, bodyFont: body,
+    align: ['left', 'center', 'right'].indexOf(p.default_align) !== -1 ? p.default_align : 'left',
+    vAlign: p.v_align === 'middle' ? 'middle' : 'top'
+  };
+}
+
+// Lays ONE block out at y and returns its boxes, where it ends, and the gap
+// to leave after it. k is the shrink-to-fit factor (1 down to 0.7).
+function pdfedLayaLayoutBlock(b, g, k, y, isFirst) {
+  const s = g.s * k;
+  const fs = function(n) { return Math.max(6, Math.round(n * s * 10) / 10); };
+  const color = b.color || g.color;
+  const align = b.align || g.align;
+  const base = function(over) {
+    return Object.assign({
+      text: '', x: g.x, y: y, w: g.w, fontSize: fs(13), fontFamily: g.bodyFont, color: color,
+      bold: false, italic: !!b.italic, underline: !!b.underline, align: align, locked: false
+    }, over);
+  };
+  const boxes = [];
+  let top = y, bottom = y, gapAfter = 8 * s;
+
+  if (b.type === 'heading' || b.type === 'subheading') {
+    const isH = b.type === 'heading';
+    top = y + (isFirst ? 0 : (isH ? 16 : 14) * s);
+    const size = fs(isH ? 30 : 19);
+    const h = pdfedLayaMeasure(b.text, g.headFont, size, true, !!b.italic, g.w);
+    boxes.push(base({ text: b.text, y: top, fontSize: size, fontFamily: g.headFont, bold: true }));
+    bottom = top + h;
+    gapAfter = (isH ? 10 : 6) * s;
+  } else if (b.type === 'item') {
+    const size = fs(13.5);
+    const priceW = b.price ? Math.min(g.w * 0.3, 110 * s) : 0;
+    const gap = b.price ? 12 * s : 0;
+    const nameW = g.w - priceW - gap;
+    let rowH = pdfedLayaMeasure(b.text, g.bodyFont, size, !!b.bold, !!b.italic, nameW);
+    boxes.push(base({ text: b.text, y: top, w: nameW, fontSize: size, bold: !!b.bold, align: 'left' }));
+    if (b.price) {
+      const ph = pdfedLayaMeasure(b.price, g.bodyFont, size, true, false, priceW);
+      boxes.push(base({ text: b.price, x: g.x + g.w - priceW, y: top, w: priceW, fontSize: size, bold: true, italic: false, underline: false, align: 'right' }));
+      rowH = Math.max(rowH, ph);
+    }
+    bottom = top + rowH;
+    if (b.note) {
+      const nsize = fs(11.5);
+      const noteH = pdfedLayaMeasure(b.note, g.bodyFont, nsize, false, true, nameW);
+      const ny = bottom - 2 * s;
+      boxes.push(base({ text: b.note, y: ny, w: nameW, fontSize: nsize, italic: true, underline: false, align: 'left', opacity: 0.72 }));
+      bottom = ny + noteH;
+    }
+    gapAfter = 7 * s;
+  } else {
+    const size = fs(13);
+    const h = pdfedLayaMeasure(b.text, g.bodyFont, size, !!b.bold, !!b.italic, g.w);
+    boxes.push(base({ text: b.text, fontSize: size, bold: !!b.bold }));
+    bottom = top + h;
+    gapAfter = 9 * s;
+  }
+  return { boxes: boxes, bottom: bottom, gapAfter: gapAfter };
+}
+
+// One full top-to-bottom pass at shrink factor k, starting at block
+// startIdx. Always places at least one block, so a caller looping on
+// nextIdx is guaranteed to make progress.
+function pdfedLayaPass(blocks, g, k, startIdx, bottomLimit) {
+  const placed = [];
+  let y = g.y, i = startIdx;
+  for (; i < blocks.length; i++) {
+    const r = pdfedLayaLayoutBlock(blocks[i], g, k, y, i === startIdx);
+    if (r.bottom > bottomLimit && placed.length) break;
+    placed.push({ idx: i, type: blocks[i].type, boxes: r.boxes, bottom: r.bottom });
+    y = r.bottom + r.gapAfter;
+  }
+  // Never leave a heading stranded alone at the bottom of a page.
+  while (i < blocks.length && placed.length > 1 &&
+         (placed[placed.length - 1].type === 'heading' || placed[placed.length - 1].type === 'subheading')) {
+    i = placed.pop().idx;
+  }
+  return { placed: placed, nextIdx: i, usedBottom: placed.length ? placed[placed.length - 1].bottom : g.y };
+}
+
+// Places as many blocks as fit onto pg, shrinking type a little first, and
+// returns the index of the first block that did NOT fit (blocks.length when
+// everything fit) plus the text boxes it added.
+async function pdfedLayaPlaceBlocks(pg, blocks, g, startIdx) {
+  await pdfedLayaEnsureFont(g.headFont);
+  if (g.bodyFont !== g.headFont) await pdfedLayaEnsureFont(g.bodyFont);
+  const bottomLimit = g.y + g.h;
+  let best = null;
+  for (let step = 0; step <= 6; step++) {
+    best = pdfedLayaPass(blocks, g, 1 - step * 0.05, startIdx, bottomLimit);
+    if (best.nextIdx >= blocks.length) break;
+  }
+  let dy = 0;
+  if (g.vAlign === 'middle' && best.nextIdx >= blocks.length && best.usedBottom < bottomLimit) {
+    dy = (bottomLimit - best.usedBottom) / 2;
+  }
+  if (!pg.placedTexts) pg.placedTexts = [];
+  const added = [];
+  best.placed.forEach(function(pb) {
+    pb.boxes.forEach(function(bx) {
+      const item = Object.assign({ id: 'ptxt_' + (++pdfedPlacedTextSeq), zIndex: pdfedNextZ(pg) }, bx);
+      item.x = Math.round(item.x * 10) / 10;
+      item.y = Math.round((item.y + dy) * 10) / 10;
+      item.w = Math.round(item.w * 10) / 10;
+      pg.placedTexts.push(item);
+      added.push(item);
+    });
+  });
+  return { nextIdx: best.nextIdx, added: added };
+}
+
 async function pdfedLayaInsertPage(p) {
   const [mmW, mmH] = pdfedLayaResolveInsertMM(p);
   const bg = /^#[0-9a-fA-F]{6}$/.test(p.bg_color || '') ? p.bg_color : '#ffffff';
-  const contentHtml = pdfedLayaBuildContentHtml(p.content);
+  const blocks = pdfedLayaCleanBlocks(p.content);
   const isNewDoc = !pdfed.pages.length;
 
   // Resolve where the new page lands: an explicit 0-based after_idx inserts
   // the page right AFTER that index (after_idx 0 = "between page 1 and 2"),
   // 'end' appends, and omitting both falls back to right after whichever
-  // page is currently open -- the same default the ribbon's own hover
+  // page is currently open, the same default the ribbon's own hover
   // insert-zone uses.
   let at;
   if (isNewDoc || p.position === 'end') {
@@ -27366,12 +27645,32 @@ async function pdfedLayaInsertPage(p) {
     at = (pdfed.active >= 0 ? pdfed.active : pdfed.pages.length - 1) + 1;
   }
 
-  const url = await pdfedRenderBlankPage(contentHtml, bg, mmW, mmH);
-  const newPg = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], label: 'New Page', bgColor: bg, pageMM: [mmW, mmH] };
-  pdfed.pages.splice(at, 0, newPg);
+  // The bitmap is now just the empty page (background colour only). All
+  // words go on top as editable text boxes.
+  const url = await pdfedRenderBlankPage('', bg, mmW, mmH);
+  const mkPage = function() {
+    return { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedTables: [], label: 'New Page', bgColor: bg, pageMM: [mmW, mmH] };
+  };
+  const W = Math.max(1, Math.round(mmW * 3.7795)), H = Math.max(1, Math.round(mmH * 3.7795));
+  const textColor = /^#[0-9a-fA-F]{6}$/.test(p.text_color || '') ? p.text_color : (pdfedLayaLuma(bg) > 140 ? '#111111' : '#F5F5F5');
+  const geo = pdfedLayaMakeGeo(p, W, H, pdfedLayaDefaultRegion(W, H), textColor);
+
+  const newPages = [];
+  if (!blocks.length) {
+    newPages.push(mkPage());
+  } else {
+    let next = 0;
+    do {
+      const pgN = mkPage();
+      const r = await pdfedLayaPlaceBlocks(pgN, blocks, geo, next);
+      next = r.nextIdx;
+      newPages.push(pgN);
+    } while (next < blocks.length && newPages.length < 1 + PDFED_LAYA_MAX_EXTRA_PAGES);
+  }
+  pdfed.pages.splice.apply(pdfed.pages, [at, 0].concat(newPages));
 
   if (isNewDoc) {
-    // No document was open -- bring up the editor chrome the same way
+    // No document was open, bring up the editor chrome the same way
     // confirmInsertPage()'s isNewDoc branch (and opening a PDF) does.
     pdfed.pdfDoc = null;
     pdfed.file = { name: 'Untitled Document' };
@@ -27388,17 +27687,18 @@ async function pdfedLayaInsertPage(p) {
   }
 
   document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
-  state.stats.pages++;
+  state.stats.pages += newPages.length;
   updateStats();
   await pdfedBuildStrip();
   await pdfedGoto(at);
   if (isNewDoc) { setTimeout(pdfedZoomFit, 50); pdfedScheduleAutoCollapse(); }
+  if (newPages.length > 1) toast('That text ran long, so it continues on ' + (newPages.length - 1) + ' more page' + (newPages.length - 1 === 1 ? '' : 's'), 'info');
 
   pushAppHistory({
     label: 'Insert page (Laya)',
     undo: async () => {
-      if (pdfed.pages.length <= 1) { toast('Cannot remove last page', 'error'); return; }
-      pdfed.pages.splice(at, 1);
+      if (pdfed.pages.length <= newPages.length) { toast('Cannot remove last page', 'error'); return; }
+      pdfed.pages.splice(at, newPages.length);
       if (pdfed.active >= pdfed.pages.length) pdfed.active = pdfed.pages.length - 1;
       await pdfedBuildStrip();
       await pdfedGoto(pdfed.active);
@@ -27406,7 +27706,7 @@ async function pdfedLayaInsertPage(p) {
       toast('Inserted page removed', 'info');
     },
     redo: async () => {
-      pdfed.pages.splice(at, 0, newPg);
+      pdfed.pages.splice.apply(pdfed.pages, [at, 0].concat(newPages));
       await pdfedBuildStrip();
       await pdfedGoto(at);
       document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
@@ -27414,7 +27714,100 @@ async function pdfedLayaInsertPage(p) {
     }
   });
 
-  return { at, mmW, mmH };
+  return { at, mmW, mmH, pagesAdded: newPages.length };
+}
+
+// Places editable text on a page that ALREADY exists (typically one the
+// person designed). p.region is in percent of the page (x_pct, y_pct, w_pct,
+// h_pct): Laya reads it off the screenshot. With no region, the text goes
+// below whatever is already on the page. Text colour is sampled from the
+// page behind the region unless Laya passes text_color.
+async function pdfedLayaAddTextToPage(p) {
+  const { pg, idx } = pdfedLayaActivePage(p);
+  const blocks = pdfedLayaCleanBlocks(p.blocks);
+  if (!blocks.length) throw new Error('there was no text to place');
+  const sz = pdfedLayaPageSizePx(pg, idx);
+  const W = sz[0], H = sz[1];
+
+  const r = p.region || {};
+  const has = function(v) { return v !== undefined && v !== null && v !== '' && isFinite(Number(v)); };
+  const pct = function(v, lo, hi) { return Math.max(lo, Math.min(hi, Number(v))); };
+  let region;
+  if (has(r.x_pct) && has(r.y_pct) && has(r.w_pct) && has(r.h_pct)) {
+    const x = W * pct(r.x_pct, 0, 95) / 100, y = H * pct(r.y_pct, 0, 95) / 100;
+    region = { x: x, y: y, w: Math.min(W * pct(r.w_pct, 5, 100) / 100, W - x), h: Math.min(H * pct(r.h_pct, 5, 100) / 100, H - y) };
+  } else {
+    const d = pdfedLayaDefaultRegion(W, H);
+    const low = pdfedLayaContentBottomPx(pg, idx);
+    const y = low ? Math.min(H * 0.9, low + H * 0.03) : d.y;
+    region = { x: d.x, y: y, w: d.w, h: Math.max(H * 0.08, Math.round(H * 0.93) - y) };
+  }
+
+  let color = /^#[0-9a-fA-F]{6}$/.test(p.text_color || '') ? p.text_color : null;
+  if (!color) color = (await pdfedLayaBackdropLuma(pg, region, sz)) > 140 ? '#111111' : '#F5F5F5';
+
+  const geo = pdfedLayaMakeGeo(p, W, H, region, color);
+  const first = await pdfedLayaPlaceBlocks(pg, blocks, geo, 0);
+  const added = first.added.slice();
+  let next = first.nextIdx;
+
+  // Anything that did not fit continues on plain pages right after this one.
+  const extraPages = [];
+  if (next < blocks.length) {
+    const mm = pg.pageMM || [W / 3.7795, H / 3.7795];
+    const bg = pg.bgColor || '#ffffff';
+    const url = await pdfedRenderBlankPage('', bg, mm[0], mm[1]);
+    const contColor = /^#[0-9a-fA-F]{6}$/.test(p.text_color || '') ? p.text_color : (pdfedLayaLuma(bg) > 140 ? '#111111' : '#F5F5F5');
+    const contGeo = pdfedLayaMakeGeo(p, W, H, pdfedLayaDefaultRegion(W, H), contColor);
+    while (next < blocks.length && extraPages.length < PDFED_LAYA_MAX_EXTRA_PAGES) {
+      const pgN = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedTables: [], label: 'New Page', bgColor: bg, pageMM: [mm[0], mm[1]] };
+      const rr = await pdfedLayaPlaceBlocks(pgN, blocks, contGeo, next);
+      next = rr.nextIdx;
+      extraPages.push(pgN);
+    }
+  }
+
+  pdfedMarkModified(idx);
+  if (extraPages.length) {
+    pdfed.pages.splice.apply(pdfed.pages, [idx + 1, 0].concat(extraPages));
+    document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+    state.stats.pages += extraPages.length;
+    updateStats();
+    await pdfedBuildStrip();
+    await pdfedGoto(idx);
+    toast('That text was more than fit here, so it continues on ' + extraPages.length + ' more page' + (extraPages.length === 1 ? '' : 's'), 'info');
+  } else if (pdfed.active === idx) {
+    pdfedRenderPlacedTexts(idx);
+  }
+
+  pushAppHistory({
+    label: 'Place text (Laya)',
+    undo: async () => {
+      added.forEach(function(it) {
+        const i = pg.placedTexts.indexOf(it);
+        if (i > -1) pg.placedTexts.splice(i, 1);
+      });
+      extraPages.forEach(function(ep) {
+        const i = pdfed.pages.indexOf(ep);
+        if (i > -1) pdfed.pages.splice(i, 1);
+      });
+      pdfedMarkModified(idx);
+      document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+      await pdfedBuildStrip();
+      await pdfedGoto(Math.min(idx, pdfed.pages.length - 1));
+      toast('Text placement undone', 'info');
+    },
+    redo: async () => {
+      added.forEach(function(it) { if (pg.placedTexts.indexOf(it) === -1) pg.placedTexts.push(it); });
+      if (extraPages.length) pdfed.pages.splice.apply(pdfed.pages, [idx + 1, 0].concat(extraPages));
+      pdfedMarkModified(idx);
+      document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
+      await pdfedBuildStrip();
+      await pdfedGoto(idx);
+    }
+  });
+
+  return { placed: added.length, extraPages: extraPages.length };
 }
 
 // ─── LAYA: CANVAS FILL / GRADIENT (programmatic, no panel needed) ───────
@@ -71793,6 +72186,19 @@ if (document.readyState === 'loading') {
   //     modal's own "Content" editor -- one block per heading/subheading/
   //     paragraph, rendered top to bottom in array order; omit it entirely
   //     for a genuinely blank page.
+  //   (build 242) pdfed_insert_page content is now laid out as EDITABLE text
+  //     boxes (not baked into the page picture). Blocks: heading /
+  //     subheading / paragraph / item (item = name + price + note, for
+  //     menus and price lists). Look settings: heading_font, body_font,
+  //     text_color, text_scale, default_align, v_align. Text that does not
+  //     fit continues on extra pages automatically.
+  //   pdfed_add_text_to_page {blocks: [...same shape...], region?: {x_pct,
+  //     y_pct, w_pct, h_pct}, page_idx?, heading_font?, body_font?,
+  //     text_color?, text_scale?, default_align?, v_align?}
+  //     -- Editable text on a page that already exists. region is in
+  //     percent of the page; omit it to place the text below what is
+  //     already there. Leave text_color out and the app samples the page
+  //     behind the region and picks dark or light text itself.
   //   pdfed_set_canvas_gradient {mode?: 'solid'|'gradient', color1: hex,
   //     color2?: hex, angle?: 0-360, opacity?: 0-100}
   //     -- Bakes a solid colour or 2-colour linear gradient onto the page
@@ -72696,7 +73102,20 @@ if (document.readyState === 'loading') {
           // to an exact id instead of guessing by "first"/"last"/position -- see
           // pdfed_resize_image/pdfed_resize_text/pdfed_set_opacity. Capped so this
           // never balloons the context on a page with dozens of small placed items.
-          placedItems: items.slice(0, 25)
+          placedItems: items.slice(0, 25),
+          // Build 242: real page size in canvas px, the page's own background
+          // colour, and how far down the page existing content already reaches
+          // (percent of page height). Laya uses these with the screenshot to
+          // choose a region for pdfed_add_text_to_page.
+          pageSizePx: (typeof pdfedLayaPageSizePx === 'function') ? pdfedLayaPageSizePx(page, pdfed.active) : null,
+          pageBgColor: page ? (page.bgColor || null) : null,
+          contentBottomPct: (function(){
+            try {
+              if (typeof pdfedLayaPageSizePx !== 'function' || !page) return null;
+              const sz = pdfedLayaPageSizePx(page, pdfed.active);
+              return Math.round(Math.min(100, pdfedLayaContentBottomPx(page, pdfed.active) / sz[1] * 100));
+            } catch (e) { return null; }
+          })()
           // Deliberately NOT included: page.dataUrl (the actual rendered image/content),
           // and text/tables beyond the 60-char snippet above -- use pdfed_read_page for
           // the full page content.
@@ -73394,8 +73813,21 @@ if (document.readyState === 'loading') {
         const fmt = String(p.format || 'a4').toLowerCase() === 'custom'
           ? ((p.width_mm||210) + '×' + (p.height_mm||297) + 'mm')
           : String(p.format || 'a4').toUpperCase();
-        const withText = Array.isArray(p.content) && p.content.length ? ', with text on it' : '';
+        const withText = Array.isArray(p.content) && p.content.length ? ', with editable text on it' : '';
         return 'Insert a new ' + fmt + ' page ' + posLabel + withText + '.';
+      }
+    },
+    // Build 242: puts EDITABLE text boxes on a page that already exists (for
+    // example one the person designed). Laya reads the screenshot, picks the
+    // open area, and passes it as a region in percent of the page. See
+    // pdfedLayaAddTextToPage above.
+    pdfed_add_text_to_page: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaAddTextToPage(p || {}); },
+      label: function(p){
+        p = p || {};
+        const n = Array.isArray(p.blocks) ? p.blocks.length : 0;
+        return 'Place ' + (n ? n + ' block' + (n === 1 ? '' : 's') + ' of ' : '') + 'editable text on this page.';
       }
     },
     // Bakes a solid colour or 2-colour gradient onto the CURRENTLY OPEN
