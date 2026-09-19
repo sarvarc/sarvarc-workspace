@@ -53588,6 +53588,28 @@ async function rdxInsertIntoWorkspace(mode) {
 (function(){
 
 const MF_STORAGE_KEY = 'sarvarcForms';
+// ─── PUBLISH REGISTRY (session-proof) ───
+// Loading a saved Session wholesale-replaces MF_STORAGE_KEY with whatever
+// was captured at save time — including, previously, publishedId/shareSlug.
+// That meant reopening an old session could make an already-live form look
+// unpublished again, even though the real Supabase row was still active and
+// still collecting. This registry is a SEPARATE localStorage key, deliberately
+// left out of SM_MODULE_STORAGE, so Sessions never touches it. It's the one
+// durable record of "this form id maps to this live publishedId" and survives
+// every session load/restore. mfLoad() reconciles the two on every boot.
+const MF_PUBLISH_REGISTRY_KEY = 'sarvarcFormsPublishRegistry';
+function mfGetPublishRegistry() {
+  try { return JSON.parse(localStorage.getItem(MF_PUBLISH_REGISTRY_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function mfRegisterPublish(formId, info) {
+  const reg = mfGetPublishRegistry();
+  reg[formId] = { publishedId: info.publishedId, shareSlug: info.shareSlug, publishedAt: info.publishedAt || Date.now() };
+  try { localStorage.setItem(MF_PUBLISH_REGISTRY_KEY, JSON.stringify(reg)); } catch (e) {}
+}
+function mfLookupPublish(formId) {
+  return mfGetPublishRegistry()[formId] || null;
+}
 let mfMemForms = null; // in-memory fallback if localStorage is unavailable
 let mfState = { forms: [], currentId: null };
 // Fill & Responses mode: which tab is active, the field values currently
@@ -53616,6 +53638,38 @@ function mfPersist() {
   try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(mfState.forms)); }
   catch(e) { console.warn('[Make Forms] could not persist to localStorage', e); }
   mfCollabPush();
+}
+
+// Runs once right after mfLoad() (fresh boot, and therefore also right after
+// a Session's forced page reload). For every form that's currently missing
+// its publish link locally, checks the session-proof registry: if this form
+// id was published before, reattach publishedId/shareSlug/publishedAt so the
+// editor shows it as live again instead of "Publish", then kick off a silent
+// sync so any response collected while the link was locally lost shows up
+// immediately — the person shouldn't have to notice anything went wrong.
+async function mfReconcilePublishState() {
+  let relinkedAny = false;
+  mfState.forms.forEach(function (f) {
+    if (f.publishedId) return; // already linked, nothing to reconcile
+    const reg = mfLookupPublish(f.id);
+    if (!reg || !reg.publishedId) return;
+    f.publishedId = reg.publishedId;
+    f.shareSlug = reg.shareSlug;
+    f.publishedAt = reg.publishedAt;
+    relinkedAny = true;
+  });
+  if (relinkedAny) {
+    mfPersist();
+    if (typeof mfRenderFormsGrid === 'function') mfRenderFormsGrid();
+  }
+  // Pull in anything collected server-side for every published form, not
+  // just whichever one happens to be open — a form doesn't have to be on
+  // screen for its responses to matter.
+  for (const f of mfState.forms) {
+    if (f.publishedId) {
+      try { await mfSyncPublishedResponses({ silent: true, form: f }); } catch (e) {}
+    }
+  }
 }
 
 // ─── LIVE CO-EDITING (see sarvarcCollabRegisterModule / core engine) ───
@@ -55475,6 +55529,20 @@ const mfWait = (ms) => new Promise(r => setTimeout(r, ms));
 async function mfPublishForm() {
   const f = mfGetCurrentForm();
   if (!f) return;
+  // Guard against a stale local state (e.g. an old Session snapshot was
+  // just loaded and wiped f.publishedId) making Publish think this form has
+  // never gone live before. If the session-proof registry remembers a link
+  // for this form id, reattach it here first — that turns this call into an
+  // UPDATE of the real existing row instead of an INSERT that would create
+  // a second, duplicate public link for the same form.
+  if (!f.publishedId) {
+    const reg = mfLookupPublish(f.id);
+    if (reg && reg.publishedId) {
+      f.publishedId = reg.publishedId;
+      f.shareSlug = reg.shareSlug;
+      f.publishedAt = reg.publishedAt;
+    }
+  }
   const btn = document.getElementById('mfPublishBtn');
   const label = document.getElementById('mfPublishBtnLabel');
   const isUpdate = !!f.publishedId;
@@ -55549,6 +55617,10 @@ async function mfPublishForm() {
     f.shareSlug = row.share_slug;
     f.publishedAt = Date.now();
     mfPersist();
+    // Record the link somewhere Sessions can never overwrite, so a future
+    // "load an older session" can always find its way back to this exact
+    // live row instead of showing the form as unpublished.
+    mfRegisterPublish(f.id, { publishedId: f.publishedId, shareSlug: f.shareSlug, publishedAt: f.publishedAt });
 
     const link = `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${row.share_slug}`;
     completeExportOverlay(isUpdate ? 'Link updated!' : 'Form published!', { module: 'make-forms', format: 'publish' });
@@ -55588,13 +55660,18 @@ let mfLastSyncedAt = null;
 
 async function mfSyncPublishedResponses(opts) {
   const silent = !!(opts && opts.silent);
-  const f = mfGetCurrentForm();
+  // Background reconciliation (mfReconcilePublishState) needs to sync a
+  // specific form that may not be the one currently open in the editor —
+  // pass it explicitly via opts.form; manual/auto-sync clicks keep working
+  // off whatever's on screen.
+  const f = (opts && opts.form) || mfGetCurrentForm();
   if (!f) return;
+  const isCurrent = f === mfGetCurrentForm();
   if (!f.publishedId) {
     if (!silent) toast('Publish this form first to collect online responses', 'info');
     return;
   }
-  const btn = document.getElementById('mfSyncBtn');
+  const btn = isCurrent ? document.getElementById('mfSyncBtn') : null;
   if (!silent && btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
   try {
     const { data: rows, error } = await sarvarcSupabase
@@ -55624,12 +55701,18 @@ async function mfSyncPublishedResponses(opts) {
     mfLastSyncedAt = Date.now();
     if (added) {
       mfPersist();
-      mfRenderResponsesList();
+      if (isCurrent) mfRenderResponsesList();
       // A quiet toast even in silent/background mode is fine — it's the
-      // "no new responses" case that would get noisy on a 15s timer.
-      toast(`${added} new online response${added > 1 ? 's' : ''} came in`, 'success');
+      // "no new responses" case that would get noisy on a 15s timer. Name
+      // the form when it's not the one on screen, so a background catch-up
+      // (e.g. right after reopening a stale session) doesn't read as if the
+      // currently open form suddenly got new responses.
+      toast(isCurrent
+        ? `${added} new online response${added > 1 ? 's' : ''} came in`
+        : `${added} new response${added > 1 ? 's' : ''} came in for "${f.title || 'Untitled Form'}"`,
+        'success');
     } else {
-      mfRenderSyncStatus();
+      if (isCurrent) mfRenderSyncStatus();
       if (!silent) toast('No new responses yet', 'success');
     }
   } catch (err) {
@@ -57864,6 +57947,14 @@ window.mfcPushToWorkspace = mfcPushToWorkspace;
 mfLoad();
 mfRenderTemplateGrid();
 mfRenderFormsGrid();
+// Fire-and-forget: reattaches any form's publish link that a just-loaded
+// Session snapshot left disconnected, then silently pulls in whatever
+// responses were collected on the server in the meantime. Runs on every
+// normal page boot too (harmless no-op when nothing's disconnected), which
+// is exactly what fires right after Sessions' own location.reload().
+if (typeof mfReconcilePublishState === 'function') mfReconcilePublishState();
+
+window.mfReconcilePublishState = mfReconcilePublishState;
 
 })();
 </script>
