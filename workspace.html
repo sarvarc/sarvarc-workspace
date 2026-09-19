@@ -71566,7 +71566,7 @@ if (document.readyState === 'loading') {
       <button type="button" id="laya-attach-btn" title="Attach files (logo, .docx, .xlsx, image -- drop in as many as you like)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       </button>
-      <input type="file" id="laya-attach-input" accept=".png,.jpg,.jpeg,.webp,.docx,.xlsx,.xls,.csv,.pdf" multiple style="display:none">
+      <input type="file" id="laya-attach-input" accept=".png,.jpg,.jpeg,.webp,.docx,.xlsx,.xls,.csv,.tsv,.txt,.md,.pdf" multiple style="display:none">
       <textarea id="laya-input" rows="1" placeholder="Ask Laya..."></textarea>
       <button id="laya-send" type="submit">Send</button>
     </div>
@@ -72111,6 +72111,194 @@ if (document.readyState === 'loading') {
     });
   }
 
+
+  // -----------------------------------------------------------------
+  // FILE READING FOR CHAT (v-files). Before this, an attached Word/Excel
+  // file was only parsed into a Data Arrangement dataset and Laya saw
+  // headers + the first 15 rows. Prose came through as a lossy "topic
+  // arranged" table, long sheets were cut at row 15, and once Send was
+  // pressed the file was forgotten -- a follow-up like "now make slides
+  // from it" reached her with no file at all.
+  //
+  // Now every attached file is ALSO read into faithful plain text
+  // (headings, paragraphs, lists, tables in document order for Word;
+  // every sheet's rows for Excel/CSV; page text for PDF) and travels with
+  // the message as pendingAttachments[i].fileContent. The Worker turns it
+  // into a delimited "untrusted file content" block for the model. The
+  // last few files are also remembered for the rest of this chat session
+  // (context.recentFiles) so follow-up messages still have them.
+  // Data Arrangement ingestion is unchanged, so the pipeline_* tools
+  // keep working exactly as before.
+  // -----------------------------------------------------------------
+  const LAYA_FILE_MAX_CHARS   = 14000; // one file, the turn it is attached
+  const LAYA_TURN_MAX_CHARS   = 32000; // all files together, one turn
+  const LAYA_RECENT_MAX_CHARS = 6000;  // one remembered file, later turns
+  const LAYA_RECENT_MAX_FILES = 3;
+  let layaFileMemory = []; // [{ name, fileType, content, truncated, charCount }]
+
+  function layaTidy(t){ return String(t == null ? '' : t).replace(/\s+/g, ' ').trim(); }
+
+  function layaFileTypeOf(ext){
+    if (ext === 'docx') return 'word';
+    if (ext === 'xlsx' || ext === 'xls') return 'excel';
+    if (ext === 'csv' || ext === 'tsv') return 'csv';
+    if (ext === 'pdf') return 'pdf';
+    return 'text';
+  }
+
+  // Word: mammoth's HTML, walked in order, so a menu's sections, a
+  // carousel's slide list or a proposal's tables keep their real structure.
+  function layaWordHtmlToText(root){
+    const out = [];
+    (function walk(node){
+      Array.from(node.children || []).forEach(function(el){
+        const tag = el.tagName;
+        if (/^H[1-6]$/.test(tag)){
+          const t = layaTidy(el.textContent);
+          if (t) out.push('\n' + '#'.repeat(+tag.charAt(1)) + ' ' + t);
+        } else if (tag === 'P'){
+          const t = layaTidy(el.textContent);
+          if (t) out.push(t);
+        } else if (tag === 'UL' || tag === 'OL'){
+          Array.from(el.children).forEach(function(li, i){
+            const t = layaTidy(li.textContent);
+            if (t) out.push((tag === 'OL' ? (i + 1) + '. ' : '- ') + t);
+          });
+        } else if (tag === 'TABLE'){
+          Array.from(el.querySelectorAll('tr')).forEach(function(tr){
+            const cells = Array.from(tr.children).map(function(c){ return layaTidy(c.textContent); });
+            if (cells.some(Boolean)) out.push('| ' + cells.join(' | ') + ' |');
+          });
+        } else {
+          walk(el);
+        }
+      });
+    })(root);
+    return out.join('\n');
+  }
+
+  async function layaReadWord(buf){
+    if (typeof mammoth === 'undefined') throw new Error('Word reader not loaded');
+    const res = await mammoth.convertToHtml({ arrayBuffer: buf });
+    const doc = new DOMParser().parseFromString(res.value, 'text/html');
+    const text = layaWordHtmlToText(doc.body);
+    const imgs = doc.querySelectorAll('img').length;
+    return {
+      text: text,
+      stats: {
+        headings: doc.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
+        tables: doc.querySelectorAll('table').length,
+        words: text.split(/\s+/).filter(Boolean).length,
+        images: imgs
+      },
+      note: imgs ? (imgs + ' image(s) inside the Word file were not read, only its text.') : ''
+    };
+  }
+
+  // Excel/CSV: every sheet gets its own share of the budget, so a big
+  // first sheet can't crowd out the second one.
+  function layaReadWorkbook(wb, maxChars){
+    if (typeof XLSX === 'undefined') throw new Error('Excel reader not loaded');
+    const names = wb.SheetNames.slice(0, 12);
+    const perSheet = Math.max(2500, Math.floor(maxChars / Math.max(1, names.length)));
+    const parts = [];
+    const sheets = [];
+    names.forEach(function(name){
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', blankrows: false, raw: false });
+      const cols = aoa.reduce(function(m, r){ return Math.max(m, r.length); }, 0);
+      sheets.push({ name: name, rows: aoa.length, cols: cols });
+      let block = '## Sheet: ' + name + ' (' + aoa.length + ' rows x ' + cols + ' cols)\n';
+      let used = block.length, shown = 0;
+      for (let i = 0; i < aoa.length; i++){
+        const cells = aoa[i].map(function(v){ return layaTidy(v); });
+        while (cells.length && cells[cells.length - 1] === '') cells.pop();
+        const line = cells.join('\t') + '\n';
+        if (used + line.length > perSheet) break;
+        block += line; used += line.length; shown++;
+      }
+      if (shown < aoa.length) block += '... (' + (aoa.length - shown) + ' more rows not shown)\n';
+      parts.push(block);
+    });
+    if (wb.SheetNames.length > names.length) parts.push('... (' + (wb.SheetNames.length - names.length) + ' more sheets not shown)');
+    return { text: parts.join('\n'), stats: { sheets: sheets }, note: '' };
+  }
+
+  async function layaReadPdf(buf){
+    if (typeof pdfjsLib === 'undefined') throw new Error('PDF reader not loaded');
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    const pages = Math.min(pdf.numPages, 20);
+    const out = [];
+    for (let p = 1; p <= pages; p++){
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const t = tc.items.map(function(it){ return it.str + (it.hasEOL ? '\n' : ' '); }).join('').replace(/[ \t]+/g, ' ').trim();
+      out.push('## Page ' + p + '\n' + t);
+    }
+    const text = out.join('\n\n');
+    let note = '';
+    if (pdf.numPages > pages) note = 'Only the first ' + pages + ' of ' + pdf.numPages + ' pages were read.';
+    if (text.replace(/## Page \d+/g, '').replace(/\s+/g, '').length < 20) note = 'This PDF has no readable text layer (likely a scan or images).';
+    return { text: text, stats: { pages: pdf.numPages }, note: note };
+  }
+
+  // Returns { fileType, content, truncated, charCount, stats, note } or
+  // { fileType, note } if reading failed. Never throws: a failure here
+  // must not break the Data Arrangement ingest that already happened.
+  async function layaReadFileForChat(file, ext){
+    const fileType = layaFileTypeOf(ext);
+    try {
+      let r;
+      if (fileType === 'word'){
+        r = await layaReadWord(await file.arrayBuffer());
+      } else if (fileType === 'excel'){
+        r = layaReadWorkbook(XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' }), LAYA_FILE_MAX_CHARS);
+      } else if (fileType === 'pdf'){
+        r = await layaReadPdf(await file.arrayBuffer());
+      } else if (fileType === 'csv'){
+        const wb = XLSX.read(await file.text(), { type: 'string', FS: ext === 'tsv' ? '\t' : undefined, raw: true });
+        r = layaReadWorkbook(wb, LAYA_FILE_MAX_CHARS);
+      } else {
+        r = { text: await file.text(), stats: {}, note: '' };
+      }
+      let text = String(r.text || '').replace(/\u0000/g, '');
+      const total = text.length;
+      const truncated = total > LAYA_FILE_MAX_CHARS || /more rows not shown|more sheets not shown/.test(text);
+      if (total > LAYA_FILE_MAX_CHARS) text = text.slice(0, LAYA_FILE_MAX_CHARS);
+      return { fileType: fileType, content: text, truncated: truncated, charCount: total, stats: r.stats || {}, note: r.note || '' };
+    } catch (err){
+      console.warn('Laya could not read file text', file.name, err);
+      return { fileType: fileType, note: 'The file text could not be read (' + (err && err.message ? err.message : 'unknown error') + ').' };
+    }
+  }
+
+  // Later turns: the few most recent files, shorter excerpts.
+  function layaRememberAttachments(list){
+    list.forEach(function(a){
+      if (a.kind !== 'data' || !a.fileContent) return;
+      layaFileMemory = layaFileMemory.filter(function(m){ return m.name !== a.name; });
+      layaFileMemory.push({
+        name: a.name,
+        fileType: a.fileType,
+        content: a.fileContent.slice(0, LAYA_RECENT_MAX_CHARS),
+        truncated: !!a.contentTruncated || a.fileContent.length > LAYA_RECENT_MAX_CHARS,
+        charCount: a.charCount || a.fileContent.length
+      });
+    });
+    if (layaFileMemory.length > LAYA_RECENT_MAX_FILES) layaFileMemory = layaFileMemory.slice(-LAYA_RECENT_MAX_FILES);
+  }
+  function layaRecentFilesContext(excludeNames){
+    const skip = excludeNames || [];
+    return layaFileMemory
+      .filter(function(m){ return skip.indexOf(m.name) === -1; })
+      .map(function(m){ return { name: m.name, fileType: m.fileType, content: m.content, contentTruncated: m.truncated, charCount: m.charCount }; });
+  }
+  function layaDecorateContext(ctx, pending, recent){
+    let out = ctx;
+    if (pending) out = Object.assign({}, out || {}, { pendingAttachments: pending });
+    if (recent && recent.length) out = Object.assign({}, out || {}, { recentFiles: recent });
+    return out;
+  }
+
   async function layaHandleAttachmentFile(file){
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp'];
@@ -72140,7 +72328,13 @@ if (document.readyState === 'loading') {
         await daIngestFiles([file]);
         const after = (typeof daState !== 'undefined' && daState.datasets) ? daState.datasets.length : before;
         const newDatasets = (typeof daState !== 'undefined' && daState.datasets) ? daState.datasets.slice(before, after) : [];
-        layaPendingAttachments.push({ id: ++layaAttachmentSeq, kind: 'data', name: file.name, ext: ext, datasets: newDatasets });
+        // Also read the file's real text for Laya (never throws).
+        const read = await layaReadFileForChat(file, ext);
+        layaPendingAttachments.push({
+          id: ++layaAttachmentSeq, kind: 'data', name: file.name, ext: ext, datasets: newDatasets,
+          fileType: read.fileType, fileContent: read.content || '', contentTruncated: !!read.truncated,
+          charCount: read.charCount || 0, fileStats: read.stats || null, readNote: read.note || ''
+        });
       }
     } catch (err){
       console.error('Laya attachment failed', file.name, err);
@@ -73724,6 +73918,7 @@ if (document.readyState === 'loading') {
   function layaAttachmentContextSummary(){
     if (!layaPendingAttachments.length) return null;
     const out = [];
+    let remaining = LAYA_TURN_MAX_CHARS; // shared text budget across every file this turn
     layaPendingAttachments.forEach(function(a){
       if (a.kind === 'logo'){
         out.push({
@@ -73743,20 +73938,41 @@ if (document.readyState === 'loading') {
       // genuinely read a report's paragraphs or a spreadsheet's figures the
       // moment they're attached, the same way she reads a table someone
       // pastes into Data Arrangement by hand.
+      // File-level fields (the file's real text) ride on the FIRST entry for
+      // that file only, so a multi-sheet workbook does not repeat its text
+      // once per sheet. The Worker lifts fileContent out into its own
+      // delimited block for the model.
+      let content = a.fileContent || '';
+      let cut = !!a.contentTruncated;
+      if (content){
+        const allowed = Math.max(2000, remaining);
+        if (content.length > allowed){ content = content.slice(0, allowed); cut = true; }
+        remaining -= content.length;
+      }
+      const fileFields = {
+        fileType: a.fileType || null,
+        fileContent: content || undefined,
+        contentTruncated: content ? cut : undefined,
+        charCount: a.charCount || undefined,
+        fileStats: a.fileStats || undefined,
+        readNote: a.readNote || undefined
+      };
       const datasets = a.datasets || [];
       if (!datasets.length){
-        out.push({ kind: 'data', name: a.name });
+        out.push(Object.assign({ kind: 'data', name: a.name }, fileFields));
         return;
       }
-      datasets.forEach(function(ds){
-        out.push({
+      datasets.forEach(function(ds, i){
+        out.push(Object.assign({
           kind: 'data',
           name: a.name,
           datasetName: ds.name,
           headers: ds.headers || [],
           rowCount: (ds.rows || []).length,
-          sampleRows: (ds.rows || []).slice(0, 15)
-        });
+          // When the full text is attached, 5 sample rows are enough to
+          // keep the dataset name/shape; the text carries the content.
+          sampleRows: (ds.rows || []).slice(0, content ? 5 : 15)
+        }, i === 0 ? fileFields : { fileType: a.fileType || null }));
       });
     });
     return out;
@@ -73772,13 +73988,19 @@ if (document.readyState === 'loading') {
       // A single file gets its old, specific phrasing; a batch (the "here's
       // everything, you handle it" case this exists for) names every piece
       // so it's obvious in the thread what actually traveled with the turn.
+      // Only a logo + content batch is a clear "build the finished report"
+      // ask. A lone Word/Excel file (or several content files with no
+      // logo) says nothing about intent, so it gets a neutral caption and
+      // Laya reads the file and works out (or asks) what it is for.
+      const hasLogo = layaPendingAttachments.some(function(a){ return a.kind === 'logo'; });
+      const hasData = layaPendingAttachments.some(function(a){ return a.kind === 'data'; });
+      const names = layaPendingAttachments.map(function(a){ return a.name; }).join(', ');
       if (layaPendingAttachments.length === 1){
-        text = layaPendingAttachments[0].kind === 'logo'
-          ? "Here's our logo, use it."
-          : "Here's the file, use it to prepare the report.";
-      } else {
-        const names = layaPendingAttachments.map(function(a){ return a.name; }).join(', ');
+        text = hasLogo ? "Here's our logo, use it." : "Here's " + names + ".";
+      } else if (hasLogo && hasData){
         text = "Here's " + names + ". Put together the finished report.";
+      } else {
+        text = "Here are " + names + ".";
       }
     }
 
@@ -73794,11 +74016,12 @@ if (document.readyState === 'loading') {
     // Pull real workspace state ONCE per turn so the thinking indicator,
     // the live API call, and the demo fallback all reason about the exact
     // same snapshot of reality instead of drifting out of sync with each other.
-    let ctx = getLayaContext();
     const attachmentSummary = layaAttachmentContextSummary();
-    if (attachmentSummary){
-      ctx = Object.assign({}, ctx || {}, { pendingAttachments: attachmentSummary });
-    }
+    // Files from EARLIER turns (not re-attached now) stay available, so a
+    // follow-up like "now turn that into slides" still has the document.
+    const recentFilesCtx = layaRecentFilesContext(sentAttachments.map(function(a){ return a.name; }));
+    let ctx = layaDecorateContext(getLayaContext(), attachmentSummary, recentFilesCtx);
+    layaRememberAttachments(sentAttachments);
     const thinking = addThinkingMsg(ctx);
 
     try{
@@ -73856,7 +74079,7 @@ if (document.readyState === 'loading') {
           hops++;
           layaSwitched = false;
           await new Promise(function(r){ setTimeout(r, 700); }); // let the new panel finish drawing
-          const ctx2 = getLayaContext();
+          const ctx2 = layaDecorateContext(getLayaContext(), attachmentSummary, recentFilesCtx);
           const followUp = { role: 'user', content: "(automatic follow-up) You just switched me to a new panel. Now finish my original request here using the tools you have in this panel. Do not switch panels again unless it is truly needed. If part of it truly cannot be done, do the closest useful thing and say what is left for me to do by hand." };
           const res2 = await callRealLayaAPI(history.concat([followUp]), ctx2);
           const reply2 = sarvarcLayaStripEmDash(res2.reply || '');
