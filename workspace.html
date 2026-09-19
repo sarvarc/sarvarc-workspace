@@ -34199,6 +34199,234 @@ document.addEventListener('mousedown', (e) => {
   pdfedCloseGradientPopover();
 });
 
+// ─── LAYA: TEXT COLOUR / GRADIENT (programmatic, no popover needed) ───────
+// Drives the exact same placed-text fill engine the "A" colour swatch and
+// the gradient popover above use (pdfedPtxtApplyColor / pdfedApplyPtxtGradient /
+// pdfedApplyPtxtGradientDom) — same item.color / item.gradient shape, same
+// CSS background-clip:text trick on screen, same canvas gradient at export —
+// so a fill Laya applies is indistinguishable from one built by hand.
+// Reuses pdfedLayaValidHex (defined above, by the Canvas-fill Laya hook) for
+// hex validation so both colour tools share one "is this actually a hex
+// string" rule.
+
+// Every placed-text box always has a live DOM node in #pdfedPlacedTextsLayer
+// (keyed by item.id), whether or not it's the one currently focused/open in
+// the toolbar — unlike the Edit Text overlay, there's no separate "read-only"
+// render pass to worry about. This just looks that node up directly, so
+// Laya can restyle a box that isn't the one the person happens to have
+// clicked into.
+function pdfedLayaTextContentEl(item) {
+  const layer = document.getElementById('pdfedPlacedTextsLayer');
+  if (!layer || !item || !item.id) return null;
+  const box = layer.querySelector('[data-id="' + item.id + '"]');
+  return box ? box.querySelector('.pdfed-ptxt-content') : null;
+}
+
+// Picks which placedTexts item(s) on the CURRENT page a colour/gradient call
+// acts on. target:'all' -> every text box on the page. query -> whichever
+// box(es) contain that text (case-insensitive substring), so Laya can aim at
+// "the heading" by quoting its words without needing an id. Otherwise falls
+// back to whatever's currently open in the Add Text toolbar (pdfedPtxtTb),
+// same "acts on the thing that's open" convention pdfed_set_canvas_gradient
+// uses for pdfed.active — and if nothing's open but the page only has one
+// text box, that's an unambiguous default too. Throws (rather than guessing)
+// when there's more than one candidate and nothing narrows it down, same
+// pattern as pdfed_apply_image_design's "which image?" guard.
+function pdfedLayaResolveTextTargets(p, pg) {
+  const all = (pg && pg.placedTexts) || [];
+  if (!all.length) throw new Error('no text boxes on this page to colour');
+
+  if (p.target === 'all') return all.slice();
+
+  if (p.query) {
+    const q = String(p.query).toLowerCase();
+    const matches = all.filter(it => (it.text || '').toLowerCase().includes(q));
+    if (!matches.length) throw new Error('no text box on this page matches "' + p.query + '"');
+    return matches;
+  }
+
+  if (pdfedPtxtTb.item && all.indexOf(pdfedPtxtTb.item) > -1) return [pdfedPtxtTb.item];
+
+  if (all.length === 1) return all.slice();
+
+  throw new Error('more than one text box on this page -- say which one (its text), or "all"');
+}
+
+// Minimal RGB<->HSL conversion, scoped to this feature only (no other part
+// of the app needed one) -- used to rotate a sampled background hue into a
+// complementary text-colour hue rather than picking an arbitrary accent.
+function pdfedLayaRgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      default: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+  }
+  return [h, s * 100, l * 100];
+}
+
+function pdfedLayaHslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360; s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
+function pdfedLayaRgbToHex(r, g, b) {
+  const toHex = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+// Samples the live page canvas directly underneath a placed-text item's
+// on-screen box and returns its average colour -- the same "read what's
+// actually behind it" move pdfedExtractLogoColors makes for an attached
+// logo, just aimed at the page background instead of a logo image. Reads
+// the box's real rendered rect (not item.x/y/w/h) so an auto-width box that
+// shrink-wrapped its text is sampled accurately. Returns null (never
+// throws) on a tainted canvas or missing element, so callers can fall back
+// to a sensible default instead of failing the whole action over a colour
+// guess.
+function pdfedLayaSampleBehindText(item) {
+  const canvas = document.getElementById('pdfedPageCanvas');
+  const layer = document.getElementById('pdfedPlacedTextsLayer');
+  if (!canvas || !canvas.width || !layer || !item) return null;
+  const canvasRect = canvas.getBoundingClientRect();
+  const box = item.id ? layer.querySelector('[data-id="' + item.id + '"]') : null;
+  let x, y, w, h;
+  if (box) {
+    const r = box.getBoundingClientRect();
+    x = r.left - canvasRect.left; y = r.top - canvasRect.top; w = r.width; h = r.height;
+  } else {
+    x = item.x || 0; y = item.y || 0; w = item.w || 150; h = item.h || 40;
+  }
+  const scaleX = canvas.width / (canvasRect.width || canvas.width);
+  const scaleY = canvas.height / (canvasRect.height || canvas.height);
+  x = Math.max(0, Math.round(x * scaleX));
+  y = Math.max(0, Math.round(y * scaleY));
+  w = Math.max(1, Math.min(canvas.width - x, Math.round(w * scaleX)));
+  h = Math.max(1, Math.min(canvas.height - y, Math.round(h * scaleY)));
+  let data;
+  try { data = canvas.getContext('2d').getImageData(x, y, w, h).data; }
+  catch (e) { return null; } // tainted canvas (cross-origin image on the page) -- caller falls back
+  let r = 0, g = 0, b = 0, n = 0;
+  const stride = 4 * Math.max(1, Math.floor((w * h) / 2000)); // sample, don't walk every pixel of a huge box
+  for (let i = 0; i < data.length; i += stride) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+  return n ? { r: r / n, g: g / n, b: b / n } : null;
+}
+
+// Turns a sampled background colour into a legible, intentional-looking text
+// fill (a solid colour or a 2-stop gradient pair) -- the same "understand
+// the intent from what's actually on the page" judgment
+// pdfedLayaApplyImageDesign applies to a placed image's mood, just for text
+// colour instead of a photo effect. Rotates well away from the background's
+// own hue (so the result reads as a deliberate choice, not a near-miss of
+// the background) and picks lightness from the background's luminance --
+// bright/saturated on a dark background, deep/saturated on a light one --
+// so the result stays readable without the caller having to reason about
+// contrast themselves. Falls back to the app's own brand gradient (as seen
+// in the sidebar/launcher) when nothing could be sampled.
+function pdfedLayaAutoTextColors(bg) {
+  if (!bg) return { color1: '#0EA5E9', color2: '#7C3AED' };
+  const [h] = pdfedLayaRgbToHsl(bg.r, bg.g, bg.b);
+  const lum = 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b;
+  const baseHue = (h + 200) % 360;
+  const isDarkBg = lum < 128;
+  const s = 78, l = isDarkBg ? 68 : 42;
+  const [r1, g1, b1] = pdfedLayaHslToRgb(baseHue, s, l);
+  const [r2, g2, b2] = pdfedLayaHslToRgb((baseHue + 35) % 360, s, l);
+  return { color1: pdfedLayaRgbToHex(r1, g1, b1), color2: pdfedLayaRgbToHex(r2, g2, b2) };
+}
+
+// Sets one or more placed-text boxes' fill to a solid colour, a 2-stop
+// gradient, or clears back to plain black -- see pdfed_set_text_fill's
+// registration below for the full param contract. color1/color2 are
+// OPTIONAL: when either is missing (and mode isn't 'clear'), this samples
+// the page behind that specific box (pdfedLayaSampleBehindText) and picks a
+// fitting pair itself (pdfedLayaAutoTextColors), so "give the heading some
+// colour" with zero specifics still produces a considered, on-page-aware
+// result rather than a stock default.
+async function pdfedLayaSetTextFill(p) {
+  p = p || {};
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    throw new Error('open a document first');
+  }
+  const pg = pdfed.pages[pdfed.active];
+  const targets = pdfedLayaResolveTextTargets(p, pg);
+
+  let mode = p.mode === 'solid' ? 'solid' : p.mode === 'gradient' ? 'gradient' : p.mode === 'clear' ? 'clear' : null;
+  if (!mode) mode = (p.color1 && !p.color2) ? 'solid' : 'gradient';
+
+  const results = [];
+  targets.forEach(item => {
+    const content = pdfedLayaTextContentEl(item);
+
+    if (mode === 'clear') {
+      item.gradient = null;
+      item.color = pdfedLayaValidHex(p.color1, item.color) || '#000000';
+      if (content) { pdfedApplyPtxtGradientDom(content, null); content.style.color = item.color; }
+      results.push({ id: item.id, color: item.color });
+      return;
+    }
+
+    let color1 = pdfedLayaValidHex(p.color1, null);
+    let color2 = mode === 'gradient' ? pdfedLayaValidHex(p.color2, null) : null;
+    if (!color1 || (mode === 'gradient' && !color2)) {
+      const auto = pdfedLayaAutoTextColors(pdfedLayaSampleBehindText(item));
+      if (!color1) color1 = auto.color1;
+      if (mode === 'gradient' && !color2) color2 = auto.color2;
+    }
+    const angle = (p.angle !== undefined && p.angle !== null && p.angle !== '')
+      ? Math.max(0, Math.min(360, parseInt(p.angle, 10) || 0))
+      : (item.gradient ? item.gradient.angle : 90);
+
+    if (mode === 'solid') {
+      item.color = color1;
+      item.gradient = null;
+      if (content) { pdfedApplyPtxtGradientDom(content, null); content.style.color = color1; }
+      results.push({ id: item.id, color: color1 });
+    } else {
+      item.gradient = { color1, color2, angle };
+      if (content) pdfedApplyPtxtGradientDom(content, item.gradient);
+      results.push({ id: item.id, color1, color2, angle });
+    }
+  });
+
+  // Keeps the manual gradient popover's own swatches/angle (and the toolbar's
+  // gradient-button active state) honest if it happens to be open on one of
+  // the boxes Laya just touched -- same courtesy pdfedLayaSetCanvasFill pays
+  // the Design panel's canvas-tint controls when it applies a fill.
+  if (pdfedPtxtTb.item && targets.indexOf(pdfedPtxtTb.item) > -1) {
+    const it = pdfedPtxtTb.item;
+    const pop = document.getElementById('pdfedPtxtGradPopover');
+    if (pop && pop.classList.contains('show')) {
+      pdfedPtxtGradState.angle = it.gradient ? it.gradient.angle : pdfedPtxtGradState.angle;
+      document.getElementById('pdfedPtxtGradFromInput').value = pdfedToHexColor(it.gradient ? it.gradient.color1 : it.color);
+      document.getElementById('pdfedPtxtGradToInput').value = pdfedToHexColor(it.gradient ? it.gradient.color2 : it.color);
+      pdfedPtxtGradRefreshPreview();
+    }
+    const gradBtn = document.getElementById('pdfedPtxtGradientBtn');
+    if (gradBtn) gradBtn.classList.toggle('active', !!it.gradient);
+  }
+
+  pdfedMarkModified(pdfed.active);
+  return { count: targets.length, mode, results };
+}
+
 // Splits saved rich HTML for a placed-text box into per-line runs of
 // { text, color }, used both for re-rendering and for export baking.
 function pdfedParseRichLines(html) {
@@ -71044,6 +71272,31 @@ if (document.readyState === 'loading') {
   //     angle. opacity blends the fill over the page's current content,
   //     100 fully replaces it; omit to keep the current opacity. color2 is
   //     required for mode:'gradient' and ignored for mode:'solid'.
+  //   pdfed_set_text_fill {target?: 'all', query?: string,
+  //     mode?: 'solid'|'gradient'|'clear', color1?: hex, color2?: hex, angle?: 0-360}
+  //     -- Sets a placed-text box's fill to a solid colour or a 2-colour
+  //     gradient, via the exact same engine as the "A" colour swatch and the
+  //     gradient popover on the Add Text toolbar. Acts on whichever text box
+  //     the person currently has open by default, or the only text box on
+  //     the page if none is open; pass `query` (a few words from the box's
+  //     own text) to aim at a specific box by content when there's more than
+  //     one candidate on the page, or target:'all' for every text box on the
+  //     page at once. `mode` defaults to 'gradient' unless color1 is given
+  //     with no color2 (then 'solid'); pass mode:'clear' to strip an
+  //     existing colour/gradient back to plain black. IMPORTANT -- for a
+  //     vague ask with no colours named ("give the heading some colour",
+  //     "make the title pop", "make this look professional"), leave
+  //     color1/color2 OUT ENTIRELY rather than inventing values: the client
+  //     then reads the actual page background behind that specific text box
+  //     and picks a legible, complementary pair itself, the same "read the
+  //     page and make a real call" judgment DESIGN STUDIO JUDGMENT applies to
+  //     a vague image-effect request -- never stop to ask the person to pick
+  //     colours first when they didn't name any. Only pass color1/color2
+  //     when the person actually named a colour ("make it blue", "purple to
+  //     pink"). angle follows the same CSS linear-gradient() convention as
+  //     pdfed_set_canvas_gradient (0deg = up, 90deg = left-to-right,
+  //     clockwise); omit it to keep an existing gradient's own angle, or it
+  //     defaults to 90 for a brand-new one.
   //   pdfed_remove_page {idx}                pdfed_open_refine_report {}
   //   pdfed_auto_refine_report {theme?, align?, section_icons?, add_logo_to_header?,
   //     logo_position?, watermark_enabled?, footer_enabled?, header_title?,
@@ -72360,6 +72613,39 @@ if (document.readyState === 'loading') {
         return (p.mode === 'solid')
           ? 'Fill this page\'s canvas with ' + (p.color1 || 'the chosen colour') + '.'
           : 'Apply a ' + (p.color1 || 'colour') + ' \u2192 ' + (p.color2 || 'colour') + ' gradient to this page\'s canvas.';
+      }
+    },
+    // Sets a placed-text box's fill to a solid colour or a 2-colour
+    // gradient, via the exact same engine as the "A" swatch / gradient
+    // popover on the Add Text toolbar (see pdfedLayaSetTextFill above), so
+    // it bakes into export identically to a manual edit. `target` picks
+    // WHICH box: omit it for whichever box is currently open, or the only
+    // text box on the page when none is open; pass `query` (a snippet of
+    // the box's own words, e.g. "Prayag Pathak") to aim at a specific box
+    // by content when there's more than one candidate; pass target:'all'
+    // for every text box on the page at once. `mode` is 'solid'|'gradient',
+    // inferred from whether color2 is given when omitted; pass mode:'clear'
+    // to strip an existing colour/gradient back to plain black. LEAVE
+    // color1/color2 OUT ENTIRELY for a vague ask ("give the heading some
+    // colour", "make the title pop") -- this then reads the actual page
+    // background behind that text and picks a legible, deliberate-looking
+    // pair itself, the same "read the page, don't just guess" judgment
+    // pdfed_apply_image_design uses for a vague image request; it does NOT
+    // ask the person to pick colours first. angle follows the same CSS
+    // linear-gradient() convention as pdfed_set_canvas_gradient (0=up,
+    // 90=left-to-right, clockwise); omit it to keep an existing gradient's
+    // angle, or default to 90 for a brand-new one.
+    pdfed_set_text_fill: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaSetTextFill(p || {}); },
+      label: function(p){
+        p = p || {};
+        const target = p.query ? ('"' + p.query + '"') : (p.target === 'all' ? 'every text box on this page' : 'this text');
+        if (p.mode === 'clear') return 'Remove the colour/gradient from ' + target + ' and reset it to plain black.';
+        if (p.mode === 'solid' || (p.color1 && !p.color2)) {
+          return 'Colour ' + target + (p.color1 ? ' ' + p.color1 : ' with a colour that fits the page') + '.';
+        }
+        return 'Apply a' + (p.color1 && p.color2 ? (' ' + p.color1 + ' \u2192 ' + p.color2) : '') + ' gradient to ' + target + (p.color1 && p.color2 ? '' : ', picking colours that fit the page') + '.';
       }
     },
     // Bakes any of the Design panel's Cinematic Fade / Premium 3D Cinematic /
