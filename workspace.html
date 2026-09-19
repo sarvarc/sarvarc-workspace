@@ -72509,6 +72509,21 @@ if (document.readyState === 'loading') {
         };
       }
 
+      // FIX: PDF Editor open but EMPTY (no pages yet). Before this, the block above
+      // only ran when pdfed.pages had at least one page, so an empty editor sent
+      // Laya NO context at all (null), the Worker offered her only generic tools,
+      // and she said she couldn't create a page. Now she gets a minimal context so
+      // pdfed_insert_page is offered. layoutIssues is deliberately left out so the
+      // background "eyes" watcher (needs an array) stays quiet on an empty editor.
+      if (sec === 'pdfeditor' && typeof pdfed !== 'undefined' && (!pdfed.pages || !pdfed.pages.length)){
+        return {
+          activePanel: 'PDF Editor',
+          totalPages: 0,
+          activePageNumber: 0,
+          noDocumentOpen: true
+        };
+      }
+
       if (sec === 'makeforms' && typeof mfState !== 'undefined'){
         if (mfState.forms && mfState.forms.length){
           const form = mfState.forms.find(function(f){ return f.id === mfState.currentId; }) || mfState.forms[0];
@@ -73315,6 +73330,23 @@ if (document.readyState === 'loading') {
     // default position was already good enough for a person to just click
     // "place" on. If the query returns nothing, throws so the person gets
     // a clear "no results" message instead of a silent no-op.
+    // Places the image the person attached in Laya's chat (the paperclip) onto
+    // the open page as a normal movable picture, using the same ghost/bake path
+    // as the stock photo action. The attach flow already stored the file in
+    // pdfedRefineState.logoDataUrl, so nothing new has to be uploaded.
+    // NOTE: the Worker must also define a tool with this exact name, or Laya
+    // will never call it (see laya-worker-tool-snippet.txt).
+    pdfed_insert_attached_image: {
+      risk: 'safe',
+      run: async function(){
+        if (pdfed.active < 0) throw new Error('there is no page open yet, so I will add a blank page first if you ask me to');
+        const url = pdfedRefineState && pdfedRefineState.logoDataUrl;
+        if (!url) throw new Error('no image is attached. Use the paperclip in my chat to attach one first');
+        pdfedActivateImgGhost(url);
+        await pdfedBakeImage();
+      },
+      label: function(){ return 'Place the image you attached onto the current page.'; }
+    },
     pdfed_insert_stock_photo: {
       risk: 'safe',
       run: async function(p){
@@ -73789,17 +73821,50 @@ if (document.readyState === 'loading') {
       // (sharp scan ring + snap on the launcher, badge in the header)
       // covers exactly this span -- it's off the rest of the time,
       // including while she's just talking.
-      if (actions && actions.length){
+      // Runs a batch of actions in order. Returns true if one of them was a
+      // successful panel switch, so the caller knows Laya is now standing in
+      // a different panel with a different set of tools.
+      async function layaRunActionBatch(list){
+        let switched = false;
+        if (!list || !list.length) return switched;
         layaSetActing(true);
         try{
-          for (const action of actions){
+          for (const action of list){
             layaPulseActing();
             const problem = await layaExecuteAction(action);
             if (problem) addMsg('laya', sarvarcLayaStripEmDash(problem));
+            else if (action && action.type === 'navigate_to_panel') switched = true;
           }
         } finally {
           layaSetActing(false);
         }
+        return switched;
+      }
+
+      let layaSwitched = await layaRunActionBatch(actions);
+
+      // FIX (smarter asks): the Worker only hands Laya the tools for the panel
+      // you're standing in, so before this she could switch panels and then
+      // STOP, leaving the real request undone. Now, after a panel switch, she
+      // is automatically asked to carry on with the original request from the
+      // new panel, where her tools now exist. Capped at 2 hops so it can never
+      // loop. Wrapped in its own try/catch so a hiccup here never overwrites
+      // the reply that already showed.
+      try{
+        let hops = 0;
+        while (layaSwitched && hops < 2){
+          hops++;
+          layaSwitched = false;
+          await new Promise(function(r){ setTimeout(r, 700); }); // let the new panel finish drawing
+          const ctx2 = getLayaContext();
+          const followUp = { role: 'user', content: "(automatic follow-up) You just switched me to a new panel. Now finish my original request here using the tools you have in this panel. Do not switch panels again unless it is truly needed. If part of it truly cannot be done, do the closest useful thing and say what is left for me to do by hand." };
+          const res2 = await callRealLayaAPI(history.concat([followUp]), ctx2);
+          const reply2 = sarvarcLayaStripEmDash(res2.reply || '');
+          if (reply2){ addMsg('laya', reply2); history.push({ role: 'assistant', content: reply2 }); }
+          layaSwitched = await layaRunActionBatch(res2.actions);
+        }
+      } catch(e2){
+        console.warn('Laya auto-continue after panel switch failed', e2);
       }
     } catch(err){
       resolveThinkingMsg(thinking, "Couldn't reach the server just now. Mind trying again?");
