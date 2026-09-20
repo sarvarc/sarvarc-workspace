@@ -57198,26 +57198,131 @@ async function mfExportAllResponsesPDF() {
 // daAddDataset/daWorkspaceRefreshVisibility/daRenderTabs/daRenderTable and
 // daState all live at global scope (defined outside any IIFE), same call
 // pattern Data Arrangement itself uses after ingesting a file.
-function mfExportResponsesToDA() {
-  const f = mfGetCurrentForm(); if (!f) return;
+//
+// Build 245: takes an OPTIONAL target so Laya can send a specific form's
+// responses (not just whichever form happens to be open). `target` may be a
+// form id string or a form object; the manual button calls this with no
+// arguments (sarvarcGateExport calls actionFn()), so it still exports the
+// open form exactly as before. opts.noNavigate / opts.silent let a batch
+// export (several forms in one Laya turn) switch panels and toast ONCE at
+// the end instead of once per form. Returns the number of rows sent (0 if
+// nothing was exported).
+
+// One place that names the DA table for a form, so the export and Laya's
+// "already sent to Data Arrangement" flag can never drift apart.
+function mfDaBaseName(f) { return `${f.title || 'Form'} — Responses`; }
+
+// If a table with this name is already in Data Arrangement, add " (2)",
+// " (3)"... so re-exporting a form never leaves two identical tabs.
+function mfDaUniqueName(base) {
+  const taken = new Set(((typeof daState !== 'undefined' && daState.datasets) ? daState.datasets : []).map(d => d.name));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base} (${n})`)) n++;
+  return `${base} (${n})`;
+}
+
+function mfExportResponsesToDA(target, opts) {
+  opts = opts || {};
+  const f = (typeof target === 'string')
+    ? mfState.forms.find(x => x.id === target)
+    : (target && typeof target === 'object' && Array.isArray(target.fields) ? target : mfGetCurrentForm());
+  if (!f) return 0;
   const responses = mfGetResponses(f).slice().sort((a, b) => a.createdAt - b.createdAt);
-  if (!responses.length) { toast('No saved responses yet', 'info'); return; }
+  if (!responses.length) { if (!opts.silent) toast('No saved responses yet', 'info'); return 0; }
   const dataFields = f.fields.filter(fl => fl.type !== 'heading' && fl.type !== 'signature');
-  if (!dataFields.length) { toast('This form has no fillable fields to export', 'info'); return; }
-  if (typeof daAddDataset !== 'function') { toast('Data Arrangement is unavailable right now', 'error'); return; }
+  if (!dataFields.length) { if (!opts.silent) toast('This form has no fillable fields to export', 'info'); return 0; }
+  if (typeof daAddDataset !== 'function') { toast('Data Arrangement is unavailable right now', 'error'); return 0; }
   const headers = dataFields.map(fl => fl.label || 'Field');
   const rows = responses.map(r => dataFields.map(fl => {
     const v = r.values[fl.id];
     if (fl.type === 'checkbox') return v ? 'Yes' : 'No';
     return v == null ? '' : String(v);
   }));
-  daAddDataset(`${f.title || 'Form'} — Responses`, [headers, ...rows]);
-  if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
-  if (typeof daRenderTabs === 'function') daRenderTabs();
-  if (typeof daRenderTable === 'function') daRenderTable();
-  navigate('dataarrange');
-  toast(`${responses.length} response${responses.length > 1 ? 's' : ''} sent to Data Arrangement`, 'success');
+  daAddDataset(mfDaUniqueName(mfDaBaseName(f)), [headers, ...rows]);
+  if (!opts.noNavigate) {
+    if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
+    if (typeof daRenderTabs === 'function') daRenderTabs();
+    if (typeof daRenderTable === 'function') daRenderTable();
+    navigate('dataarrange');
+  }
+  if (!opts.silent) toast(`${responses.length} response${responses.length > 1 ? 's' : ''} sent to Data Arrangement`, 'success');
+  return responses.length;
 }
+
+// Build 245: works out WHICH form Laya means. Order of trust:
+//   1. formId (exact, comes straight from context.forms)
+//   2. formTitle (matched loosely: exact > contains, case/punctuation
+//      insensitive). If it matches more than one form, or none, this THROWS
+//      with a plain message naming the candidates, so Laya asks the person
+//      which one instead of exporting the wrong table.
+//   3. nothing named -> the form open in the editor right now.
+// Canvas forms (free-layout, no fillable fields) never hold field responses,
+// so they are only ever matched by an explicit id, and then rejected clearly.
+function mfLayaResolveForm(p) {
+  p = p || {};
+  const all = (typeof mfState !== 'undefined' && mfState.forms) ? mfState.forms : [];
+  const label = f => '"' + (f.title || 'Untitled Form') + '" (' + mfGetResponses(f).length + ' response' + (mfGetResponses(f).length === 1 ? '' : 's') + ')';
+  const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  let f = null;
+
+  if (p.formId) {
+    f = all.find(x => x.id === p.formId) || null;
+    if (!f) throw new Error("that form doesn't exist anymore, it may have been deleted");
+  } else if (p.formTitle) {
+    const q = norm(p.formTitle);
+    const pool = all.filter(x => x.kind !== 'canvas');
+    let hits = pool.filter(x => norm(x.title || 'Untitled Form') === q);
+    if (!hits.length) hits = pool.filter(x => { const t = norm(x.title || 'Untitled Form'); return q && (t.includes(q) || q.includes(t)); });
+    if (hits.length > 1) throw new Error('more than one form fits "' + p.formTitle + '": ' + hits.map(label).join(', ') + '. Ask which one they mean');
+    if (!hits.length) throw new Error('no form matches "' + p.formTitle + '". Forms available: ' + (pool.length ? pool.map(label).join(', ') : 'none yet'));
+    f = hits[0];
+  } else {
+    f = mfGetCurrentForm() || null;
+    if (!f) {
+      const withData = all.filter(x => x.kind !== 'canvas' && mfGetResponses(x).length);
+      throw new Error(withData.length > 1
+        ? 'no form is open and several have responses: ' + withData.map(label).join(', ') + '. Ask which one they mean'
+        : 'no form is open, so tell me which form you mean');
+    }
+  }
+  if (f.kind === 'canvas') throw new Error('"' + (f.title || 'Untitled Canvas Form') + '" is a canvas form, so it has no fillable fields or responses to send');
+  return f;
+}
+
+// Build 245: compact list of every form in the session for Laya's context.
+// Titles, ids, counts and field LABELS only -- never the answers people
+// submitted -- so it stays inside the same privacy line the rest of the Make
+// Forms context already keeps. Newest-touched first, capped so a big gallery
+// can't balloon the request.
+function mfFormsOverviewForLaya() {
+  if (typeof mfState === 'undefined' || !mfState.forms || !mfState.forms.length) return [];
+  const dsNames = ((typeof daState !== 'undefined' && daState.datasets) ? daState.datasets : []).map(d => d.name);
+  return mfState.forms.slice()
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, 25)
+    .map(f => {
+      const isCanvas = f.kind === 'canvas';
+      const responses = isCanvas ? [] : mfGetResponses(f);
+      const dataFields = isCanvas ? [] : (f.fields || []).filter(fl => fl.type !== 'heading' && fl.type !== 'signature');
+      const last = responses.reduce((m, r) => Math.max(m, r.createdAt || 0), 0);
+      const base = mfDaBaseName(f);
+      return {
+        formId: f.id,
+        title: f.title || 'Untitled Form',
+        formType: isCanvas ? 'canvas' : 'fields',
+        isOpenNow: f.id === mfState.currentId,
+        isPublished: !!f.publishedId,
+        responseCount: responses.length,
+        lastResponseAt: last ? new Date(last).toISOString() : null,
+        fieldLabels: dataFields.slice(0, 12).map(fl => fl.label || 'Field'),
+        alreadyInDataArrangement: dsNames.some(n => n === base || n.indexOf(base + ' (') === 0),
+        canSendToDataArrangement: !isCanvas && dataFields.length > 0 && (responses.length > 0 || !!f.publishedId)
+      };
+    });
+}
+window.mfLayaResolveForm = mfLayaResolveForm;
+window.mfFormsOverviewForLaya = mfFormsOverviewForLaya;
 
 // ─── MAIL MERGE: BULK-IMPORT RESPONSES FROM A DATA ARRANGEMENT TABLE ───
 function mfOpenMergeModal() {
@@ -72679,14 +72784,32 @@ if (document.readyState === 'loading') {
   //     this same turn or a previous one -- if context.noFormOpenYet is
   //     true, create the form first (same turn is fine, this then runs
   //     against the form just created).
-  //   mf_sync_responses {}
+  //   mf_sync_responses {formId?, formTitle?}
   //     -- Pulls in any new online submissions since the last check, for
-  //     the currently open form. Only meaningful once a form has been
-  //     published (context.isPublished) -- throws client-side otherwise,
-  //     with a message worth relaying rather than retrying.
-  //   mf_export_responses_to_da {}
-  //     -- Sends every saved response (local + synced-online) for the
-  //     currently open form into Data Arrangement as a new dataset, one
+  //     the named form (build 245) or, with no params, the currently open
+  //     form. Only meaningful once a form has been published
+  //     (context.isPublished / context.forms[].isPublished) -- throws
+  //     client-side otherwise, with a message worth relaying rather than
+  //     retrying.
+  //   mf_export_responses_to_da {formId?, formTitle?, formIds?, syncFirst?}
+  //     -- BUILD 245: context.forms (sent from every wired panel, not just
+  //     Make Forms) lists every form in the session: formId, title,
+  //     isOpenNow, isPublished, responseCount, lastResponseAt, fieldLabels,
+  //     alreadyInDataArrangement, canSendToDataArrangement. Pick the target
+  //     from that list: pass formId (preferred) or formTitle; formIds sends
+  //     several forms at once (one table each). Decide by what the person
+  //     said ("the registration form", "the one with the phone field",
+  //     "both"); "this form" means isOpenNow. If more than one form could
+  //     fit and nothing in the conversation settles it, ASK which one
+  //     instead of guessing. If the client can't tell either (ambiguous
+  //     title, no form open), it throws a message that names the candidates
+  //     -- relay that and ask. Published forms are synced first by default;
+  //     pass syncFirst:false to skip that. This tool should be offered
+  //     from ANY panel (like mf_create_form / navigate_to_panel), since the
+  //     person may be in Data Arrangement when they ask.
+  //     Original behaviour, still true with no params: sends every saved
+  //     response (local + synced-online) for the currently open form
+  //     into Data Arrangement as a new dataset, one
   //     row per response, and switches the user there to see it. Use
   //     whenever the person asks to see/analyze/export responses, or to
   //     "send responses to Data Arrangement" specifically. Throws if the
@@ -73296,6 +73419,17 @@ if (document.readyState === 'loading') {
     let out = ctx;
     if (pending) out = Object.assign({}, out || {}, { pendingAttachments: pending });
     if (recent && recent.length) out = Object.assign({}, out || {}, { recentFiles: recent });
+    // Build 245: every form in the session (ids, titles, response counts,
+    // field labels, published state, whether its table is already in Data
+    // Arrangement), so Laya can tell WHICH form's responses are meant, from
+    // any wired panel, not only Make Forms. Only added when a panel context
+    // already exists, so panels that send no context still send none.
+    if (out && out.activePanel && typeof mfFormsOverviewForLaya === 'function') {
+      try {
+        const forms = mfFormsOverviewForLaya();
+        if (forms.length) out = Object.assign({}, out, { forms: forms });
+      } catch (e) { /* never let this break a chat turn */ }
+    }
     return out;
   }
 
@@ -73743,6 +73877,12 @@ if (document.readyState === 'loading') {
             const responses = (typeof mfGetResponses === 'function') ? mfGetResponses(form) : (form.responses || []);
             return {
               activePanel: 'Make Forms',
+              // Build 245: the fallback above picks forms[0] when nothing is
+              // open (gallery view), so say plainly whether THIS form is the
+              // one on screen and give its id -- otherwise "this form" would
+              // silently mean "the first form in the list".
+              formId: form.id,
+              formIsOpenInEditor: form.id === mfState.currentId,
               formTitle: form.title,
               formDescription: form.desc || '',
               fieldCount: (form.fields || []).length,
@@ -74206,30 +74346,67 @@ if (document.readyState === 'loading') {
     // reply via layaExecuteAction's catch block instead.
     mf_sync_responses: {
       risk: 'safe',
-      run: async function(){
-        const f = mfGetCurrentForm();
-        if (!f) throw new Error('no form is open');
-        if (!f.publishedId) throw new Error('publish this form first, there\'s nothing online to check yet');
-        await mfSyncPublishedResponses({ silent: true });
+      run: async function(p){
+        // Build 245: p.formId / p.formTitle let her refresh a specific form
+        // (not just the open one); mfSyncPublishedResponses already accepts
+        // a form via opts.form.
+        const f = mfLayaResolveForm(p);
+        if (!f.publishedId) throw new Error('"' + (f.title || 'Untitled Form') + '" was never published, so there\'s nothing online to check yet');
+        await mfSyncPublishedResponses({ silent: true, form: f });
       },
-      label: function(){ return 'Check for new online responses to this form.'; }
+      label: function(p){ return 'Check for new online responses' + (p && p.formTitle ? ' to "' + p.formTitle + '".' : ' to this form.'); }
     },
     // Same reasoning as mf_sync_responses above: mfExportResponsesToDA()
     // handles its own empty-state cases via toast, which Laya can't see or
     // relay -- these checks turn that into an actual error message back to
     // the user instead of a silent "On it" that did nothing.
+    //
+    // Build 245: picks WHICH form. Params:
+    //   formId?    exact id from context.forms (preferred)
+    //   formTitle? loose title match, used only when no id is given
+    //   formIds?   array of ids, to send several forms in one go
+    // With none of them it falls back to the open form, exactly as before.
+    // Published forms are synced first (opt out with syncFirst:false) so the
+    // table has the newest online submissions, not a stale local copy.
     mf_export_responses_to_da: {
       risk: 'safe',
-      run: function(){
-        const f = mfGetCurrentForm();
-        if (!f) throw new Error('no form is open');
-        const responses = mfGetResponses(f);
-        if (!responses.length) throw new Error('this form has no saved responses yet');
-        const dataFields = f.fields.filter(function(fl){ return fl.type !== 'heading' && fl.type !== 'signature'; });
-        if (!dataFields.length) throw new Error('this form has no fillable fields to export');
-        mfExportResponsesToDA();
+      run: async function(p){
+        p = p || {};
+        const targets = [];
+        if (Array.isArray(p.formIds) && p.formIds.length) {
+          p.formIds.forEach(function(id){ const f = mfLayaResolveForm({ formId: id }); if (targets.indexOf(f) === -1) targets.push(f); });
+        } else {
+          targets.push(mfLayaResolveForm(p));
+        }
+
+        const sent = [], skipped = [];
+        for (const f of targets) {
+          const name = f.title || 'Untitled Form';
+          if (f.publishedId && p.syncFirst !== false) {
+            try { await mfSyncPublishedResponses({ silent: true, form: f }); }
+            catch (e) { /* offline or Supabase hiccup: fall through to whatever is saved locally */ }
+          }
+          if (!mfGetResponses(f).length) { skipped.push('"' + name + '" has no saved responses yet'); continue; }
+          if (!f.fields.some(function(fl){ return fl.type !== 'heading' && fl.type !== 'signature'; })) { skipped.push('"' + name + '" has no fillable fields'); continue; }
+          const n = mfExportResponsesToDA(f, { noNavigate: true, silent: true });
+          if (n) sent.push({ name: name, n: n });
+        }
+
+        if (!sent.length) throw new Error(skipped.join('; ') || 'nothing to send');
+
+        if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
+        if (typeof daRenderTabs === 'function') daRenderTabs();
+        if (typeof daRenderTable === 'function') daRenderTable();
+        navigate('dataarrange');
+        toast(sent.length === 1
+          ? sent[0].n + ' response' + (sent[0].n > 1 ? 's' : '') + ' from "' + sent[0].name + '" sent to Data Arrangement'
+          : sent.length + ' forms sent to Data Arrangement, one table each', 'success');
+        if (skipped.length) toast('Skipped: ' + skipped.join('; '), 'info');
       },
-      label: function(){ return 'Send this form\'s saved responses into Data Arrangement as a table.'; }
+      label: function(p){
+        p = p || {};
+        return 'Send ' + (p.formTitle ? '"' + p.formTitle + '"' : (Array.isArray(p.formIds) && p.formIds.length > 1 ? 'those forms' : 'this form')) + '\'s saved responses into Data Arrangement as a table.';
+      }
     },
 
     // Laya's own "read this page" tool. Tiered exactly like the manual
