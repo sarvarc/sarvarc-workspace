@@ -7334,6 +7334,115 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   box-shadow: 0 14px 22px -16px rgba(16,40,90,0.28);
 }
 
+
+/* ── Compact icon ribbon ─────────────────────────────────────────────
+   Toolbar buttons are icon-only; the name fades in as a tooltip on
+   hover/keyboard focus. Groups lose their boxed chips and are split by
+   hairline dividers instead, so the whole bar is one slim, quiet row. */
+.da-toolbar { padding:4px 8px; gap:4px; z-index:25; border-radius:10px 10px 0 0; }
+.da-toolbar .da-toolbar-group,
+[data-theme="light"] .da-toolbar .da-toolbar-group {
+  background:transparent; border:none; box-shadow:none; padding:0; gap:2px; min-height:0;
+}
+.da-toolbar .da-toolbar-group + .da-toolbar-group { position:relative; margin-left:6px; padding-left:6px; }
+.da-toolbar .da-toolbar-group + .da-toolbar-group::before {
+  content:''; position:absolute; left:0; top:5px; bottom:5px; width:1px;
+  background:var(--border2); opacity:0.7;
+}
+.da-icon-btn {
+  position:relative; width:30px; height:30px; padding:0; justify-content:center;
+  border-radius:7px; color:var(--text2);
+}
+.da-icon-btn svg { opacity:0.85; }
+.da-icon-btn:hover { background:var(--surface2); border-color:transparent; }
+[data-theme="light"] .da-icon-btn:hover { background:#fff; box-shadow:0 1px 3px rgba(16,40,90,0.12); }
+.da-icon-btn:focus-visible { outline:2px solid var(--blue); outline-offset:1px; }
+.da-toolbar #daClearAllBtn:hover { border-color:transparent !important; }
+.da-toolbar .da-search { min-height:30px; padding:5px 10px; background:var(--bg2); }
+.da-toolbar .da-toolbar-cta { min-height:30px; margin-left:4px; }
+
+/* Tooltip: dark pill under the icon, short delay so it doesn't flicker
+   while the cursor passes over the bar. */
+.da-toolbar [data-tip]::after {
+  content:attr(data-tip); position:absolute; top:calc(100% + 7px); left:50%;
+  transform:translate(-50%,-3px); white-space:pre; pointer-events:none;
+  padding:5px 9px; border-radius:6px; font-size:11px; font-weight:600; line-height:1.2;
+  letter-spacing:0.1px; color:#f4f7fb; background:#0f1520;
+  border:1px solid rgba(255,255,255,0.08); box-shadow:0 6px 16px -4px rgba(0,0,0,0.45);
+  opacity:0; visibility:hidden; z-index:60;
+  transition:opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+}
+.da-toolbar [data-tip]:hover::after,
+.da-toolbar [data-tip]:focus-visible::after {
+  opacity:1; visibility:visible; transform:translate(-50%,0);
+  transition:opacity 0.14s ease 0.28s, transform 0.14s ease 0.28s, visibility 0s linear 0.28s;
+}
+[data-theme="light"] .da-toolbar [data-tip]::after { background:#1b2740; color:#fff; border-color:rgba(255,255,255,0.06); }
+@media (hover:none) { .da-toolbar [data-tip]::after { display:none; } }
+
+
+/* Push actions stay labelled and clearly visible */
+.da-toolbar .da-push-btn {
+  height:30px; padding:0 11px; gap:6px; font-size:11.5px; font-weight:600;
+  color:var(--text); background:rgba(0,194,255,0.08);
+  border:1px solid rgba(0,194,255,0.35); border-radius:7px;
+}
+.da-toolbar .da-push-btn svg { opacity:1; color:var(--blue); }
+.da-toolbar .da-push-btn:hover { background:rgba(0,194,255,0.16); border-color:var(--blue); }
+[data-theme="light"] .da-toolbar .da-push-btn { background:#fff; box-shadow:0 1px 2px rgba(16,40,90,0.08); }
+[data-theme="light"] .da-toolbar .da-push-btn:hover { background:rgba(0,150,210,0.08); }
+.da-toolbar .da-push-btn:disabled { opacity:0.5; cursor:default; }
+
+/* Filter button + panel */
+.da-filter-wrap { position:relative; display:inline-flex; }
+.da-filter-wrap.open [data-tip]::after { display:none; }
+.da-filter-wrap.open .da-icon-btn { background:var(--surface2); }
+.da-filter-badge {
+  position:absolute; top:-4px; right:-4px; min-width:15px; height:15px; padding:0 4px;
+  border-radius:8px; font-size:9.5px; font-weight:700; line-height:15px; text-align:center;
+  background:var(--blue); color:#04131c; box-shadow:0 0 0 2px var(--bg2); box-sizing:border-box;
+}
+.da-filter-pop {
+  display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:70;
+  width:480px; max-width:calc(100vw - 24px); box-sizing:border-box; padding:12px;
+  background:var(--bg3); border:1px solid var(--border2); border-radius:12px;
+  box-shadow:0 16px 40px -10px rgba(0,0,0,0.55);
+}
+.da-filter-wrap.open .da-filter-pop { display:block; }
+.da-filter-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.da-filter-title { font-size:12.5px; font-weight:700; color:var(--text); }
+.da-filter-match { font-size:11.5px; color:var(--text3); display:inline-flex; align-items:center; gap:5px; }
+.da-filter-rules { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto; }
+.da-filter-rule { display:grid; grid-template-columns:1fr 1fr 1.1fr 26px; gap:6px; align-items:center; }
+.da-filter-pop select, .da-filter-pop input {
+  height:30px; box-sizing:border-box; min-width:0; width:100%; padding:0 8px; font-size:12px;
+  background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:7px; outline:none;
+}
+.da-filter-match select { width:auto; height:26px; padding:0 6px; font-weight:600; }
+.da-filter-pop select:focus, .da-filter-pop input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,194,255,0.12); }
+.da-filter-noval { font-size:11px; color:var(--text3); font-style:italic; padding-left:4px; }
+.da-filter-x {
+  width:26px; height:26px; border-radius:6px; border:none; background:transparent;
+  color:var(--text3); font-size:16px; line-height:1; cursor:pointer;
+}
+.da-filter-x:hover { background:rgba(239,68,68,0.12); color:#ef4444; }
+.da-filter-empty { font-size:12px; color:var(--text3); padding:8px 2px; }
+.da-filter-foot { display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.da-filter-status { flex:1; font-size:11px; color:var(--text3); font-weight:600; text-align:center; }
+.da-filter-add, .da-filter-clear {
+  height:28px; padding:0 10px; border-radius:7px; font-size:11.5px; font-weight:600; cursor:pointer;
+  background:transparent; border:1px solid var(--border2); color:var(--text2);
+}
+.da-filter-add { color:var(--blue); border-color:rgba(0,194,255,0.35); }
+.da-filter-add:hover { background:rgba(0,194,255,0.1); }
+.da-filter-clear:hover { color:#ef4444; border-color:rgba(239,68,68,0.35); background:rgba(239,68,68,0.08); }
+[data-theme="light"] .da-filter-pop { background:#fff; box-shadow:0 16px 36px -12px rgba(16,40,90,0.3); }
+[data-theme="light"] .da-filter-pop select, [data-theme="light"] .da-filter-pop input { background:#fff; }
+[data-theme="light"] .da-filter-badge { box-shadow:0 0 0 2px #fff; }
+@media (max-width:560px) {
+  .da-filter-rule { grid-template-columns:1fr 1fr 26px; }
+  .da-filter-rule input, .da-filter-noval { grid-column:1 / span 2; }
+}
 /* Grid */
 .da-grid-wrap {
   position:relative; overflow:auto; border-radius:12px;
@@ -11098,46 +11207,52 @@ button.dg-show-chip.active { background:var(--blue); }
           <!-- Toolbar (tool list) — second, right under the tabs like Excel/Sheets' ribbon/toolbar -->
           <div class="da-toolbar">
             <div class="da-toolbar-group">
-              <button class="da-tool-btn" id="daAddFileBtn" onclick="document.getElementById('daFileInput').click()" title="Add another file"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add File</button>
-              <button class="da-tool-btn" id="daNewTableBtn" onclick="daCreateBlankTable()" title="Add a new blank table, no file needed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg> New Table</button>
+              <button class="da-tool-btn da-icon-btn" id="daAddFileBtn" onclick="document.getElementById('daFileInput').click()" data-tip="Add File" aria-label="Add another file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+              <button class="da-tool-btn da-icon-btn" id="daNewTableBtn" onclick="daCreateBlankTable()" data-tip="New Table" aria-label="Add a new blank table, no file needed"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg></button>
             </div>
             <div class="da-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" id="daSearchInput" placeholder="Search this table…" oninput="daRenderTable()">
             </div>
+            <div class="da-toolbar-group">
+              <div class="da-filter-wrap" id="daFilterWrap">
+                <button class="da-tool-btn da-icon-btn" id="daFilterBtn" onclick="daToggleFilterPop(event)" data-tip="Filter Rows" aria-label="Filter rows by conditions" aria-haspopup="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span class="da-filter-badge" id="daFilterBadge" style="display:none"></span></button>
+                <div class="da-filter-pop" id="daFilterPop" role="dialog" aria-label="Filter rows"></div>
+              </div>
+            </div>
             <div class="da-toolbar-spacer"></div>
             <span class="da-meta da-toolbar-chip" id="daFxRatesLabel"></span>
             <div class="da-toolbar-group">
-              <button class="da-tool-btn" onclick="daFetchExchangeRates()" title="Fetch live currency rates (opt-in, from Frankfurter/ECB) so =CURRENCY(...) works in formulas"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Get Live Rates</button>
+              <button class="da-tool-btn da-icon-btn" onclick="daFetchExchangeRates()" data-tip="Get Live Rates" aria-label="Fetch live currency rates (opt-in, from Frankfurter/ECB) so =CURRENCY(...) works in formulas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>
             </div>
             <span class="da-meta da-toolbar-chip" id="daMeta"></span>
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
-              <button class="da-tool-btn" onclick="daToggleFreeze()" id="daFreezeBtn" title="Freeze header row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg> Freeze Header</button>
-              <button class="da-tool-btn" onclick="daAutoFit()" title="Auto-fit column widths"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/></svg> Auto-fit</button>
+              <button class="da-tool-btn da-icon-btn" id="daFreezeBtn" onclick="daToggleFreeze()" data-tip="Freeze Header" aria-label="Freeze header row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg></button>
+              <button class="da-tool-btn da-icon-btn" onclick="daAutoFit()" data-tip="Auto-fit Columns" aria-label="Auto-fit column widths"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/></svg></button>
             </div>
             <div class="da-toolbar-group">
-              <button class="da-tool-btn" onclick="daAddRow()" title="Add a row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Row</button>
-              <button class="da-tool-btn" onclick="daAddColumn()" title="Add a column"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Column</button>
+              <button class="da-tool-btn da-icon-btn" onclick="daAddRow()" data-tip="Add Row" aria-label="Add a row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><line x1="12" y1="13.5" x2="12" y2="20.5"/><line x1="8.5" y1="17" x2="15.5" y2="17"/></svg></button>
+              <button class="da-tool-btn da-icon-btn" onclick="daAddColumn()" data-tip="Add Column" aria-label="Add a column"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="6" height="18" rx="1.5"/><line x1="13.5" y1="12" x2="20.5" y2="12"/><line x1="17" y1="8.5" x2="17" y2="15.5"/></svg></button>
             </div>
             <div class="da-toolbar-group">
-              <button class="da-tool-btn" onclick="daOpenDropdownModal()" title="Turn a cell (or a whole column) into an Excel-style dropdown list — right-click any cell for the same option"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="8 10 12 14 16 10"/></svg> Dropdown</button>
-              <button class="da-tool-btn" onclick="daOpenLinkModal()" title="Attach a clickable link to the selected cell — carries over into Excel and CSV exports too. Right-click any cell for the same option"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Link</button>
-              <button class="da-tool-btn" onclick="daOpenHighlightModal()" title="Color-tag the selected rows, columns, or cells to group them at a glance -- click row numbers, column letters, or drag across cells to select first"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l6-6 4 4-6 6H9v-4z"/><path d="M3 21l4-1 9-9-3-3-9 9-1 4z"/></svg> Highlight</button>
-            </div>
-            <div class="da-tool-divider"></div>
-            <div class="da-toolbar-group">
-              <button class="da-tool-btn" onclick="unifiedUndo()" title="Undo (Ctrl+Z)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo</button>
-              <button class="da-tool-btn" onclick="unifiedRedo()" title="Redo (Ctrl+Y)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo</button>
+              <button class="da-tool-btn da-icon-btn" onclick="daOpenDropdownModal()" data-tip="Dropdown List" aria-label="Turn a cell (or a whole column) into an Excel-style dropdown list — right-click any cell for the same option"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="8 10 12 14 16 10"/></svg></button>
+              <button class="da-tool-btn da-icon-btn" onclick="daOpenLinkModal()" data-tip="Add Link" aria-label="Attach a clickable link to the selected cell — carries over into Excel and CSV exports too. Right-click any cell for the same option"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+              <button class="da-tool-btn da-icon-btn" onclick="daOpenHighlightModal()" data-tip="Highlight" aria-label="Color-tag the selected rows, columns, or cells to group them at a glance -- click row numbers, column letters, or drag across cells to select first"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l6-6 4 4-6 6H9v-4z"/><path d="M3 21l4-1 9-9-3-3-9 9-1 4z"/></svg></button>
             </div>
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
-              <button class="btn-secondary" id="daPushBtn" style="padding:6px 12px;font-size:11.5px" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg> Push to Workflow</span></button>
-              <button class="btn-secondary" id="daPushToDiagramsBtn" style="padding:6px 12px;font-size:11.5px" onclick="daPushToDiagrams(this)" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Push to Diagrams</span></button>
+              <button class="da-tool-btn da-icon-btn" onclick="unifiedUndo()" data-tip="Undo  (Ctrl+Z)" aria-label="Undo (Ctrl+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>
+              <button class="da-tool-btn da-icon-btn" onclick="unifiedRedo()" data-tip="Redo  (Ctrl+Y)" aria-label="Redo (Ctrl+Y)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></button>
             </div>
             <div class="da-tool-divider"></div>
             <div class="da-toolbar-group">
-              <button class="da-tool-btn" id="daClearAllBtn" onclick="daClearAll()" title="Clear all loaded data"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Clear All</button>
+              <button class="da-tool-btn da-push-btn" id="daPushBtn" onclick="daOpenPushChoiceModal()" title="Send this table onto the Workspace canvas as a live, editable table"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg><span>Push to Workflow</span></button>
+              <button class="da-tool-btn da-push-btn" id="daPushToDiagramsBtn" onclick="daPushToDiagrams(this)" title="Turn this table's data into a chart in Diagrams &amp; Graphs"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Push to Diagrams</span></button>
+            </div>
+            <div class="da-tool-divider"></div>
+            <div class="da-toolbar-group">
+              <button class="da-tool-btn da-icon-btn" id="daClearAllBtn" onclick="daClearAll()" data-tip="Clear All" aria-label="Clear all loaded data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
             </div>
             <button class="btn-primary da-toolbar-cta" style="padding:6px 12px;font-size:11.5px" onclick="daOpenExportModal()"><span class="btn-icon-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</span></button>
           </div>
@@ -44550,6 +44665,204 @@ function daRecalcColumnOps(ds) {
 }
 
 
+
+// ─── FILTER ───────────────────────────────────────────────────────────
+// Per-person view state (not saved into the table, not shared with
+// collaborators, not part of undo): dsId -> { match:'all'|'any', rules:[{col,op,val}] }.
+// Filtering only hides rows in the grid; nothing is deleted, and every
+// visible row keeps its real row index so editing still hits the right cell.
+const daFilterState = {};
+const DA_FILTER_OPS = [
+  ['contains','contains'], ['notcontains','does not contain'], ['equals','equals'], ['notequals','does not equal'],
+  ['starts','starts with'], ['ends','ends with'],
+  ['gt','is greater than'], ['gte','is greater or equal'], ['lt','is less than'], ['lte','is less or equal'],
+  ['empty','is empty'], ['notempty','is not empty']
+];
+let daFilterBuiltSig = '';
+
+function daFilterGetState(ds) {
+  if (!daFilterState[ds.id]) daFilterState[ds.id] = { match: 'all', rules: [] };
+  return daFilterState[ds.id];
+}
+function daFilterRuleIsActive(r, ds) {
+  if (r.col !== '*' && (!Number.isInteger(r.col) || r.col < 0 || r.col >= ds.headers.length)) return false;
+  if (r.op === 'empty' || r.op === 'notempty') return true;
+  return String(r.val ?? '') !== '';
+}
+function daFilterActiveRules(ds) {
+  const st = daFilterState[ds.id];
+  return st ? st.rules.filter(r => daFilterRuleIsActive(r, ds)) : [];
+}
+function daFilterCellText(ds, ri, ci) {
+  const v = String((ds.rows[ri] || [])[ci] ?? '');
+  if (v.trim().startsWith('=')) {
+    try { return String(daFormulaDisplayValue(ds, ri, ci).display ?? ''); } catch (e) { return v; }
+  }
+  return v;
+}
+function daFilterNum(x) {
+  const t = String(x).replace(/[,\s₹$€£%]/g, '');
+  return t !== '' && !isNaN(Number(t)) ? Number(t) : NaN;
+}
+function daFilterTest(cell, op, val) {
+  const c = String(cell).trim().toLowerCase();
+  const v = String(val).trim().toLowerCase();
+  switch (op) {
+    case 'contains': return c.includes(v);
+    case 'notcontains': return !c.includes(v);
+    case 'starts': return c.startsWith(v);
+    case 'ends': return c.endsWith(v);
+    case 'empty': return c === '';
+    case 'notempty': return c !== '';
+    case 'equals': case 'notequals': {
+      const a = daFilterNum(c), b = daFilterNum(v);
+      const eq = (!isNaN(a) && !isNaN(b)) ? a === b : c === v;
+      return op === 'equals' ? eq : !eq;
+    }
+    case 'gt': case 'gte': case 'lt': case 'lte': {
+      const a = daFilterNum(c), b = daFilterNum(v);
+      let cmp;
+      if (!isNaN(a) && !isNaN(b)) cmp = a - b;
+      else { if (c === '') return false; cmp = c.localeCompare(v, undefined, { numeric: true }); }
+      return op === 'gt' ? cmp > 0 : op === 'gte' ? cmp >= 0 : op === 'lt' ? cmp < 0 : cmp <= 0;
+    }
+  }
+  return true;
+}
+function daFilterRuleMatches(ds, ri, r) {
+  if (r.col === '*') {
+    const n = ds.headers.length;
+    const negative = (r.op === 'notcontains' || r.op === 'notequals');
+    if (negative) { for (let ci = 0; ci < n; ci++) if (!daFilterTest(daFilterCellText(ds, ri, ci), r.op, r.val)) return false; return true; }
+    for (let ci = 0; ci < n; ci++) if (daFilterTest(daFilterCellText(ds, ri, ci), r.op, r.val)) return true;
+    return false;
+  }
+  return daFilterTest(daFilterCellText(ds, ri, r.col), r.op, r.val);
+}
+function daFilterRowPasses(ds, ri, rules, matchAll) {
+  return matchAll ? rules.every(r => daFilterRuleMatches(ds, ri, r))
+                  : rules.some(r => daFilterRuleMatches(ds, ri, r));
+}
+
+function daFilterBuildPopover() {
+  const pop = document.getElementById('daFilterPop');
+  const ds = daGetActive();
+  if (!pop) return;
+  if (!ds) { pop.innerHTML = '<div class="da-filter-empty">Load a table first to filter it.</div>'; return; }
+  const st = daFilterGetState(ds);
+  daFilterBuiltSig = ds.id + '|' + ds.headers.join('\u0001');
+  const colOpts = (sel) => `<option value="*"${sel === '*' ? ' selected' : ''}>Any column</option>` +
+    ds.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${daEsc(h || ('Column ' + (i + 1)))}</option>`).join('');
+  const rulesHtml = st.rules.length ? st.rules.map((r, i) => {
+    const needsVal = !(r.op === 'empty' || r.op === 'notempty');
+    return `<div class="da-filter-rule">
+      <select aria-label="Column" onchange="daFilterSet(${i},'col',this.value)">${colOpts(r.col)}</select>
+      <select aria-label="Condition" onchange="daFilterSet(${i},'op',this.value,true)">${DA_FILTER_OPS.map(o => `<option value="${o[0]}"${r.op === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('')}</select>
+      ${needsVal ? `<input type="text" aria-label="Value" placeholder="Value…" value="${daEsc(r.val)}" oninput="daFilterSet(${i},'val',this.value)" onkeydown="if(event.key==='Enter'){daCloseFilterPop();}">` : '<span class="da-filter-noval">no value needed</span>'}
+      <button type="button" class="da-filter-x" title="Remove this condition" aria-label="Remove condition" onclick="daFilterRemoveRule(${i})">×</button>
+    </div>`;
+  }).join('') : '<div class="da-filter-empty">No conditions yet. Add one to start filtering.</div>';
+  pop.innerHTML = `
+    <div class="da-filter-head">
+      <span class="da-filter-title">Filter rows</span>
+      <span class="da-filter-match">Match
+        <select aria-label="Match all or any" onchange="daFilterSetMatch(this.value)">
+          <option value="all"${st.match === 'all' ? ' selected' : ''}>all</option>
+          <option value="any"${st.match === 'any' ? ' selected' : ''}>any</option>
+        </select> conditions</span>
+    </div>
+    <div class="da-filter-rules">${rulesHtml}</div>
+    <div class="da-filter-foot">
+      <button type="button" class="da-filter-add" onclick="daFilterAddRule()">+ Add condition</button>
+      <span class="da-filter-status" id="daFilterStatus"></span>
+      <button type="button" class="da-filter-clear" onclick="daFilterClear()">Clear filter</button>
+    </div>`;
+  daFilterUpdateStatus(ds);
+}
+function daFilterUpdateStatus(ds) {
+  const el = document.getElementById('daFilterStatus');
+  if (!el || !ds) return;
+  const n = daFilterActiveRules(ds).length;
+  if (!n) { el.textContent = ''; return; }
+  const shown = ds.rows.reduce((acc, _r, i) => acc + (daFilterRowPasses(ds, i, daFilterActiveRules(ds), daFilterGetState(ds).match !== 'any') ? 1 : 0), 0);
+  el.textContent = `${shown} of ${ds.rows.length} rows`;
+}
+function daToggleFilterPop(e) {
+  if (e) e.stopPropagation();
+  const wrap = document.getElementById('daFilterWrap');
+  const pop = document.getElementById('daFilterPop');
+  if (!wrap || !pop) return;
+  if (wrap.classList.contains('open')) { daCloseFilterPop(); return; }
+  const ds = daGetActive();
+  if (ds) {
+    const st = daFilterGetState(ds);
+    if (!st.rules.length) st.rules.push({ col: '*', op: 'contains', val: '' });
+  }
+  daFilterBuildPopover();
+  wrap.classList.add('open');
+  pop.style.left = '0px';
+  const r = pop.getBoundingClientRect();
+  if (r.right > window.innerWidth - 12) pop.style.left = -(r.right - window.innerWidth + 12) + 'px';
+  const firstEmpty = pop.querySelector('.da-filter-rule input');
+  if (firstEmpty) setTimeout(() => firstEmpty.focus(), 0);
+}
+function daCloseFilterPop() {
+  const wrap = document.getElementById('daFilterWrap');
+  if (wrap) wrap.classList.remove('open');
+}
+function daFilterSet(i, key, value, rebuild) {
+  const ds = daGetActive(); if (!ds) return;
+  const r = daFilterGetState(ds).rules[i]; if (!r) return;
+  if (key === 'col') r.col = value === '*' ? '*' : parseInt(value, 10);
+  else r[key] = value;
+  if (rebuild) daFilterBuildPopover();
+  daRenderTable();
+}
+function daFilterSetMatch(v) {
+  const ds = daGetActive(); if (!ds) return;
+  daFilterGetState(ds).match = v === 'any' ? 'any' : 'all';
+  daRenderTable();
+}
+function daFilterAddRule() {
+  const ds = daGetActive(); if (!ds) return;
+  daFilterGetState(ds).rules.push({ col: '*', op: 'contains', val: '' });
+  daFilterBuildPopover();
+  const inputs = document.querySelectorAll('#daFilterPop .da-filter-rule input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+function daFilterRemoveRule(i) {
+  const ds = daGetActive(); if (!ds) return;
+  daFilterGetState(ds).rules.splice(i, 1);
+  daFilterBuildPopover();
+  daRenderTable();
+}
+function daFilterClear() {
+  const ds = daGetActive(); if (!ds) return;
+  daFilterGetState(ds).rules = [];
+  daFilterBuildPopover();
+  daRenderTable();
+}
+// Keeps the toolbar button (blue + count badge) and, if open, the panel in step with the active table.
+function daFilterSyncUI(ds) {
+  const btn = document.getElementById('daFilterBtn');
+  const badge = document.getElementById('daFilterBadge');
+  const n = ds ? daFilterActiveRules(ds).length : 0;
+  if (btn) btn.classList.toggle('active', n > 0);
+  if (badge) { badge.style.display = n ? '' : 'none'; badge.textContent = n ? String(n) : ''; }
+  const wrap = document.getElementById('daFilterWrap');
+  if (wrap && wrap.classList.contains('open')) {
+    const sig = ds ? ds.id + '|' + ds.headers.join('\u0001') : '';
+    if (sig !== daFilterBuiltSig) daFilterBuildPopover(); else daFilterUpdateStatus(ds);
+  }
+}
+document.addEventListener('mousedown', function (e) {
+  const wrap = document.getElementById('daFilterWrap');
+  if (wrap && wrap.classList.contains('open') && !wrap.contains(e.target)) daCloseFilterPop();
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') daCloseFilterPop();
+});
+
 function daRenderTable() {
   daPersist();
   const gridWrap = document.getElementById('daGridWrap');
@@ -44565,7 +44878,7 @@ function daRenderTable() {
     document.activeElement.blur();
   }
   const ds = daGetActive();
-  if (!ds) { gridWrap.innerHTML = ''; if (meta) meta.textContent = ''; daRenderHighlightSummary(null); return; }
+  if (!ds) { gridWrap.innerHTML = ''; if (meta) meta.textContent = ''; daRenderHighlightSummary(null); daFilterSyncUI(null); return; }
   daEnsureHighlightStore(ds);
   // A selection belongs to one dataset's row/column indices — switching
   // tabs invalidates it, so drop it silently rather than let stale indices
@@ -44577,13 +44890,19 @@ function daRenderTable() {
   }
 
   const query = (document.getElementById('daSearchInput')?.value || '').trim().toLowerCase();
+  ds._calcCache = new Map();   // formula results are read by the filter below, so the cache must exist first
+  const filterRules = daFilterActiveRules(ds);
+  const filterActive = filterRules.length > 0;
+  const filterMatchAll = daFilterGetState(ds).match !== 'any';
   const visibleRowIdx = [];
   ds.rows.forEach((r, i) => {
-    if (!query || r.some(c => String(c ?? '').toLowerCase().includes(query))) visibleRowIdx.push(i);
+    if (query && !r.some(c => String(c ?? '').toLowerCase().includes(query))) return;
+    if (filterActive && !daFilterRowPasses(ds, i, filterRules, filterMatchAll)) return;
+    visibleRowIdx.push(i);
   });
 
   if (meta) {
-    meta.textContent = `${ds.headers.length} columns · ${ds.rows.length} rows` + (query ? ` · ${visibleRowIdx.length} matching` : '');
+    meta.textContent = `${ds.headers.length} columns · ${ds.rows.length} rows` + ((query || filterActive) ? ` · ${visibleRowIdx.length} matching` : '');
   }
 
   const colTypes = ds.headers.map((_, ci) => daIsNumericCol(ds, ci) ? 'NUM' : 'TXT');
@@ -44656,7 +44975,7 @@ function daRenderTable() {
   html += `</tr></thead><tbody>`;
 
   if (!visibleRowIdx.length) {
-    html += `<tr><td class="da-rownum">–</td><td colspan="${ds.headers.length}" style="padding:16px;color:var(--text3);font-size:12px;text-align:center">${query ? 'No rows match your search' : 'No rows yet, use "+ Row" to add one'}</td></tr>`;
+    html += `<tr><td class="da-rownum">–</td><td colspan="${ds.headers.length}" style="padding:16px;color:var(--text3);font-size:12px;text-align:center">${(query || filterActive) ? (query && filterActive ? 'No rows match your search and filter' : filterActive ? 'No rows match your filter' : 'No rows match your search') : 'No rows yet, use "+ Row" to add one'}</td></tr>`;
   } else {
     visibleRowIdx.forEach(ri => {
       const row = ds.rows[ri];
@@ -44727,6 +45046,7 @@ function daRenderTable() {
   gridWrap.innerHTML = html;
   daFillPlaceHandle();
   daRenderHighlightSummary(ds);
+  daFilterSyncUI(ds);
 }
 
 function daHighlight(val, query) {
