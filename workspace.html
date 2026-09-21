@@ -12308,6 +12308,12 @@ button.dg-show-chip.active { background:var(--blue); }
 // "push to canvas" mechanism Data Tables and Diagrams & Graphs use, so the
 // result is a completely ordinary, draggable/editable page — not a special
 // case the rest of the PDF Editor has to know about.
+// A pricing table taller than this would push the sign-off block too close
+// to the bottom of the page -- past this many line items, the breakdown
+// belongs in Data Arrangement, pushed onto a second page via
+// pipeline_da_to_pdf, rather than growing this one further.
+const BP_MAX_PRICING_ROWS = 8;
+
 const BP_CANVAS_SKINS = {
   modern: {
     headerStyle: 'band', headerBg: '#2563eb', headerText: '#ffffff',
@@ -12483,8 +12489,21 @@ function bpLoadImage(src) {
   });
 }
 
-async function bpRenderTemplateBg(key) {
-  const skin = BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern;
+async function bpRenderTemplateBg(key, colorOverride, itemCount) {
+  // colorOverride lets a caller (Laya, via bp_insert_template's `colors`
+  // param) restyle a base skin's accent colors -- e.g. a custom brand
+  // gradient -- without having to define a whole new named skin. Structural
+  // fields (headerStyle, fontFamily, italicTitle, headerHeight...) always
+  // come from the base skin; only the color fields in colorOverride win.
+  const skin = Object.assign({}, BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern, colorOverride || {});
+  // The pricing table used to be a fixed 3-line-item shape. effectiveRows
+  // is how many BODY rows (not counting header/total) it actually has now
+  // -- BP_MAX_PRICING_ROWS caps how far this page can grow before a longer
+  // breakdown belongs in Data Arrangement instead (see layaInsertProposalFromDetails).
+  // extraRowHeight is how far everything below the table (TERMS & NOTES,
+  // the sign-off block, signature line) needs to shift down to make room.
+  const effectiveRows = Math.max(3, Math.min(BP_MAX_PRICING_ROWS, itemCount || 3));
+  const extraRowHeight = (effectiveRows - 3) * 28;
   const W = 794, H = 1123, scale = 2;
   const c = document.createElement('canvas');
   c.width = W * scale; c.height = H * scale;
@@ -12554,25 +12573,30 @@ async function bpRenderTemplateBg(key) {
     ctx.fillText(lab, 60 + i * 224, 140);
   });
 
-  // Section headings + rule lines
+  // Section headings + rule lines. TERMS & NOTES is the only one below the
+  // pricing table, so it's the only one that needs to move when the table
+  // grows past its original 3 rows -- OVERVIEW/SCOPE OF WORK/INVESTMENT sit
+  // above the table and stay put.
   ctx.font = "800 12px 'Inter', sans-serif";
-  [['OVERVIEW', 280], ['SCOPE OF WORK', 384], ['INVESTMENT', 494], ['TERMS & NOTES', 680]].forEach(([labelText, y]) => {
+  [['OVERVIEW', 280], ['SCOPE OF WORK', 384], ['INVESTMENT', 494], ['TERMS & NOTES', 680 + extraRowHeight]].forEach(([labelText, y]) => {
     ctx.fillStyle = skin.headingColor;
     ctx.fillText(labelText, 60, y);
     ctx.strokeStyle = skin.lineColor; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(60, y + 9); ctx.lineTo(W - 60, y + 9); ctx.stroke();
   });
 
-  // Sign-off: "Prepared by" label + signature line
+  // Sign-off: "Prepared by" label + signature line -- shifted down by the
+  // same extraRowHeight as TERMS & NOTES above, so it always lands just
+  // below it regardless of how many pricing rows pushed everything down.
   ctx.font = "700 9px 'Inter', sans-serif";
   ctx.fillStyle = skin.mutedColor;
   ctx.textAlign = 'left';
-  ctx.fillText('PREPARED BY', 60, 800);
+  ctx.fillText('PREPARED BY', 60, 800 + extraRowHeight);
   ctx.strokeStyle = skin.bodyBg === '#0b1220' ? '#374151' : '#9ca3af';
   ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(554, 850); ctx.lineTo(734, 850); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(554, 850 + extraRowHeight); ctx.lineTo(734, 850 + extraRowHeight); ctx.stroke();
   ctx.textAlign = 'center';
-  ctx.fillText('SIGNATURE', 644, 866);
+  ctx.fillText('SIGNATURE', 644, 866 + extraRowHeight);
 
   const out = document.createElement('canvas');
   out.width = W; out.height = H;
@@ -12584,11 +12608,12 @@ async function bpRenderTemplateBg(key) {
 // numeric columns, bold total row with the amount picked out in the skin's
 // accent color — the same "auto format" look daBuildCellStyles gives Data
 // Arrangement tables pushed onto this same canvas.
-function bpBuildProposalCellStyles(skin) {
+function bpBuildProposalCellStyles(skin, totalRows) {
+  totalRows = totalRows || 5;
   const headFill = skin.bodyBg === '#0b1220' ? '#111827' : '#f8fafc';
   const rows = [];
-  for (let r = 0; r < 5; r++) {
-    const isHead = r === 0, isTotal = r === 4, row = [];
+  for (let r = 0; r < totalRows; r++) {
+    const isHead = r === 0, isTotal = r === totalRows - 1, row = [];
     for (let c = 0; c < 4; c++) {
       row.push({
         align: c > 0 ? 'right' : 'left',
@@ -12603,13 +12628,27 @@ function bpBuildProposalCellStyles(skin) {
   return rows;
 }
 
-async function bpInsertTemplateToCanvas(key) {
-  const skin = BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern;
+async function bpInsertTemplateToCanvas(key, contentOverrides) {
+  contentOverrides = contentOverrides || {};
+  const skin = Object.assign({}, BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern, contentOverrides.colors || {});
   const label = BP_TEMPLATE_LABELS[key] || 'Business Proposal';
   bpCloseTemplateModal();
 
+  const priceRowsIn = Array.isArray(contentOverrides.pricing) ? contentOverrides.pricing : [];
+  const effectiveRows = Math.max(3, Math.min(BP_MAX_PRICING_ROWS, priceRowsIn.length || 3));
+  const extraRowHeight = (effectiveRows - 3) * 28;
+  if (priceRowsIn.length > BP_MAX_PRICING_ROWS && typeof toast === 'function') {
+    toast('Showing the first ' + BP_MAX_PRICING_ROWS + ' line items on the page — for a longer breakdown, build the full table in Data Arrangement and push it in as a second page.', 'info');
+  }
+
   const isNewDoc = pdfed.pages.length === 0;
-  const bg = await bpRenderTemplateBg(key);
+  const bg = await bpRenderTemplateBg(key, contentOverrides.colors, priceRowsIn.length);
+  // contentOverrides.brand lets Laya set the Brand Kit as part of the same
+  // action that inserts the proposal (see bp_insert_template below) so a
+  // company name/tagline given in chat doesn't need a separate bk_set_brand_kit
+  // call first -- it still just calls bkSave, so it sticks for future proposals
+  // exactly like saving it from the panel would.
+  if (contentOverrides.brand) bkSave(contentOverrides.brand);
   const kit = bkLoad();
   const pg = {
     type: 'blank', dataUrl: bg, modified: true, edits: {}, textBlocks: [],
@@ -12631,30 +12670,46 @@ async function bpInsertTemplateToCanvas(key) {
     }, opts || {}));
   };
 
+  const c = contentOverrides;
+  const deliverablesText = (Array.isArray(c.deliverables) && c.deliverables.length)
+    ? c.deliverables.map(function(d){ return '•  ' + d; }).join('\n')
+    : '•  Deliverable one\n•  Deliverable two\n•  Deliverable three';
+
   addText((kit && kit.company) || 'Your Company Name', 120, 26, 17, { color: headerTextColor, bold: true, w: 420 });
   addText((kit && kit.tagline) || 'Tagline goes here', 120, 54, 11, { color: headerMutedColor, w: 420 });
-  addText('Client Name', 60, 156, 13, { bold: true, w: 200 });
-  addText('DD Month YYYY', 284, 156, 13, { w: 200 });
-  addText('DD Month YYYY', 508, 156, 13, { w: 200 });
-  addText('Project Title Goes Here', 60, 236, 24, { bold: true, italic: skin.italicTitle, w: 674 });
-  addText("Describe the client's problem and how you plan to solve it, in two or three sentences.", 60, 300, 12.5, { w: 674 });
-  addText('•  Deliverable one\n•  Deliverable two\n•  Deliverable three', 60, 404, 12.5, { w: 674 });
-  addText('50% deposit to begin, balance due on delivery. Prices valid for 30 days from the date above.', 60, 700, 12, { w: 674 });
-  addText('Your Name', 60, 814, 13, { bold: true, w: 300 });
+  addText(c.clientName || 'Client Name', 60, 156, 13, { bold: true, w: 200 });
+  addText(c.date || 'DD Month YYYY', 284, 156, 13, { w: 200 });
+  addText(c.validUntil || 'DD Month YYYY', 508, 156, 13, { w: 200 });
+  addText(c.projectTitle || 'Project Title Goes Here', 60, 236, 24, { bold: true, italic: skin.italicTitle, w: 674 });
+  addText(c.summary || "Describe the client's problem and how you plan to solve it, in two or three sentences.", 60, 300, 12.5, { w: 674 });
+  addText(deliverablesText, 60, 404, 12.5, { w: 674 });
+  addText(c.paymentTerms || '50% deposit to begin, balance due on delivery. Prices valid for 30 days from the date above.', 60, 700 + extraRowHeight, 12, { w: 674 });
+  addText(c.signerName || 'Your Name', 60, 814 + extraRowHeight, 13, { bold: true, w: 300 });
+
+  // Pricing rows: real line items from contentOverrides.pricing, up to
+  // BP_MAX_PRICING_ROWS -- beyond that cap, only the first BP_MAX_PRICING_ROWS
+  // are shown here (see the toast above) and a longer breakdown belongs in
+  // Data Arrangement, pushed onto a second page via pipeline_da_to_pdf.
+  // Total is computed from the given amounts unless c.total overrides it.
+  const priceRows = priceRowsIn.slice(0, effectiveRows);
+  const bodyRows = [];
+  for (let i = 0; i < effectiveRows; i++) {
+    const row = priceRows[i];
+    bodyRows.push(row
+      ? [row.description || 'Item description', String(row.qty != null ? row.qty : '1'), String(row.rate != null ? row.rate : '0'), String(row.amount != null ? row.amount : '0.00')]
+      : ['Item description', '1', '0', '0.00']);
+  }
+  const computedTotal = priceRows.length
+    ? priceRows.reduce(function(sum, row){ return sum + (parseFloat(row.amount) || 0); }, 0).toFixed(2)
+    : '0.00';
 
   pg.placedTables.push({
     id: 'tbl_' + (++pdfedTableSeq),
-    x: 60, y: 514, rows: 5, cols: 4,
-    colWidths: [374, 80, 110, 110], rowHeights: [30, 28, 28, 28, 32],
+    x: 60, y: 514, rows: effectiveRows + 2, cols: 4,
+    colWidths: [374, 80, 110, 110], rowHeights: [30].concat(Array(effectiveRows).fill(28)).concat([32]),
     fontSize: 12, headerRow: true,
-    cells: [
-      ['Description', 'Qty', 'Rate', 'Amount'],
-      ['Item description', '1', '0', '0.00'],
-      ['Item description', '1', '0', '0.00'],
-      ['Item description', '1', '0', '0.00'],
-      ['Total', '', '', '0.00']
-    ],
-    cellStyles: bpBuildProposalCellStyles(skin),
+    cells: [['Description', 'Qty', 'Rate', 'Amount']].concat(bodyRows).concat([['Total', '', '', c.total != null ? String(c.total) : computedTotal]]),
+    cellStyles: bpBuildProposalCellStyles(skin, effectiveRows + 2),
     locked: false, zIndex: pdfedNextZ(pg)
   });
 
@@ -12689,6 +12744,146 @@ async function bpInsertTemplateToCanvas(key) {
 
   toast(label + ' proposal added to your canvas — every field is editable', 'success');
   if (typeof swTrack === 'function') { try { swTrack('module_open', { module: 'proposals_canvas', template: key }); } catch (e) {} }
+}
+
+// Called by the pipeline_details_to_proposal Laya action. This is the one
+// place that guards against inserting a proposal with nothing real on it --
+// if NONE of the core content fields were given, that means the person
+// hasn't actually described the proposal yet, and Laya should be asking
+// for client/project/deliverables/pricing in chat rather than calling this
+// with guessed placeholders. Everything else (dates, terms, signer, brand
+// colors) is fine to default quietly, same as bpInsertTemplateToCanvas
+// already did for the manual/placeholder path.
+async function layaInsertProposalFromDetails(p) {
+  p = p || {};
+  const hasCoreContent = p.clientName || p.projectTitle ||
+    (Array.isArray(p.deliverables) && p.deliverables.length) ||
+    (Array.isArray(p.pricing) && p.pricing.length);
+  if (!hasCoreContent) {
+    throw new Error('no proposal content given yet -- ask the person for the client, project, deliverables and pricing before calling this action');
+  }
+  const key = BP_TEMPLATE_LABELS[p.skin] ? p.skin : 'modern';
+  // Brand: bpInsertTemplateToCanvas saves whatever it is given as the WHOLE
+  // Brand Kit, so a name/tagline from chat used to wipe the saved logo. Merge
+  // with the existing kit instead, and let Laya pass the logo the person just
+  // attached in chat (use_attached_logo) without ever handling image data.
+  const attachedLogo = (p.use_attached_logo === true && typeof pdfedRefineState !== 'undefined' && pdfedRefineState.logoDataUrl)
+    ? pdfedRefineState.logoDataUrl : null;
+  let mergedBrand = null;
+  if (p.brand || attachedLogo) {
+    const kitNow = bkLoad() || {};
+    const b = p.brand || {};
+    mergedBrand = {
+      logo: attachedLogo || kitNow.logo || null,
+      company: b.company || kitNow.company || '',
+      tagline: b.tagline || kitNow.tagline || ''
+    };
+  }
+  await bpInsertTemplateToCanvas(key, {
+    brand: mergedBrand,
+    colors: p.colors || null,
+    clientName: p.clientName,
+    date: p.date,
+    validUntil: p.validUntil,
+    projectTitle: p.projectTitle,
+    summary: p.summary,
+    deliverables: p.deliverables,
+    pricing: p.pricing,
+    total: p.total,
+    paymentTerms: p.paymentTerms,
+    signerName: p.signerName
+  });
+}
+
+// Renders a slim header/rule-line treatment that echoes the main proposal
+// page's own header (band/gradient fill, or a border/double/darkline rule)
+// but scaled down for a continuation page, so a second page never looks
+// like a random blank sheet stapled onto the proposal.
+async function bpRenderContinuationBg(key, colorOverride, title) {
+  const skin = Object.assign({}, BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern, colorOverride || {});
+  const W = 794, H = 1123, scale = 2;
+  const c = document.createElement('canvas');
+  c.width = W * scale; c.height = H * scale;
+  const ctx = c.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = skin.bodyBg;
+  ctx.fillRect(0, 0, W, H);
+
+  const thinH = 14;
+  if (skin.headerStyle === 'band') {
+    ctx.fillStyle = skin.headerBg; ctx.fillRect(0, 0, W, thinH);
+  } else if (skin.headerStyle === 'gradient') {
+    const g = ctx.createLinearGradient(0, 0, W, thinH);
+    g.addColorStop(0, skin.gradFrom); g.addColorStop(1, skin.gradTo);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, thinH);
+  } else {
+    ctx.strokeStyle = skin.headerBorderColor || skin.lineColor; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, thinH); ctx.lineTo(W, thinH); ctx.stroke();
+  }
+
+  ctx.font = "800 10px 'Inter', sans-serif";
+  ctx.fillStyle = skin.mutedColor;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('PROPOSAL \u2014 CONTINUED', W - 60, 44);
+
+  ctx.font = "800 20px 'Inter', sans-serif";
+  ctx.fillStyle = skin.headingColor;
+  ctx.textAlign = 'left';
+  ctx.fillText(title || 'Additional Notes', 60, 90);
+  ctx.strokeStyle = skin.lineColor; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, 104); ctx.lineTo(W - 60, 104); ctx.stroke();
+
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  out.getContext('2d').drawImage(c, 0, 0, W, H);
+  return out.toDataURL('image/png');
+}
+
+// Adds a second (or Nth) page to the proposal -- Terms & Conditions, an
+// extended scope writeup, anything text-based that doesn't fit on the main
+// page -- styled to match the same skin. A timeline/Gantt chart still goes
+// through the existing dg_* + pipeline_diagram_to_pdf actions, which already
+// insert their own new page; this is specifically for TEXT continuation
+// pages. Inserted right after the currently open page (matching
+// pdfedLayaInsertPage's own default), or at the end if none is open.
+async function bpInsertContinuationPage(key, opts) {
+  opts = opts || {};
+  const skin = Object.assign({}, BP_CANVAS_SKINS[key] || BP_CANVAS_SKINS.modern, opts.colors || {});
+  const title = opts.title || 'Additional Notes';
+  const bg = await bpRenderContinuationBg(key, opts.colors, title);
+  const pg = {
+    type: 'blank', dataUrl: bg, modified: true, edits: {}, textBlocks: [],
+    label: title, bgColor: skin.bodyBg, pageMM: [210, 297],
+    placedTexts: [], placedTables: []
+  };
+  const insertAt = (pdfed.active >= 0 && pdfed.active < pdfed.pages.length) ? pdfed.active + 1 : pdfed.pages.length;
+  pdfed.pages.splice(insertAt, 0, pg);
+
+  let y = 140;
+  const blocks = (Array.isArray(opts.blocks) && opts.blocks.length) ? opts.blocks : ['Add your terms and conditions here.'];
+  blocks.forEach(function(text){
+    pg.placedTexts.push({
+      id: 'ptxt_' + (++pdfedPlacedTextSeq),
+      text: text, x: 60, y: y, fontSize: 12.5,
+      fontFamily: skin.fontFamily, color: skin.textColor,
+      bold: false, italic: false, underline: false, align: 'left',
+      locked: false, zIndex: pdfedNextZ(pg), w: 674
+    });
+    // Rough line-count estimate so stacked blocks don't overlap -- same
+    // ballpark a wrapped-text auto-flow would use; good enough since every
+    // block stays independently editable/movable afterward anyway.
+    const approxLines = Math.max(1, Math.ceil(text.length / 90));
+    y += approxLines * 18 + 24;
+  });
+
+  const totalEl = document.getElementById('prrTotalPages');
+  if (totalEl) totalEl.textContent = pdfed.pages.length;
+  state.stats.pages++;
+  updateStats();
+  await pdfedBuildStrip();
+  await pdfedGoto(insertAt);
+  setTimeout(pdfedZoomFit, 60);
+  toast(title + ' page added to your proposal', 'success');
 }
 </script>
 
@@ -74670,6 +74865,69 @@ if (document.readyState === 'loading') {
         return 'Apply the ' + name + ' effect' + strengthNote + targetNote + '.';
       }
     },
+    // Inserts the Business Proposal template (see bpInsertTemplateToCanvas
+    // above) with a chosen skin but no content filled in -- the same
+    // placeholder version clicking a tile in the gallery modal produces.
+    // Laya should reach for pipeline_details_to_proposal instead the moment
+    // she actually has real client/project/pricing details to put on it;
+    // this bare action is only for "just drop a proposal template on the
+    // canvas, I'll fill it in myself." key is one of BP_TEMPLATE_LABELS'
+    // keys (modern, navy, gradient, elegant, dark); omit for 'modern'.
+    bp_insert_template: {
+      risk: 'safe',
+      run: async function(p){ await bpInsertTemplateToCanvas((p && p.key) || 'modern', {}); },
+      label: function(p){
+        const key = (p && p.key) || 'modern';
+        return 'Insert a blank ' + (BP_TEMPLATE_LABELS[key] || 'Business Proposal') + ' template onto the canvas.';
+      }
+    },
+    // Saves the Brand Kit (see bkSave above) -- company name, tagline, and/
+    // or logo (a data URL) -- so every proposal inserted from now on auto-
+    // applies it. Fields left out keep whatever was already saved, matching
+    // bkSaveFromPanel's own behaviour of only overwriting what was actually
+    // typed/uploaded.
+    bk_set_brand_kit: {
+      risk: 'safe',
+      run: function(p){
+        p = p || {};
+        const existing = bkLoad() || {};
+        // use_attached_logo: take the logo the person just attached in Laya's
+        // chat (kept in pdfedRefineState by the attach flow), so Laya never
+        // has to handle raw image data herself.
+        let attached;
+        if (p.use_attached_logo === true) {
+          attached = pdfedRefineState && pdfedRefineState.logoDataUrl;
+          if (!attached) throw new Error('no logo is attached. Use the paperclip in my chat to attach one first');
+        }
+        bkSave({
+          logo: attached ? attached : (p.logo !== undefined ? p.logo : existing.logo),
+          company: p.company !== undefined ? p.company : existing.company,
+          tagline: p.tagline !== undefined ? p.tagline : existing.tagline
+        });
+      },
+      label: function(p){
+        p = p || {};
+        const bits = [];
+        if (p.company) bits.push('company name to "' + p.company + '"');
+        if (p.tagline) bits.push('tagline to "' + p.tagline + '"');
+        if (p.logo || p.use_attached_logo) bits.push('logo');
+        return 'Save the Brand Kit' + (bits.length ? ' (' + bits.join(', ') + ')' : '') + ' so future proposals use it automatically.';
+      }
+    },
+    // Adds a second (or Nth) page to a proposal -- Terms & Conditions, an
+    // extended scope writeup, anything text-based -- styled to match the
+    // proposal's own skin (see bpInsertContinuationPage above). For a
+    // timeline/Gantt chart page, use the existing dg_* actions +
+    // pipeline_diagram_to_pdf instead; this one is for text content only.
+    // blocks is an array of paragraph strings, one per placed text box.
+    bp_insert_continuation_page: {
+      risk: 'safe',
+      run: async function(p){ await bpInsertContinuationPage((p && p.key) || 'modern', p || {}); },
+      label: function(p){
+        p = p || {};
+        return 'Add a "' + (p.title || 'Additional Notes') + '" page to the proposal, styled to match it.';
+      }
+    },
     pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } },
     // Opens the real Refine Report modal rather than Laya attempting to
     // restructure the document herself -- she can diagnose and suggest,
@@ -74708,6 +74966,20 @@ if (document.readyState === 'loading') {
     // destructive (not just "undo one step"), so this gets a confirm even
     // though the app's own undo history could theoretically claw it back.
     pdfed_revert_page:  { risk: 'confirm', run: function(){ pdfedRevertPage(); }, label: function(){ return 'Revert this page, discarding all edits made to it. This can be undone with Ctrl+Z right after, but not once you\'ve made further changes.'; } },
+    // Exports the whole open document as a PDF and triggers the browser
+    // download -- the same file pdfedExport() produces when the export
+    // modal's defaults (all pages, PDF format, no password) are used, just
+    // skipping the modal itself. p.password optionally encrypts the file;
+    // p.successLabel optionally customizes the toast (e.g. "Proposal
+    // exported and ready to send").
+    pdfed_export_pdf: {
+      risk: 'safe',
+      run: async function(p){ p = p || {}; await pdfedExport(null, p.password || null, null, p.successLabel); },
+      label: function(p){
+        p = p || {};
+        return 'Export the document as a PDF' + (p.password ? ' (password protected)' : '') + ' and download it.';
+      }
+    },
     pdfed_zoom:          { risk: 'safe',    run: function(p){ pdfedZoom(p.direction === 'out' ? -0.1 : 0.1); }, label: function(p){ return 'Zoom ' + (p.direction === 'out' ? 'out' : 'in') + '.'; } },
     pdfed_zoom_fit:      { risk: 'safe',    run: function(){ pdfedZoomFit(); }, label: function(){ return 'Fit the page to the window.'; } },
     // Deliberately excludes 'redact' from the allowed tool list -- Laya has
@@ -74785,6 +75057,29 @@ if (document.readyState === 'loading') {
     pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     pipeline_form_to_pdf:   { risk: 'safe', run: function(){ mfPushToWorkspace(); }, label: function(){ return 'Push this form into the PDF Editor.'; } },
+    // The real "make me a proposal" action -- takes content Laya has
+    // already gathered from the conversation (clientName, projectTitle,
+    // summary, deliverables[], pricing[] as {description,qty,rate,amount},
+    // total, paymentTerms, date, validUntil, signerName, skin, brand:
+    // {company,tagline,logo}, colors: {gradFrom,gradTo,headingColor,
+    // totalColor,...} for a custom brand palette on top of a base skin) and
+    // produces a filled, on-brand proposal on the canvas in one shot. NOT
+    // for placeholders -- if the person has only said "make me a proposal"
+    // with no client/project/deliverables/pricing yet, ask for those first
+    // (batched into one question, skipping anything already covered
+    // earlier in the conversation) rather than calling this with guesses;
+    // see layaInsertProposalFromDetails above, which throws if truly
+    // nothing was given. Soft fields (paymentTerms, date, validUntil,
+    // signerName) are fine to default quietly without asking.
+    pipeline_details_to_proposal: {
+      risk: 'safe',
+      run: async function(p){ await layaInsertProposalFromDetails(p || {}); },
+      label: function(p){
+        p = p || {};
+        const who = p.clientName ? (' for ' + p.clientName) : '';
+        return 'Put together a business proposal' + who + ' from the details discussed, and add it to the canvas.';
+      }
+    },
 
     // GUARD (added after Laya was observed calling this on the panel the
     // user was ALREADY in -- e.g. asked for "make a pie chart" while
