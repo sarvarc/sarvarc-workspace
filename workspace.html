@@ -12332,7 +12332,7 @@ const BP_CANVAS_SKINS = {
     headerHeight: 108, logoRadius: 10
   },
   gradient: {
-    headerStyle: 'gradient', gradFrom: '#7c3aed', gradTo: '#ec4899',
+    headerStyle: 'gradient', headerText: '#ffffff', gradFrom: '#7c3aed', gradTo: '#ec4899',
     bodyBg: '#ffffff', textColor: '#1f2937', mutedColor: '#9ca3af',
     headingColor: '#7c3aed', totalColor: '#ec4899', lineColor: '#f3e8ff',
     logoBg: 'rgba(255,255,255,0.28)', logoText: '#ffffff',
@@ -28259,7 +28259,28 @@ async function pdfedLayaInsertPage(p) {
   const textColor = /^#[0-9a-fA-F]{6}$/.test(p.text_color || '') ? p.text_color : (pdfedLayaLuma(bg) > 140 ? '#111111' : '#F5F5F5');
   const geo = pdfedLayaMakeGeo(p, W, H, pdfedLayaDefaultRegion(W, H), textColor);
 
+  // If content was actually given but none of it survived cleaning (wrong
+  // block shape, missing/blank `text`, not an array of objects, etc.), that
+  // is NOT the same thing as "omit content for a genuinely blank page" --
+  // silently falling through to mkPage() here is exactly what produced an
+  // empty page with no signal to Laya (or the person) that her content
+  // never landed. Throw instead, so she sees a real tool error and can fix
+  // the block shape / retry, the same protection layaInsertProposalFromDetails
+  // already has for the proposal path.
+  // An explicit empty array (content: []) now means "content was sent but
+  // nothing in it survived cleaning" (see the matching Worker-side fix to
+  // sanitizeToolParams' pdfed_insert_page case, which stopped deleting the
+  // key when cleanTextBlocks strips it to []). Only a genuinely ABSENT key
+  // means "no content was ever sent" -- that's the only case still treated
+  // as an intentional blank page.
+  const contentAttempted = p.content !== undefined && p.content !== null;
+  if (contentAttempted && !blocks.length) {
+    const shapeNote = !Array.isArray(p.content) ? (' -- content must be an array of blocks, not a ' + (typeof p.content)) : '';
+    throw new Error('content was given but none of it had a usable "text" field -- each block needs {type, text}; nothing was placed' + shapeNote);
+  }
+
   const newPages = [];
+  let blocksPlaced = 0;
   if (!blocks.length) {
     newPages.push(mkPage());
   } else {
@@ -28267,6 +28288,7 @@ async function pdfedLayaInsertPage(p) {
     do {
       const pgN = mkPage();
       const r = await pdfedLayaPlaceBlocks(pgN, blocks, geo, next);
+      blocksPlaced += r.added.length ? (r.nextIdx - next) : 0;
       next = r.nextIdx;
       newPages.push(pgN);
     } while (next < blocks.length && newPages.length < 1 + PDFED_LAYA_MAX_EXTRA_PAGES);
@@ -28318,7 +28340,7 @@ async function pdfedLayaInsertPage(p) {
     }
   });
 
-  return { at, mmW, mmH, pagesAdded: newPages.length };
+  return { at, mmW, mmH, pagesAdded: newPages.length, blocksReceived: blocks.length, blocksPlaced: blocksPlaced };
 }
 
 // Places editable text on a page that ALREADY exists (typically one the
