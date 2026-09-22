@@ -7993,6 +7993,92 @@ html[data-sarvarc-touch-mode="1"] .da-fill-handle::after {
   font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none; cursor:pointer;
 }
 
+/* ── Diagrams & Graphs ribbon — enterprise-grade compact pass ──────────────
+   Brings this ribbon in line with the Data Arrangement toolbar's finished
+   language: one slim row, icon-only action buttons with a tooltip instead
+   of a tiny caption baked under every icon, and quiet hairline dividers
+   instead of a boxed-and-captioned segment for every single button. This
+   sits after the base rules above and wins on source order, so nothing
+   upstream needs to be rewritten. */
+.dg-ribbon-bar { height:44px; padding:0 6px; gap:0; }
+.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek { height:44px; padding:0 6px; }
+
+.dg-rbn-group, .dg-rbn-dropdown-group {
+  flex-direction:row; align-items:center; padding:0 3px; gap:0; border-radius:7px; min-height:0;
+}
+.dg-rbn-group:hover, .dg-rbn-dropdown-group:hover { background:rgba(255,255,255,0.035); }
+[data-theme="light"] .dg-rbn-group:hover, [data-theme="light"] .dg-rbn-dropdown-group:hover { background:rgba(16,40,90,0.045); }
+
+/* The old caption ("CHART TYPE", "ANNOTATE", "STYLE"…) retires to
+   screen-reader-only text — a tooltip now carries the same information for
+   sighted users, so nothing is lost, but the row stops reading as a dozen
+   separately labelled boxes stacked two rows deep. */
+.dg-rbn-group-label {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+.dg-rbn-btn-row { height:30px; align-items:center; }
+
+/* Standalone action buttons (Add Text, Undo, Redo, Clear All) — icon-only
+   30px squares, the same module every other toolbar in the app uses. */
+.dg-rbn-group .dg-rbn-btn {
+  flex-direction:row; width:30px; height:30px; padding:0; margin:0;
+  border-radius:7px; font-size:0; line-height:0; letter-spacing:0; gap:0;
+}
+.dg-rbn-group .dg-rbn-btn svg { flex-shrink:0; opacity:0.82; }
+.dg-rbn-group .dg-rbn-btn:hover svg, .dg-rbn-group .dg-rbn-btn.active svg { opacity:1; }
+.dg-rbn-group-btns { gap:1px; }
+
+/* Dropdown triggers (Chart Type, Title, Axes, Templates, Format, Corners,
+   Colour, Upload, Data, History, Export) — icon + live value in one row,
+   no stacked caption underneath. */
+.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main {
+  flex-direction:row; height:30px; padding:0 9px; border-radius:7px 0 0 7px;
+  font-size:11.5px; font-weight:600; gap:6px; letter-spacing:0.1px; min-width:0;
+}
+.dg-rbn-dropdown-group .dg-rbn-caret { height:30px; width:16px; border-radius:0 7px 7px 0; }
+
+/* Push stays the one filled, labelled call-to-action in the row — every
+   other control is quiet by comparison, so the eye lands here last. */
+.dg-rbn-btn-push { flex-direction:row !important; width:auto !important; height:30px; padding:0 12px !important; gap:6px; font-size:11.5px !important; font-weight:700 !important; }
+
+/* Thinner, shorter, lower-contrast dividers — present enough to mark a
+   boundary, not heavy enough to chop the bar into fourteen little boxes. */
+.dg-rbn-sep { width:1px; height:20px; margin:0 4px; opacity:0.55; background:var(--border2); }
+
+/* Premium tooltip, matching the Data Arrangement toolbar's dark pill —
+   applies to any ribbon control carrying data-tip (the boot script below
+   promotes every title attribute in this bar to data-tip once, so there's
+   no native browser tooltip fighting this one). */
+.dg-ribbon-bar [data-tip], .dg-mode-tabs [data-tip] { position:relative; }
+.dg-ribbon-bar [data-tip]::after, .dg-mode-tabs [data-tip]::after {
+  content:attr(data-tip); position:absolute; top:calc(100% + 7px); left:50%;
+  transform:translate(-50%,-3px); white-space:pre; pointer-events:none;
+  padding:5px 9px; border-radius:6px; font-size:11px; font-weight:600; line-height:1.3;
+  letter-spacing:0.1px; color:#f4f7fb; background:#0f1520; max-width:220px;
+  text-align:center; white-space:normal;
+  border:1px solid rgba(255,255,255,0.08); box-shadow:0 6px 16px -4px rgba(0,0,0,0.45);
+  opacity:0; visibility:hidden; z-index:60;
+  transition:opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+}
+.dg-ribbon-bar [data-tip]:hover::after, .dg-ribbon-bar [data-tip]:focus-visible::after,
+.dg-mode-tabs [data-tip]:hover::after, .dg-mode-tabs [data-tip]:focus-visible::after {
+  opacity:1; visibility:visible; transform:translate(-50%,0);
+  transition:opacity 0.14s ease 0.28s, transform 0.14s ease 0.28s, visibility 0s linear 0.28s;
+}
+[data-theme="light"] .dg-ribbon-bar [data-tip]::after, [data-theme="light"] .dg-mode-tabs [data-tip]::after { background:#1b2740; color:#fff; border-color:rgba(255,255,255,0.06); }
+@media (hover:none) { .dg-ribbon-bar [data-tip]::after, .dg-mode-tabs [data-tip]::after { display:none; } }
+
+/* Mode switch (Data Charts / Flowchart / Map) + Tool Bar toggle — a proper
+   segmented control instead of three loose pill buttons, so it reads as
+   one control with a selected state rather than three separate buttons. */
+.dg-mode-tabs { align-items:center; padding:3px !important; background:var(--surface2); border:1px solid var(--border); border-radius:9px; gap:2px !important; }
+.dg-mode-tab { border-radius:6px !important; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+.dg-mode-tab:not(.active) { background:transparent !important; border-color:transparent !important; }
+.dg-mode-tab:not(.active):hover { background:var(--surface) !important; color:var(--text) !important; }
+.dg-ribbon-toggle-btn { height:28px; border-radius:7px !important; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+.dg-ribbon-toggle-btn:hover { background:var(--surface2) !important; color:var(--text) !important; }
+
 /* Fixed-position dropdown panels launched from the ribbon (Chart Type / Templates / Colour / Data) */
 .dg-dropdown-panel {
   display:none; position:fixed; background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
@@ -54135,6 +54221,37 @@ async function rdxInsertIntoWorkspace(mode) {
 })();
 </script>
 
+<script>
+// ─── DIAGRAMS & GRAPHS TOOLBAR — promote title → data-tip ───
+// The ribbon buttons already carry a descriptive title attribute; this just
+// hands that same text to the premium dark-pill tooltip (.dg-ribbon-bar
+// [data-tip]::after, defined alongside the ribbon CSS) and removes the
+// title attribute so the browser's own slow native tooltip doesn't also
+// fire and double up on top of it. Runs once at load, and again if a
+// button's title changes later (the mutation observer below), since a few
+// ribbon buttons update their title dynamically (e.g. the ribbon collapse
+// toggle switches between "Collapse Tool Bar" / "Show Tool Bar").
+(function () {
+  function promote(el) {
+    const t = el.getAttribute('title');
+    if (t) { el.setAttribute('data-tip', t); el.removeAttribute('title'); }
+  }
+  function promoteAll() {
+    const bar = document.getElementById('dgRibbonBar');
+    if (bar) bar.querySelectorAll('button[title]').forEach(promote);
+    const modeTabs = document.getElementById('dgModeTabs');
+    if (modeTabs) modeTabs.querySelectorAll('button[title]').forEach(promote);
+  }
+  promoteAll();
+  const bar = document.getElementById('dgRibbonBar');
+  const modeTabs = document.getElementById('dgModeTabs');
+  if (window.MutationObserver && (bar || modeTabs)) {
+    const obs = new MutationObserver(() => promoteAll());
+    if (bar) obs.observe(bar, { attributes: true, attributeFilter: ['title'], subtree: true });
+    if (modeTabs) obs.observe(modeTabs, { attributes: true, attributeFilter: ['title'], subtree: true });
+  }
+})();
+</script>
 
 <script>
 (function(){
@@ -63150,6 +63267,12 @@ function dgRenderHistoryList() {
 function dgLoadHistoryItem(id) {
   const h = dgChartHistory.find(x => x.id === id);
   if (!h) return;
+  // Restoring a History item swaps the editor to a chart that has nothing to
+  // do with whichever gallery card it last synced to — deselect that card so
+  // the next dgRender() doesn't overwrite the wrong gallery slot with this
+  // unrelated chart's data.
+  dgActiveMultiChartIdx = null;
+  document.querySelectorAll('.dg-multi-gallery-card').forEach(el => el.classList.remove('active'));
   dgResetFormatForNewChart(); // restoring a saved chart is loading "a different chart" too — don't let a % (or currency) choice made on the chart you were just looking at leak into this one
   dgState.type = h.type;
   dgState.rows = JSON.parse(JSON.stringify(h.rows));
@@ -63296,6 +63419,14 @@ function dgOnUploadParsed(aoa, fileName) {
 // what was actually uploaded and, when it looks richer than a single chart can represent, ask the
 // person how they'd like it handled instead of guessing on their behalf. ──
 let dgMultiCharts = [];
+// Which dgMultiCharts[] slot (if any) the main live-preview editor is currently
+// standing in for. Set when a gallery card is opened for editing; cleared when
+// the gallery is rebuilt from scratch or the editor switches to something that
+// ISN'T that gallery chart (a restored History item, a brand-new upload). Lets
+// dgRender() write every edit straight back into that slot — see
+// dgSyncActiveMultiChartFromState below — instead of the edit only living in
+// dgState and vanishing the moment the person clicks another card or Push.
+let dgActiveMultiChartIdx = null;
 let dgMultiSuggestChoice = null;
 
 function dgAnalyzeUpload() {
@@ -63514,11 +63645,15 @@ function dgBuildSmartGroupedCharts() {
         color: scheme[si % scheme.length],
         values: rowsUsed.map(r => { const v = dgParseNumericCell(r[colIdx]); return isNaN(v) ? 0 : v; })
       }));
+      // Columns in this group already share a unit (that's why they clustered) — a
+      // sign detected off the first one applies to the whole grouped chart's table.
+      const groupSign = dgDetectValueSign(rowsUsed.map(r => r[colIdxs[0]]), info.headers[colIdxs[0]]);
       specs.push({
         title: 'Grouped comparison \u2014 ' + series.map(s => s.name).join(' vs '),
         type: 'grouped',
         categories: categories.slice(),
-        series
+        series,
+        format: groupSign ? groupSign.format : null, formatSymbol: groupSign ? groupSign.symbol : null
       });
     } else {
       const colIdx = colIdxs[0];
@@ -63526,7 +63661,11 @@ function dgBuildSmartGroupedCharts() {
         const v = dgParseNumericCell(r[colIdx]);
         return { label: categories[i], value: isNaN(v) ? 0 : v, color: scheme[i % scheme.length] };
       });
-      specs.push({ title: String(info.headers[colIdx] || ('Column ' + (colIdx + 1))), type: 'bar', rows: built });
+      const sign = dgDetectValueSign(rowsUsed.map(r => r[colIdx]), info.headers[colIdx]);
+      specs.push({
+        title: String(info.headers[colIdx] || ('Column ' + (colIdx + 1))), type: 'bar', rows: built,
+        format: sign ? sign.format : null, formatSymbol: sign ? sign.symbol : null
+      });
     }
   });
 
@@ -63651,7 +63790,15 @@ function dgBuildMultiChartsPerColumn() {
       if (dgIsAggregateLabel(label)) { excludedTotalRows++; continue; }
       built.push({ label, value, color: scheme[built.length % scheme.length] });
     }
-    return { title: String(info.headers[valueIdx] || ('Column ' + (valueIdx + 1))), type, rows: built };
+    // Detect a currency/percent sign from this column's own raw cells (before
+    // dgParseNumericCell stripped it out) — the paired table pushed with this
+    // chart shows its figures with that sign instead of bare numbers, the same
+    // way the live editor's own Number Format would once someone opened it.
+    const sign = dgDetectValueSign(info.rows.map(r => r[valueIdx]), info.headers[valueIdx]);
+    return {
+      title: String(info.headers[valueIdx] || ('Column ' + (valueIdx + 1))), type, rows: built,
+      format: sign ? sign.format : null, formatSymbol: sign ? sign.symbol : null
+    };
   }).filter(c => c.rows.length);
   if (!dgMultiCharts.length) { toast('Could not find usable numeric data in those columns', 'error'); return; }
   dgRenderMultiChartGallery();
@@ -63750,6 +63897,7 @@ function dgBuildComparisonCharts() {
 
 function dgCloseMultiGallery() {
   dgMultiCharts = [];
+  dgActiveMultiChartIdx = null;
   const gallery = document.getElementById('dgMultiGallery');
   if (gallery) gallery.classList.remove('open');
 }
@@ -63759,6 +63907,10 @@ function dgRenderMultiChartGallery() {
   const strip = document.getElementById('dgMultiGalleryStrip');
   const countEl = document.getElementById('dgMultiGalleryCount');
   if (!gallery || !strip) return;
+  // Every caller reassigns dgMultiCharts right before calling this, i.e. this
+  // is always a fresh batch — whatever slot the editor was previously synced
+  // to no longer means anything against the new array.
+  dgActiveMultiChartIdx = null;
   if (!dgMultiCharts.length) { gallery.classList.remove('open'); return; }
   gallery.classList.add('open');
   if (countEl) countEl.textContent = ` \u00b7 ${dgMultiCharts.length} chart${dgMultiCharts.length === 1 ? '' : 's'} \u00b7 click one to edit it, or push them all at once`;
@@ -63801,9 +63953,15 @@ function dgLoadMultiChart(idx) {
   // label/value list the row editor works with — so it stays a gallery-only preview, still fully
   // exportable and pushable, rather than being silently flattened into something misleading.
   if (spec.type === 'radar') {
+    dgActiveMultiChartIdx = null; // not editable here, so nothing should sync back into it
     toast('This radar overview compares every metric at once — push it as-is, or open the per-metric cards to edit colours', 'info');
     return;
   }
+  // From here on the editor IS this gallery chart — every dgRender() (chart-type
+  // switch, colour pick, row edit, title edit, radius, axes…) writes straight back
+  // into dgMultiCharts[idx] and repaints its thumbnail, so the edit isn't lost the
+  // moment the person clicks another card or hits "Push all to Workspace".
+  dgActiveMultiChartIdx = idx;
   dgResetFormatForNewChart();
   if (spec.type === 'grouped' || spec.type === 'hstacked' || spec.type === 'tornado') {
     dgState.groupedCategories = spec.categories.slice();
@@ -63822,6 +63980,34 @@ function dgLoadMultiChart(idx) {
   dgRenderRows();
   dgRender();
   if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0);
+}
+
+// Writes whatever's currently in the editor back into the gallery slot it came
+// from (if any), and repaints just that one thumbnail — called from dgRender()
+// so every kind of edit (chart type, colours, data points, title, radius, axes)
+// stays in sync without every single edit handler needing its own call-back.
+function dgSyncActiveMultiChartFromState() {
+  if (dgActiveMultiChartIdx == null) return;
+  const spec = dgMultiCharts[dgActiveMultiChartIdx];
+  if (!spec) { dgActiveMultiChartIdx = null; return; }
+  const titleInput = document.getElementById('dgTitleInput');
+  const updated = { ...spec, type: dgState.type, title: (titleInput && titleInput.value) || spec.title };
+  if (dgState.type === 'grouped' || dgState.type === 'hstacked' || dgState.type === 'tornado') {
+    updated.categories = (dgState.groupedCategories || []).slice();
+    updated.series = (dgState.groupedSeries || []).map(s => ({ ...s, values: (s.values || []).slice() }));
+    delete updated.rows;
+  } else {
+    updated.rows = (dgState.rows || []).map(r => ({ ...r }));
+    delete updated.categories; delete updated.series;
+  }
+  dgMultiCharts[dgActiveMultiChartIdx] = updated;
+
+  const strip = document.getElementById('dgMultiGalleryStrip');
+  if (!strip) return;
+  const canvas = strip.querySelector(`canvas[data-thumb="${dgActiveMultiChartIdx}"]`);
+  if (canvas) dgDrawChartSpec(canvas, updated);
+  const card = strip.querySelector(`.dg-multi-gallery-card[data-idx="${dgActiveMultiChartIdx}"] .dg-multi-gallery-card-label`);
+  if (card) { card.textContent = updated.title; card.title = updated.title; }
 }
 
 function dgOpenMultiPushChoice() {
@@ -63910,23 +64096,67 @@ function dgRenderSpecFullCanvas(spec) {
   return canvas;
 }
 
+// Same rendering as dgRenderSpecFullCanvas, but with the title suppressed so the
+// full canvas height goes to the chart itself. Used when the chart is about to be
+// tiled down small (Push All Charts to Workspace): a title baked into the raster
+// shrinks right along with everything else and turns into unreadable pixel noise
+// at tile size, so the caption is placed as its own real, crisply-rendered
+// placedText box above the image instead (see dgPushAllMultiCharts) — legible at
+// any tile size and editable afterwards like any other text on the page.
+function dgRenderSpecChartOnlyCanvas(spec) {
+  return dgRenderSpecFullCanvas(Object.assign({}, spec, { title: null }));
+}
+
 // Bakes a chart image directly onto a page's placedImages array — the same end state the
 // interactive "drag, resize, then Stamp" flow produces, but done in code so many charts can
 // be placed in one go without a manual drop for each one.
-// Turns a chart spec's own underlying data into plain table cells (a header
-// row plus one row per data point) — the exact figures behind that chart,
-// so they can be placed right alongside it. Handles both spec shapes used
-// across the module: rows: [{label,value}] for a single-series chart, and
-// categories/series for grouped/radar/tornado-style charts.
+// Formats a single value with whatever sign was detected for THIS spec (currency symbol or
+// percent) rather than the single global dgState.currencySymbol — a batch of pushed charts can
+// mix a ₹ revenue column with a plain headcount column with a % growth column, and each one's
+// paired table needs to keep showing its own sign, not whichever chart happens to be open live.
+function dgFormatValueWithSign(val, format, symbol) {
+  const num = Number(val) || 0;
+  if (format === 'currency') {
+    const sym = symbol || '$';
+    const glue = sym.length > 1 ? sym + ' ' : sym;
+    return glue + Math.round(num).toLocaleString();
+  }
+  if (format === 'percent') return (Math.round(num * 10) / 10) + '%';
+  return Math.round(num).toLocaleString();
+}
+
+// Turns a chart spec's own underlying data into plain table cells — the exact
+// figures behind that chart, so they can be placed right alongside it, laid
+// out LANDSCAPE (wide: labels/categories run across the header row, values
+// fill in below) instead of a tall, narrow two-column list. A short, wide
+// table reads more like a real report exhibit and uses the page width the
+// chart itself already occupies, instead of trailing on far past the chart.
+// Handles both spec shapes used across the module: rows: [{label,value}] for
+// a single-series chart, and categories/series for grouped/radar/tornado-style
+// charts. Values pick up whatever currency/percent sign was detected for this
+// spec (see dgDetectValueSign at spec-build time) via dgFormatValueWithSign.
 function dgSpecToTableCells(spec) {
-  const fmt = v => { try { return dgFormatNumber(v, spec.format || 'auto'); } catch (e) { return String(v); } };
+  const fmt = v => {
+    try {
+      return spec.format
+        ? dgFormatValueWithSign(v, spec.format, spec.formatSymbol)
+        : dgFormatNumber(v, spec.format || 'auto');
+    } catch (e) { return String(v); }
+  };
   if (Array.isArray(spec.categories) && Array.isArray(spec.series) && spec.series.length) {
-    const headers = ['Category', ...spec.series.map(s => s.name || 'Series')];
-    const rows = spec.categories.map((cat, i) => [String(cat ?? ''), ...spec.series.map(s => fmt((s.values || [])[i]))]);
+    // One row per series, one column per category — landscape even when there
+    // are many categories, since the row count stays pinned to series count.
+    const headers = ['Series', ...spec.categories.map(c => String(c ?? ''))];
+    const rows = spec.series.map(s => [String(s.name || 'Series'), ...(s.values || []).map(v => fmt(v))]);
     return { headers, rows };
   }
-  const rows = (spec.rows || []).map(r => [String(r.label ?? ''), fmt(r.value)]);
-  return { headers: ['Label', 'Value'], rows };
+  // Single-series: one header row of labels, one data row of values —
+  // the same information the old Label/Value list held, just turned
+  // sideways so it reads as a wide strip instead of a tall column.
+  const srcRows = spec.rows || [];
+  const headers = ['', ...srcRows.map(r => String(r.label ?? ''))];
+  const rows = [[spec.title || 'Value', ...srcRows.map(r => fmt(r.value))]];
+  return { headers, rows };
 }
 
 // Builds a compact placedTable — sized/fitted to availW x availH — straight
@@ -63938,26 +64168,28 @@ function dgSpecToTableCells(spec) {
 function dgBuildTableForSpec(spec, x, y, availW, availH) {
   const { headers, rows } = dgSpecToTableCells(spec);
   if (!rows.length) return null;
-  const MAX_ROWS = 15; // a paired mini-table is meant to be read at a glance, not scanned like a full dataset
-  let displayRows = rows, truncated = 0;
-  if (rows.length > MAX_ROWS) {
-    truncated = rows.length - MAX_ROWS;
-    displayRows = rows.slice(0, MAX_ROWS);
+  // Landscape orientation means the point count now lives in COLUMNS, not
+  // rows (a single-series chart is always exactly 1 data row; a grouped
+  // chart is one row per series). Cap the column count instead of the row
+  // count so a 40-category upload doesn't produce 40 unreadably narrow
+  // columns — the chart's own axis already shows every point in full;
+  // the table is meant to be read at a glance, not scanned like raw data.
+  const MAX_COLS = 10;
+  let displayHeaders = headers, displayRows = rows, truncated = 0;
+  const dataColCount = headers.length - 1;
+  if (dataColCount > MAX_COLS) {
+    truncated = dataColCount - MAX_COLS;
+    displayHeaders = [headers[0], ...headers.slice(1, 1 + MAX_COLS), `+${truncated} more`];
+    displayRows = rows.map(r => [r[0], ...r.slice(1, 1 + MAX_COLS), '']);
   }
-  const layout = daComputeTableLayout(headers, displayRows);
-  const fitted = daFitTableToPage(headers, displayRows, layout, availW, availH);
-  const cells = [headers, ...displayRows];
-  if (truncated > 0) {
-    const note = new Array(headers.length).fill('');
-    note[0] = `+ ${truncated} more row${truncated === 1 ? '' : 's'}`;
-    cells.push(note);
-    fitted.rowHeights.push(fitted.rowHeights[fitted.rowHeights.length - 1] || 20);
-  }
+  const layout = daComputeTableLayout(displayHeaders, displayRows);
+  const fitted = daFitTableToPage(displayHeaders, displayRows, layout, availW, availH);
+  const cells = [displayHeaders, ...displayRows];
   return {
     id: 'tbl_' + (++pdfedTableSeq),
     x, y,
     rows: cells.length,
-    cols: headers.length,
+    cols: displayHeaders.length,
     colWidths: fitted.colWidths.slice(),
     rowHeights: fitted.rowHeights,
     fontSize: fitted.fontSize,
@@ -64019,7 +64251,7 @@ async function dgPushAllMultiCharts(mode) {
       let firstNewIdx = -1;
       dgMultiCharts.forEach(spec => {
         const { w: eW, h: eH } = dgPageRawSize(null);
-        const canvas = dgRenderSpecFullCanvas(spec);
+        const canvas = dgRenderSpecChartOnlyCanvas(spec);
         const dataUrl = canvas.toDataURL('image/png');
         const bg = document.createElement('canvas');
         bg.width = eW; bg.height = eH;
@@ -64030,14 +64262,23 @@ async function dgPushAllMultiCharts(mode) {
         const margin = Math.round(eW * 0.08);
         const w = eW - margin * 2;
         const availH = eH - margin * 2;
-        // Chart takes the top ~62% of the content area; its own data table
-        // (built from this same spec) fills the rest below it, so the two
-        // travel together as one paired unit instead of the chart alone
-        // getting centered on an otherwise-empty page.
-        const chartH = Math.min(Math.round(w * (canvas.height / canvas.width)), Math.round(availH * 0.62));
+        // A real, crisp title sits above the chart as its own text box (see
+        // dgRenderSpecChartOnlyCanvas above) — reserve its strip first, then
+        // the chart takes the top ~62% of what's left, and its own data
+        // table (built from this same spec) fills the rest below it, so
+        // title, chart and table travel together as one paired unit.
+        const titleH = 34;
+        const chartH = Math.min(Math.round(w * (canvas.height / canvas.width)), Math.round((availH - titleH) * 0.62));
         const chartW = Math.round(chartH * (canvas.width / canvas.height));
         const chartX = Math.max(margin, Math.round((eW - chartW) / 2));
-        const chartY = margin;
+        const chartY = margin + titleH;
+        pg.placedTexts.push({
+          id: 'ptxt_' + (++pdfedPlacedTextSeq),
+          text: spec.title || 'Chart', x: margin, y: margin, fontSize: 18,
+          fontFamily: 'Inter, sans-serif', color: '#101820',
+          bold: true, italic: false, underline: false, align: 'center',
+          locked: false, zIndex: pdfedNextZ(pg), w
+        });
         dgBakePlacedImage(pg, dataUrl, chartX, chartY, chartW, chartH);
         const tableY = chartY + chartH + Math.round(margin * 0.5);
         const tableAvailH = eH - margin - tableY;
@@ -64072,23 +64313,34 @@ async function dgPushAllMultiCharts(mode) {
       const cellH = (pageH - margin * (rows + 1)) / rows;
       if (!pg.placedTables) pg.placedTables = [];
       dgMultiCharts.forEach((spec, i) => {
-        const canvas = dgRenderSpecFullCanvas(spec);
+        const canvas = dgRenderSpecChartOnlyCanvas(spec);
         const dataUrl = canvas.toDataURL('image/png');
         const aspect = canvas.height / canvas.width;
         const col = i % cols, row = Math.floor(i / cols);
         const cellX = margin + col * (cellW + margin);
         const cellY = margin + row * (cellH + margin);
-        // Each cell splits vertically: chart on top, its own data table
-        // underneath — same paired idea as the "new page per chart"
-        // destination above, just scaled down to fit inside one tile.
-        const chartCellH = cellH * 0.62;
+        // Each cell stacks three things: a real title text box (crisp at any
+        // tile size, unlike a title baked into the shrunken chart raster
+        // used to be), the chart, then its own data table underneath — same
+        // paired idea as the "new page per chart" destination above, just
+        // scaled down to fit inside one tile.
+        const titleH = Math.min(20, Math.round(cellH * 0.09));
+        pg.placedTexts.push({
+          id: 'ptxt_' + (++pdfedPlacedTextSeq),
+          text: spec.title || 'Chart', x: cellX, y: cellY, fontSize: 11,
+          fontFamily: 'Inter, sans-serif', color: '#101820',
+          bold: true, italic: false, underline: false, align: 'center',
+          locked: false, zIndex: pdfedNextZ(pg), w: cellW
+        });
+        const chartCellTop = cellY + titleH;
+        const chartCellH = (cellH - titleH) * 0.62;
         let w = cellW, h = w * aspect;
         if (h > chartCellH) { h = chartCellH; w = h / aspect; }
         const x = cellX + (cellW - w) / 2;
-        const y = cellY + (chartCellH - h) / 2;
+        const y = chartCellTop + (chartCellH - h) / 2;
         dgBakePlacedImage(pg, dataUrl, x, y, w, h);
-        const tableY = cellY + chartCellH + Math.round(cellH * 0.03);
-        const tableAvailH = cellH - chartCellH - Math.round(cellH * 0.03);
+        const tableY = chartCellTop + chartCellH + Math.round(cellH * 0.03);
+        const tableAvailH = cellY + cellH - tableY;
         const table = dgBuildTableForSpec(spec, cellX, tableY, cellW, tableAvailH);
         if (table) {
           table.zIndex = pdfedNextZ(pg);
@@ -64398,6 +64650,59 @@ function dgFormatDateLabel(date, granularity) {
   if (granularity === 'year') return String(date.getFullYear());
   if (granularity === 'month') return `${months[date.getMonth()]} ${date.getFullYear()}`;
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+// A dense time series (hundreds/thousands of individual dated rows) can't be plotted one bar
+// per row — the bars shrink to hairlines and, worse, simply truncating to the first MAX_POINTS
+// rows in chronological order only ever shows the EARLIEST slice of the range (e.g. just the
+// first month of a year of data), while every one of those bars still gets labelled at whatever
+// granularity fits the FULL span ("Jan 2025" repeated on 40 different daily bars). This sums
+// the value column into buckets — day, then week, then month, then quarter, then year — walking
+// up the ladder only as far as needed to land at or under maxPoints buckets, so the chart always
+// (a) covers the whole date range the person actually has, (b) never shows two bars with an
+// identical label representing different periods, and (c) stays at a bar count wide screens can
+// render without hairlines.
+function dgBucketDateRows(parsed, maxPoints) {
+  const ladder = ['day', 'week', 'month', 'quarter', 'year'];
+  const baseGranularity = dgDetectDateGranularity(parsed.map(p => p.dateVal));
+  let startIdx = ladder.indexOf(baseGranularity);
+  if (startIdx < 0) startIdx = 0;
+
+  const quarterOf = d => Math.floor(d.getMonth() / 3) + 1;
+  const mondayOf = d => {
+    const wd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const offset = (wd.getDay() + 6) % 7; // 0 = Monday
+    wd.setDate(wd.getDate() - offset);
+    return wd;
+  };
+  const bucketKey = (date, g) => {
+    if (g === 'year') return `${date.getFullYear()}`;
+    if (g === 'quarter') return `${date.getFullYear()}-Q${quarterOf(date)}`;
+    if (g === 'month') return `${date.getFullYear()}-${date.getMonth()}`;
+    if (g === 'week') return `wk-${mondayOf(date).getTime()}`;
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  };
+  const bucketLabel = (date, g) => {
+    if (g === 'quarter') return `Q${quarterOf(date)} ${date.getFullYear()}`;
+    if (g === 'week') return `Wk of ${dgFormatDateLabel(mondayOf(date), 'day')}`;
+    return dgFormatDateLabel(date, g);
+  };
+
+  for (let i = startIdx; i < ladder.length; i++) {
+    const g = ladder[i];
+    const map = new Map();
+    parsed.forEach(p => {
+      const key = bucketKey(p.dateVal, g);
+      let b = map.get(key);
+      if (!b) { b = { label: bucketLabel(p.dateVal, g), value: 0, dateVal: p.dateVal }; map.set(key, b); }
+      b.value += p.value;
+      if (p.dateVal < b.dateVal) b.dateVal = p.dateVal;
+    });
+    if (map.size <= maxPoints || g === 'year') {
+      return { granularity: g, rows: Array.from(map.values()).sort((a, b) => a.dateVal - b.dateVal) };
+    }
+  }
+  return { granularity: 'year', rows: parsed.slice(0, maxPoints) }; // unreachable, ladder ends on 'year'
 }
 
 function dgColumnIsNumeric(colIdx) {
@@ -64943,7 +65248,19 @@ function dgGenerateChartFromUpload(topGrouped) {
   if (!parsed.length) { toast('Could not find numeric values in that column — try a different Value column', 'error'); return; }
 
   let built, infoMsg;
-  if (topGrouped && parsed.length > MAX_POINTS - 1 && !labelColIsDate) {
+  if (labelColIsDate && parsed.length > MAX_POINTS) {
+    // Dense time series (e.g. 1000 daily order rows) can't be one bar per row without every
+    // bar shrinking to a hairline — and just keeping the first MAX_POINTS rows in date order
+    // would only ever show the EARLIEST slice of the range, with every bar mislabelled at the
+    // same "Jan 2025"-style granularity that was only picked for the full span. Aggregate into
+    // day/week/month/quarter/year buckets instead (dgBucketDateRows walks up that ladder until
+    // the bucket count fits), so the chart covers the whole range, every label is unique, and
+    // the bar count stays readable.
+    const { granularity: bucketGranularity, rows: bucketed } = dgBucketDateRows(parsed, MAX_POINTS);
+    built = bucketed.map((r, i) => ({ label: r.label, value: r.value, color: scheme[i % scheme.length] }));
+    const adj = { day: 'daily', week: 'weekly', month: 'monthly', quarter: 'quarterly', year: 'yearly' }[bucketGranularity] || bucketGranularity;
+    infoMsg = `Chart generated \u2014 ${parsed.length} rows grouped into ${built.length} ${adj} totals`;
+  } else if (topGrouped && parsed.length > MAX_POINTS - 1 && !labelColIsDate) {
     // (Skipped for date-labelled data — collapsing the smallest points into an "Other" bucket
     // would destroy the chronological order that's the whole point of a time series chart.)
     // Instead of silently cutting the data off after MAX_POINTS rows, keep the largest
@@ -65230,6 +65547,31 @@ function dgFormatNumber(val, fmt) {
     case 'abbrev': return dgAbbrevNumber(num);
     default: return Math.round(num).toLocaleString();
   }
+}
+
+// A value label on a bar/point that's the right length for a wide chart still needs to fit
+// on a narrow one — "$560,000" simply doesn't fit an 18px bar. dgFitLabel's old fallback was
+// to character-truncate down to "$560…", which reads as a cut-off, broken number rather than
+// a real value. This tries the full formatted number first, then — before ever chopping
+// characters — tries the short K/M/B form ("$560K"), which is still a complete, accurate
+// number just written more compactly. Only if even that doesn't fit does it fall back to
+// dgFitLabel's ellipsis truncation, so genuinely unreadable-width bars degrade gracefully
+// instead of the common "big number" case looking broken.
+function dgFormatValueLabelFit(ctx, val, opts, maxWidth) {
+  const full = dgFormatNumber(val, opts.numberFormat);
+  if (ctx.measureText(full).width <= maxWidth) return full;
+  // Percent values are already short ("42.5%") — abbreviating wouldn't shorten them, so only
+  // currency/plain-number formats get the compact K/M/B treatment.
+  if (opts.numberFormat !== 'percent') {
+    const sym = opts.numberFormat === 'currency'
+      ? ((typeof dgState !== 'undefined' && dgState.currencySymbol) ? dgState.currencySymbol : '$')
+      : '';
+    const glue = sym.length > 1 ? sym + ' ' : sym;
+    const compact = glue + dgAbbrevNumber(val);
+    if (ctx.measureText(compact).width <= maxWidth) return compact;
+    return dgFitLabel(ctx, compact, maxWidth);
+  }
+  return dgFitLabel(ctx, full, maxWidth);
 }
 
 // ── Analytics ──
@@ -65953,11 +66295,17 @@ function dgDrawAxisLabel(ctx, text, x, y, availW, rotate) {
   ctx.fillStyle = '#5b6474';
   ctx.font = '11.5px Inter, sans-serif';
   if (rotate) {
+    // A rotated label's horizontal footprint (the direction adjacent labels can collide in)
+    // is roughly its pixel length × cos(45°) ≈ length × 0.707. A fixed 90px fitted-text
+    // allowance here regardless of how narrow each bar's actual slot (availW) is meant
+    // adjacent diagonal labels overlapped each other once there were more than ~12 bars —
+    // so derive the max text length from the real slot width instead: length = availW / 0.707.
+    const maxDiagLen = Math.max(24, availW / 0.7071);
     ctx.translate(x, y + 4);
     ctx.rotate(-Math.PI / 4);
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(dgFitLabel(ctx, text, 90), 0, 0);
+    ctx.fillText(dgFitLabel(ctx, text, Math.min(90, maxDiagLen)), 0, 0);
   } else {
     ctx.textAlign = 'center';
     ctx.fillText(dgFitLabel(ctx, text, availW), x, y);
@@ -66284,7 +66632,15 @@ function dgYScale(vals, area, labelPadPx) {
   const dataMin = Math.min(0, ...vals);
   const rawSpan = (dataMax - dataMin) || (Math.abs(dataMax) || 1);
   const niceSpan = dgNiceNum(rawSpan * 1.15, false);
-  const TICK_COUNT = 4;
+  // A fixed 4 gridlines regardless of chart height or how the data is spread meant a short
+  // chart and a tall one got identically coarse resolution, and a dataset with a couple of
+  // outliers pulling the max way up (most values under 30K, one or two near 130K) still only
+  // got 50,000-wide steps — every "normal" bar ends up bunched in the bottom sliver with no
+  // gridline anywhere near it. Scale the tick count to the actual plot height instead — about
+  // one gridline every ~65px — so there's a real, height-appropriate reference line more of
+  // the data actually sits near, clamped so a short chart doesn't go sparse (min 3) and a tall
+  // one doesn't get cluttered (max 7).
+  const TICK_COUNT = Math.max(3, Math.min(8, Math.round(((area && area.h) || 260) / 50)));
   const step = dgNiceNum(niceSpan / TICK_COUNT, true) || 1;
   const min = dataMin < 0 ? Math.floor(dataMin / step) * step : 0;
   let max = Math.ceil(dataMax / step) * step;
@@ -66409,8 +66765,12 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
   }
 
   const n = rows.length;
-  const gap = 24;
-  const barW = Math.min(70, (area.w - gap * (n + 1)) / n);
+  // A fixed 24px gap works fine for a handful of bars, but eats almost the entire chart width
+  // once there are 30-40+ categories (24px × 41 gaps ≈ 980px of a ~1090px-wide chart area),
+  // leaving each bar a hairline sliver. Scale the gap down as n grows, with a small floor so
+  // bars stay visually separated, and floor the bar width itself so it never goes to zero.
+  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const barW = Math.max(2, Math.min(70, (area.w - gap * (n + 1)) / n));
   const usedW = barW * n + gap * (n + 1);
   const startX = area.x + (area.w - usedW) / 2 + gap;
   const zeroY = scale.toY(0);
@@ -66439,14 +66799,17 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
     ctx.textAlign = 'center';
     dgDrawAxisLabel(ctx, r.label, x + barW / 2, area.y + area.h + 20, barW + gap - 6, opts.rotateLabels);
 
-    if (opts.values) {
+    // A bar under ~18px wide can't fit even a short formatted number without truncating to
+    // an unhelpful "$..." — at that width it's better to leave the label off (the Insights
+    // panel / hover tooltip still carries the exact value) than to render noise on every bar.
+    if (opts.values && barW >= 18) {
       ctx.fillStyle = '#101820';
       ctx.font = '700 12px Inter, sans-serif';
       // Positive bars get their label above the bar, negative bars below,
       // so the number never overlaps the bar or the axis.
       const labelY = r.value >= 0 ? y - 8 : y + h + 14;
       ctx.textAlign = 'center';
-      ctx.fillText(dgFitLabel(ctx, dgFormatNumber(r.value, opts.numberFormat), barW + gap - 4), x + barW / 2, labelY);
+      ctx.fillText(dgFormatValueLabelFit(ctx, r.value, opts, barW + gap - 4), x + barW / 2, labelY);
     }
   });
 
@@ -66471,7 +66834,9 @@ function dgDrawGroupedBars(ctx, categories, series, area, opts) {
 
   const n = categories.length;
   const s = series.length;
-  const gap = 24; // space between category clusters
+  // Same fix as the other bar charts: a fixed 24px gap between clusters swallows the width
+  // once there are 20-30 categories, squeezing every cluster (and the bars inside it) thin.
+  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
   const barGap = Math.max(2, 6 - s); // tighter inner gap as more series get packed in
   const clusterW = Math.min(s * 44, (area.w - gap * (n + 1)) / n);
   const barW = Math.max(3, (clusterW - barGap * (s - 1)) / s);
@@ -66495,7 +66860,7 @@ function dgDrawGroupedBars(ctx, categories, series, area, opts) {
         ctx.font = '700 10.5px Inter, sans-serif';
         ctx.textAlign = 'center';
         const labelY = v >= 0 ? y - 6 : y + h + 13;
-        ctx.fillText(dgFitLabel(ctx, dgFormatNumber(v, opts.numberFormat), barW + barGap + 4), x + barW / 2, labelY);
+        ctx.fillText(dgFormatValueLabelFit(ctx, v, opts, barW + barGap + 4), x + barW / 2, labelY);
       }
     });
 
@@ -66767,7 +67132,7 @@ function dgDrawLine(ctx, rows, area, opts, filled) {
       ctx.fillStyle = '#101820';
       ctx.font = '700 12px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(dgFitLabel(ctx, dgFormatNumber(r.value, opts.numberFormat), Math.max(40, stepX - 4)), p.x, p.y - 12);
+      ctx.fillText(dgFormatValueLabelFit(ctx, r.value, opts, Math.max(40, stepX - 4)), p.x, p.y - 12);
     }
   });
 
@@ -66821,7 +67186,7 @@ function dgDrawWaterfall(ctx, rows, area, opts) {
   let cum = 0;
   const n = rows.length;
   const cums = rows.map((r, i) => {
-    const isTotal = i === 0 || i === n - 1 || /total|start|end|net/i.test(r.label || '');
+    const isTotal = i === 0 || i === n - 1 || /\b(total|start|end|net)\b/i.test(r.label || '');
     if (isTotal) {
       cum = r.value;
       return { start: 0, end: r.value, isTotal: true };
@@ -66853,8 +67218,10 @@ function dgDrawWaterfall(ctx, rows, area, opts) {
   }
   dgDrawAxisLines(ctx, area, { min, max, toY });
 
-  const gap = 24;
-  const barW = Math.min(70, (area.w - gap * (n + 1)) / n);
+  // Same fix as the regular bar chart: a fixed 24px gap eats most of the chart width once
+  // there are 20-40 waterfall steps, leaving hairline bars. Scale the gap down as n grows.
+  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const barW = Math.max(2, Math.min(70, (area.w - gap * (n + 1)) / n));
   const usedW = barW * n + gap * (n + 1);
   const startX = area.x + (area.w - usedW) / 2 + gap;
 
@@ -66891,7 +67258,7 @@ function dgDrawWaterfall(ctx, rows, area, opts) {
       ctx.fillStyle = '#101820';
       ctx.font = '700 12px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(dgFitLabel(ctx, dgFormatNumber(r.value, opts.numberFormat), barW + gap - 4), x + barW / 2, top - 8);
+      ctx.fillText(dgFormatValueLabelFit(ctx, r.value, opts, barW + gap - 4), x + barW / 2, top - 8);
     }
   });
 }
@@ -66927,8 +67294,11 @@ function dgDrawPareto(ctx, rows, area, opts) {
   }
   dgDrawAxisLines(ctx, area, { min: 0, max, toY: v => area.y + area.h - (v / max) * area.h });
 
-  const n = sorted.length, gap = 24;
-  const barW = Math.min(70, (area.w - gap * (n + 1)) / n);
+  const n = sorted.length;
+  // Same fix as the bar/waterfall charts: scale the gap down as category count grows instead
+  // of a fixed 24px that swallows the chart width once there are many bars.
+  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const barW = Math.max(2, Math.min(70, (area.w - gap * (n + 1)) / n));
   const usedW = barW * n + gap * (n + 1);
   const startX = area.x + (area.w - usedW) / 2 + gap;
 
@@ -66948,7 +67318,7 @@ function dgDrawPareto(ctx, rows, area, opts) {
       ctx.fillStyle = '#101820';
       ctx.font = '700 12px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(dgFitLabel(ctx, dgFormatNumber(r.value, opts.numberFormat), barW + gap - 4), x + barW / 2, y - 8);
+      ctx.fillText(dgFormatValueLabelFit(ctx, r.value, opts, barW + gap - 4), x + barW / 2, y - 8);
     }
   });
 
@@ -67252,6 +67622,7 @@ function dgRender() {
     dgDrawChart();
   }
   dgRenderTextOverlay();
+  if (typeof dgSyncActiveMultiChartFromState === 'function') dgSyncActiveMultiChartFromState();
 }
 
 function dgDownloadPNG() {
