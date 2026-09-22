@@ -7559,6 +7559,39 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   border:1px solid var(--border); background:var(--bg2);
   max-height:60vh;
   box-shadow:0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,20,40,0.18);
+  /* Keep the horizontal scrollbar itself visible rather than relying on an
+     OS auto-hide scrollbar someone might not notice — but neutral grey,
+     matching ordinary OS/browser chrome, not a bright brand-colored bar. */
+  scrollbar-width: thin; scrollbar-color: rgba(140,150,165,0.45) transparent;
+}
+.da-grid-wrap::-webkit-scrollbar { height:9px; width:9px; }
+.da-grid-wrap::-webkit-scrollbar-track { background:transparent; }
+.da-grid-wrap::-webkit-scrollbar-thumb { background:rgba(140,150,165,0.35); border-radius:6px; }
+.da-grid-wrap::-webkit-scrollbar-thumb:hover { background:rgba(140,150,165,0.55); }
+/* Outer positioning context for the left/right step buttons that overlay
+   the grid — lets someone click through a wide table instead of only
+   dragging the scrollbar or swiping on a trackpad. Styled as plain,
+   understated chrome (flat, low-contrast) rather than a bright floating
+   bubble, matching the rest of the toolbar's icon buttons. */
+.da-grid-outer { position:relative; }
+.da-grid-nav-btn {
+  position:absolute; top:50%; transform:translateY(-50%); z-index:5;
+  width:26px; height:40px; border-radius:6px; border:1px solid var(--border);
+  background:var(--bg2); color:var(--text2); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .15s ease, background .15s ease, color .15s ease;
+}
+.da-grid-nav-btn svg { opacity:0.7; }
+.da-grid-outer:hover .da-grid-nav-btn.da-grid-nav-active { opacity:1; pointer-events:auto; }
+.da-grid-nav-btn:hover { background:var(--surface); color:var(--text); }
+.da-grid-nav-btn:hover svg { opacity:1; }
+.da-grid-nav-btn[disabled] { opacity:0 !important; pointer-events:none !important; }
+.da-grid-nav-btn.da-grid-nav-left { left:0; border-top-right-radius:0; border-bottom-right-radius:0; }
+.da-grid-nav-btn.da-grid-nav-right { right:0; border-top-left-radius:0; border-bottom-left-radius:0; }
+@media (hover:none) {
+  /* Touch devices swipe natively — don't show click-step buttons that would
+     just sit in the way of a finger. */
+  .da-grid-nav-btn { display:none; }
 }
 /* In the tight "working" state (a table is loaded) let the grid claim
    most of the viewport height, the way Google Sheets fills the window
@@ -11475,7 +11508,11 @@ button.dg-show-chip.active { background:var(--blue); }
           <!-- Grid (columns and rows) — fourth, exactly like a spreadsheet body -->
           <div class="da-highlight-summary" id="daHighlightSummary" style="display:none"></div>
 
-          <div class="da-grid-wrap" id="daGridWrap"></div>
+          <div class="da-grid-outer">
+            <div class="da-grid-wrap" id="daGridWrap"></div>
+            <button type="button" class="da-grid-nav-btn da-grid-nav-left" id="daGridNavLeft" onclick="daGridStepScroll(-1)" title="Scroll table left" aria-label="Scroll table left"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button type="button" class="da-grid-nav-btn da-grid-nav-right" id="daGridNavRight" onclick="daGridStepScroll(1)" title="Scroll table right" aria-label="Scroll table right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
         </div>
 
         <!-- Empty state (shown once user has cleared everything after using the tool) -->
@@ -42628,7 +42665,23 @@ function daNormalizeDateValue(raw) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-function daNormalizeAmountValue(raw) {
+// Maps a currency symbol to the locale used to group/format its digits.
+const DA_CURRENCY_LOCALE = { '₹': 'en-IN', '$': 'en-US', '€': 'de-DE', '£': 'en-GB', '¥': 'ja-JP' };
+
+// Given a column header like "Unit Price (₹)" or "Amount (USD)", returns the
+// currency symbol it names, or null if the header gives no hint. Used only
+// as a fallback for cells that carry no symbol of their own.
+function daHeaderCurrencySymbol(header) {
+  const h = String(header || '');
+  if (/₹|\bINR\b|\bRs\.?\b/i.test(h)) return '₹';
+  if (/€|\bEUR\b/i.test(h)) return '€';
+  if (/£|\bGBP\b/i.test(h)) return '£';
+  if (/¥|\bJPY\b/i.test(h)) return '¥';
+  if (/\$|\bUSD\b/i.test(h)) return '$';
+  return null;
+}
+
+function daNormalizeAmountValue(raw, header) {
   const t = raw.trim();
   if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return 'N/A';
   // Preserve whichever currency the value actually came in as, instead of
@@ -42636,11 +42689,21 @@ function daNormalizeAmountValue(raw) {
   // reformatted as a dollar amount here even after being correctly
   // identified, which is its own silent-corruption bug on top of the
   // matching one above.
-  const symbol = /₹/.test(t) ? '₹' : '$';
-  const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$₹,\s]/g, '');
+  // When the cell itself carries no symbol at all (common with tables
+  // imported from a screenshot/photo, where only the header names the
+  // currency, e.g. "Unit Price (₹)"), fall back to what the header says
+  // instead of silently defaulting to '$'.
+  let symbol;
+  if (/₹/.test(t)) symbol = '₹';
+  else if (/€/.test(t)) symbol = '€';
+  else if (/£/.test(t)) symbol = '£';
+  else if (/¥/.test(t)) symbol = '¥';
+  else if (/\$/.test(t)) symbol = '$';
+  else symbol = daHeaderCurrencySymbol(header) || '$';
+  const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$₹€£¥,\s]/g, '');
   const num = parseFloat(cleaned);
   if (isNaN(num)) return raw;
-  const locale = symbol === '₹' ? 'en-IN' : 'en-US';
+  const locale = DA_CURRENCY_LOCALE[symbol] || 'en-US';
   return symbol + num.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -42756,7 +42819,7 @@ function daSmartTypeRealign(headers, rows) {
     // and sortable once every value is under it, instead of just moving
     // the mess into the right place.
     typedCols.forEach(({ t, i }) => {
-      if (result[i] && DA_TYPE_NORMALIZERS[t]) result[i] = DA_TYPE_NORMALIZERS[t](result[i]);
+      if (result[i] && DA_TYPE_NORMALIZERS[t]) result[i] = DA_TYPE_NORMALIZERS[t](result[i], headers[i]);
     });
 
     return result;
@@ -45267,7 +45330,46 @@ function daRenderTable() {
   daFillPlaceHandle();
   daRenderHighlightSummary(ds);
   daFilterSyncUI(ds);
+  daGridUpdateNavButtons();
 }
+
+// Left/right step buttons overlaid on the grid, for tables with more
+// columns than fit on screen — click to step across instead of only
+// dragging the scrollbar or trackpad-swiping. Shows/hides each arrow
+// based on whether there's actually more table in that direction, and
+// disables both entirely once the table fits without any overflow.
+function daGridUpdateNavButtons() {
+  const wrap = document.getElementById('daGridWrap');
+  const left = document.getElementById('daGridNavLeft');
+  const right = document.getElementById('daGridNavRight');
+  if (!wrap || !left || !right) return;
+  const overflowing = wrap.scrollWidth > wrap.clientWidth + 1;
+  if (!overflowing) {
+    left.disabled = true; right.disabled = true;
+    left.classList.remove('da-grid-nav-active'); right.classList.remove('da-grid-nav-active');
+    return;
+  }
+  left.classList.add('da-grid-nav-active'); right.classList.add('da-grid-nav-active');
+  left.disabled = wrap.scrollLeft <= 1;
+  right.disabled = wrap.scrollLeft >= wrap.scrollWidth - wrap.clientWidth - 1;
+}
+
+function daGridStepScroll(dir) {
+  const wrap = document.getElementById('daGridWrap');
+  if (!wrap) return;
+  // Step by ~80% of the visible width, like a page-by-page swipe, rather
+  // than a fixed pixel amount that means something different on every
+  // table's column widths.
+  wrap.scrollBy({ left: dir * Math.round(wrap.clientWidth * 0.8), behavior: 'smooth' });
+}
+
+(function daGridNavInit() {
+  const wrap = document.getElementById('daGridWrap');
+  if (wrap) {
+    wrap.addEventListener('scroll', daGridUpdateNavButtons, { passive: true });
+  }
+  window.addEventListener('resize', daGridUpdateNavButtons);
+})();
 
 function daHighlight(val, query) {
   const idx = val.toLowerCase().indexOf(query);
