@@ -7514,7 +7514,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 }
 .da-filter-pop {
   display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:70;
-  width:480px; max-width:calc(100vw - 24px); box-sizing:border-box; padding:12px;
+  width:520px; max-width:calc(100vw - 24px); box-sizing:border-box; padding:12px;
   background:var(--bg3); border:1px solid var(--border2); border-radius:12px;
   box-shadow:0 16px 40px -10px rgba(0,0,0,0.55);
 }
@@ -7522,8 +7522,8 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .da-filter-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
 .da-filter-title { font-size:12.5px; font-weight:700; color:var(--text); }
 .da-filter-match { font-size:11.5px; color:var(--text3); display:inline-flex; align-items:center; gap:5px; }
-.da-filter-rules { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto; }
-.da-filter-rule { display:grid; grid-template-columns:1fr 1fr 1.1fr 26px; gap:6px; align-items:center; }
+.da-filter-rules { display:flex; flex-direction:column; gap:6px; max-height:280px; overflow:auto; }
+.da-filter-rule { display:grid; grid-template-columns:1fr 1fr 1.3fr 26px; gap:6px; align-items:center; }
 .da-filter-pop select, .da-filter-pop input {
   height:30px; box-sizing:border-box; min-width:0; width:100%; padding:0 8px; font-size:12px;
   background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:7px; outline:none;
@@ -7531,6 +7531,13 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .da-filter-match select { width:auto; height:26px; padding:0 6px; font-weight:600; }
 .da-filter-pop select:focus, .da-filter-pop input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,194,255,0.12); }
 .da-filter-noval { font-size:11px; color:var(--text3); font-style:italic; padding-left:4px; }
+/* Two side-by-side "From / To" inputs for the "is between" operator --
+   sits inside the same grid cell the single value input would otherwise
+   occupy, so switching an existing rule to/from "between" never reflows
+   the column or condition selects next to it. */
+.da-filter-vals { display:flex; align-items:center; gap:4px; min-width:0; }
+.da-filter-vals input { min-width:0; flex:1 1 0; }
+.da-filter-vals-sep { color:var(--text3); font-size:11px; flex:0 0 auto; }
 .da-filter-x {
   width:26px; height:26px; border-radius:6px; border:none; background:transparent;
   color:var(--text3); font-size:16px; line-height:1; cursor:pointer;
@@ -7539,6 +7546,10 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 .da-filter-empty { font-size:12px; color:var(--text3); padding:8px 2px; }
 .da-filter-foot { display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
 .da-filter-status { flex:1; font-size:11px; color:var(--text3); font-weight:600; text-align:center; }
+/* Flags "0 of N rows" so a filter that has accidentally hidden the whole
+   table (typo, wrong operator) is obvious at a glance rather than reading
+   like any other status line. */
+.da-filter-status.da-filter-status-empty { color:#ef4444; }
 .da-filter-add, .da-filter-clear {
   height:28px; padding:0 10px; border-radius:7px; font-size:11.5px; font-weight:600; cursor:pointer;
   background:transparent; border:1px solid var(--border2); color:var(--text2);
@@ -7551,7 +7562,7 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
 [data-theme="light"] .da-filter-badge { box-shadow:0 0 0 2px #fff; }
 @media (max-width:560px) {
   .da-filter-rule { grid-template-columns:1fr 1fr 26px; }
-  .da-filter-rule input, .da-filter-noval { grid-column:1 / span 2; }
+  .da-filter-rule input, .da-filter-rule .da-filter-vals, .da-filter-noval { grid-column:1 / span 2; }
 }
 /* Grid */
 .da-grid-wrap {
@@ -44959,8 +44970,14 @@ const DA_FILTER_OPS = [
   ['contains','contains'], ['notcontains','does not contain'], ['equals','equals'], ['notequals','does not equal'],
   ['starts','starts with'], ['ends','ends with'],
   ['gt','is greater than'], ['gte','is greater or equal'], ['lt','is less than'], ['lte','is less or equal'],
+  ['between','is between'], ['oneof','is one of'],
   ['empty','is empty'], ['notempty','is not empty']
 ];
+// Ops whose value input is a second field (between) rather than the single
+// value box -- used to decide how many inputs the popover renders.
+const DA_FILTER_OPS_RANGE = { between: true };
+// Ops with no value input at all.
+const DA_FILTER_OPS_NOVAL = { empty: true, notempty: true };
 let daFilterBuiltSig = '';
 
 function daFilterGetState(ds) {
@@ -44970,6 +44987,7 @@ function daFilterGetState(ds) {
 function daFilterRuleIsActive(r, ds) {
   if (r.col !== '*' && (!Number.isInteger(r.col) || r.col < 0 || r.col >= ds.headers.length)) return false;
   if (r.op === 'empty' || r.op === 'notempty') return true;
+  if (r.op === 'between') return String(r.val ?? '') !== '' && String(r.val2 ?? '') !== '';
   return String(r.val ?? '') !== '';
 }
 function daFilterActiveRules(ds) {
@@ -44983,11 +45001,54 @@ function daFilterCellText(ds, ri, ci) {
   }
   return v;
 }
+// Reuses the same currency-aware number parser as the formula engine and
+// summary stats (daCleanNum: strips ₹/$/€/£, thousands commas, accounting
+// parens, AND a trailing magnitude suffix like Cr/Lakh/K/Mn/Bn) instead of a
+// weaker duplicate that only stripped symbols. Without this, a numeric
+// filter ("greater than 100") silently failed to match cells like "₹1.2Cr"
+// or "(4,500)" even though the same values sort/sum correctly everywhere
+// else in Data Arrangement.
 function daFilterNum(x) {
-  const t = String(x).replace(/[,\s₹$€£%]/g, '');
+  const t = daCleanNum(String(x));
   return t !== '' && !isNaN(Number(t)) ? Number(t) : NaN;
 }
-function daFilterTest(cell, op, val) {
+// Loose date parser used only by the filter's date-aware comparisons.
+// Handles the formats that actually show up in pasted financial/report
+// tables: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, and "12 Jan 2024" style text.
+// Returns a timestamp (ms) or NaN -- never throws, never guesses on
+// ambiguous plain numbers (so a column of amounts is never misread as
+// dates).
+function daFilterDateMs(x) {
+  const s = String(x).trim();
+  if (!s || /^-?\d+(\.\d+)?$/.test(s)) return NaN; // plain numbers are never dates here
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) {
+    const d = +m[1], mo = +m[2], y = +m[3];
+    const t = Date.UTC(y, mo - 1, d);
+    return isNaN(t) ? NaN : t;
+  }
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) { const t = Date.UTC(+m[1], +m[2] - 1, +m[3]); return isNaN(t) ? NaN : t; }
+  if (/^\d{1,2}\s+[A-Za-z]{3,}\s+\d{4}$/.test(s) || /^[A-Za-z]{3,}\s+\d{1,2},?\s+\d{4}$/.test(s)) {
+    const t = Date.parse(s);
+    return isNaN(t) ? NaN : t;
+  }
+  return NaN;
+}
+// Compares two raw (untrimmed-case) cell/value strings on whichever axis
+// actually applies: numeric (currency/magnitude-aware) first, then date
+// (only when neither side is a plain number, so a date column and an
+// amount column are never cross-confused), then plain text. Returns
+// {cmp, kind} where cmp is -1/0/1 (or null if the two sides aren't
+// comparable on any axis, e.g. one is text and the other is a number).
+function daFilterCompareAxis(c, v) {
+  const an = daFilterNum(c), bn = daFilterNum(v);
+  if (!isNaN(an) && !isNaN(bn)) return { cmp: an === bn ? 0 : (an < bn ? -1 : 1), kind: 'num' };
+  const ad = daFilterDateMs(c), bd = daFilterDateMs(v);
+  if (!isNaN(ad) && !isNaN(bd)) return { cmp: ad === bd ? 0 : (ad < bd ? -1 : 1), kind: 'date' };
+  return { cmp: null, kind: 'text' };
+}
+function daFilterTest(cell, op, val, val2) {
   const c = String(cell).trim().toLowerCase();
   const v = String(val).trim().toLowerCase();
   switch (op) {
@@ -44997,16 +45058,45 @@ function daFilterTest(cell, op, val) {
     case 'ends': return c.endsWith(v);
     case 'empty': return c === '';
     case 'notempty': return c !== '';
+    // Comma-separated list of accepted values, e.g. "Pending, Overdue" --
+    // matches numerically when the cell and a list entry both parse as
+    // numbers, otherwise as an exact (case-insensitive) text match.
+    case 'oneof': {
+      const opts = v.split(',').map(s => s.trim()).filter(Boolean);
+      return opts.some(o => {
+        const a = daFilterNum(c), b = daFilterNum(o);
+        return (!isNaN(a) && !isNaN(b)) ? a === b : c === o;
+      });
+    }
     case 'equals': case 'notequals': {
-      const a = daFilterNum(c), b = daFilterNum(v);
-      const eq = (!isNaN(a) && !isNaN(b)) ? a === b : c === v;
+      const ax = daFilterCompareAxis(c, v);
+      const eq = ax.cmp !== null ? ax.cmp === 0 : c === v;
       return op === 'equals' ? eq : !eq;
     }
+    case 'between': {
+      if (c === '') return false;
+      const v2 = String(val2 ?? '').trim().toLowerCase();
+      const lo = daFilterCompareAxis(c, v), hi = daFilterCompareAxis(c, v2);
+      if (lo.cmp !== null && hi.cmp !== null) {
+        // Order-agnostic: the two boundary values can be given in either order.
+        const bounds = [daFilterNum(v), daFilterNum(v2)];
+        const useNum = !isNaN(bounds[0]) && !isNaN(bounds[1]);
+        const cn = useNum ? daFilterNum(c) : daFilterDateMs(c);
+        const b1 = useNum ? bounds[0] : daFilterDateMs(v);
+        const b2 = useNum ? bounds[1] : daFilterDateMs(v2);
+        const min = Math.min(b1, b2), max = Math.max(b1, b2);
+        return cn >= min && cn <= max;
+      }
+      // Non-numeric, non-date: fall back to lexical range (still order-agnostic).
+      const lo2 = v <= v2 ? v : v2, hi2 = v <= v2 ? v2 : v;
+      return c.localeCompare(lo2, undefined, { numeric: true }) >= 0 &&
+             c.localeCompare(hi2, undefined, { numeric: true }) <= 0;
+    }
     case 'gt': case 'gte': case 'lt': case 'lte': {
-      const a = daFilterNum(c), b = daFilterNum(v);
+      const ax = daFilterCompareAxis(c, v);
       let cmp;
-      if (!isNaN(a) && !isNaN(b)) cmp = a - b;
-      else { if (c === '') return false; cmp = c.localeCompare(v, undefined, { numeric: true }); }
+      if (ax.cmp !== null) cmp = ax.cmp;
+      else { if (c === '') return false; cmp = c.localeCompare(v, undefined, { numeric: true }); cmp = cmp === 0 ? 0 : (cmp < 0 ? -1 : 1); }
       return op === 'gt' ? cmp > 0 : op === 'gte' ? cmp >= 0 : op === 'lt' ? cmp < 0 : cmp <= 0;
     }
   }
@@ -45016,17 +45106,45 @@ function daFilterRuleMatches(ds, ri, r) {
   if (r.col === '*') {
     const n = ds.headers.length;
     const negative = (r.op === 'notcontains' || r.op === 'notequals');
-    if (negative) { for (let ci = 0; ci < n; ci++) if (!daFilterTest(daFilterCellText(ds, ri, ci), r.op, r.val)) return false; return true; }
-    for (let ci = 0; ci < n; ci++) if (daFilterTest(daFilterCellText(ds, ri, ci), r.op, r.val)) return true;
+    if (negative) { for (let ci = 0; ci < n; ci++) if (!daFilterTest(daFilterCellText(ds, ri, ci), r.op, r.val, r.val2)) return false; return true; }
+    for (let ci = 0; ci < n; ci++) if (daFilterTest(daFilterCellText(ds, ri, ci), r.op, r.val, r.val2)) return true;
     return false;
   }
-  return daFilterTest(daFilterCellText(ds, ri, r.col), r.op, r.val);
+  return daFilterTest(daFilterCellText(ds, ri, r.col), r.op, r.val, r.val2);
 }
 function daFilterRowPasses(ds, ri, rules, matchAll) {
   return matchAll ? rules.every(r => daFilterRuleMatches(ds, ri, r))
                   : rules.some(r => daFilterRuleMatches(ds, ri, r));
 }
 
+// Distinct values for one column, capped and sorted by frequency, so the
+// value box can offer an autocomplete list instead of a blank free-text
+// field -- this is what catches "Pendnig" typos and lets someone filter a
+// Status/Category column without retyping the exact label from memory.
+// Deliberately skips columns with too many distinct values (near-unique
+// IDs, free-text notes) where a dropdown of hundreds of options would be
+// useless noise rather than a help.
+function daFilterDistinctValues(ds, colIdx) {
+  if (colIdx === null || colIdx === undefined) return [];
+  const counts = new Map();
+  const rows = ds.rows || [];
+  const scanMax = Math.min(rows.length, 4000);
+  for (let ri = 0; ri < scanMax; ri++) {
+    let v = rows[ri][colIdx];
+    if (typeof v === 'string' && v.trim().startsWith('=')) {
+      try { v = daFormulaDisplayValue(ds, ri, colIdx).display; } catch (e) {}
+    }
+    const s = String(v ?? '').trim();
+    if (s === '') continue;
+    counts.set(s, (counts.get(s) || 0) + 1);
+    if (counts.size > 60) return []; // too many distinct values to be a useful pick-list
+  }
+  return [...counts.keys()].sort((a, b) => (counts.get(b) - counts.get(a)) || a.localeCompare(b)).slice(0, 40);
+}
+function daFilterDatalist(id, values) {
+  if (!values.length) return '';
+  return `<datalist id="${id}">${values.map(v => `<option value="${daEsc(v)}">`).join('')}</datalist>`;
+}
 function daFilterBuildPopover() {
   const pop = document.getElementById('daFilterPop');
   const ds = daGetActive();
@@ -45037,11 +45155,31 @@ function daFilterBuildPopover() {
   const colOpts = (sel) => `<option value="*"${sel === '*' ? ' selected' : ''}>Any column</option>` +
     ds.headers.map((h, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${daEsc(h || ('Column ' + (i + 1)))}</option>`).join('');
   const rulesHtml = st.rules.length ? st.rules.map((r, i) => {
-    const needsVal = !(r.op === 'empty' || r.op === 'notempty');
+    const needsVal = !DA_FILTER_OPS_NOVAL[r.op];
+    const isRange = !!DA_FILTER_OPS_RANGE[r.op];
+    const colIdx = (r.col === '*') ? null : r.col;
+    const dlValues = needsVal ? daFilterDistinctValues(ds, colIdx) : [];
+    const dlId = 'daFilterDL' + i;
+    const dlHtml = daFilterDatalist(dlId, dlValues);
+    const listAttr = dlValues.length ? ` list="${dlId}"` : '';
+    const enterKey = `onkeydown="if(event.key==='Enter'){daCloseFilterPop();}"`;
+    let valueCell;
+    if (!needsVal) {
+      valueCell = '<span class="da-filter-noval">no value needed</span>';
+    } else if (isRange) {
+      valueCell = `<div class="da-filter-vals">
+        <input type="text" aria-label="From value"${listAttr} placeholder="From…" value="${daEsc(r.val)}" oninput="daFilterSet(${i},'val',this.value)" ${enterKey}>
+        <span class="da-filter-vals-sep">–</span>
+        <input type="text" aria-label="To value"${listAttr} placeholder="To…" value="${daEsc(r.val2 || '')}" oninput="daFilterSet(${i},'val2',this.value)" ${enterKey}>
+      </div>${dlHtml}`;
+    } else {
+      const ph = r.op === 'oneof' ? 'e.g. Pending, Overdue' : 'Value…';
+      valueCell = `<input type="text" aria-label="Value"${listAttr} placeholder="${ph}" value="${daEsc(r.val)}" oninput="daFilterSet(${i},'val',this.value)" ${enterKey}>${dlHtml}`;
+    }
     return `<div class="da-filter-rule">
-      <select aria-label="Column" onchange="daFilterSet(${i},'col',this.value)">${colOpts(r.col)}</select>
+      <select aria-label="Column" onchange="daFilterSet(${i},'col',this.value,true)">${colOpts(r.col)}</select>
       <select aria-label="Condition" onchange="daFilterSet(${i},'op',this.value,true)">${DA_FILTER_OPS.map(o => `<option value="${o[0]}"${r.op === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('')}</select>
-      ${needsVal ? `<input type="text" aria-label="Value" placeholder="Value…" value="${daEsc(r.val)}" oninput="daFilterSet(${i},'val',this.value)" onkeydown="if(event.key==='Enter'){daCloseFilterPop();}">` : '<span class="da-filter-noval">no value needed</span>'}
+      ${valueCell}
       <button type="button" class="da-filter-x" title="Remove this condition" aria-label="Remove condition" onclick="daFilterRemoveRule(${i})">×</button>
     </div>`;
   }).join('') : '<div class="da-filter-empty">No conditions yet. Add one to start filtering.</div>';
@@ -45066,9 +45204,10 @@ function daFilterUpdateStatus(ds) {
   const el = document.getElementById('daFilterStatus');
   if (!el || !ds) return;
   const n = daFilterActiveRules(ds).length;
-  if (!n) { el.textContent = ''; return; }
+  if (!n) { el.textContent = ''; el.classList.remove('da-filter-status-empty'); return; }
   const shown = ds.rows.reduce((acc, _r, i) => acc + (daFilterRowPasses(ds, i, daFilterActiveRules(ds), daFilterGetState(ds).match !== 'any') ? 1 : 0), 0);
   el.textContent = `${shown} of ${ds.rows.length} rows`;
+  el.classList.toggle('da-filter-status-empty', shown === 0);
 }
 function daToggleFilterPop(e) {
   if (e) e.stopPropagation();
@@ -73879,6 +74018,24 @@ if (document.readyState === 'loading') {
   //     front of her. Add both tool definitions to the `tools` array
   //     alongside the others above -- without a matching entry here, the
   //     model can't call them even though the client is ready to run them.
+  //   da_set_filter {rules: [{colIdx: number|'*', operator: 'contains'|
+  //     'notcontains'|'equals'|'notequals'|'starts'|'ends'|'gt'|'gte'|'lt'|
+  //     'lte'|'between'|'oneof'|'empty'|'notempty', value?, value2?}],
+  //     match?: 'all'|'any'}
+  //     -- NEW: replaces the manual Filter Rows popover for "do it for me"
+  //     requests ("show only Pending rows over 10000", "hide anything from
+  //     before April"). Takes the WHOLE rule set in one call, same
+  //     one-shot preference as dg_configure_chart -- collapse multiple
+  //     conditions into one da_set_filter call rather than issuing several.
+  //     value is required for every operator except empty/notempty;
+  //     'between' also needs value2 (the two bounds can be given in either
+  //     order); 'oneof' takes one comma-separated string, e.g.
+  //     "Pending, Overdue". context.activeFilter (added to the
+  //     dataarrange context alongside columnStats) shows the currently
+  //     applied filter, if any, so a follow-up like "also hide the empty
+  //     rows" can be answered by extending it rather than guessing what's
+  //     already on screen.
+  //   da_clear_filter {} -- removes the active filter entirely.
   //   dg_set_type {chartType}                dg_set_palette {scheme}
   //   dg_add_row {}                          dg_set_x_axis {colIdx}
   //   dg_set_y_axis {colIdx}
@@ -74875,6 +75032,15 @@ if (document.readyState === 'loading') {
             }
             return stat;
           });
+          // Lets Laya answer "is a filter on right now?" and build on top of
+          // one ("also hide the empty rows") without needing the user to
+          // describe the current state themselves. Mirrors the shape
+          // da_set_filter takes so the model can echo/extend it directly.
+          const activeFilterRules = (typeof daFilterActiveRules === 'function') ? daFilterActiveRules(ds) : [];
+          const activeFilter = activeFilterRules.length ? {
+            match: daFilterGetState(ds).match,
+            rules: activeFilterRules.map(function(r){ return { colIdx: r.col, operator: r.op, value: r.val, value2: r.val2 }; })
+          } : null;
           return {
             activePanel: 'Data Arrangement',
             datasetName: ds.name,
@@ -74882,7 +75048,8 @@ if (document.readyState === 'loading') {
             totalRowCount: (ds.rows || []).length,
             sampleRows: sampleRows,
             emptyCellsInSample: emptyCells,
-            columnStats: columnStats
+            columnStats: columnStats,
+            activeFilter: activeFilter
           };
         }
       }
@@ -75343,6 +75510,74 @@ if (document.readyState === 'loading') {
         if (cells.length) parts.push(cells.length + ' cell' + (cells.length === 1 ? '' : 's'));
         return 'Remove the highlight from ' + (parts.join(', ') || 'the selection') + '.';
       }
+    },
+
+    // Drives the same per-person view filter as the manual Filter Rows
+    // button/popover (daFilterState) -- it only hides rows in the grid,
+    // nothing is deleted, and it isn't part of undo/redo, same as when a
+    // person builds the filter by hand. Takes the WHOLE rule set in one
+    // call (replacing whatever filter, if any, was already active) rather
+    // than one rule per call, matching the same one-shot preference as
+    // dg_configure_chart -- "show pending orders over 10000" is naturally
+    // two conditions at once. context.activeFilter (see getLayaContext's
+    // dataarrange branch) shows Laya what's currently applied so she can
+    // build on it ("also hide the empty rows") instead of guessing.
+    //   operator: one of contains/notcontains/equals/notequals/starts/ends/
+    //     gt/gte/lt/lte/between/oneof/empty/notempty (DA_FILTER_OPS keys).
+    //   colIdx: 0-based column index, or '*' for "any column".
+    //   value: required for every operator except empty/notempty.
+    //   value2: required only for 'between' (the upper bound; order doesn't
+    //     matter, the filter sorts the two itself). 'oneof' takes a single
+    //     comma-separated value string, e.g. "Pending, Overdue".
+    //   gt/gte/lt/lte/equals/between compare numerically when both sides
+    //     parse as numbers (currency symbols, commas and Cr/Lakh/K/Mn/Bn
+    //     suffixes are stripped first, same as the rest of Data
+    //     Arrangement), then as dates (DD/MM/YYYY, YYYY-MM-DD, "12 Jan
+    //     2024"), then as plain text -- so "amount > 50000" and "date after
+    //     01/04/2024" both work without Laya needing to know the column's
+    //     type in advance.
+    da_set_filter: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        const rulesIn = Array.isArray(p.rules) ? p.rules : [];
+        if (!rulesIn.length) throw new Error('no filter conditions given');
+        const validOps = DA_FILTER_OPS.map(function(o){ return o[0]; });
+        const rules = rulesIn.map(function(rr){
+          const op = String(rr.operator || '').toLowerCase();
+          if (validOps.indexOf(op) === -1) throw new Error('"' + rr.operator + '" is not a filter condition I understand');
+          let col = rr.colIdx;
+          if (col === '*' || col === undefined || col === null) col = '*';
+          else {
+            col = Number(col);
+            if (!(col >= 0 && col < ds.headers.length)) throw new Error('column ' + (rr.colIdx) + ' is outside the table');
+          }
+          const needsVal = !DA_FILTER_OPS_NOVAL[op];
+          if (needsVal && (rr.value === undefined || String(rr.value) === '')) throw new Error('the "' + op + '" condition needs a value');
+          if (op === 'between' && (rr.value2 === undefined || String(rr.value2) === '')) throw new Error('"is between" needs both a from and a to value');
+          return { col: col, op: op, val: needsVal ? String(rr.value) : '', val2: op === 'between' ? String(rr.value2) : undefined };
+        });
+        const st = daFilterGetState(ds);
+        st.rules = rules;
+        st.match = (p.match === 'any') ? 'any' : 'all';
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        const rules = Array.isArray(p.rules) ? p.rules : [];
+        const n = rules.length;
+        return 'Filter rows by ' + n + ' condition' + (n === 1 ? '' : 's') + (n > 1 ? ' (match ' + (p.match === 'any' ? 'any' : 'all') + ')' : '') + '.';
+      }
+    },
+    da_clear_filter: {
+      risk: 'safe',
+      run: function(){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daFilterGetState(ds).rules = [];
+        daPersist();
+        daRenderTable();
+      },
+      label: function(){ return 'Clear the row filter.'; }
     },
 
     dg_set_type:       { risk: 'safe',    run: function(p){ dgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
