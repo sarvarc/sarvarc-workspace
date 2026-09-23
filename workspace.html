@@ -5120,6 +5120,10 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 }
 .da-td-select:hover { background-color: var(--surface2); }
 .da-td-select:focus { border-color: var(--border2); box-shadow: 0 0 0 2px rgba(0,194,255,0.12); }
+/* FIX: an unset dropdown cell (showing the "Select…" placeholder) is styled
+   distinctly from both a picked value and a plain blank text cell, so a
+   whole freshly-dropdown-enabled column doesn't read as "nothing happened". */
+.da-td-select-unset { color: var(--text2); font-style: italic; }
 
 /* right-click context menu for a data cell */
 .da-ctx-menu {
@@ -43076,31 +43080,55 @@ function daCreateBlankTable() {
 // pre-populated with fake data. Keyed by camelCase id, same convention as
 // MF_TEMPLATES, because da_create_table_from_template below has to match
 // the model's `table` param to a key exactly. ───
+// FIX: `dropdowns` (colIdx into this template's own `columns` array, plus its
+// pick-list) lets an obviously-fixed-value column arrive with a real dropdown
+// already attached, instead of every "Status"/"Priority"/"RSVP" column
+// rendering as a dropdown with a set of options only the header knows about
+// and no values a person can actually pick without first right-clicking to
+// set them up by hand. Only added where the column genuinely takes a fixed
+// set of values -- free-text columns (Notes, Tags, Payment Terms, Location)
+// are deliberately left alone.
 const DA_TABLE_TEMPLATES = {
   leadManagement: { name: 'Lead Management', rows: 8,
-    columns: ['Lead Name', 'Company', 'Email', 'Phone', 'Source', 'Status', 'Owner', 'Last Contacted', 'Notes'] },
+    columns: ['Lead Name', 'Company', 'Email', 'Phone', 'Source', 'Status', 'Owner', 'Last Contacted', 'Notes'],
+    dropdowns: [{ colIdx: 5, options: ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'] }] },
   salesTracker: { name: 'Sales Tracker', rows: 8,
-    columns: ['Deal Name', 'Customer', 'Value', 'Stage', 'Close Date', 'Owner', 'Probability %', 'Notes'] },
+    columns: ['Deal Name', 'Customer', 'Value', 'Stage', 'Close Date', 'Owner', 'Probability %', 'Notes'],
+    dropdowns: [{ colIdx: 3, options: ['Prospecting', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'] }] },
   inventory: { name: 'Inventory', rows: 10,
     columns: ['Item', 'SKU', 'Category', 'Quantity', 'Unit Cost', 'Reorder Level', 'Supplier', 'Location'] },
   expenseTracker: { name: 'Expense Tracker', rows: 10,
-    columns: ['Date', 'Category', 'Description', 'Amount', 'Payment Method', 'Paid By', 'Reimbursed'] },
+    columns: ['Date', 'Category', 'Description', 'Amount', 'Payment Method', 'Paid By', 'Reimbursed'],
+    dropdowns: [
+      { colIdx: 4, options: ['Cash', 'Card', 'Bank Transfer', 'UPI', 'Cheque'] },
+      { colIdx: 6, options: ['Yes', 'No', 'Pending'] },
+    ] },
   clientDirectory: { name: 'Client Directory', rows: 8,
     columns: ['Name', 'Company', 'Email', 'Phone', 'Address', 'Tags', 'Notes'] },
   taskTracker: { name: 'Task Tracker', rows: 8,
-    columns: ['Task', 'Assignee', 'Priority', 'Status', 'Due Date', 'Notes'] },
+    columns: ['Task', 'Assignee', 'Priority', 'Status', 'Due Date', 'Notes'],
+    dropdowns: [
+      { colIdx: 2, options: ['Low', 'Medium', 'High'] },
+      { colIdx: 3, options: ['Not Started', 'In Progress', 'Done', 'Blocked'] },
+    ] },
   invoiceLog: { name: 'Invoice Log', rows: 8,
-    columns: ['Invoice #', 'Client', 'Issue Date', 'Due Date', 'Amount', 'Status'] },
+    columns: ['Invoice #', 'Client', 'Issue Date', 'Due Date', 'Amount', 'Status'],
+    dropdowns: [{ colIdx: 5, options: ['Draft', 'Sent', 'Paid', 'Overdue', 'Cancelled'] }] },
   employeeDirectory: { name: 'Employee Directory', rows: 8,
     columns: ['Name', 'Employee ID', 'Department', 'Role', 'Email', 'Phone', 'Joining Date'] },
   eventGuestList: { name: 'Event Guest List', rows: 10,
-    columns: ['Guest Name', 'Email', 'Phone', 'RSVP Status', 'Plus One', 'Table No.', 'Notes'] },
+    columns: ['Guest Name', 'Email', 'Phone', 'RSVP Status', 'Plus One', 'Table No.', 'Notes'],
+    dropdowns: [
+      { colIdx: 3, options: ['Yes', 'No', 'Maybe'] },
+      { colIdx: 4, options: ['Yes', 'No'] },
+    ] },
   vendorDirectory: { name: 'Vendor Directory', rows: 8,
     columns: ['Vendor', 'Contact Person', 'Email', 'Phone', 'Category', 'Payment Terms', 'Notes'] },
   budgetTracker: { name: 'Budget Tracker', rows: 8,
     columns: ['Category', 'Budgeted', 'Actual', 'Variance', 'Notes'] },
   attendanceLog: { name: 'Attendance Log', rows: 10,
-    columns: ['Date', 'Name', 'Status', 'Check-in', 'Check-out', 'Notes'] }
+    columns: ['Date', 'Name', 'Status', 'Check-in', 'Check-out', 'Notes'],
+    dropdowns: [{ colIdx: 2, options: ['Present', 'Absent', 'Late', 'Leave'] }] }
 };
 window.DA_TABLE_TEMPLATES = DA_TABLE_TEMPLATES;
 
@@ -43123,19 +43151,58 @@ function daUniqueTableName(base) {
 // daCreateTableFromTemplate below. Mirrors daCreateBlankTable's dataset
 // shape exactly so a Laya-built table is indistinguishable from a manually
 // -built one -- same tab behaviour, same cell editing, same export path.
-function daCreateTableWithColumns(name, columns, rowCount) {
+function daCreateTableWithColumns(name, columns, rowCount, dropdowns) {
   const cleanHeaders = (Array.isArray(columns) ? columns : [])
     .map(function (h) { return String(h == null ? '' : h).trim(); })
     .filter(function (h) { return h.length > 0; })
     .slice(0, 30);
   if (!cleanHeaders.length) throw new Error('at least one column is needed to create a table');
   const rc = Math.max(1, Math.min(Math.round(Number(rowCount)) || 8, 500));
+  // FIX: Laya can trigger this from ANY panel (see LAYA_ACTIONS.da_create_table /
+  // da_create_table_from_template), same as mf_create_form/mf_create_from_template.
+  // This function used to only ever touch Data Arrangement's own internal state --
+  // it never switched the top-level section. That meant a table built while the
+  // user was looking at, say, PDF Editor was created and persisted correctly, but
+  // the user never saw it: they stayed on PDF Editor, and the new table (plus any
+  // "what columns should it have?" back-and-forth) was invisible to them. From the
+  // outside this looked exactly like the "yes do IT!" -> "please open Data
+  // Arrangement and ask again" dead end -- Laya HAD the details, she just couldn't
+  // show her work. Switching the section here, before building the table, fixes
+  // that regardless of which panel the request originated from. Guarded so the
+  // normal in-panel "+/New Table" click path doesn't pay for a redundant
+  // navigate() call.
+  if (typeof unifiedActiveSection === 'function' && typeof navigate === 'function' && unifiedActiveSection() !== 'dataarrange') {
+    navigate('dataarrange');
+  }
   const existingBlankCount = daState.datasets.filter(d => /^Table \d+$/.test(d.name)).length;
   const base = (name && String(name).trim()) ? String(name).trim().slice(0, 40) : `Table ${existingBlankCount + 1}`;
   const finalName = daUniqueTableName(base);
   const rows = Array.from({ length: rc }, () => new Array(cleanHeaders.length).fill(''));
   const id = 'ds' + (++daIdCounter);
   const ds = { id, name: finalName, headers: cleanHeaders, rows, frozen: true, colDropdowns: {}, cellDropdowns: {}, rowHighlights: {}, colHighlights: {}, cellHighlights: {} };
+  // FIX: dropdowns can now be attached in the SAME call that creates the table,
+  // instead of always needing a separate da_set_dropdown round-trip afterwards.
+  // This is what lets Laya answer "know when to create dropdowns" for a
+  // custom (non-template) table: she already knows the exact column list she
+  // just picked, so a column that obviously takes a fixed set of values
+  // (Status, Priority, RSVP...) can get its pick-list right away. Malformed
+  // entries (bad colIdx, no usable options) are skipped rather than failing
+  // the whole table -- a table with 8 correct columns and one skipped
+  // dropdown is far better than no table at all.
+  if (Array.isArray(dropdowns) && dropdowns.length) {
+    daEnsureDropdownStore(ds);
+    dropdowns.forEach(function (d) {
+      if (!d || typeof d !== 'object') return;
+      const ci = Number(d.colIdx);
+      if (!Number.isInteger(ci) || ci < 0 || ci >= cleanHeaders.length) return;
+      const opts = Array.isArray(d.options)
+        ? [...new Set(d.options.map(function (s) { return String(s == null ? '' : s).trim(); }).filter(function (s) { return s !== ''; }))]
+        : [];
+      if (!opts.length) return;
+      ds.colDropdowns[ci] = opts;
+      ds.colDropdownColors[ci] = daAutoAssignDropdownColors(opts);
+    });
+  }
   daState.datasets.push(ds);
   daState.activeId = id;
   daWorkspaceRefreshVisibility();
@@ -43149,11 +43216,15 @@ function daCreateTableWithColumns(name, columns, rowCount) {
 // Same idea as mfCreateFromTemplate, for Data Arrangement: looks up one of
 // DA_TABLE_TEMPLATES and hands its name/columns/rows straight to
 // daCreateTableWithColumns above, so "create me a lead management table"
-// lands with real CRM-style columns already in place.
+// lands with real CRM-style columns already in place. Also carries the
+// template's own `dropdowns` (colIdx into its own columns array), if any,
+// so e.g. leadManagement's Status column arrives pre-populated with a
+// pick-list without Laya having to guess options for a table she never
+// sees the real headers of.
 function daCreateTableFromTemplate(key) {
   const tpl = DA_TABLE_TEMPLATES[key];
   if (!tpl) throw new Error('unknown table template "' + key + '"');
-  return daCreateTableWithColumns(tpl.name, tpl.columns.slice(), tpl.rows || 8);
+  return daCreateTableWithColumns(tpl.name, tpl.columns.slice(), tpl.rows || 8, tpl.dropdowns);
 }
 
 // ─── Paste Table (Ctrl/Cmd+V): copy any table from Excel, Sheets, Word, or
@@ -45534,8 +45605,22 @@ function daRenderTable() {
             const optStyle = optColor ? ` style="background:${daHlBg(optColor, 0.55)}"` : '';
             return `<option value="${daEsc(opt)}"${isSel ? ' selected' : ''}${optStyle}>${daEsc(opt)}</option>`;
           }).join('');
-          if (!matched) {
-            optsHtml = `<option value="${daEsc(val)}" selected>${val === '' ? '—' : daEsc(val)}</option>` + optsHtml;
+          // FIX: an unset dropdown cell used to show the exact same bare "—"
+          // a genuinely blank contenteditable cell shows, so a freshly
+          // dropdown-enabled column (see the screenshot: every row showing
+          // "—" with a chevron) read as "nothing happened" rather than
+          // "pick a value here" -- the placeholder and a real empty cell
+          // were visually identical. Using "Select…" for the unset case
+          // only (matched stays false only when the cell truly has no
+          // value yet, or an old value that no longer matches the list)
+          // keeps the em-dash convention for actual blank data everywhere
+          // else, while making a dropdown's own empty state look like an
+          // affordance instead of a dead end. A muted class distinguishes
+          // it further from a picked value.
+          const isUnset = !matched;
+          if (isUnset) {
+            const placeholderText = val === '' ? 'Select…' : daEsc(val);
+            optsHtml = `<option value="${daEsc(val)}" selected>${placeholderText}</option>` + optsHtml;
           }
           // A manual cell/row/column highlight is an explicit choice, so it
           // wins over the automatic per-value dropdown color when both are
@@ -45544,13 +45629,14 @@ function daRenderTable() {
           const selValColor = dropdownColors && dropdownColors[val];
           const selectBg = hl ? daHlBg(hl.color) : (selValColor ? daHlBg(selValColor) : '');
           const selectStyle = selectBg ? ` style="background:${selectBg}"` : '';
-          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}" data-da-dropdown="1"${selectStyle}
+          const unsetCls = (isUnset && val === '') ? ' da-td-select-unset' : '';
+          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}${unsetCls}" data-da-dropdown="1"${selectStyle}
                onmousedown="daCellRangeMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
                onchange="daUpdateCell(${ri}, ${ci}, this.value)"
                oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
-               title="${hlTitle ? hlTitle + ' — ' : ''}Dropdown list, right-click to edit choices">${optsHtml}</select>${linkBadge}</td>`;
+               title="${hlTitle ? hlTitle + ' — ' : ''}Click to pick a value, right-click to edit the dropdown's choices">${optsHtml}</select>${linkBadge}</td>`;
         } else {
           html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}${cellSelCls}" contenteditable="true" spellcheck="false"${hlStyle}
                onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
@@ -74198,7 +74284,8 @@ if (document.readyState === 'loading') {
   //     rows" can be answered by extending it rather than guessing what's
   //     already on screen.
   //   da_clear_filter {} -- removes the active filter entirely.
-  //   da_create_table {name?, columns: string[], rows?: number}
+  //   da_create_table {name?, columns: string[], rows?: number,
+  //     dropdowns?: [{colIdx: number, options: string[]}]}
   //     -- Builds a brand-new BLANK table (its own tab) with the exact
   //     column headers given, e.g. columns: ["Name","Email","Amount"].
   //     rows sets how many blank starter rows it opens with (default 8,
@@ -74206,7 +74293,13 @@ if (document.readyState === 'loading') {
   //     specific count. name is optional (auto-numbered "Table N" if
   //     omitted, same as the manual "New Table" button); a name that
   //     collides with an existing tab is de-duped automatically
-  //     ("Sales (2)"). Use this whenever the person describes their own
+  //     ("Sales (2)"). dropdowns is NEW and optional -- attach a pick-list
+  //     to any column that obviously takes a fixed set of values (Status,
+  //     Priority, RSVP...) in this SAME call, instead of needing a separate
+  //     da_set_dropdown round-trip afterwards. colIdx indexes into the
+  //     `columns` array above (0-based); bad entries (out-of-range colIdx,
+  //     no usable options) are skipped rather than failing table creation.
+  //     Use da_create_table whenever the person describes their own
   //     columns ("a table with name, email, and amount paid") or asks for
   //     something no template below fits.
   //   da_create_table_from_template {table}
@@ -75861,10 +75954,19 @@ if (document.readyState === 'loading') {
     // than silently creating a table with no headers.
     da_create_table: {
       risk: 'safe',
-      run: function(p){ daCreateTableWithColumns(p.name, p.columns, p.rows); },
+      // FIX: dropdowns now flows through, so Laya can attach a pick-list to
+      // an obviously-fixed-value column (Status, Priority, RSVP...) in the
+      // SAME call that creates the table, rather than that column sitting
+      // there as a plain text cell until a separate da_set_dropdown call
+      // happens to follow. Each entry is { colIdx, options }, where colIdx
+      // indexes into the `columns` array in THIS call. Bad entries are
+      // skipped by daCreateTableWithColumns rather than failing table
+      // creation.
+      run: function(p){ daCreateTableWithColumns(p.name, p.columns, p.rows, p.dropdowns); },
       label: function(p){
         const cols = Array.isArray(p.columns) ? p.columns.filter(function(c){ return c && String(c).trim(); }) : [];
-        return 'Create a new table' + (p.name ? ' called "' + p.name + '"' : '') + (cols.length ? ' with ' + cols.length + ' column' + (cols.length === 1 ? '' : 's') + ' (' + cols.slice(0, 4).join(', ') + (cols.length > 4 ? ', ...' : '') + ')' : '') + '.';
+        const ddCount = Array.isArray(p.dropdowns) ? p.dropdowns.filter(function(d){ return d && Array.isArray(d.options) && d.options.length; }).length : 0;
+        return 'Create a new table' + (p.name ? ' called "' + p.name + '"' : '') + (cols.length ? ' with ' + cols.length + ' column' + (cols.length === 1 ? '' : 's') + ' (' + cols.slice(0, 4).join(', ') + (cols.length > 4 ? ', ...' : '') + ')' : '') + (ddCount ? ', ' + ddCount + ' with dropdown' + (ddCount === 1 ? '' : 's') + ' attached' : '') + '.';
       }
     },
     // Template-based table creation, the counterpart to
