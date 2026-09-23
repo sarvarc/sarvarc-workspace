@@ -44491,6 +44491,40 @@ function daCellRangeMouseDown(e, ri, ci) {
   }, 0);
 }
 
+// FIX: dropdown cells (real <select> elements) were wired to the exact
+// same onmousedown as a plain contenteditable cell -- daCellRangeMouseDown
+// above, whose whole point is to defer a full daRenderTable() rebuild by
+// one tick so a contenteditable's own native focus/caret behavior lands on
+// the still-intact original node first. That deferred rebuild is harmless
+// for a contenteditable div, but a native <select> opens its options
+// popup as PART OF the browser's own handling of this same mousedown --
+// and when the setTimeout fires a moment later, daRenderTable() replaces
+// the entire grid's innerHTML, tearing out the very <select> node the
+// browser just opened a popup against. The popup then either never shows
+// or closes itself immediately, and nothing in it is clickable -- which is
+// exactly "I can't open the dropdown or select anything" for any
+// dropdown cell, Laya-created or manual.
+//
+// The fix is to give dropdown cells their own mousedown handler that keeps
+// the same range/multi-select bookkeeping (ctrl/cmd-click adds a range,
+// shift-click is left to the browser, a plain click resets the selection)
+// but never touches the DOM. daCellFocus (already wired to the select's
+// onfocus, which fires right after this as part of the same native click)
+// still updates daActiveCell and the formula bar without rebuilding
+// anything, so the popup the browser is opening is left completely alone.
+function daDropdownCellMouseDown(e, ri, ci) {
+  if (e.shiftKey) return;
+  daShiftAnchor = null;
+  if (e.ctrlKey || e.metaKey) {
+    daSelection.cellRanges.push({ r1: ri, c1: ci, r2: ri, c2: ci });
+    daCellDrag = { r1: ri, c1: ci, idx: daSelection.cellRanges.length - 1 };
+  } else {
+    daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+    daCellDrag = { r1: ri, c1: ci, idx: -1 };
+  }
+  // Deliberately no daRenderTable() here -- see above.
+}
+
 // Fires (cheaply, via onmouseenter — a no-op when nothing is being
 // dragged) as the mouse moves over other cells while a range drag is live,
 // growing the active range to cover the rectangle between the drag's
@@ -45631,7 +45665,7 @@ function daRenderTable() {
           const selectStyle = selectBg ? ` style="background:${selectBg}"` : '';
           const unsetCls = (isUnset && val === '') ? ' da-td-select-unset' : '';
           html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}${unsetCls}" data-da-dropdown="1"${selectStyle}
-               onmousedown="daCellRangeMouseDown(event, ${ri}, ${ci})"
+               onmousedown="daDropdownCellMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
                onchange="daUpdateCell(${ri}, ${ci}, this.value)"
@@ -74302,6 +74336,17 @@ if (document.readyState === 'loading') {
   //     Use da_create_table whenever the person describes their own
   //     columns ("a table with name, email, and amount paid") or asks for
   //     something no template below fits.
+  //     TABLE VS FORM (do not mix these up -- separate modules, separate
+  //     tools): "table" / "spreadsheet" / "tracker" / "list of rows and
+  //     columns" -> da_create_table or da_create_table_from_template,
+  //     NEVER mf_create_form or mf_create_from_template, even if the
+  //     domain sounds form-like (e.g. "a table to log expenses" is still
+  //     a TABLE, not an expense claim FORM). Only call mf_create_form /
+  //     mf_create_from_template when the person actually said "form" /
+  //     "survey" / "questionnaire" / asked for something people fill out
+  //     and submit. If the request is genuinely ambiguous (names neither
+  //     word and doesn't clearly imply one), ASK which one instead of
+  //     guessing -- do not default to either.
   //   da_create_table_from_template {table}
   //     -- Same idea as mf_create_from_template, for Data Arrangement:
   //     starts a table pre-built with sensible columns for a common
@@ -76725,6 +76770,43 @@ if (document.readyState === 'loading') {
     }
   }
 
+  // GUARD (added after Laya was observed building a Form when the person
+  // asked for a Table, and occasionally the reverse). Make Forms and Data
+  // Arrangement are two completely different modules here -- unlike the
+  // navigate_to_panel guard above, where the wrong tool call is a silent
+  // no-op, picking mf_create_form instead of da_create_table (or vice
+  // versa) actually builds the WRONG artifact and leaves it sitting on
+  // screen looking like a real answer. The Worker's own system prompt is
+  // the first line of defense (it now spells out the table/columns vs
+  // form/fields distinction explicitly -- see the tool-doc comments
+  // above), but this is a client-side safety net that doesn't depend on
+  // the model getting that right every time: if the user's own words in
+  // THIS turn unambiguously named one and only one of "table" / "form"
+  // (or a close synonym), and the tool Laya picked builds the other one,
+  // we refuse to run it rather than silently creating the wrong thing.
+  // A message that mentions neither word, or mentions both (e.g. "turn
+  // this form's responses into a table" -- a legitimate mf_export_
+  // responses_to_da request), is left alone; this only fires on a clean,
+  // one-sided mismatch.
+  function laya_tableFormMismatch(actionType, userText){
+    const creates = {
+      mf_create_form: 'form', mf_create_from_template: 'form',
+      da_create_table: 'table', da_create_table_from_template: 'table'
+    };
+    const kind = creates[actionType];
+    if (!kind) return null;
+    const t = String(userText || '').toLowerCase();
+    const saysTable = /\btables?\b|\bspreadsheet\b|\btracker\b/.test(t);
+    const saysForm  = /\bforms?\b|\bsurveys?\b|\bquestionnaires?\b|\bsign[\s-]?up sheet\b/.test(t);
+    if (kind === 'form' && saysTable && !saysForm){
+      return "you asked for a table, not a form -- Make Forms and Data Arrangement are different tools here, so I stopped before building the wrong one. Ask again (\"make me a table with ...\") and I'll build it in Data Arrangement instead.";
+    }
+    if (kind === 'table' && saysForm && !saysTable){
+      return "you asked for a form, not a table -- Make Forms and Data Arrangement are different tools here, so I stopped before building the wrong one. Ask again (\"make me a form with ...\") and I'll build it there instead.";
+    }
+    return null;
+  }
+
   // demoReply(): fallback voice used only when LAYA_API is off or the Worker
   // is unreachable. Grounded in the SAME getLayaContext() the real API call
   // uses -- weaves in actual row counts, page numbers, field counts, chart
@@ -77140,14 +77222,15 @@ if (document.readyState === 'loading') {
       // Runs a batch of actions in order. Returns true if one of them was a
       // successful panel switch, so the caller knows Laya is now standing in
       // a different panel with a different set of tools.
-      async function layaRunActionBatch(list){
+      async function layaRunActionBatch(list, userText){
         let switched = false;
         if (!list || !list.length) return switched;
         layaSetActing(true);
         try{
           for (const action of list){
             layaPulseActing();
-            const problem = await layaExecuteAction(action);
+            const mismatch = laya_tableFormMismatch(action && action.type, userText);
+            const problem = mismatch || await layaExecuteAction(action);
             if (problem) addMsg('laya', sarvarcLayaStripEmDash(problem));
             else if (action && action.type === 'navigate_to_panel') switched = true;
           }
@@ -77157,7 +77240,7 @@ if (document.readyState === 'loading') {
         return switched;
       }
 
-      let layaSwitched = await layaRunActionBatch(actions);
+      let layaSwitched = await layaRunActionBatch(actions, text);
 
       // FIX (smarter asks): the Worker only hands Laya the tools for the panel
       // you're standing in, so before this she could switch panels and then
@@ -77177,7 +77260,7 @@ if (document.readyState === 'loading') {
           const res2 = await callRealLayaAPI(history.concat([followUp]), ctx2);
           const reply2 = sarvarcLayaStripEmDash(res2.reply || '');
           if (reply2){ addMsg('laya', reply2); history.push({ role: 'assistant', content: reply2 }); }
-          layaSwitched = await layaRunActionBatch(res2.actions);
+          layaSwitched = await layaRunActionBatch(res2.actions, text);
         }
       } catch(e2){
         console.warn('Laya auto-continue after panel switch failed', e2);
