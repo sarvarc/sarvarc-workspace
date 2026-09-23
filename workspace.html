@@ -45515,6 +45515,7 @@ function daRenderTable() {
           isError ? 'da-cell-error' : ''
         ].filter(Boolean).join(' ');
         const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
+        const dropdownColors = daGetEffectiveDropdownColors(ds, ri, ci);
         const linkUrl = daGetCellLink(ds, ri, ci);
         const hl = daGetEffectiveHighlight(ds, ri, ci);
         const hlStyle = hl ? ` style="background:${daHlBg(hl.color)}"` : '';
@@ -45529,12 +45530,21 @@ function daRenderTable() {
           let optsHtml = dropdownOpts.map(opt => {
             const isSel = opt === val;
             if (isSel) matched = true;
-            return `<option value="${daEsc(opt)}"${isSel ? ' selected' : ''}>${daEsc(opt)}</option>`;
+            const optColor = dropdownColors && dropdownColors[opt];
+            const optStyle = optColor ? ` style="background:${daHlBg(optColor, 0.55)}"` : '';
+            return `<option value="${daEsc(opt)}"${isSel ? ' selected' : ''}${optStyle}>${daEsc(opt)}</option>`;
           }).join('');
           if (!matched) {
             optsHtml = `<option value="${daEsc(val)}" selected>${val === '' ? '—' : daEsc(val)}</option>` + optsHtml;
           }
-          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}" data-da-dropdown="1"${hlStyle}
+          // A manual cell/row/column highlight is an explicit choice, so it
+          // wins over the automatic per-value dropdown color when both are
+          // present; otherwise the selected option's own color tints the
+          // closed select the same way a highlighted cell would look.
+          const selValColor = dropdownColors && dropdownColors[val];
+          const selectBg = hl ? daHlBg(hl.color) : (selValColor ? daHlBg(selValColor) : '');
+          const selectStyle = selectBg ? ` style="background:${selectBg}"` : '';
+          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}" data-da-dropdown="1"${selectStyle}
                onmousedown="daCellRangeMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
@@ -45814,6 +45824,51 @@ function daDeleteColumn(colIdx) {
 function daEnsureDropdownStore(ds) {
   if (!ds.colDropdowns) ds.colDropdowns = {};
   if (!ds.cellDropdowns) ds.cellDropdowns = {};
+  // Per-option colors, same key scheme as colDropdowns/cellDropdowns above:
+  // ds.colDropdownColors[ci]      -> { optionText: hexColor } for a column
+  // ds.cellDropdownColors["r_c"]  -> { optionText: hexColor } for one cell
+  // Populated automatically whenever a dropdown's option list is (re)set --
+  // see daAutoAssignDropdownColors below -- so both the manual modal and
+  // Laya's da_set_dropdown produce the same colored look with no extra
+  // step required from whoever is setting it up.
+  if (!ds.colDropdownColors) ds.colDropdownColors = {};
+  if (!ds.cellDropdownColors) ds.cellDropdownColors = {};
+}
+
+// Common, meaningful words get a color that matches what they mean
+// everywhere else in the app (da_highlight_* uses the same six names via
+// DA_HIGHLIGHT_COLOR_NAMES) -- "Yes"/"Approved"/"Done" are green, "No"/
+// "Rejected"/"Overdue" are red, and so on. Anything that doesn't match a
+// known word cycles through the remaining named colors in a fixed order,
+// so the same option list always comes out the same way (stable, not
+// random) whether it's typed into the modal or created by Laya.
+const DA_DROPDOWN_KEYWORD_COLORS = [
+  [/^(yes|approved|done|complete(d)?|paid|fixed|resolved|active|won|accepted|confirmed|in stock|available|true|pass(ed)?)$/i, 'green'],
+  [/^(no|rejected|denied|cancell?ed|overdue|failed|inactive|lost|declined|out of stock|unavailable|won'?t fix|false|fail(ed)?)$/i, 'red'],
+  [/^(high|urgent|critical|top priority)$/i, 'red'],
+  [/^(pending|in progress|in review|processing|medium|review|maybe|waiting|on hold)$/i, 'yellow'],
+  [/^(new|open|not started|todo|low|backlog)$/i, 'blue'],
+  [/^(closed|archived|n\/a|none|unknown)$/i, 'gray'],
+];
+const DA_DROPDOWN_COLOR_CYCLE = ['blue', 'green', 'yellow', 'purple', 'gray', 'red'];
+
+function daAutoAssignDropdownColors(options) {
+  const out = {};
+  let cycleIdx = 0;
+  (options || []).forEach(function (opt) {
+    const trimmed = String(opt == null ? '' : opt).trim();
+    if (!trimmed || out[trimmed]) return;
+    let colorName = null;
+    for (let i = 0; i < DA_DROPDOWN_KEYWORD_COLORS.length; i++) {
+      if (DA_DROPDOWN_KEYWORD_COLORS[i][0].test(trimmed)) { colorName = DA_DROPDOWN_KEYWORD_COLORS[i][1]; break; }
+    }
+    if (!colorName) {
+      colorName = DA_DROPDOWN_COLOR_CYCLE[cycleIdx % DA_DROPDOWN_COLOR_CYCLE.length];
+      cycleIdx++;
+    }
+    out[trimmed] = DA_HIGHLIGHT_COLOR_NAMES[colorName];
+  });
+  return out;
 }
 
 // ─── Cell Links ("Insert Link", Excel/Sheets-style) ───
@@ -45953,6 +46008,18 @@ function daGetEffectiveDropdown(ds, ri, ci) {
   return null;
 }
 
+// Same cell-then-column precedence as daGetEffectiveDropdown, for the color
+// map that goes with whichever option list is actually in effect.
+function daGetEffectiveDropdownColors(ds, ri, ci) {
+  if (!ds) return null;
+  daEnsureDropdownStore(ds);
+  const cellColors = ds.cellDropdownColors[ri + '_' + ci];
+  if (cellColors) return cellColors;
+  const colColors = ds.colDropdownColors[ci];
+  if (colColors) return colColors;
+  return null;
+}
+
 let daDropdownCtx = null;   // { row, col } the modal is currently editing (row -1 = whole column, opened from the header)
 let daDropdownScope = 'cell'; // 'cell' | 'column', which the modal will save to
 
@@ -46076,13 +46143,17 @@ function daSaveDropdownModal() {
   if (!deduped.length) { toast('Add at least one choice, one per line', 'info'); return; }
 
   const isHeader = ri === -1;
+  const colors = daAutoAssignDropdownColors(deduped);
   if (isHeader || daDropdownScope === 'column') {
     ds.colDropdowns[ci] = deduped;
+    ds.colDropdownColors[ci] = colors;
     // A column-wide list takes over, so any older single-cell overrides in
     // this column would just be confusing leftovers — clear them.
     Object.keys(ds.cellDropdowns).forEach(k => { if (k.endsWith('_' + ci)) delete ds.cellDropdowns[k]; });
+    Object.keys(ds.cellDropdownColors).forEach(k => { if (k.endsWith('_' + ci)) delete ds.cellDropdownColors[k]; });
   } else {
     ds.cellDropdowns[ri + '_' + ci] = deduped;
+    ds.cellDropdownColors[ri + '_' + ci] = colors;
   }
 
   daPersist();
@@ -46102,10 +46173,11 @@ function daRemoveDropdown(ri, ci) {
   daEnsureDropdownStore(ds);
   if (ri === -1) {
     delete ds.colDropdowns[ci];
+    delete ds.colDropdownColors[ci];
   } else {
     const key = ri + '_' + ci;
-    if (ds.cellDropdowns[key]) delete ds.cellDropdowns[key];
-    else delete ds.colDropdowns[ci]; // was showing a column-level dropdown for this cell
+    if (ds.cellDropdowns[key]) { delete ds.cellDropdowns[key]; delete ds.cellDropdownColors[key]; }
+    else { delete ds.colDropdowns[ci]; delete ds.colDropdownColors[ci]; } // was showing a column-level dropdown for this cell
   }
   daPersist();
   daRenderTable();
@@ -75720,6 +75792,66 @@ if (document.readyState === 'loading') {
         daRenderTable();
       },
       label: function(){ return 'Clear the row filter.'; }
+    },
+
+    // Excel-style "Data Validation" pick-lists, driven by Laya. Mirrors
+    // daSaveDropdownModal's own save logic exactly (dedupe, column-wide
+    // list clears older single-cell overrides in that column) so a
+    // Laya-set dropdown behaves identically to one set through the modal.
+    // NOTE: these two entries were missing entirely until now -- the Worker
+    // has offered this tool to Laya since v28, but with nothing here to
+    // run it, every attempt surfaced as "I don't recognize that action yet".
+    da_set_dropdown: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureDropdownStore(ds);
+        const ci = p.colIdx;
+        if (ci == null || ci < 0 || ci >= (ds.headers || []).length) throw new Error('column ' + ci + ' does not exist in this table');
+        const options = Array.isArray(p.options)
+          ? [...new Set(p.options.map(function(s){ return String(s).trim(); }).filter(function(s){ return s !== ''; }))]
+          : [];
+        if (!options.length) throw new Error('at least one option is needed');
+        const colors = daAutoAssignDropdownColors(options);
+        if (p.rowIdx !== undefined && p.rowIdx !== null) {
+          const ri = p.rowIdx;
+          if (ri < 0 || ri >= (ds.rows || []).length) throw new Error('row ' + ri + ' does not exist in this table');
+          ds.cellDropdowns[ri + '_' + ci] = options;
+          ds.cellDropdownColors[ri + '_' + ci] = colors;
+        } else {
+          ds.colDropdowns[ci] = options;
+          ds.colDropdownColors[ci] = colors;
+          // A column-wide list takes over, so any older single-cell
+          // overrides in this column would just be confusing leftovers.
+          Object.keys(ds.cellDropdowns).forEach(function(k){ if (k.endsWith('_' + ci)) delete ds.cellDropdowns[k]; });
+          Object.keys(ds.cellDropdownColors).forEach(function(k){ if (k.endsWith('_' + ci)) delete ds.cellDropdownColors[k]; });
+        }
+        daPersist();
+        daRenderTable();
+      },
+      label: function(p){
+        const where = (p.rowIdx !== undefined && p.rowIdx !== null)
+          ? ('cell ' + daColToLetters(p.colIdx) + (p.rowIdx + 1))
+          : ('column ' + daColToLetters(p.colIdx));
+        const opts = Array.isArray(p.options) ? p.options : [];
+        return 'Add a dropdown to ' + where + ' with choices: ' + opts.slice(0, 6).join(', ') + (opts.length > 6 ? ', ...' : '') + '.';
+      }
+    },
+    da_remove_dropdown: {
+      risk: 'safe',
+      run: function(p){
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        daEnsureDropdownStore(ds);
+        const ci = p.colIdx;
+        if (ci == null || ci < 0 || ci >= (ds.headers || []).length) throw new Error('column ' + ci + ' does not exist in this table');
+        const ri = (p.rowIdx !== undefined && p.rowIdx !== null) ? p.rowIdx : -1;
+        daRemoveDropdown(ri, ci);
+      },
+      label: function(p){
+        return (p.rowIdx !== undefined && p.rowIdx !== null)
+          ? 'Remove the dropdown from cell ' + daColToLetters(p.colIdx) + (p.rowIdx + 1) + '.'
+          : 'Remove the dropdown from column ' + daColToLetters(p.colIdx) + '.';
+      }
     },
 
     // Custom-columns table creation -- the Data Arrangement counterpart to
