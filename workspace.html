@@ -75101,9 +75101,29 @@ if (document.readyState === 'loading') {
     try{
       const sec = (typeof unifiedActiveSection === 'function') ? unifiedActiveSection() : '';
 
-      if (sec === 'dataarrange' && typeof daState !== 'undefined' && daState.datasets && daState.datasets.length){
-        const ds = (daState.activeId && daState.datasets.find(function(d){ return d.id === daState.activeId; }))
-                   || daState.datasets[0];
+      if (sec === 'dataarrange' && typeof daState !== 'undefined'){
+        const hasDatasets = !!(daState.datasets && daState.datasets.length);
+        const ds = hasDatasets
+          ? ((daState.activeId && daState.datasets.find(function(d){ return d.id === daState.activeId; })) || daState.datasets[0])
+          : null;
+        // No table open yet (the "Drop your file here" / blank-state screen).
+        // Still report activePanel so the Worker keeps offering
+        // da_create_table / da_create_table_from_template here -- table
+        // creation is exactly the action needed on THIS screen, so it must
+        // not require a table to already exist.
+        if (!ds){
+          return {
+            activePanel: 'Data Arrangement',
+            noTableOpen: true,
+            datasetName: null,
+            headers: [],
+            totalRowCount: 0,
+            sampleRows: [],
+            emptyCellsInSample: 0,
+            columnStats: [],
+            activeFilter: null
+          };
+        }
         if(ds){
           const sampleRows = (ds.rows || []).slice(0, 15);
           let emptyCells = 0;
