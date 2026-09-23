@@ -43066,6 +43066,96 @@ function daCreateBlankTable() {
   toast('Blank table created, click any cell to start typing', 'success');
 }
 
+// ─── Laya table templates: the Data Arrangement counterpart to
+// MF_TEMPLATES. Each entry is a ready column set for a common business
+// table ("lead management", "sales tracker", ...) so a request like "laya
+// create me a lead management table" gets real, sensible headers instead
+// of four generic "Column N" cells. `rows` is how many blank starter rows
+// the table opens with -- kept small (6-10) since these are meant to be
+// filled in by hand or via further da_add_row / da_update_cell calls, not
+// pre-populated with fake data. Keyed by camelCase id, same convention as
+// MF_TEMPLATES, because da_create_table_from_template below has to match
+// the model's `table` param to a key exactly. ───
+const DA_TABLE_TEMPLATES = {
+  leadManagement: { name: 'Lead Management', rows: 8,
+    columns: ['Lead Name', 'Company', 'Email', 'Phone', 'Source', 'Status', 'Owner', 'Last Contacted', 'Notes'] },
+  salesTracker: { name: 'Sales Tracker', rows: 8,
+    columns: ['Deal Name', 'Customer', 'Value', 'Stage', 'Close Date', 'Owner', 'Probability %', 'Notes'] },
+  inventory: { name: 'Inventory', rows: 10,
+    columns: ['Item', 'SKU', 'Category', 'Quantity', 'Unit Cost', 'Reorder Level', 'Supplier', 'Location'] },
+  expenseTracker: { name: 'Expense Tracker', rows: 10,
+    columns: ['Date', 'Category', 'Description', 'Amount', 'Payment Method', 'Paid By', 'Reimbursed'] },
+  clientDirectory: { name: 'Client Directory', rows: 8,
+    columns: ['Name', 'Company', 'Email', 'Phone', 'Address', 'Tags', 'Notes'] },
+  taskTracker: { name: 'Task Tracker', rows: 8,
+    columns: ['Task', 'Assignee', 'Priority', 'Status', 'Due Date', 'Notes'] },
+  invoiceLog: { name: 'Invoice Log', rows: 8,
+    columns: ['Invoice #', 'Client', 'Issue Date', 'Due Date', 'Amount', 'Status'] },
+  employeeDirectory: { name: 'Employee Directory', rows: 8,
+    columns: ['Name', 'Employee ID', 'Department', 'Role', 'Email', 'Phone', 'Joining Date'] },
+  eventGuestList: { name: 'Event Guest List', rows: 10,
+    columns: ['Guest Name', 'Email', 'Phone', 'RSVP Status', 'Plus One', 'Table No.', 'Notes'] },
+  vendorDirectory: { name: 'Vendor Directory', rows: 8,
+    columns: ['Vendor', 'Contact Person', 'Email', 'Phone', 'Category', 'Payment Terms', 'Notes'] },
+  budgetTracker: { name: 'Budget Tracker', rows: 8,
+    columns: ['Category', 'Budgeted', 'Actual', 'Variance', 'Notes'] },
+  attendanceLog: { name: 'Attendance Log', rows: 10,
+    columns: ['Date', 'Name', 'Status', 'Check-in', 'Check-out', 'Notes'] }
+};
+window.DA_TABLE_TEMPLATES = DA_TABLE_TEMPLATES;
+
+// Shared name de-duplication: same "Base", "Base (2)", "Base (3)" scheme
+// daPasteTableFromClipboard already uses for a detected title, reused here
+// so a Laya-created table never silently overwrites/hides an existing tab
+// that happens to share its name.
+function daUniqueTableName(base) {
+  let name = base, n = 2;
+  while (daState.datasets.some(d => d.name === name)) {
+    name = base + ' (' + n + ')';
+    n++;
+  }
+  return name;
+}
+
+// ── Laya hook: da_create_table ──────────────────────────────────────────
+// Builds a brand-new table with caller-given column headers (and optional
+// starter row count), the "custom columns" counterpart to
+// daCreateTableFromTemplate below. Mirrors daCreateBlankTable's dataset
+// shape exactly so a Laya-built table is indistinguishable from a manually
+// -built one -- same tab behaviour, same cell editing, same export path.
+function daCreateTableWithColumns(name, columns, rowCount) {
+  const cleanHeaders = (Array.isArray(columns) ? columns : [])
+    .map(function (h) { return String(h == null ? '' : h).trim(); })
+    .filter(function (h) { return h.length > 0; })
+    .slice(0, 30);
+  if (!cleanHeaders.length) throw new Error('at least one column is needed to create a table');
+  const rc = Math.max(1, Math.min(Math.round(Number(rowCount)) || 8, 500));
+  const existingBlankCount = daState.datasets.filter(d => /^Table \d+$/.test(d.name)).length;
+  const base = (name && String(name).trim()) ? String(name).trim().slice(0, 40) : `Table ${existingBlankCount + 1}`;
+  const finalName = daUniqueTableName(base);
+  const rows = Array.from({ length: rc }, () => new Array(cleanHeaders.length).fill(''));
+  const id = 'ds' + (++daIdCounter);
+  const ds = { id, name: finalName, headers: cleanHeaders, rows, frozen: true, colDropdowns: {}, cellDropdowns: {}, rowHighlights: {}, colHighlights: {}, cellHighlights: {} };
+  daState.datasets.push(ds);
+  daState.activeId = id;
+  daWorkspaceRefreshVisibility();
+  daRenderTabs();
+  daRenderTable();
+  toast('"' + finalName + '" table created with ' + cleanHeaders.length + ' column' + (cleanHeaders.length === 1 ? '' : 's') + ', click any cell to start typing', 'success');
+  return ds;
+}
+
+// ── Laya hook: da_create_table_from_template ────────────────────────────
+// Same idea as mfCreateFromTemplate, for Data Arrangement: looks up one of
+// DA_TABLE_TEMPLATES and hands its name/columns/rows straight to
+// daCreateTableWithColumns above, so "create me a lead management table"
+// lands with real CRM-style columns already in place.
+function daCreateTableFromTemplate(key) {
+  const tpl = DA_TABLE_TEMPLATES[key];
+  if (!tpl) throw new Error('unknown table template "' + key + '"');
+  return daCreateTableWithColumns(tpl.name, tpl.columns.slice(), tpl.rows || 8);
+}
+
 // ─── Paste Table (Ctrl/Cmd+V): copy any table from Excel, Sheets, Word, or
 // a plain tab-separated block, and land it straight in Data Arrangement as
 // a new, fully editable dataset — no upload/export step needed. Reuses the
@@ -74036,6 +74126,38 @@ if (document.readyState === 'loading') {
   //     rows" can be answered by extending it rather than guessing what's
   //     already on screen.
   //   da_clear_filter {} -- removes the active filter entirely.
+  //   da_create_table {name?, columns: string[], rows?: number}
+  //     -- Builds a brand-new BLANK table (its own tab) with the exact
+  //     column headers given, e.g. columns: ["Name","Email","Amount"].
+  //     rows sets how many blank starter rows it opens with (default 8,
+  //     capped at 500) -- leave it out unless the person asked for a
+  //     specific count. name is optional (auto-numbered "Table N" if
+  //     omitted, same as the manual "New Table" button); a name that
+  //     collides with an existing tab is de-duped automatically
+  //     ("Sales (2)"). Use this whenever the person describes their own
+  //     columns ("a table with name, email, and amount paid") or asks for
+  //     something no template below fits.
+  //   da_create_table_from_template {table}
+  //     -- Same idea as mf_create_from_template, for Data Arrangement:
+  //     starts a table pre-built with sensible columns for a common
+  //     business use ("laya create me a lead management table", "make me
+  //     a sales table") instead of Laya guessing columns one by one.
+  //     Prefer this over da_create_table whenever the request names or
+  //     clearly implies one of these (match by meaning, not exact wording
+  //     -- "CRM leads"/"lead tracker" -> leadManagement; "deals
+  //     pipeline"/"sales table" -> salesTracker; "stock list" ->
+  //     inventory; "who's coming"/"guest list" -> eventGuestList). `table`
+  //     MUST be one of these exact keys: leadManagement, salesTracker,
+  //     inventory, expenseTracker, clientDirectory, taskTracker,
+  //     invoiceLog, employeeDirectory, eventGuestList, vendorDirectory,
+  //     budgetTracker, attendanceLog. If nothing matches confidently, fall
+  //     back to da_create_table with your own best-guess columns instead
+  //     of forcing a template that doesn't fit -- and if the request is
+  //     too bare to guess at all ("make me a table" with no domain, no
+  //     columns, nothing to go on), ASK what it's for or which columns it
+  //     needs rather than creating something and hoping it's right, same
+  //     as the "ASK which one" guidance under mf_export_responses_to_da
+  //     above.
   //   dg_set_type {chartType}                dg_set_palette {scheme}
   //   dg_add_row {}                          dg_set_x_axis {colIdx}
   //   dg_set_y_axis {colIdx}
@@ -75578,6 +75700,37 @@ if (document.readyState === 'loading') {
         daRenderTable();
       },
       label: function(){ return 'Clear the row filter.'; }
+    },
+
+    // Custom-columns table creation -- the Data Arrangement counterpart to
+    // mf_create_form. Throws client-side (daCreateTableWithColumns) if no
+    // usable column names come through, so an empty/garbled columns array
+    // surfaces as a normal reply asking what columns are wanted, rather
+    // than silently creating a table with no headers.
+    da_create_table: {
+      risk: 'safe',
+      run: function(p){ daCreateTableWithColumns(p.name, p.columns, p.rows); },
+      label: function(p){
+        const cols = Array.isArray(p.columns) ? p.columns.filter(function(c){ return c && String(c).trim(); }) : [];
+        return 'Create a new table' + (p.name ? ' called "' + p.name + '"' : '') + (cols.length ? ' with ' + cols.length + ' column' + (cols.length === 1 ? '' : 's') + ' (' + cols.slice(0, 4).join(', ') + (cols.length > 4 ? ', ...' : '') + ')' : '') + '.';
+      }
+    },
+    // Template-based table creation, the counterpart to
+    // mf_create_from_template above: reuses DA_TABLE_TEMPLATES so a
+    // Laya-started "lead management" / "sales tracker" / etc. table always
+    // gets the same real columns a person picking a template by hand would
+    // see. Guards against an unknown/typo'd key the same way
+    // mf_create_from_template guards its own `template` param.
+    da_create_table_from_template: {
+      risk: 'safe',
+      run: function(p){
+        if (!p.table || !DA_TABLE_TEMPLATES[p.table]) throw new Error('unknown table template "' + p.table + '"');
+        daCreateTableFromTemplate(p.table);
+      },
+      label: function(p){
+        const tpl = DA_TABLE_TEMPLATES[p.table];
+        return 'Create a new "' + (tpl ? tpl.name : p.table) + '" table' + (tpl ? ' with ' + tpl.columns.length + ' columns ready to fill in' : '') + '.';
+      }
     },
 
     dg_set_type:       { risk: 'safe',    run: function(p){ dgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
