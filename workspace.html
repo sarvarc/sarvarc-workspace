@@ -19836,7 +19836,12 @@ async function smUpdateSessionSnapshot(id) {
         });
       }
     }
-  } catch (e) { console.warn('[Sessions] Drive mirror update skipped', e); }
+  } catch (e) {
+    console.warn('[Sessions] Drive mirror update skipped', e);
+    if (existing.ownerEmail && typeof toast === 'function') {
+      toast('Saved on this device. Couldn\u2019t sync to your account yet \u2014 it\u2019ll retry next time you sign in.', 'info');
+    }
+  }
   return rec;
 }
 
@@ -20426,7 +20431,7 @@ const SM_MODULE_MANIFEST = [
 const SM_MODULE_STORAGE = {
   workspace:   { idb: ['workspaceDoc_v1'] },
   dataarrange: { ls:  ['sarvarcDaState_v1'] },
-  makeforms:   { ls:  ['sarvarcForms'] },
+  makeforms:   { ls:  ['sarvarcForms'], idb: ['sarvarcFormsAttachments'] },
   diagrams:    { ls:  ['sarvarcDgHistory_v1', 'sarvarcDgState_v1', 'sarvarcDgFlowState_v1'] },
   extract:     { idb: ['sarvarcExtractState_v1'] },
   redact:      { idb: ['sarvarcRedactState_v1'] }
@@ -55767,11 +55772,73 @@ function mfLoad() {
     mfMemForms = mfState.forms;
   }
 }
+// Attachment files used to be stored inline as base64 dataUrls right inside
+// mfState.forms → localStorage['sarvarcForms']. A single form with a few
+// MB of PDFs/images pushed that one localStorage key past the browser's
+// origin quota (typically 5-10MB total, shared with every other saved
+// form). The write would then throw QuotaExceededError, which mfPersist()
+// only logged to the console — so the attachment stayed visible for the
+// rest of that tab's life (it was still sitting in memory) but was never
+// actually written to disk. Reopen the app (new day, new login, a Saved
+// Session reload) and it's gone, because the load path only ever sees what
+// made it into localStorage. See mfPersist() below.
+//
+// Fix: attachment binary data now lives in IndexedDB (via idbKvGet/Set,
+// same store already used for the Workspace document, Extract and Redact —
+// see idbKvOpen above), which has a far larger quota. localStorage keeps
+// only small metadata (id/name/size/type) per file. mfAttachBlobs is the
+// in-memory {fileId: dataUrl} cache, loaded once at boot by
+// mfLoadAttachmentBlobs() (called right after mfLoad(), see bottom of this
+// module) and also swept into every Saved Session (see SM_MODULE_STORAGE's
+// makeforms.idb entry) so attachments now survive a Session save/reload too.
+const MF_ATTACH_STORAGE_KEY = 'sarvarcFormsAttachments';
+let mfAttachBlobs = {};
+let mfAttachBlobsLoaded = false;
+
+async function mfLoadAttachmentBlobs() {
+  try { mfAttachBlobs = (await idbKvGet(MF_ATTACH_STORAGE_KEY)) || {}; }
+  catch (e) { console.warn('[Make Forms] could not load attachment files from IndexedDB', e); mfAttachBlobs = {}; }
+  mfAttachBlobsLoaded = true;
+  // One-time migration: any file still carrying its old inline dataUrl
+  // (saved before this fix, or restored from an old Session/export) gets
+  // its data moved into mfAttachBlobs and stripped out of mfState.forms,
+  // so it stops re-bloating localStorage on every future edit.
+  let migrated = false;
+  (mfState.forms || []).forEach(function (f) {
+    (f.attachmentFolders || []).forEach(function (folder) {
+      (folder.files || []).forEach(function (file) {
+        if (file.dataUrl) {
+          mfAttachBlobs[file.id] = file.dataUrl;
+          delete file.dataUrl;
+          migrated = true;
+        }
+      });
+    });
+  });
+  if (migrated) {
+    try { await idbKvSet(MF_ATTACH_STORAGE_KEY, mfAttachBlobs); } catch (e) {}
+    mfMemForms = mfState.forms;
+    try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(mfState.forms)); } catch (e) {}
+    if (document.getElementById('mfFillAttachList') || document.getElementById('mfAttachList')) mfRenderAttachments();
+  }
+}
+
+async function mfPersistAttachmentBlobs() {
+  try { await idbKvSet(MF_ATTACH_STORAGE_KEY, mfAttachBlobs); }
+  catch (e) {
+    console.warn('[Make Forms] could not persist attachment files to IndexedDB', e);
+    if (typeof toast === 'function') toast('Could not save that attachment — your browser storage may be full', 'error');
+  }
+}
+
 function mfPersist() {
   if (typeof mfHistory !== 'undefined') mfHistory.checkpoint();
   mfMemForms = mfState.forms; // always keep in-memory mirror in sync
   try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(mfState.forms)); }
-  catch(e) { console.warn('[Make Forms] could not persist to localStorage', e); }
+  catch(e) {
+    console.warn('[Make Forms] could not persist to localStorage', e);
+    if (typeof toast === 'function') toast('Could not save your form — your browser storage may be full', 'error');
+  }
   mfCollabPush();
 }
 
@@ -57256,14 +57323,15 @@ function mfSetBannerOpacity(val) {
 
 // ─── ATTACHMENTS: named folders of files that travel with the form ───
 // Lives on f.attachmentFolders — [{ id, name, files:[{ id, name, size,
-// type, dataUrl, addedAt }] }] — persisted the same way as everything else
-// on the form (mfTouch → mfPersist → localStorage, and swept into the
-// publish payload below) so the same folders show up on the live/published
-// form. Opening a file NEVER navigates the current tab: mfOpenAttachmentFile
-// converts the stored data URL to a blob URL and window.open()s that in a
-// new tab, so whatever the person has already typed into the form (design
-// preview or Fill & Responses draft) is completely untouched.
-const MF_ATTACH_MAX_FILE_MB = 8; // keeps one big upload from blowing past what a single localStorage key can hold
+// type, addedAt }] }]. Metadata only: the actual file bytes live in
+// mfAttachBlobs / IndexedDB (see mfLoadAttachmentBlobs/mfPersistAttachmentBlobs
+// near mfLoad() above), keyed by file.id, and get stitched back in when
+// publishing (see mfPublishForm). Opening a file NEVER navigates the
+// current tab: mfOpenAttachmentFile converts the stored data URL to a blob
+// URL and window.open()s that in a new tab, so whatever the person has
+// already typed into the form (design preview or Fill & Responses draft)
+// is completely untouched.
+const MF_ATTACH_MAX_FILE_MB = 8; // sanity cap on a single upload — the actual bytes now live in IndexedDB (mfAttachBlobs), not localStorage, so this is generous headroom rather than a hard quota wall
 
 function mfEnsureAttachmentFolders(f) {
   if (!f.attachmentFolders) f.attachmentFolders = [];
@@ -57334,8 +57402,10 @@ function mfDeleteAttachmentFolder(folderId) {
   if (!folder) return;
   const count = (folder.files || []).length;
   if (!window.confirm(`Delete folder "${folder.name}"${count ? ` and its ${count} file${count > 1 ? 's' : ''}` : ''}?`)) return;
+  (folder.files || []).forEach(file => { delete mfAttachBlobs[file.id]; });
   f.attachmentFolders = folders.filter(x => x.id !== folderId);
   mfTouch(f);
+  mfPersistAttachmentBlobs();
   mfRenderAttachments();
 }
 
@@ -57356,7 +57426,7 @@ function mfHandleAttachmentUpload(input) {
   let pending = files.length, added = 0, skipped = 0;
   const finish = () => {
     if (--pending > 0) return;
-    if (added) { mfTouch(f); mfRenderAttachments(); }
+    if (added) { mfTouch(f); mfPersistAttachmentBlobs(); mfRenderAttachments(); }
     if (added && !skipped) toast(`${added} file${added > 1 ? 's' : ''} attached to "${folder.name}"`, 'success');
     else if (added && skipped) toast(`${added} attached, ${skipped} skipped (over ${MF_ATTACH_MAX_FILE_MB}MB)`, 'info');
     else if (skipped) toast(`File too large — ${MF_ATTACH_MAX_FILE_MB}MB limit per file`, 'error');
@@ -57365,9 +57435,14 @@ function mfHandleAttachmentUpload(input) {
     if (file.size > MF_ATTACH_MAX_FILE_MB * 1024 * 1024) { skipped++; finish(); return; }
     const reader = new FileReader();
     reader.onload = (e) => {
+      const id = mfUid('afile');
+      // Binary data goes to the IndexedDB cache (mfPersistAttachmentBlobs,
+      // called once below in finish()), not into the form object itself —
+      // that's what keeps this out of the size-limited localStorage write.
+      mfAttachBlobs[id] = e.target.result;
       folder.files.push({
-        id: mfUid('afile'), name: file.name, size: file.size,
-        type: file.type || 'application/octet-stream', dataUrl: e.target.result,
+        id: id, name: file.name, size: file.size,
+        type: file.type || 'application/octet-stream',
         addedAt: Date.now()
       });
       added++; finish();
@@ -57383,7 +57458,9 @@ function mfRemoveAttachmentFile(folderId, fileId) {
   const folder = mfEnsureAttachmentFolders(f).find(x => x.id === folderId);
   if (!folder) return;
   folder.files = (folder.files || []).filter(x => x.id !== fileId);
+  delete mfAttachBlobs[fileId];
   mfTouch(f);
+  mfPersistAttachmentBlobs();
   mfRenderAttachments();
 }
 
@@ -57408,13 +57485,23 @@ function mfDataUrlToBlob(dataUrl) {
 // Hassle-free, one click: opens the file in a brand-new tab off a blob URL.
 // The current tab never navigates or reloads, so a respondent's in-progress
 // answers (and an owner's in-progress design/edits) are never at risk.
-function mfOpenAttachmentFile(folderId, fileId) {
+async function mfOpenAttachmentFile(folderId, fileId) {
   const f = mfGetCurrentForm(); if (!f) return;
   const folder = mfEnsureAttachmentFolders(f).find(x => x.id === folderId);
   const file = folder && folder.files.find(x => x.id === fileId);
   if (!file) return;
   try {
-    const url = URL.createObjectURL(mfDataUrlToBlob(file.dataUrl));
+    // file.dataUrl only exists on attachments saved before the IndexedDB
+    // migration (mfLoadAttachmentBlobs) got a chance to run; everything
+    // else lives in mfAttachBlobs, keyed by file.id.
+    let dataUrl = file.dataUrl || mfAttachBlobs[fileId];
+    if (!dataUrl && !mfAttachBlobsLoaded) {
+      // Boot's blob-cache load hasn't finished yet — go straight to
+      // IndexedDB rather than telling the person the file is missing.
+      try { dataUrl = await idbKvGet(MF_ATTACH_STORAGE_KEY).then(m => m && m[fileId]); } catch (e) {}
+    }
+    if (!dataUrl) { toast('Could not find that file — it may not have finished saving', 'error'); return; }
+    const url = URL.createObjectURL(mfDataUrlToBlob(dataUrl));
     window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (e) {
@@ -57907,7 +57994,15 @@ async function mfPublishForm() {
       // Named folders of files (brochures, price lists, T&Cs, ...) the
       // respondent can open right on the live form — see the Attachments
       // block in the Design tab, beside Header Background Image.
-      attachment_folders: f.attachmentFolders || [],
+      // f.attachmentFolders only holds file METADATA now (see
+      // mfLoadAttachmentBlobs) — the actual bytes live in mfAttachBlobs, so
+      // they're stitched back on here for the published copy, which does
+      // need the real data to serve to respondents.
+      attachment_folders: (f.attachmentFolders || []).map(folder => Object.assign({}, folder, {
+        files: (folder.files || []).map(file => Object.assign({}, file, {
+          dataUrl: file.dataUrl || mfAttachBlobs[file.id] || null
+        }))
+      })),
     };
 
     await mfWait(200);
@@ -60541,6 +60636,7 @@ window.mfcPushToWorkspace = mfcPushToWorkspace;
 
 // init
 mfLoad();
+mfLoadAttachmentBlobs(); // async — fills in mfAttachBlobs from IndexedDB shortly after boot
 mfRenderTemplateGrid();
 mfRenderFormsGrid();
 // Fire-and-forget: reattaches any form's publish link that a just-loaded
@@ -71041,23 +71137,41 @@ if (document.readyState === 'loading') {
       ? { appProperties: { sarvarcSessionId: rec.id, sarvarcSessionName: rec.name } }
       : { name: rec.id + '.json', parents: [folderId],
           appProperties: { sarvarcSessionId: rec.id, sarvarcSessionName: rec.name } };
-    const boundary = 'sarvarcDrive' + Date.now();
-    const body =
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(rec)}\r\n` +
-      `--${boundary}--`;
     const token = await sarvarcDriveGetToken();
     if (!token) throw new Error('NO_DRIVE_TOKEN');
-    const url = isUpdate
-      ? `https://www.googleapis.com/upload/drive/v3/files/${rec.driveFileId}?uploadType=multipart`
-      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-    const res = await fetch(url, {
+    // Resumable upload, not multipart. Drive's uploadType=multipart endpoint
+    // (what this used to call) is documented as good for small files only —
+    // 5MB or less per request. A session record easily clears 5MB once it
+    // has any real attachments in it (see MAKE FORMS ATTACHMENTS), and this
+    // whole call is wrapped in a try/catch by the caller, so a failure here
+    // was invisible: the session would keep saving fine to THIS device's
+    // IndexedDB while its Drive mirror silently stopped updating — meaning
+    // signing in elsewhere (or after local storage was cleared) would pull
+    // back an old, smaller snapshot missing whatever was added since.
+    // Resumable upload has no such size ceiling, so this now handles small
+    // and large sessions the same way.
+    const startUrl = isUpdate
+      ? `https://www.googleapis.com/upload/drive/v3/files/${rec.driveFileId}?uploadType=resumable`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable`;
+    const startRes = await fetch(startUrl, {
       method: isUpdate ? 'PATCH' : 'POST',
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': `multipart/related; boundary=${boundary}` },
-      body
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': 'application/json'
+      },
+      body: JSON.stringify(metadata)
     });
-    if (!res.ok) throw new Error('DRIVE_SAVE_' + res.status);
-    const data = await res.json();
+    if (!startRes.ok) throw new Error('DRIVE_SAVE_START_' + startRes.status);
+    const uploadUrl = startRes.headers.get('Location');
+    if (!uploadUrl) throw new Error('DRIVE_SAVE_NO_UPLOAD_URL');
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rec)
+    });
+    if (!putRes.ok) throw new Error('DRIVE_SAVE_' + putRes.status);
+    const data = await putRes.json();
     return data.id;
   }
 
