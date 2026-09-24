@@ -13109,6 +13109,64 @@ async function bpInsertTemplateToCanvas(key, contentOverrides) {
   if (typeof swTrack === 'function') { try { swTrack('module_open', { module: 'proposals_canvas', template: key }); } catch (e) {} }
 }
 
+// ─── LAYA: WORD/PDF REPORT -> REAL REPORT TEXT (build 259) ──────────────
+// A Word report lands in Data Arrangement as a two-column Topic / Content
+// dataset (headings in Topic, paragraphs in Content). Pushing that with
+// pipeline_da_to_pdf drew it as a GRID, with the heading repeated on every
+// row, so headings and body text were never real headings and body text on
+// the page. This builds the report the way a person would type it: the
+// document title as a heading, each section heading ONCE as a subheading,
+// and every paragraph as its own body text box, all as real editable text
+// (pdfedLayaInsertPage). Refine Report then styles headings and body apart.
+function layaIsProseDataset(ds) {
+  return !!(ds && Array.isArray(ds.headers) && ds.headers.length === 2 &&
+    String(ds.headers[0]).trim() === 'Topic' && String(ds.headers[1]).trim() === 'Content');
+}
+function layaFindProseDataset(name) {
+  const list = (typeof daState !== 'undefined' && daState.datasets) || [];
+  if (name) {
+    const n = String(name).toLowerCase();
+    const hit = list.find(d => layaIsProseDataset(d) && String(d.name || '').toLowerCase().indexOf(n) !== -1);
+    if (hit) return hit;
+  }
+  const act = (typeof daGetActive === 'function') ? daGetActive() : null;
+  if (layaIsProseDataset(act)) return act;
+  for (let i = list.length - 1; i >= 0; i--) if (layaIsProseDataset(list[i])) return list[i];
+  return null;
+}
+async function layaInsertReportFromProse(p) {
+  p = p || {};
+  const ds = layaFindProseDataset(p.dataset_name);
+  if (!ds) throw new Error('there is no written content to build a report from yet. Attach the Word or PDF report first');
+  const rows = daComputedRowsForExport(ds);
+  const title = String(ds.title || ds.name || '')
+    .replace(/( \u2014 Content found on the page| \u2014 Table)$/, '')
+    .replace(/\.(docx|pdf)$/i, '').replace(/[_]+/g, ' ').trim();
+  const blocks = [];
+  if (title) blocks.push({ type: 'heading', text: title });
+  let lastTopic = null, headingCount = 0;
+  rows.forEach(function(r) {
+    const topic = String(r[0] == null ? '' : r[0]).trim();
+    const text = String(r[1] == null ? '' : r[1]).trim();
+    if (!text) return;
+    // Keyword-cluster labels ("Sales / Revenue / Growth") and "General" are
+    // invented by the arranger for documents with no real headings. They
+    // are not the author's words, so they are never shown as headings.
+    const invented = topic === 'General' || /^[^\/]+( \/ [^\/]+)+$/.test(topic);
+    if (topic && !invented && topic !== lastTopic) {
+      blocks.push({ type: 'subheading', text: topic });
+      headingCount++;
+    }
+    lastTopic = topic;
+    blocks.push({ type: 'paragraph', text: text });
+  });
+  if (blocks.length <= (title ? 1 : 0)) throw new Error('that file had no paragraphs to put on a page');
+  navigate('pdfeditor');
+  const r = await pdfedLayaInsertPage({ position: 'end', content: blocks, default_align: 'left' });
+  toast('Report text placed: ' + headingCount + ' section heading' + (headingCount === 1 ? '' : 's') + ', all editable', 'success');
+  return r;
+}
+
 // Called by the pipeline_details_to_proposal Laya action. This is the one
 // place that guards against inserting a proposal with nothing real on it --
 // if NONE of the core content fields were given, that means the person
@@ -76809,6 +76867,10 @@ if (document.readyState === 'loading') {
     // person can already undo), never destructive on their own.
     pipeline_da_to_diagram: { risk: 'safe', run: function(){ daPushToDiagrams(null); }, label: function(){ return 'Send this table to Diagrams & Graphs.'; } },
     pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
+    // Build 259: a written Word/PDF report (Topic / Content dataset) becomes real
+    // heading + body text on new pages, ready for pdfed_auto_refine_report.
+    // Use this instead of pipeline_da_to_pdf for prose; that one draws a grid.
+    pipeline_report_to_pdf: { risk: 'safe', run: async function(p){ return await layaInsertReportFromProse(p || {}); }, label: function(){ return 'Place this written report on new PDF pages as editable headings and paragraphs.'; } },
     pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     pipeline_form_to_pdf:   { risk: 'safe', run: function(){ mfPushToWorkspace(); }, label: function(){ return 'Push this form into the PDF Editor.'; } },
     // The real "make me a proposal" action -- takes content Laya has
