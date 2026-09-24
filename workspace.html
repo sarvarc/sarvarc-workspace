@@ -10447,6 +10447,10 @@ button.dg-show-chip.active { background:var(--blue); }
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
                   Translate
                 </button>
+                <button class="pdfed-rbn-btn" id="pdfedTranslateAllBtn" onclick="pdfedTranslateAllPagesText()" title="Translate every page's text into the same language, in one go (opt-in, sends only this document's text out)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+                  Translate All
+                </button>
                 <button class="pdfed-rbn-btn" id="pdfedAddTextBtn" onclick="pdfedSetAnnotTool('addtext')" title="Add a new text label">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
                   Add Text
@@ -11176,12 +11180,18 @@ button.dg-show-chip.active { background:var(--blue); }
                 </div>
 
                 <div class="pdfed-ctint-actions">
-                  <button type="button" class="pdfed-ctint-apply-btn" onclick="pdfedApplyCanvasTint()">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    Apply to Canvas
-                  </button>
                   <div class="pdfed-ctint-secondary-row">
-                    <button type="button" class="pdfed-ctint-secondary-btn" onclick="pdfedRemoveCanvasTint()" title="Undo the last applied tint">
+                    <button type="button" class="pdfed-ctint-apply-btn" style="flex:1" onclick="pdfedApplyCanvasTint()" title="Bake this colour/gradient onto only the page you have open">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      This Page
+                    </button>
+                    <button type="button" class="pdfed-ctint-apply-btn" style="flex:1" onclick="pdfedApplyCanvasTintAllPages()" title="Bake this same colour/gradient onto every page in the document">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></svg>
+                      All Pages
+                    </button>
+                  </div>
+                  <div class="pdfed-ctint-secondary-row">
+                    <button type="button" class="pdfed-ctint-secondary-btn" onclick="pdfedRemoveCanvasTint()" title="Undo the last applied tint on this page">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
                       Remove Tint
                     </button>
@@ -27701,18 +27711,17 @@ document.addEventListener('click', function(e) {
   pdfedCanvasTintRefreshPreview();
 });
 
-// Bakes the current solid/gradient + opacity choice directly into the
-// active page's pixels, exactly like pdfedApplyFilter does for brightness/
-// contrast/saturation — after this, the tint is just part of the page and
-// automatically survives thumbnail regeneration, PNG/PDF/DOCX export, and
-// reload, with no separate handling needed anywhere else.
-async function pdfedApplyCanvasTint(silent) {
-  if (pdfed.active < 0) return;
-  const pg = pdfed.pages[pdfed.active];
-  const s = pdfedCanvasTintState;
-
-  // Every Apply should REPLACE whatever canvas tint/image is currently
-  // showing, not paint over it — so we always bake starting from the true
+// Bakes a solid/gradient/image fill `s` directly into ONE page object's
+// pixels, exactly like pdfedApplyFilter does for brightness/contrast/
+// saturation. Pure per-page work only — no UI refresh, no toast, no
+// navigation — so callers can bake a whole batch of pages (all of them,
+// or a mixed set with different colours each) and only pay for one
+// pdfedGoto/pdfedBuildStrip/toast at the end of the batch, instead of once
+// per page. Shared by pdfedApplyCanvasTint (this page), the "All Pages"
+// button, and Laya's pdfed_set_canvas_gradient action.
+async function pdfedBakeCanvasTintOntoPage(pg, s) {
+  // Every bake should REPLACE whatever canvas tint/image is currently
+  // showing, not paint over it — so we always start from the true
   // pre-tint pixels (captured once, the first time this panel touches the
   // page), never from pg.dataUrl if that already carries a previous bake.
   // Without this, replacing an image (or switching solid -> gradient ->
@@ -27768,6 +27777,13 @@ async function pdfedApplyCanvasTint(silent) {
   pg.dataUrl = c.toDataURL('image/png');
   pg.modified = true;
   pg.edits.canvasTint = { mode: s.mode, color1: s.color1, color2: s.color2, angle: s.angle, opacity: s.opacity };
+}
+
+// Applies the current panel state to only the page the person has open.
+async function pdfedApplyCanvasTint(silent) {
+  if (pdfed.active < 0) return;
+  const pg = pdfed.pages[pdfed.active];
+  await pdfedBakeCanvasTintOntoPage(pg, pdfedCanvasTintState);
 
   const live = pdfedCanvasTintPreviewEl();
   if (live) live.style.display = 'none'; // pixels now carry the tint, hide the CSS preview
@@ -27775,6 +27791,26 @@ async function pdfedApplyCanvasTint(silent) {
   await pdfedGoto(pdfed.active);
   await pdfedBuildStrip();
   if (!silent) toast('Canvas color applied', 'success');
+}
+
+// Applies the current panel state to EVERY page in the document, one bake
+// per page (each page keeps its own pre-tint pixels as the base, so this
+// is safe to run more than once and still one-level-revertible per page
+// via "Remove Tint"). Manual "All Pages" button, and Laya's
+// pdfed_set_canvas_gradient with pages:'all'.
+async function pdfedApplyCanvasTintAllPages(silent) {
+  if (!pdfed.pages.length) { if (!silent) toast('Open a document first', 'error'); return; }
+  const s = pdfedCanvasTintState;
+  for (const pg of pdfed.pages) {
+    await pdfedBakeCanvasTintOntoPage(pg, s);
+  }
+
+  const live = pdfedCanvasTintPreviewEl();
+  if (live) live.style.display = 'none';
+
+  await pdfedGoto(pdfed.active);
+  await pdfedBuildStrip();
+  if (!silent) toast('Canvas color applied to all ' + pdfed.pages.length + ' pages', 'success');
 }
 
 // Restores the page to its pre-tint pixels, if the most recent edit on this
@@ -30161,23 +30197,82 @@ function pdfedLayaValidHex(v, fallback) {
   return /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : fallback;
 }
 
-async function pdfedLayaSetCanvasFill(p) {
-  if (pdfed.active < 0) throw new Error('open a page first');
-  const mode = p.mode === 'solid' ? 'solid' : 'gradient';
-  const s = pdfedCanvasTintState;
-  s.mode = mode;
-  s.color1 = pdfedLayaValidHex(p.color1, s.color1);
-  s.color2 = mode === 'gradient' ? pdfedLayaValidHex(p.color2, s.color2) : s.color1;
+// Merges a page-style object `p` (mode/color1/color2/angle/opacity, any of
+// which may be missing) on top of a `base` style, filling gaps from base.
+// Used both for the base style itself (merged onto pdfedCanvasTintState)
+// and for each page_overrides entry (merged onto the resolved base).
+function pdfedLayaMergeCanvasStyle(base, p) {
+  p = p || {};
+  const mode = p.mode === 'solid' || p.mode === 'gradient' ? p.mode : base.mode;
+  const color1 = pdfedLayaValidHex(p.color1, base.color1);
+  const color2 = mode === 'gradient' ? pdfedLayaValidHex(p.color2, base.color2) : color1;
+  let angle = base.angle;
   if (p.angle !== undefined && p.angle !== null && p.angle !== '') {
-    s.angle = Math.max(0, Math.min(360, parseInt(p.angle, 10) || 0));
+    angle = Math.max(0, Math.min(360, parseInt(p.angle, 10) || 0));
   }
+  let opacity = base.opacity;
   if (p.opacity !== undefined && p.opacity !== null && p.opacity !== '') {
-    s.opacity = Math.max(0, Math.min(100, parseInt(p.opacity, 10) || 0));
+    opacity = Math.max(0, Math.min(100, parseInt(p.opacity, 10) || 0));
   }
-  // Keeps the Design panel's own swatches/sliders honest if the person has
-  // it open while Laya applies this, exactly as picking a saved preset does.
+  return { mode, color1, color2, angle, opacity, imageDataUrl: null, imageFit: base.imageFit };
+}
+
+// pages/page_overrides let Laya bake a gradient across the whole document
+// in one call, including a different colour/gradient on specific pages:
+//   pages: 'all' | 'current' (default) | [1, 3, 5]  -- 1-based page numbers
+//   page_overrides: [{ page: 2, color1, color2, mode?, angle?, opacity? }, ...]
+// Every page named in `pages` gets the base style; every page named in
+// page_overrides gets the base style with just that entry's fields swapped
+// in (so "gradient everywhere, but page 3 is solid red" only needs color1
+// on page 3's override). A page mentioned only in page_overrides is baked
+// too, even if it wasn't in `pages`.
+async function pdfedLayaSetCanvasFill(p) {
+  if (!pdfed.pages.length) throw new Error('open a document first');
+  p = p || {};
+
+  // Resolve the base style once (this also updates pdfedCanvasTintState so
+  // the panel's own swatches/sliders reflect it, same as before).
+  const base = pdfedLayaMergeCanvasStyle(pdfedCanvasTintState, p);
+  Object.assign(pdfedCanvasTintState, { mode: base.mode, color1: base.color1, color2: base.color2, angle: base.angle, opacity: base.opacity });
   if (typeof pdfedCanvasSyncControls === 'function') pdfedCanvasSyncControls();
-  await pdfedApplyCanvasTint(true);
+
+  // Work out which 1-based page numbers get the base style.
+  const total = pdfed.pages.length;
+  let basePages;
+  if (p.pages === 'all') {
+    basePages = Array.from({ length: total }, (_, i) => i + 1);
+  } else if (Array.isArray(p.pages) && p.pages.length) {
+    basePages = p.pages.map((n) => parseInt(n, 10)).filter((n) => n >= 1 && n <= total);
+  } else {
+    basePages = [(pdfed.active < 0 ? 0 : pdfed.active) + 1];
+  }
+
+  // Per-page overrides, keyed by page number so a page named in both
+  // `pages` and `page_overrides` only bakes once, with the override style.
+  const overrides = new Map();
+  if (Array.isArray(p.page_overrides)) {
+    for (const ov of p.page_overrides) {
+      const num = ov && parseInt(ov.page, 10);
+      if (!num || num < 1 || num > total) continue;
+      overrides.set(num, pdfedLayaMergeCanvasStyle(base, ov));
+    }
+  }
+
+  const targetPages = new Set(basePages);
+  for (const num of overrides.keys()) targetPages.add(num);
+  if (!targetPages.size) throw new Error('no valid page numbers to apply this to');
+
+  for (const num of targetPages) {
+    const style = overrides.get(num) || base;
+    await pdfedBakeCanvasTintOntoPage(pdfed.pages[num - 1], style);
+  }
+
+  const live = pdfedCanvasTintPreviewEl();
+  if (live) live.style.display = 'none';
+
+  await pdfedGoto(pdfed.active);
+  await pdfedBuildStrip();
+  return { pagesFilled: targetPages.size };
 }
 
 // ─── MERGE PDF INTO DOCUMENT (connected workflow inside PDF Editor) ───
@@ -34363,6 +34458,31 @@ function pdfedMarkModified(idx) {
 }
 
 // ─── Translate page text (opt-in) ───────────────────────────────────────
+// Translates every text box's text on ONE page object in place. Pure
+// per-page work only -- no DOM refresh, no "modified" flag, no toast --
+// so callers can translate a whole batch of pages (all of them, or a
+// mixed set of different target languages per page) and only pay for one
+// render/toast at the end, instead of once per page. Shared by
+// pdfedTranslatePageText (this page), pdfedTranslateAllPagesText (every
+// page), and Laya's pdfed_translate_pages action.
+async function pdfedTranslatePageItems(pg, lang) {
+  const items = (pg && pg.placedTexts) || [];
+  const translatable = items.filter(it => (it.text || '').trim());
+  let translatedCount = 0, errorCount = 0;
+  for (const item of translatable) {
+    try {
+      const translated = await sarvarcTranslateText(item.text.trim(), lang);
+      item.text = translated;
+      item.html = daEsc(translated);
+      translatedCount++;
+    } catch (e) {
+      errorCount++;
+    }
+    await new Promise(r => setTimeout(r, 350)); // stay well within the free API's rate limit
+  }
+  return { translatedCount, errorCount, total: translatable.length };
+}
+
 // Translates every text box on the current page in place. This edit is
 // undoable (Ctrl+Z / the Undo button) like any other change on the page, so
 // nothing is permanently lost if the result isn't wanted. Only this page's
@@ -34385,22 +34505,101 @@ async function pdfedTranslatePageText() {
 
   pdfedTranslating = true;
   toast('Translating this page…', 'info');
-  let translatedCount = 0, errorCount = 0;
-  for (const item of translatable) {
-    try {
-      const translated = await sarvarcTranslateText(item.text.trim(), lang);
-      item.text = translated;
-      item.html = daEsc(translated);
-      translatedCount++;
-    } catch (e) {
-      errorCount++;
-    }
-    await new Promise(r => setTimeout(r, 350)); // stay well within the free API's rate limit
-  }
+  const { translatedCount, errorCount } = await pdfedTranslatePageItems(pg, lang);
   pdfedRenderPlacedTexts(idx);
   pdfedMarkModified(idx);
   pdfedTranslating = false;
   toast(errorCount ? `Translated ${translatedCount} text boxes, ${errorCount} failed (try again for those)` : `Translated ${translatedCount} text boxes into "${lang}"`, errorCount ? 'error' : 'success');
+}
+
+// Translates every text box on EVERY page of the document into the same
+// target language -- one prompt and one confirm up front, instead of the
+// person repeating "This Page" once per page. Each page keeps translating
+// even if another page's boxes fail, and the final toast reports the total
+// across the whole document.
+async function pdfedTranslateAllPagesText() {
+  if (pdfedTranslating) { toast('Already translating — please wait for it to finish', 'info'); return; }
+  if (!pdfed.pages.length) { toast('Open a document first', 'error'); return; }
+
+  const totalBoxes = pdfed.pages.reduce((sum, pg) => sum + ((pg.placedTexts || []).filter(it => (it.text || '').trim()).length), 0);
+  if (!totalBoxes) { toast('No text anywhere in this document yet — click "OCR" on a page first, or add some with "Add Text"', 'info'); return; }
+
+  const targetLang = prompt('Translate EVERY page\'s text into which language?\n\nType a language code, for example:\n' + SARVARC_LANG_HINTS, 'hi');
+  if (!targetLang || !targetLang.trim()) return;
+  const lang = targetLang.trim().toLowerCase();
+
+  const ok = confirm(`Send all ${pdfed.pages.length} pages' text (${totalBoxes} text boxes total) to MyMemory Translation API to translate into "${lang}"?\n\nEvery page's text will be replaced with the translation — press Ctrl+Z on a page afterwards if you want just that page back. Only this document's text is sent, nothing else in your workspace leaves the browser.`);
+  if (!ok) return;
+
+  pdfedTranslating = true;
+  toast('Translating ' + pdfed.pages.length + ' pages…', 'info');
+  let translatedCount = 0, errorCount = 0;
+  for (let idx = 0; idx < pdfed.pages.length; idx++) {
+    const r = await pdfedTranslatePageItems(pdfed.pages[idx], lang);
+    translatedCount += r.translatedCount;
+    errorCount += r.errorCount;
+    pdfedMarkModified(idx);
+  }
+  pdfedRenderPlacedTexts(pdfed.active); // refresh whatever page is on screen right now
+  pdfedTranslating = false;
+  toast(errorCount ? `Translated ${translatedCount} text boxes across ${pdfed.pages.length} pages, ${errorCount} failed` : `Translated ${translatedCount} text boxes across ${pdfed.pages.length} pages into "${lang}"`, errorCount ? 'error' : 'success');
+}
+
+// Laya's version of the above: `pages`/`page_overrides` work exactly like
+// pdfed_set_canvas_gradient's, but the per-page field is a target language
+// instead of a colour, so "translate the whole document to Hindi, but
+// page 3 into Gujarati" is one call:
+//   lang: 'hi', pages: 'all', page_overrides: [{page: 3, lang: 'gu'}]
+// A page appearing only in page_overrides is translated too, even if it
+// wasn't included in `pages`. No browser prompt/confirm here -- Laya's own
+// one-line narration before calling this IS the opt-in, same as every
+// other Laya action.
+async function pdfedLayaTranslatePages(p) {
+  if (pdfedTranslating) throw new Error('already translating, please wait for it to finish');
+  if (!pdfed.pages.length) throw new Error('open a document first');
+  p = p || {};
+
+  const total = pdfed.pages.length;
+  let basePages;
+  if (p.pages === 'all') {
+    basePages = Array.from({ length: total }, (_, i) => i + 1);
+  } else if (Array.isArray(p.pages) && p.pages.length) {
+    basePages = p.pages.map((n) => parseInt(n, 10)).filter((n) => n >= 1 && n <= total);
+  } else {
+    basePages = [(pdfed.active < 0 ? 0 : pdfed.active) + 1];
+  }
+
+  const baseLang = typeof p.lang === 'string' ? p.lang.trim().toLowerCase() : '';
+
+  // pageNum -> lang, base first so page_overrides can win the same page.
+  const targets = new Map();
+  if (baseLang) for (const num of basePages) targets.set(num, baseLang);
+  if (Array.isArray(p.page_overrides)) {
+    for (const ov of p.page_overrides) {
+      const num = ov && parseInt(ov.page, 10);
+      const lang = ov && typeof ov.lang === 'string' ? ov.lang.trim().toLowerCase() : '';
+      if (!num || num < 1 || num > total || !lang) continue;
+      targets.set(num, lang);
+    }
+  }
+  if (!targets.size) throw new Error('give a target language, either as lang or inside page_overrides');
+
+  pdfedTranslating = true;
+  let translatedCount = 0, errorCount = 0, pagesDone = 0;
+  try {
+    for (const [num, lang] of targets) {
+      const idx = num - 1;
+      const r = await pdfedTranslatePageItems(pdfed.pages[idx], lang);
+      translatedCount += r.translatedCount;
+      errorCount += r.errorCount;
+      pdfedMarkModified(idx);
+      pagesDone++;
+    }
+  } finally {
+    pdfedTranslating = false;
+  }
+  pdfedRenderPlacedTexts(pdfed.active);
+  return { pagesTranslated: pagesDone, translatedCount, errorCount };
 }
 
 // Bake annotation canvas INTO the page canvas (called before page navigation / export)
@@ -75991,14 +76190,24 @@ if (document.readyState === 'loading') {
   //     already there. Leave text_color out and the app samples the page
   //     behind the region and picks dark or light text itself.
   //   pdfed_set_canvas_gradient {mode?: 'solid'|'gradient', color1: hex,
-  //     color2?: hex, angle?: 0-360, opacity?: 0-100}
-  //     -- Bakes a solid colour or 2-colour linear gradient onto the page
-  //     the person currently has open (never a page they're not looking
-  //     at -- tell Laya to navigate there first if they mean a different
-  //     one). angle follows CSS linear-gradient() convention (0deg = up,
-  //     90deg = left-to-right, clockwise); omit for gradient's existing
-  //     angle. opacity blends the fill over the page's current content,
-  //     100 fully replaces it; omit to keep the current opacity. color2 is
+  //     color2?: hex, angle?: 0-360, opacity?: 0-100, pages?: 'all'|number[],
+  //     page_overrides?: [{page: number, mode?, color1?, color2?, angle?, opacity?}]}
+  //     -- Bakes a solid colour or 2-colour linear gradient onto one page,
+  //     every page, or a specific set of pages, in ONE call. `pages` picks
+  //     the base style's targets: 'all' for every page, an array of
+  //     1-based page numbers for specific ones, or omit it for whichever
+  //     page the person currently has open. `page_overrides` lets specific
+  //     pages get their OWN different colour/gradient in this same call --
+  //     each entry only needs the fields that differ from the base style
+  //     (e.g. just color1/color2 to keep the same mode/angle/opacity), and
+  //     a page named in page_overrides is baked even if it wasn't in
+  //     `pages`. Use this whenever the person wants different gradients or
+  //     colours on different pages ("blue on page 1, but make page 3 a red
+  //     to orange gradient") rather than issuing one call per page. angle
+  //     follows CSS linear-gradient() convention (0deg = up, 90deg =
+  //     left-to-right, clockwise); omit for gradient's existing angle.
+  //     opacity blends the fill over each page's current content, 100
+  //     fully replaces it; omit to keep the current opacity. color2 is
   //     required for mode:'gradient' and ignored for mode:'solid'.
   //   pdfed_set_text_fill {target?: 'all', query?: string,
   //     mode?: 'solid'|'gradient'|'clear', color1?: hex, color2?: hex, angle?: 0-360}
@@ -77873,19 +78082,47 @@ if (document.readyState === 'loading') {
         return 'Place ' + (n ? n + ' block' + (n === 1 ? '' : 's') + ' of ' : '') + 'editable text on this page.';
       }
     },
-    // Bakes a solid colour or 2-colour gradient onto the CURRENTLY OPEN
-    // page's canvas, via the same engine as the Design panel's Solid/
-    // Gradient controls (see pdfedLayaSetCanvasFill above). Acts on
-    // pdfed.active -- Laya should navigate to / land on the intended page
-    // first if the person means a page other than the one they're viewing.
+    // Bakes a solid colour or 2-colour gradient onto one page, every page,
+    // or a specific set of pages -- via the same engine as the Design
+    // panel's Solid/Gradient controls (see pdfedLayaSetCanvasFill above).
+    // `pages`: 'all' | [1,3,5] (1-based) | omitted for the page currently
+    // open. `page_overrides`: [{page, color1, color2, mode?, angle?,
+    // opacity?}] lets specific pages get their own different colour/
+    // gradient in the SAME call, on top of (or instead of) the base style.
     pdfed_set_canvas_gradient: {
       risk: 'safe',
-      run: async function(p){ await pdfedLayaSetCanvasFill(p || {}); },
+      run: async function(p){ return await pdfedLayaSetCanvasFill(p || {}); },
       label: function(p){
         p = p || {};
-        return (p.mode === 'solid')
-          ? 'Fill this page\'s canvas with ' + (p.color1 || 'the chosen colour') + '.'
-          : 'Apply a ' + (p.color1 || 'colour') + ' \u2192 ' + (p.color2 || 'colour') + ' gradient to this page\'s canvas.';
+        const base = (p.mode === 'solid')
+          ? 'Fill with ' + (p.color1 || 'the chosen colour')
+          : 'Apply a ' + (p.color1 || 'colour') + ' \u2192 ' + (p.color2 || 'colour') + ' gradient';
+        const nOv = Array.isArray(p.page_overrides) ? p.page_overrides.length : 0;
+        const ovTxt = nOv ? ', with ' + nOv + ' page' + (nOv === 1 ? '' : 's') + ' getting its own colour' : '';
+        if (p.pages === 'all') return base + ' to every page' + ovTxt + '.';
+        if (Array.isArray(p.pages) && p.pages.length) return base + ' to page' + (p.pages.length === 1 ? ' ' + p.pages[0] : 's ' + p.pages.join(', ')) + ovTxt + '.';
+        return base + ' to this page\'s canvas' + ovTxt + '.';
+      }
+    },
+    // Translates placed text boxes into another language: one page, every
+    // page, or a specific set of pages, all in ONE call -- via the same
+    // free MyMemory Translation API the manual Translate/Translate All
+    // buttons use (see pdfedLayaTranslatePages above). `pages`/`page_
+    // overrides` work exactly like pdfed_set_canvas_gradient's, but each
+    // override carries a `lang` instead of a colour, so "translate
+    // everything to Hindi, except page 3 which should be Gujarati" is one
+    // call: {lang:'hi', pages:'all', page_overrides:[{page:3, lang:'gu'}]}.
+    pdfed_translate_pages: {
+      risk: 'confirm',
+      run: async function(p){ return await pdfedLayaTranslatePages(p || {}); },
+      label: function(p){
+        p = p || {};
+        const nOv = Array.isArray(p.page_overrides) ? p.page_overrides.length : 0;
+        const ovTxt = nOv ? ', with ' + nOv + ' page' + (nOv === 1 ? '' : 's') + ' in its own language' : '';
+        const langTxt = p.lang ? '"' + p.lang + '"' : 'the given language';
+        if (p.pages === 'all') return 'Translate every page\'s text into ' + langTxt + ovTxt + '. This can be undone per page with Ctrl+Z.';
+        if (Array.isArray(p.pages) && p.pages.length) return 'Translate page' + (p.pages.length === 1 ? ' ' + p.pages[0] : 's ' + p.pages.join(', ')) + ' into ' + langTxt + ovTxt + '. This can be undone per page with Ctrl+Z.';
+        return 'Translate this page\'s text into ' + langTxt + ovTxt + '. This can be undone with Ctrl+Z.';
       }
     },
     // Sets a placed-text box's fill to a solid colour or a 2-colour
