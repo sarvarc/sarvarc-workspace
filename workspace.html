@@ -26638,6 +26638,26 @@ function pdfedLayaFindPlacedText(pg, p) {
   throw new Error('could not find that text box — give a query to search its text, or "first"/"last".');
 }
 
+// Picks one placed TABLE out of pg.placedTables: by explicit id, by
+// 1-based z-order position ("which": a number), or by "first"/"last"
+// (z-order, default "last" — the most recently placed table). Mirrors
+// pdfedLayaFindImage exactly, just scoped to placedTables.
+function pdfedLayaFindPlacedTable(pg, p) {
+  const list = pg.placedTables || [];
+  if (!list.length) throw new Error('this page has no placed tables');
+  if (p.id) {
+    const byId = list.find(it => it.id === p.id);
+    if (!byId) throw new Error('no table with that id on this page');
+    return byId;
+  }
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  if (p.which === 'first') return ordered[0];
+  if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') return ordered[ordered.length - 1];
+  const n = parseInt(p.which, 10);
+  if (n >= 1 && n <= ordered.length) return ordered[n - 1];
+  throw new Error('could not find table #' + p.which + ' — this page only has ' + ordered.length + ' table' + (ordered.length === 1 ? '' : 's'));
+}
+
 // Resizes a placed IMAGE. Either give an explicit target size
 // (width_px/height_px, in the same raw canvas-pixel units item.w/item.h
 // already use), or a scale_pct (e.g. 150 = 150% of its current size,
@@ -26718,6 +26738,51 @@ async function pdfedLayaResizeText(p) {
   pdfedMarkModified(idx);
   pdfedRenderPlacedTexts(idx);
   return { fontSize: item.fontSize, w: item.w, h: item.h };
+}
+
+// Resizes a placed TABLE the same way its corner handle does
+// (pdfedAttachPlacedTableResizeHandler): every column width, row height,
+// and the table's own font size scale together by ONE factor, so the
+// table's proportions and its text-to-cell fit never change, just its
+// overall size. Unlike pdfed_resize_image there is no independent
+// width-only/height-only stretch (lock_aspect:false) -- the manual drag
+// handle itself doesn't support that for tables, it's always uniform.
+// Give scale_pct directly, or width_px/height_px to derive the factor
+// from the table's current total width/height (if both are given,
+// width_px wins). Clamped to the same 0.3–4x range as the manual handle.
+async function pdfedLayaResizeTable(p) {
+  p = p || {};
+  const { pg, idx } = pdfedLayaActivePage(p);
+  const item = pdfedLayaFindPlacedTable(pg, p);
+  if (item.locked) throw new Error('that table is locked — unlock it first');
+
+  const curColWidths = item.colWidths.slice();
+  const curRowHeights = item.rowHeights.slice();
+  const curFontSize = item.fontSize;
+  const totalW = curColWidths.reduce((a, b) => a + b, 0);
+  const totalH = curRowHeights.reduce((a, b) => a + b, 0);
+
+  let scale;
+  if (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '') {
+    scale = Number(p.scale_pct) / 100;
+  } else if (p.width_px) {
+    scale = Number(p.width_px) / (totalW || 1);
+  } else if (p.height_px) {
+    scale = Number(p.height_px) / (totalH || 1);
+  } else {
+    throw new Error('give scale_pct, or width_px or height_px, to resize the table by');
+  }
+  scale = Math.max(0.3, Math.min(4, scale)); // same clamp as the manual drag handle
+
+  item.colWidths = curColWidths.map(w => Math.max(30, Math.round(w * scale)));
+  item.rowHeights = curRowHeights.map(h => Math.max(14, Math.round(h * scale)));
+  item.fontSize = Math.max(8, Math.round(curFontSize * scale));
+
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTables(idx);
+  const newW = item.colWidths.reduce((a, b) => a + b, 0);
+  const newH = item.rowHeights.reduce((a, b) => a + b, 0);
+  return { w: newW, h: newH, fontSize: item.fontSize };
 }
 
 // Sets opacity on any placed object -- image, text box, table, shape, or
@@ -78365,6 +78430,18 @@ if (document.readyState === 'loading') {
         const how = (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '')
           ? 'to ' + p.scale_pct + '% of its current size'
           : 'to ' + p.font_size_px + 'px';
+        return 'Resize ' + which + ' ' + how + '.';
+      }
+    },
+    pdfed_resize_table: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaResizeTable(p || {}); },
+      label: function(p){
+        p = p || {};
+        const which = p.id ? 'that table' : (p.which ? 'table ' + p.which : 'the table');
+        const how = (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '')
+          ? 'to ' + p.scale_pct + '% of its current size'
+          : (p.width_px ? 'to a width of ' + p.width_px + 'px' : 'to a height of ' + p.height_px + 'px');
         return 'Resize ' + which + ' ' + how + '.';
       }
     },
