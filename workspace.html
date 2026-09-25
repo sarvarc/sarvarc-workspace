@@ -44663,6 +44663,18 @@ window.DA_TABLE_TEMPLATES = DA_TABLE_TEMPLATES;
 // daPasteTableFromClipboard already uses for a detected title, reused here
 // so a Laya-created table never silently overwrites/hides an existing tab
 // that happens to share its name.
+// Shared by every Laya Data Arrangement action below: if Laya runs a DA
+// action while the person is looking at a DIFFERENT panel (PDF Editor,
+// Make Forms, wherever), this switches them into Data Arrangement first so
+// the edit is actually visible, instead of silently changing a table they
+// can't see (the same fix daCreateTableWithColumns already had). A no-op
+// when they're already on Data Arrangement.
+function daEnsureVisible() {
+  if (typeof unifiedActiveSection === 'function' && typeof navigate === 'function' && unifiedActiveSection() !== 'dataarrange') {
+    navigate('dataarrange');
+  }
+}
+
 function daUniqueTableName(base) {
   let name = base, n = 2;
   while (daState.datasets.some(d => d.name === name)) {
@@ -77306,11 +77318,11 @@ if (document.readyState === 'loading') {
   // taps through. Redaction has no entries here at all, on purpose --
   // it's the one module Laya doesn't get to touch yet.
   const LAYA_ACTIONS = {
-    da_add_row:        { risk: 'safe',    run: function(){ daAddRow(); }, label: function(){ return 'Add a new row.'; } },
-    da_add_column:     { risk: 'safe',    run: function(){ daAddColumn(); }, label: function(){ return 'Add a new column.'; } },
-    da_update_cell:    { risk: 'safe',    run: function(p){ daUpdateCell(p.rowIdx, p.colIdx, String(p.value)); }, label: function(p){ return 'Set cell (row ' + (p.rowIdx+1) + ', col ' + (p.colIdx+1) + ') to "' + p.value + '".'; } },
-    da_delete_row:     { risk: 'confirm', run: function(p){ daDeleteRow(p.rowIdx); }, label: function(p){ return 'Delete row ' + (p.rowIdx+1) + '. This can be undone with Ctrl+Z.'; } },
-    da_delete_column:  { risk: 'confirm', run: function(p){ daDeleteColumn(p.colIdx); }, label: function(p){ return 'Delete column ' + (p.colIdx+1) + '. This can be undone with Ctrl+Z.'; } },
+    da_add_row:        { risk: 'safe',    run: function(){ daEnsureVisible(); daAddRow(); }, label: function(){ return 'Add a new row.'; } },
+    da_add_column:     { risk: 'safe',    run: function(){ daEnsureVisible(); daAddColumn(); }, label: function(){ return 'Add a new column.'; } },
+    da_update_cell:    { risk: 'safe',    run: function(p){ daEnsureVisible(); daUpdateCell(p.rowIdx, p.colIdx, String(p.value)); }, label: function(p){ return 'Set cell (row ' + (p.rowIdx+1) + ', col ' + (p.colIdx+1) + ') to "' + p.value + '".'; } },
+    da_delete_row:     { risk: 'confirm', run: function(p){ daEnsureVisible(); daDeleteRow(p.rowIdx); }, label: function(p){ return 'Delete row ' + (p.rowIdx+1) + '. This can be undone with Ctrl+Z.'; } },
+    da_delete_column:  { risk: 'confirm', run: function(p){ daEnsureVisible(); daDeleteColumn(p.colIdx); }, label: function(p){ return 'Delete column ' + (p.colIdx+1) + '. This can be undone with Ctrl+Z.'; } },
 
     // Color-tag actions -- the same feature as the manual Highlight button
     // (see daSaveHighlightModal / daOpenHighlightModal above), just driven
@@ -77327,6 +77339,7 @@ if (document.readyState === 'loading') {
     da_highlight_rows: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureHighlightStore(ds);
         const rowIdxs = Array.isArray(p.rowIdxs) ? p.rowIdxs : [];
@@ -77347,6 +77360,7 @@ if (document.readyState === 'loading') {
     da_highlight_columns: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureHighlightStore(ds);
         const colIdxs = Array.isArray(p.colIdxs) ? p.colIdxs : [];
@@ -77372,6 +77386,7 @@ if (document.readyState === 'loading') {
     da_highlight_cells: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureHighlightStore(ds);
         const cells = Array.isArray(p.cells) ? p.cells : [];
@@ -77403,6 +77418,7 @@ if (document.readyState === 'loading') {
     da_highlight_by_condition: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureHighlightStore(ds);
         const colIdx = Number(p.colIdx);
@@ -77456,6 +77472,7 @@ if (document.readyState === 'loading') {
     da_highlight_top_bottom: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureHighlightStore(ds);
         const colIdx = Number(p.colIdx);
@@ -77490,6 +77507,7 @@ if (document.readyState === 'loading') {
     da_remove_highlight: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureHighlightStore(ds);
         (Array.isArray(p.rowIdxs) ? p.rowIdxs : []).forEach(function(ri){ delete ds.rowHighlights[ri]; });
@@ -77537,6 +77555,7 @@ if (document.readyState === 'loading') {
     da_set_filter: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         const rulesIn = Array.isArray(p.rules) ? p.rules : [];
         if (!rulesIn.length) throw new Error('no filter conditions given');
@@ -77570,6 +77589,7 @@ if (document.readyState === 'loading') {
     da_clear_filter: {
       risk: 'safe',
       run: function(){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daFilterGetState(ds).rules = [];
         daPersist();
@@ -77588,6 +77608,7 @@ if (document.readyState === 'loading') {
     da_set_dropdown: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureDropdownStore(ds);
         const ci = p.colIdx;
@@ -77624,6 +77645,7 @@ if (document.readyState === 'loading') {
     da_remove_dropdown: {
       risk: 'safe',
       run: function(p){
+        daEnsureVisible();
         const ds = daGetActive(); if (!ds) throw new Error('no table is open');
         daEnsureDropdownStore(ds);
         const ci = p.colIdx;
