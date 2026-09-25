@@ -15659,6 +15659,42 @@ async function appRedo() {
   await action.redo();
 }
 
+// ─── LAYA SELF-UNDO ("undo that" / "bring it back the way it was") ──────
+// Separate from the generic Ctrl+Z stack above: this lets a CHAT
+// instruction reverse the exact thing Laya herself just did, without the
+// person needing to know or reach for Ctrl+Z. Every Laya-authored mutating
+// action should be pushed with pushLayaAppHistory() instead of calling
+// pushAppHistory() directly -- it does the same appHistory push (so
+// Ctrl+Z still works on it exactly like any other action) and ALSO
+// remembers it as "the thing Laya did", so a later chat "undo that" can
+// find it specifically instead of guessing at whatever's on top of the
+// shared stack.
+//
+// Deliberately conservative: Laya will only self-undo an action while it
+// is STILL the very top of appHistory, i.e. nothing else (a manual edit,
+// another Laya action, an already-used Ctrl+Z) has happened since. If
+// something has, blindly popping her old action out of the middle of the
+// stack could leave the page in a state nothing ever produced by hand --
+// so instead she reports plainly that she can't cleanly undo it anymore
+// and points at Ctrl+Z, rather than guessing.
+let layaActionLog = [];
+function pushLayaAppHistory(action) {
+  pushAppHistory(action);
+  layaActionLog.push(action);
+  if (layaActionLog.length > 20) layaActionLog.shift();
+}
+function layaUndoLastAction() {
+  if (!layaActionLog.length) return { undone: false, reason: 'nothing yet' };
+  const action = layaActionLog[layaActionLog.length - 1];
+  if (appHistory[appHistory.length - 1] !== action) {
+    // Something else has happened since -- don't guess, just say so.
+    return { undone: false, reason: 'superseded' };
+  }
+  layaActionLog.pop();
+  appUndo(); // pops the same object off appHistory, stamps the clock, runs action.undo()
+  return { undone: true, label: action.label || '' };
+}
+
 // ─── PER-MODULE SNAPSHOT UNDO/REDO ───
 // Beyond the hand-wired appHistory above (a handful of explicit actions), each
 // data-heavy module below gets its OWN undo/redo stack built from lightweight
@@ -30185,6 +30221,234 @@ async function pdfedLayaAddTextToPage(p) {
   });
 
   return { placed: added.length, extraPages: extraPages.length };
+}
+
+// ─── LAYA: CONTENT-AWARE TABLE (auto-sized so nothing gets clipped) ──────
+// Mirrors pdfedInsertTable's item shape exactly (same id/x/y/rows/cols/
+// colWidths/rowHeights/fontSize/headerRow/cells fields), so a Laya-built
+// table is a completely normal pg.placedTables entry -- draggable,
+// resizable, editable, exported, everything the manual Insert Table tool
+// already does. The only difference is HOW colWidths/rowHeights are
+// chosen: the manual tool picks a fixed 60-140px column and a flat 30px
+// row for every table regardless of content, which is exactly what lets
+// long cell text get visually clipped (.pdfed-table-cell is
+// overflow:hidden). Laya instead measures the real text with the real
+// font before ever creating the table, so no cell is ever shorter than
+// its own content needs.
+
+const PDFED_TABLE_CELL_PAD_X = 7;   // matches .pdfed-table-cell CSS padding: 3px 7px
+const PDFED_TABLE_CELL_PAD_Y = 3;
+const PDFED_TABLE_CELL_BORDER = 1;  // matches .pdfed-table-cell CSS border: 1px solid
+const PDFED_TABLE_MIN_COL_W = 44;   // never go narrower than this, even under heavy squeeze
+const PDFED_TABLE_MIN_ROW_H = 24;
+
+// Natural single-line width of `text` in the given font -- how wide the
+// column would need to be for this one cell to show on one line with no
+// wrap at all. Used as the column's "ideal" width before any squeezing.
+function pdfedLayaMeasureTextWidth(text, fam, size, bold) {
+  const span = document.createElement('span');
+  span.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;white-space:nowrap;';
+  span.style.fontFamily = pdfedFontCss(fam);
+  span.style.fontSize = size + 'px';
+  span.style.fontWeight = bold ? '700' : '400';
+  span.textContent = text || '';
+  document.body.appendChild(span);
+  const w = span.offsetWidth;
+  document.body.removeChild(span);
+  return w;
+}
+
+// Widest SINGLE WORD in `text` -- the true floor a column can shrink to
+// before word-break:break-word starts chopping a word across lines. Used
+// so proportional squeezing below never makes a column narrower than its
+// own longest word if it can possibly help it.
+function pdfedLayaMeasureWordWidth(text, fam, size, bold) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  if (!words.length) return 0;
+  let max = 0;
+  words.forEach(function(w) { max = Math.max(max, pdfedLayaMeasureTextWidth(w, fam, size, bold)); });
+  return max;
+}
+
+// Wrapped height a cell will really render at for the given column width --
+// same font stack, padding, border, white-space/word-break rules as the
+// live .pdfed-table-cell (see pdfedRenderPlacedTables), so this is not an
+// estimate, it's the same layout the browser will actually produce.
+function pdfedLayaMeasureTableCellHeight(text, fam, size, bold, colW) {
+  const inner = Math.max(10, colW - 2 * (PDFED_TABLE_CELL_BORDER + PDFED_TABLE_CELL_PAD_X));
+  const d = document.createElement('div');
+  d.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;line-height:1.3;';
+  d.style.fontFamily = pdfedFontCss(fam);
+  d.style.fontSize = size + 'px';
+  d.style.fontWeight = bold ? '700' : '400';
+  d.style.width = inner + 'px';
+  d.textContent = text || '';
+  document.body.appendChild(d);
+  const h = d.offsetHeight;
+  document.body.removeChild(d);
+  return h + 2 * (PDFED_TABLE_CELL_BORDER + PDFED_TABLE_CELL_PAD_Y);
+}
+
+// The core sizing decision. cells is the full grid INCLUDING the header
+// row (cells[0]). Returns {colWidths, rowHeights} such that:
+//   - if everything fits within availW with no wrapping, every column
+//     gets its own natural (no-wrap) width, plus a proportional share of
+//     any leftover space -- same "auto-fit" feel as Excel/Word.
+//   - if it doesn't fit, columns are squeezed proportionally but never
+//     below their own widest-single-word width while any column still has
+//     slack to give, so cells wrap onto more lines instead of characters
+//     getting chopped off.
+//   - row heights are then derived from the FINAL column widths by
+//     actually measuring wrapped height, so a tall-wrapping cell always
+//     gets a tall-enough row -- this is what actually prevents the
+//     clipping the fixed-30px manual tool is prone to.
+function pdfedLayaComputeTableLayout(cells, fam, size, bold, availW) {
+  const cols = cells[0].length;
+  const rows = cells.length;
+
+  const natural = new Array(cols).fill(0);
+  const wordMin = new Array(cols).fill(0);
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const isHead = r === 0;
+      const txt = (cells[r][c] || '');
+      const w = pdfedLayaMeasureTextWidth(txt, fam, size, bold || isHead) + 2 * (PDFED_TABLE_CELL_BORDER + PDFED_TABLE_CELL_PAD_X);
+      const wm = pdfedLayaMeasureWordWidth(txt, fam, size, bold || isHead) + 2 * (PDFED_TABLE_CELL_BORDER + PDFED_TABLE_CELL_PAD_X);
+      if (w > natural[c]) natural[c] = w;
+      if (wm > wordMin[c]) wordMin[c] = wm;
+    }
+    natural[c] = Math.max(natural[c], PDFED_TABLE_MIN_COL_W);
+    wordMin[c] = Math.max(Math.min(wordMin[c], natural[c]), PDFED_TABLE_MIN_COL_W);
+  }
+
+  const totalNatural = natural.reduce((a, b) => a + b, 0);
+  let colWidths;
+  if (totalNatural <= availW) {
+    const extra = availW - totalNatural;
+    colWidths = natural.map(function(w) { return w + (extra * (w / totalNatural)); });
+  } else {
+    const flexible = natural.map(function(w, c) { return w - wordMin[c]; });
+    const totalFlexible = flexible.reduce((a, b) => a + b, 0);
+    let deficit = totalNatural - availW;
+    if (totalFlexible >= deficit) {
+      colWidths = natural.map(function(w, c) { return w - flexible[c] * (deficit / totalFlexible); });
+    } else {
+      // Even removing all flexible width isn't enough -- fall back to
+      // squeezing wordMin itself proportionally (rare: a page far
+      // narrower than the shortest possible rendering of the content).
+      deficit -= totalFlexible;
+      const totalWordMin = wordMin.reduce((a, b) => a + b, 0) || 1;
+      colWidths = wordMin.map(function(w) {
+        return Math.max(PDFED_TABLE_MIN_COL_W, w - w * (deficit / totalWordMin));
+      });
+    }
+  }
+  colWidths = colWidths.map(function(w) { return Math.round(w); });
+
+  const rowHeights = [];
+  for (let r = 0; r < rows; r++) {
+    let maxH = PDFED_TABLE_MIN_ROW_H;
+    for (let c = 0; c < cols; c++) {
+      const isHead = r === 0;
+      const h = pdfedLayaMeasureTableCellHeight(cells[r][c] || '', fam, size, bold || isHead, colWidths[c]);
+      if (h > maxH) maxH = h;
+    }
+    rowHeights.push(Math.round(maxH));
+  }
+
+  return { colWidths, rowHeights };
+}
+
+// ── Laya hook: pdfed_create_table ───────────────────────────────────────
+// Builds a brand-new, fully professional table on the editor canvas from
+// headers + row data Laya has already worked out from the conversation --
+// the editor-canvas counterpart to da_create_table (Data Arrangement).
+// Column widths and row heights are computed from the ACTUAL text (see
+// pdfedLayaComputeTableLayout above) rather than a fixed grid size, so
+// nothing here ever gets visually truncated the way a manually-inserted
+// table can once its content outgrows the default 60-140px column / 30px
+// row. Shape-matches pg.placedTables exactly (see pdfedInsertTable), so
+// it's indistinguishable from a manually-built table afterwards --
+// draggable, resizable, lockable, exportable, all of it.
+async function pdfedLayaCreateTable(p) {
+  p = p || {};
+  const { pg, idx } = pdfedLayaActivePage(p);
+
+  const headers = Array.isArray(p.headers) ? p.headers.map(function(h) { return String(h == null ? '' : h).trim(); }) : [];
+  if (!headers.length) throw new Error('at least one column header is needed to create a table');
+  const cols = headers.length;
+
+  const rawRows = Array.isArray(p.rows) ? p.rows : [];
+  const rows = rawRows.map(function(row) {
+    const arr = Array.isArray(row) ? row : [];
+    const out = [];
+    for (let c = 0; c < cols; c++) out.push(arr[c] == null ? '' : String(arr[c]));
+    return out;
+  });
+  if (!rows.length) rows.push(new Array(cols).fill('')); // one blank row so the table isn't just a header bar
+
+  const cells = [headers].concat(rows);
+
+  const sz = pdfedLayaPageSizePx(pg, idx);
+  const W = sz[0];
+  const fam = (typeof p.font_family === 'string' && /^[\w \-'",]{2,60}$/.test(p.font_family.trim())) ? p.font_family.trim() : 'Inter';
+  const fontSize = Math.max(8, Math.min(28, parseInt(p.font_size, 10) || 12));
+  await pdfedLayaEnsureFont(fam);
+
+  const r = p.region || {};
+  const has = function(v) { return v !== undefined && v !== null && v !== '' && isFinite(Number(v)); };
+  const d = pdfedLayaDefaultRegion(W, sz[1]);
+  let x = d.x, availW = d.w;
+  if (has(r.x_pct) && has(r.w_pct)) {
+    x = W * Math.max(0, Math.min(95, Number(r.x_pct))) / 100;
+    availW = Math.min(W * Math.max(5, Math.min(100, Number(r.w_pct))) / 100, W - x);
+  }
+  let y = d.y;
+  if (has(r.y_pct)) {
+    y = sz[1] * Math.max(0, Math.min(95, Number(r.y_pct))) / 100;
+  } else {
+    const low = pdfedLayaContentBottomPx(pg, idx);
+    if (low) y = Math.min(sz[1] * 0.9, low + sz[1] * 0.03);
+  }
+
+  const layout = pdfedLayaComputeTableLayout(cells, fam, fontSize, false, availW);
+
+  if (!pg.placedTables) pg.placedTables = [];
+  const item = {
+    id: 'tbl_' + (++pdfedTableSeq),
+    x: Math.round(x), y: Math.round(y),
+    rows: cells.length, cols: cols,
+    colWidths: layout.colWidths,
+    rowHeights: layout.rowHeights,
+    fontSize: fontSize,
+    fontFamily: fam,
+    headerRow: true,
+    cells: cells,
+    locked: false,
+    zIndex: pdfedNextZ(pg),
+  };
+  pg.placedTables.push(item);
+  pdfedMarkModified(idx);
+  if (pdfed.active === idx) pdfedRenderPlacedTables(idx);
+  toast(cells.length + ' x ' + cols + ' table created, sized to fit its own content', 'success');
+
+  pushLayaAppHistory({
+    label: 'Create table (Laya)',
+    undo: () => {
+      const i = pg.placedTables.indexOf(item);
+      if (i > -1) pg.placedTables.splice(i, 1);
+      pdfedMarkModified(idx);
+      if (pdfed.active === idx) pdfedRenderPlacedTables(idx);
+      toast('Table removed', 'info');
+    },
+    redo: () => {
+      if (pg.placedTables.indexOf(item) === -1) pg.placedTables.push(item);
+      pdfedMarkModified(idx);
+      if (pdfed.active === idx) pdfedRenderPlacedTables(idx);
+    }
+  });
+
+  return { rows: item.rows, cols: item.cols, page: idx + 1, colWidths: item.colWidths, rowHeights: item.rowHeights };
 }
 
 // ─── LAYA: CANVAS FILL / GRADIENT (programmatic, no panel needed) ───────
@@ -76210,6 +76474,28 @@ if (document.readyState === 'loading') {
   //     percent of the page; omit it to place the text below what is
   //     already there. Leave text_color out and the app samples the page
   //     behind the region and picks dark or light text itself.
+  //   pdfed_create_table {headers: string[], rows?: string[][], region?:
+  //     {x_pct, y_pct, w_pct}, page_idx?, font_family?, font_size?}
+  //     -- Builds a real table on the page (not Data Arrangement -- use
+  //     da_create_table for that). headers is required, one entry per
+  //     column; rows is an array of arrays of cell text, each padded/
+  //     trimmed to the header count -- omit it for a table with just the
+  //     header row. Column widths and row heights are computed from the
+  //     ACTUAL text given (measured in the real font before the table is
+  //     created), so long cell content wraps and the row grows instead of
+  //     ever getting visually cut off -- never invent shorter placeholder
+  //     text just to make a column narrower. region is optional and only
+  //     needs x_pct/y_pct/w_pct (no h_pct -- table height is decided by
+  //     its own content, not a fixed box); omit it to place the table
+  //     below whatever is already on the page, at full content width.
+  //   laya_undo_last_action {}
+  //     -- Reverses whichever change Laya made most recently (this
+  //     session), for when the person says something like "undo that" or
+  //     "put it back the way it was" instead of reaching for Ctrl+Z
+  //     themselves. Only works while nothing else has happened since that
+  //     change -- if it's no longer safe to reverse cleanly, the tool call
+  //     fails with a message to relay to the person as-is; don't retry it
+  //     silently or claim it undid something it didn't.
   //   pdfed_set_canvas_gradient {mode?: 'solid'|'gradient', color1: hex,
   //     color2?: hex, angle?: 0-360, opacity?: 0-100, pages?: 'all'|number[],
   //     page_overrides?: [{page: number, mode?, color1?, color2?, angle?, opacity?}]}
@@ -78123,6 +78409,40 @@ if (document.readyState === 'loading') {
         const n = Array.isArray(p.blocks) ? p.blocks.length : 0;
         return 'Place ' + (n ? n + ' block' + (n === 1 ? '' : 's') + ' of ' : '') + 'editable text on this page.';
       }
+    },
+    // Content-aware table builder -- the editor-canvas counterpart to
+    // da_create_table, but sized from the real text instead of a fixed
+    // grid (see pdfedLayaComputeTableLayout). Use this whenever the
+    // person wants an actual table INSIDE a document/page they're
+    // designing (an invoice, a comparison, a spec sheet) -- not for Data
+    // Arrangement, which is the spreadsheet-style tool and has its own
+    // da_create_table action.
+    pdfed_create_table: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedLayaCreateTable(p || {}); },
+      label: function(p){
+        p = p || {};
+        const cols = Array.isArray(p.headers) ? p.headers.length : 0;
+        const rows = (Array.isArray(p.rows) ? p.rows.length : 0) + 1; // +1 for the header row
+        return 'Create a ' + rows + ' x ' + cols + ' table on this page, sized to fit its content.';
+      }
+    },
+    // Lets a plain chat instruction ("undo that", "bring it back") reverse
+    // whichever action Laya herself performed most recently, without the
+    // person needing to reach for Ctrl+Z. See layaUndoLastAction above for
+    // why this only fires when nothing has happened on top of it.
+    laya_undo_last_action: {
+      risk: 'safe',
+      run: function(){
+        const r = layaUndoLastAction();
+        if (!r.undone) {
+          throw new Error(r.reason === 'nothing yet'
+            ? "there's nothing I've done yet to undo"
+            : "something's changed since then, so I can't safely undo just that one thing -- Ctrl+Z (or Cmd+Z) will still step back through it");
+        }
+        return r;
+      },
+      label: function(){ return 'Undo my last change.'; }
     },
     // Bakes a solid colour or 2-colour gradient onto one page, every page,
     // or a specific set of pages -- via the same engine as the Design
