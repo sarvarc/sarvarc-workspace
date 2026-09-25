@@ -75984,6 +75984,13 @@ if (document.readyState === 'loading') {
   //     Use da_create_table whenever the person describes their own
   //     columns ("a table with name, email, and amount paid") or asks for
   //     something no template below fits.
+  //     NOT scoped to Data Arrangement -- offer this from ANY panel (like
+  //     mf_create_form / navigate_to_panel), since the person may be on
+  //     PDF Editor, Make Forms, or Diagrams when they ask for a table. The
+  //     client (daCreateTableWithColumns) switches them into Data
+  //     Arrangement itself before building it, so the new table is always
+  //     visible right after the call -- you do not need to call
+  //     navigate_to_panel first.
   //     TABLE VS FORM (do not mix these up -- separate modules, separate
   //     tools): "table" / "spreadsheet" / "tracker" / "list of rows and
   //     columns" -> da_create_table or da_create_table_from_template,
@@ -76016,6 +76023,8 @@ if (document.readyState === 'loading') {
   //     needs rather than creating something and hoping it's right, same
   //     as the "ASK which one" guidance under mf_export_responses_to_da
   //     above.
+  //     NOT scoped to Data Arrangement either -- same "offer from ANY
+  //     panel" exemption as da_create_table right above.
   //   dg_set_type {chartType}                dg_set_palette {scheme}
   //   dg_add_row {}                          dg_set_x_axis {colIdx}
   //   dg_set_y_axis {colIdx}
@@ -76320,11 +76329,22 @@ if (document.readyState === 'loading') {
   //   pipeline_da_to_diagram {}              pipeline_da_to_pdf {mode: 'live'|'new'}
   //   pipeline_diagram_to_pdf {mode: 'live'|'new'}  pipeline_form_to_pdf {}
   // Only offer tools relevant to context.activePanel on each call -- e.g.
-  // don't hand Laya the da_* tools while the user's in Make Forms. Pipeline
-  // tools are the one exception: offer the relevant pipeline_* tool(s) for
-  // whichever module is active (e.g. pipeline_da_to_diagram + pipeline_da_to_pdf
-  // when in Data Arrangement) since those are meant to move data OUT of the
-  // current module, not act within it.
+  // don't hand Laya the da_* EDITING tools (da_add_row, da_highlight_*,
+  // da_set_filter, da_set_dropdown, etc.) while the user's in Make Forms --
+  // those only make sense against a table the person can already see.
+  // Three kinds of exception to that rule:
+  //   1) Pipeline tools -- offer the relevant pipeline_* tool(s) for
+  //      whichever module is active (e.g. pipeline_da_to_diagram +
+  //      pipeline_da_to_pdf when in Data Arrangement) since those are meant
+  //      to move data OUT of the current module, not act within it.
+  //   2) navigate_to_panel -- always offered, every turn, every panel.
+  //   3) The four "start something new from anywhere" tools -- mf_create_form,
+  //      mf_create_from_template, da_create_table, da_create_table_from_template
+  //      (plus mf_export_responses_to_da) -- these are also always offered
+  //      regardless of activePanel, since each one's own client-side function
+  //      switches the person into the right panel itself before it runs.
+  //      Everything else in the da_*/mf_*/dg_*/pdfed_* families stays scoped
+  //      to its own panel as the blanket rule above says.
   //
   // SEPARATE REQUEST SHAPE -- mode: 'vision_ocr' (used only by
   // pdfed_vision_reread_page, via callLayaVisionOcr() client-side, never by
