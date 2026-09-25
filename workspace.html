@@ -26554,6 +26554,16 @@ async function pdfedLayaStyleSpecificText(p) {
 
   teFafRefreshPreview();
 
+  // v39: teFafApply() never loaded the font itself (the manual
+  // #teFafFontSelect dropdown only ever offered the 8 fonts already
+  // baked into the page, so this was never needed before free-text
+  // fonts existed here). Now that `font` can be anything, it has to be
+  // fetched and ready before teFafApply() measures/applies it, same as
+  // the other two font-setting paths (pdfedLayaEnsureFont is already
+  // called for pdfed_insert_page/pdfed_add_text_to_page's heading_font/
+  // body_font, and for pdfed_create_table's font_family).
+  if (font) await pdfedLayaEnsureFont(font);
+
   const total = await teFafApply();
   if (!total) throw new Error('no matches found for "' + query + '"');
   return total;
