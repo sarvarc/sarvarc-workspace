@@ -52886,6 +52886,7 @@ async function pdfedRunRefineReportFromModal() {
 // on open, since there's no modal here to have already caught them -- the
 // thrown message surfaces to the user as a normal Laya reply.
 async function pdfedRunRefineReportAuto(overrides) {
+  const o = overrides || {};
   const pages = (typeof pdfed !== 'undefined' && pdfed.pages) || [];
   if (!pages.length) { toast('Open or build a report first', 'info'); throw new Error('Open or build a report first.'); }
   const hasFormPages = pages.some(pg => pg.fromMakeForm);
@@ -52895,13 +52896,17 @@ async function pdfedRunRefineReportAuto(overrides) {
     throw new Error('Insert a page and add content to refine it — pushed form pages are left as they are.');
   }
   const hasContent = scopePages.some(pg => (pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length) || (pg.placedImages && pg.placedImages.length));
-  if (!hasContent) {
+  // allowEmpty: the one deliberate exception to "there must be something to
+  // refine" -- used only by pdfedCreateEmptyLetterhead below, for a blank
+  // page that's meant to STAY blank (logo + watermark dropped on, nothing
+  // else). Every other caller (the modal, Laya's normal auto-refine) keeps
+  // the guard exactly as it was.
+  if (!hasContent && !o.allowEmpty) {
     const msg = hasFormPages ? 'Add some content to the inserted page first.' : 'Add some tables, text, or images to the canvas first.';
     toast(msg, 'info');
     throw new Error(msg);
   }
 
-  const o = overrides || {};
   const themeChoice = o.theme || pdfedRefineState.theme || 'general';
   const opts = {
     theme: themeChoice,
@@ -52932,6 +52937,42 @@ async function pdfedRunRefineReportAuto(overrides) {
     footerUsed: opts.footerEnabled, auto: true
   });
   return pdfedExecuteRefineReport(opts);
+}
+
+// ── Laya hook: pdfed_create_letterhead ──────────────────────────────────
+// "Give me a branded letterhead" boiled down to its actual mechanism: no
+// separate template system, just the same Refine Report engine everything
+// else already goes through -- a blank page, the logo dropped into the
+// header (and, since that's the whole point of a letterhead, a soft
+// watermark behind the page too), body left completely empty. Requires a
+// logo already attached in chat -- if none is attached yet, this throws so
+// Laya asks the person for one rather than guessing or using a placeholder
+// mark, same pattern as bk_set_brand_kit's use_attached_logo check above.
+async function pdfedCreateEmptyLetterhead(p) {
+  p = p || {};
+  const logo = (typeof pdfedRefineState !== 'undefined') ? pdfedRefineState.logoDataUrl : null;
+  if (!logo) throw new Error('no logo is attached yet -- ask the person to attach one using the paperclip in my chat, then try again');
+  if (!pdfed.pages.length) {
+    // position omitted (not 'end') so this also works as the very first
+    // page of a brand-new, currently-empty document -- isNewDoc inside
+    // pdfedLayaInsertPage brings up the editor chrome exactly as it would
+    // for any other first-page insert.
+    await pdfedLayaInsertPage({});
+  }
+  navigate('pdfeditor');
+  const result = await pdfedRunRefineReportAuto({
+    addLogoToHeader: true,
+    logoPosition: p.logo_position,
+    // "with watermark" was the actual ask -- on unless explicitly told off.
+    watermarkEnabled: p.watermark !== false,
+    headerTitle: p.header_title,
+    headerSubheading: p.header_subheading,
+    headerContact: p.header_contact,
+    headerAddress: p.header_address,
+    theme: p.theme,
+    allowEmpty: true
+  });
+  return (result && result.summaryLine) || 'Letterhead created.';
 }
 
 // ── Refine Report — shared engine ───────────────────────────────────────────
@@ -79255,6 +79296,18 @@ if (document.readyState === 'loading') {
         const widthNote = p.align === 'stretch' ? ', tables stretched to full width' : '';
         return 'Refine this into a polished ' + themeLabel + ' report' + widthNote + ' -- applying now, no review step.';
       }
+    },
+    // "Make me a letterhead" -- reuses this exact same Refine Report engine
+    // (see pdfedCreateEmptyLetterhead above) instead of a separate template
+    // system: inserts a blank page if none is open, drops the attached
+    // logo into the header plus a soft watermark behind the page, and
+    // leaves the body empty. Requires a logo already attached in chat --
+    // if pdfedCreateEmptyLetterhead throws because none is attached, ask
+    // the person to attach one with the paperclip, then call this again.
+    pdfed_create_letterhead: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedCreateEmptyLetterhead(p || {}); },
+      label: function(){ return 'Create a blank, watermarked letterhead from your logo.'; }
     },
 
     // ── DAILY-USE RIBBON ACTIONS ─────────────────────────────────────────
