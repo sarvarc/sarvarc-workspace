@@ -3209,6 +3209,21 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   pointer-events: none;
 }
 
+/* Touch devices have no :hover, so the insert zone stayed opacity:0 and the
+   chip stayed clipped to 22px, hiding both "+" and the page-transition ▶
+   button. Show them always and let the chip expand on touch screens. */
+@media (hover: none) {
+  .pdfed-insert-zone { opacity: 1; height: 40px; }
+  .pdfed-insert-chip { max-width: 240px; padding-right: 8px; background: rgba(0,194,255,0.16); }
+  .pdfed-insert-chip .pdfed-insert-btn,
+  .pdfed-insert-chip .pdfed-anim-btn { width: 28px; height: 28px; }
+  .pdfed-insert-chip .pdfed-anim-btn { margin-left: 6px; }
+}
+/* Transition picker: fit narrow phones (JS positions using its rendered width) */
+@media (max-width: 420px) {
+  body .pdfed-anim-picker { width: calc(100vw - 16px); }
+}
+
 /* Drag-reorder for thumb */
 .pdfed-thumb[draggable="true"] { cursor: grab; }
 .pdfed-thumb.drag-over-top { border-top: 3px solid var(--blue); }
