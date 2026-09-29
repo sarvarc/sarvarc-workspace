@@ -18960,93 +18960,613 @@ function pdfedSaylaFindReshapeShape(query) {
       || null;
 }
 
+// ─── SAYLA — IMAGE SHAPER (build 275) ───────────────────────────────────
+// Sayla's own hands on the Image Reshaper and Shape Studio. Everything below
+// reuses the Studio's own machinery: a shape is ONE SVG path `d` in a
+// 1000x1000 box plus the editable `nodes` it was built from ({x,y,t:'s'|'c',
+// ho?,hi?}), saved into My Shapes exactly like a hand-drawn one, so anything
+// she builds can be opened in Shape Studio and tweaked by hand afterwards.
+//
+//   rshBuildShapeSpec(spec)   recipe | nodes(+mirror) | path  ->  {nodes, smooth, notes}
+//   rshSaylaBake(img, d, o)   the deeper Reshaper: keep proportions, zoom + focus,
+//                             inset / rotate / flip, bevel, flat border, shadow
+//   rshSaylaFocus(img, mode)  works out WHAT TO HIGHLIGHT: where the subject of a
+//                             photo sits (face-like skin tones, detail, contrast)
+//   pdfedSaylaReshapeImage / ...CreateCustomShape / ...EditCustomShape / ...DeleteCustomShape
+const RSH_SAYLA_RECIPE_KINDS = ['polygon', 'star', 'burst', 'gear', 'flower', 'cloud', 'blob', 'heart', 'drop', 'ticket', 'rounded_rect', 'superformula'];
+const RSH_SAYLA_MAX_NODES = 300;
+
+function rshNum(v, lo, hi, dflt) { const n = Number(v); return (v === null || v === '' || !isFinite(n)) ? dflt : Math.max(lo, Math.min(hi, n)); }
+function rshRng(seed) {
+  let s = (Math.floor(Number(seed)) || 7) >>> 0; if (!s) s = 7;
+  const next = function () { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  next(); next();
+  return next;
+}
+function rshPt(a, r) { return { x: 500 + r * Math.cos(a), y: 500 + r * Math.sin(a) }; }
+
+// Round the corners of a list of vertices. An item is {x,y[,sharp]} or {raw:[nodes]}.
+function rshRoundedNodes(items, r, abs) {
+  const out = [], N = items.length;
+  const first = function (it) { return it.raw ? it.raw[0] : it; };
+  const last = function (it) { return it.raw ? it.raw[it.raw.length - 1] : it; };
+  items.forEach(function (it, i) {
+    if (it.raw) { it.raw.forEach(function (n) { out.push(n); }); return; }
+    const p = last(items[(i - 1 + N) % N]), q = first(items[(i + 1) % N]);
+    const d1 = Math.hypot(p.x - it.x, p.y - it.y) || 1, d2 = Math.hypot(q.x - it.x, q.y - it.y) || 1;
+    const t = abs != null ? Math.min(abs, d1 * 0.5, d2 * 0.5) : r * 0.5 * Math.min(d1, d2);
+    if (!(t > 1.5) || it.sharp) { out.push({ x: csR(it.x), y: csR(it.y), t: 'c' }); return; }
+    const A = { x: it.x + (p.x - it.x) / d1 * t, y: it.y + (p.y - it.y) / d1 * t };
+    const B = { x: it.x + (q.x - it.x) / d2 * t, y: it.y + (q.y - it.y) / d2 * t };
+    out.push({ x: csR(A.x), y: csR(A.y), t: 'c', ho: { x: csR(A.x + (it.x - A.x) * 0.55), y: csR(A.y + (it.y - A.y) * 0.55) } });
+    out.push({ x: csR(B.x), y: csR(B.y), t: 'c', hi: { x: csR(B.x + (it.x - B.x) * 0.55), y: csR(B.y + (it.y - B.y) * 0.55) } });
+  });
+  return out;
+}
+
+// Petals / bumps: valleys are sharp cusps, shoulders and tips are smooth.
+function rshFlowerNodes(n, inner, irr, rnd) {
+  const p = Math.PI * 2 / n, out = [], R = 470;
+  for (let i = 0; i < n; i++) {
+    const tipR = R * (1 - irr * 0.3 * rnd());
+    const Rv = R * inner, sideR = Rv + (tipR - Rv) * 0.96, ang = -Math.PI / 2 + i * p;
+    const v = rshPt(ang - p / 2, Rv), s1 = rshPt(ang - p * 0.34, sideR), tip = rshPt(ang, tipR), s2 = rshPt(ang + p * 0.34, sideR);
+    out.push({ x: csR(v.x), y: csR(v.y), t: 'c' }, { x: csR(s1.x), y: csR(s1.y), t: 's' }, { x: csR(tip.x), y: csR(tip.y), t: 's' }, { x: csR(s2.x), y: csR(s2.y), t: 's' });
+  }
+  return out;
+}
+
+function rshRecipeNodes(rec, sq) {
+  const kind = String(rec.kind || '').toLowerCase();
+  if (RSH_SAYLA_RECIPE_KINDS.indexOf(kind) === -1) throw new Error('unknown recipe "' + rec.kind + '". Use one of: ' + RSH_SAYLA_RECIPE_KINDS.join(', '));
+  const R = 470, count = function (lo, hi, d) { return Math.round(rshNum(rec.count, lo, hi, d)); };
+  const rnd = rshRng(rec.seed);
+  let nodes = [];
+  if (kind === 'polygon') {
+    const n = count(3, 40, 6), v = [];
+    for (let i = 0; i < n; i++) v.push(rshPt(-Math.PI / 2 + i * Math.PI * 2 / n, R));
+    nodes = rshRoundedNodes(v, rshNum(rec.roundness, 0, 1, 0.15));
+  } else if (kind === 'star' || kind === 'burst') {
+    const isBurst = kind === 'burst', k = count(3, 40, isBurst ? 16 : 5), inn = rshNum(rec.inner_ratio, 0.1, 0.95, isBurst ? 0.82 : 0.5), v = [];
+    for (let i = 0; i < k * 2; i++) v.push(rshPt(-Math.PI / 2 + i * Math.PI / k, i % 2 ? R * inn : R));
+    nodes = rshRoundedNodes(v, rshNum(rec.roundness, 0, 1, isBurst ? 0.1 : 0.15));
+  } else if (kind === 'gear') {
+    const n = count(4, 24, 10), inn = rshNum(rec.inner_ratio, 0.1, 0.95, 0.78), p = Math.PI * 2 / n, v = [];
+    for (let i = 0; i < n; i++) {
+      const a0 = -Math.PI / 2 + i * p;
+      [[-0.30, inn], [-0.17, 1], [0.17, 1], [0.30, inn], [0.5, inn]].forEach(function (s) { v.push(rshPt(a0 + s[0] * p, R * s[1])); });
+    }
+    nodes = rshRoundedNodes(v, rshNum(rec.roundness, 0, 1, 0.2));
+  } else if (kind === 'flower') {
+    nodes = rshFlowerNodes(count(3, 24, 6), rshNum(rec.inner_ratio, 0.1, 0.95, 0.45), rshNum(rec.irregularity, 0, 1, 0), rnd);
+  } else if (kind === 'cloud') {
+    nodes = rshFlowerNodes(count(3, 14, 6), rshNum(rec.inner_ratio, 0.1, 0.95, 0.83), rshNum(rec.irregularity, 0, 1, 0.3), rnd);
+    const asp = rshNum(rec.aspect, 0.3, 1, 0.62);
+    rshMapNodes(nodes, function (x, y) { return [x, 500 + (y - 500) * asp]; });
+  } else if (kind === 'blob') {
+    const n = count(3, 12, 5), irr = rshNum(rec.irregularity, 0, 1, 0.3), P = Math.max(12, n * 3);
+    const f1 = rnd() * 6.28, f2 = rnd() * 6.28, f3 = rnd() * 6.28;
+    for (let j = 0; j < P; j++) {
+      const th = Math.PI * 2 * j / P;
+      let r = 1 + irr * (0.45 * Math.sin(n * th + f1) + 0.3 * Math.sin((n + 2) * th + f2) + 0.25 * Math.sin(2 * th + f3));
+      r = Math.max(0.55, Math.min(1.5, r));
+      const q = rshPt(th - Math.PI / 2, 330 * r);
+      nodes.push({ x: csR(q.x), y: csR(q.y), t: 's' });
+    }
+  } else if (kind === 'heart') {
+    const S = 28;
+    for (let k = 0; k < S; k++) {
+      const t = Math.PI * 2 * k / S, sx = 16 * Math.pow(Math.sin(t), 3);
+      const sy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+      nodes.push({ x: csR(500 + sx * 29), y: csR(500 - (sy + 2.5) * 30), t: (k === 0 || k === S / 2) ? 'c' : 's' });
+    }
+  } else if (kind === 'drop') {
+    nodes.push({ x: 500, y: 40, t: 'c' });
+    [-32.75, 20, 55, 90, 125, 160, 212.75].forEach(function (deg) {
+      const a = deg * Math.PI / 180;
+      nodes.push({ x: csR(500 + 330 * Math.cos(a)), y: csR(650 + 330 * Math.sin(a)), t: 's' });
+    });
+  } else if (kind === 'ticket') {
+    const x0 = 40, x1 = 960, y0 = 250, y1 = 750, b = Math.min(200, 90 * rshNum(rec.notch, 0, 1.6, 1)), k = 0.5523 * b, items = [];
+    items.push({ x: x0, y: y0 }, { x: x1, y: y0 });
+    if (b > 4) items.push({ raw: [
+      { x: x1, y: 500 - b, t: 'c', ho: { x: x1 - k, y: 500 - b } },
+      { x: x1 - b, y: 500, t: 's', hi: { x: x1 - b, y: 500 - k }, ho: { x: x1 - b, y: 500 + k } },
+      { x: x1, y: 500 + b, t: 'c', hi: { x: x1 - k, y: 500 + b } }] });
+    items.push({ x: x1, y: y1 }, { x: x0, y: y1 });
+    if (b > 4) items.push({ raw: [
+      { x: x0, y: 500 + b, t: 'c', ho: { x: x0 + k, y: 500 + b } },
+      { x: x0 + b, y: 500, t: 's', hi: { x: x0 + b, y: 500 + k }, ho: { x: x0 + b, y: 500 - k } },
+      { x: x0, y: 500 - b, t: 'c', hi: { x: x0 + k, y: 500 - b } }] });
+    nodes = rshRoundedNodes(items, 0, 55);
+  } else if (kind === 'rounded_rect') {
+    const hw = 440 * rshNum(sq && sq.width_pct, 15, 100, 100) / 100, hh = 440 * rshNum(sq && sq.height_pct, 15, 100, 100) / 100;
+    nodes = rshRoundedNodes([{ x: 500 - hw, y: 500 - hh }, { x: 500 + hw, y: 500 - hh }, { x: 500 + hw, y: 500 + hh }, { x: 500 - hw, y: 500 + hh }], rshNum(rec.roundness, 0, 1, 0.35));
+  } else if (kind === 'superformula') {
+    const m = Math.round(rshNum(rec.m, 1, 24, 6)), n1 = rshNum(rec.n1, 0.1, 60, 1), n2 = rshNum(rec.n2, 0.1, 60, 1), n3 = rshNum(rec.n3, 0.1, 60, 1);
+    const P = Math.max(48, Math.min(160, m * 10)), rs = [];
+    for (let j = 0; j < P; j++) {
+      const th = Math.PI * 2 * j / P;
+      let r = Math.pow(Math.pow(Math.abs(Math.cos(m * th / 4)), n2) + Math.pow(Math.abs(Math.sin(m * th / 4)), n3), -1 / n1);
+      if (!isFinite(r)) r = 0; rs.push(r);
+    }
+    const mx = Math.max.apply(null, rs) || 1;
+    rs.forEach(function (r, j) { const q = rshPt(Math.PI * 2 * j / P - Math.PI / 2, 470 * Math.min(1, r / mx)); nodes.push({ x: csR(q.x), y: csR(q.y), t: 's' }); });
+  }
+  const rot = rshNum(rec.rotation_deg, -360, 360, 0);
+  if (rot) { const c = Math.cos(rot * Math.PI / 180), s = Math.sin(rot * Math.PI / 180); rshMapNodes(nodes, function (x, y) { return [500 + (x - 500) * c - (y - 500) * s, 500 + (x - 500) * s + (y - 500) * c]; }); }
+  return nodes;
+}
+
+function rshMapNodes(nodes, fn) {
+  nodes.forEach(function (n) {
+    const a = fn(n.x, n.y); n.x = csR(a[0]); n.y = csR(a[1]);
+    ['ho', 'hi'].forEach(function (w) { if (n[w]) { const b = fn(n[w].x, n[w].y); n[w] = { x: csR(b[0]), y: csR(b[1]) }; } });
+  });
+}
+function rshFitNodes(nodes, f) {
+  const pts = csSamplePts(nodes, f, true, 10);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  pts.forEach(function (p) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+  const w = x1 - x0, h = y1 - y0;
+  if (w < 5 && h < 5) return;
+  const s = Math.min(940 / Math.max(w, 1), 940 / Math.max(h, 1)), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  rshMapNodes(nodes, function (x, y) { return [500 + (x - cx) * s, 500 + (y - cy) * s]; });
+}
+function rshNodesCross(nodes, f) {
+  const raw = csSamplePts(nodes, f, true, 5), pts = raw.filter(function (q, i) { const a = raw[(i - 1 + raw.length) % raw.length]; return Math.hypot(q.x - a.x, q.y - a.y) > 0.3; }), N = pts.length;
+  const ccw = function (a, b, c) { return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x); };
+  for (let i = 0; i < N; i++) {
+    const a = pts[i], b = pts[(i + 1) % N];
+    for (let j = i + 2; j < N; j++) {
+      if (i === 0 && j === N - 1) continue;
+      const c = pts[j], d = pts[(j + 1) % N];
+      if (ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d)) return true;
+    }
+  }
+  return false;
+}
+
+// Points Sayla plotted herself (grid 1000x1000, y down).
+function rshCleanNodes(arr, mirror) {
+  let list = arr.slice(0, 80).map(function (n) {
+    if (!n || typeof n !== 'object') return null;
+    const x = rshNum(n.x, 0, 1000, NaN), y = rshNum(n.y, 0, 1000, NaN);
+    if (!isFinite(x) || !isFinite(y)) return null;
+    const o = { x: csR(x), y: csR(y), t: n.corner === true ? 'c' : 's' };
+    if (n.out && isFinite(rshNum(n.out.x, 0, 1000, NaN)) && isFinite(rshNum(n.out.y, 0, 1000, NaN))) o.ho = { x: csR(rshNum(n.out.x, -200, 1200, 0)), y: csR(rshNum(n.out.y, -200, 1200, 0)) };
+    if (n.in && isFinite(rshNum(n.in.x, 0, 1000, NaN)) && isFinite(rshNum(n.in.y, 0, 1000, NaN))) o.hi = { x: csR(rshNum(n.in.x, -200, 1200, 0)), y: csR(rshNum(n.in.y, -200, 1200, 0)) };
+    return o;
+  }).filter(Boolean);
+  if (mirror === 'left' || mirror === 'right') list = rshMirrorHalf(list, mirror === 'left');
+  if (list.length < 3) throw new Error('a shape needs at least 3 valid points');
+  return list;
+}
+// Same idea as the Studio's Mirror button: one half along the centre line, the other half is reflected.
+function rshMirrorHalf(src, leftDrawn) {
+  src = csClone(src);
+  src.forEach(function (n) {
+    if (leftDrawn ? n.x > 500 : n.x < 500) n.x = 500;
+    if (Math.abs(n.x - 500) < 14) { n.x = 500; delete n.ho; delete n.hi; if (n.t !== 'c') n.t = 's'; }
+  });
+  const startOn = src[0].x === 500, endOn = src[src.length - 1].x === 500;
+  const mir = function (n) {
+    const m = csClone(n); m.x = 1000 - m.x;
+    if (m.ho) m.ho.x = 1000 - m.ho.x;
+    if (m.hi) m.hi.x = 1000 - m.hi.x;
+    const t = m.hi; m.hi = m.ho; m.ho = t;
+    if (!m.hi) delete m.hi; if (!m.ho) delete m.ho;
+    return m;
+  };
+  const out = src.slice();
+  for (let i = src.length - 1; i >= 0; i--) {
+    if (i === src.length - 1 && endOn) continue;
+    if (i === 0 && startOn) continue;
+    out.push(mir(src[i]));
+  }
+  return out;
+}
+// Keep one half of an EXISTING outline and mirror it (used by pdfed_edit_custom_shape).
+function rshMirrorSampled(nodes, f, keepLeft) {
+  const pts = csSamplePts(nodes, f, true, 24), N = pts.length;
+  const on = function (p) { return keepLeft ? p.x <= 500 : p.x >= 500; };
+  let best = null;
+  for (let i = 0; i < N; i++) {
+    if (!(on(pts[i]) && !on(pts[(i - 1 + N) % N]))) continue;
+    let len = 0; while (len < N && on(pts[(i + len) % N])) len++;
+    if (len < N && (!best || len > best.len)) best = { i: i, len: len };
+  }
+  if (!best) throw new Error('that outline does not cross the centre line, so there is no half to mirror');
+  const arc = []; for (let k = 0; k < best.len; k++) arc.push(pts[(best.i + k) % N]);
+  const cross = function (a, b) { const t = (500 - a.x) / ((b.x - a.x) || 1); return { x: 500, y: a.y + (b.y - a.y) * t }; };
+  const sA = cross(pts[(best.i - 1 + N) % N], arc[0]), eA = cross(arc[arc.length - 1], pts[(best.i + best.len) % N]);
+  const poly = csRdp([sA].concat(arc, [eA]), 2.5);
+  const nodes2 = poly.map(function (p, k) {
+    let t = 's';
+    if (k > 0 && k < poly.length - 1) {
+      const a = poly[k - 1], c = poly[k + 1], a1 = Math.atan2(p.y - a.y, p.x - a.x), a2 = Math.atan2(c.y - p.y, c.x - p.x);
+      let da = Math.abs(a1 - a2) * 180 / Math.PI; if (da > 180) da = 360 - da;
+      if (da > 40) t = 'c';
+    } else {
+      const q = k === 0 ? poly[1] : poly[k - 1];
+      if (Math.abs(q.x - p.x) < 0.6 * Math.hypot(q.x - p.x, q.y - p.y)) t = 'c';
+    }
+    return { x: csR(p.x), y: csR(p.y), t: t };
+  });
+  return rshMirrorHalf(nodes2, keepLeft);
+}
+
+// Raw SVG path -> points on the real outline (browser does the geometry).
+function rshPathSamples(d, n) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', '0'); svg.setAttribute('height', '0');
+  svg.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden';
+  const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d); svg.appendChild(path);
+  document.body.appendChild(svg);
+  try {
+    const L = path.getTotalLength();
+    if (!(L > 1)) throw new Error('that path has no length');
+    const pts = [];
+    for (let k = 0; k < n; k++) { const q = path.getPointAtLength(L * k / n); pts.push({ x: q.x, y: q.y }); }
+    return pts;
+  } finally { svg.remove(); }
+}
+function rshPathToNodes(d) {
+  if (!rshShapePathOk(d)) throw new Error('that path contains characters that are not allowed');
+  let dd = String(d).trim();
+  const m2 = dd.slice(1).search(/[Mm]/); if (m2 >= 0) dd = dd.slice(0, m2 + 1);
+  const raw = rshPathSamples(dd, 240);
+  let s = csRdp(raw.concat([raw[0]]), 3);
+  if (s.length > 2) s.pop();
+  if (s.length < 3) throw new Error('that path is too simple to make a shape from');
+  return s.map(function (p, k) {
+    const a = s[(k - 1 + s.length) % s.length], c = s[(k + 1) % s.length];
+    const a1 = Math.atan2(p.y - a.y, p.x - a.x), a2 = Math.atan2(c.y - p.y, c.x - p.x);
+    let da = Math.abs(a1 - a2) * 180 / Math.PI; if (da > 180) da = 360 - da;
+    return { x: csR(p.x), y: csR(p.y), t: da > 35 ? 'c' : 's' };
+  });
+}
+
+// Squash / rotate / flip / fit, shared by build and edit.
+function rshApplyShapeOps(nodes, o, f) {
+  let geo = false;
+  const wp = rshNum(o.width_pct, 15, 100, 100), hp = rshNum(o.height_pct, 15, 100, 100);
+  if (wp < 100 || hp < 100) { rshMapNodes(nodes, function (x, y) { return [500 + (x - 500) * wp / 100, 500 + (y - 500) * hp / 100]; }); geo = true; }
+  const rot = rshNum(o.rotate_deg, -360, 360, 0);
+  if (rot) { const c = Math.cos(rot * Math.PI / 180), s = Math.sin(rot * Math.PI / 180); rshMapNodes(nodes, function (x, y) { return [500 + (x - 500) * c - (y - 500) * s, 500 + (x - 500) * s + (y - 500) * c]; }); geo = true; }
+  if (o.flip_h === true) { rshMapNodes(nodes, function (x, y) { return [1000 - x, y]; }); geo = true; }
+  if (o.flip_v === true) { rshMapNodes(nodes, function (x, y) { return [x, 1000 - y]; }); geo = true; }
+  if (o.fit !== false && geo) rshFitNodes(nodes, f);
+  return geo;
+}
+
+// spec = { name?, recipe | nodes(+mirror) | path, smooth?, fit?, width_pct?, height_pct?, flip_h?, flip_v?, rotate_deg? }
+function rshBuildShapeSpec(spec) {
+  if (!spec || typeof spec !== 'object') throw new Error('no shape description given');
+  const smooth = Math.round(rshNum(spec.smooth, 0, 100, 100)), f = smooth / 100 / 6, notes = [];
+  let nodes;
+  if (spec.recipe && typeof spec.recipe === 'object' && spec.recipe.kind) nodes = rshRecipeNodes(spec.recipe, spec);
+  else if (Array.isArray(spec.nodes) && spec.nodes.length) nodes = rshCleanNodes(spec.nodes, spec.mirror);
+  else if (typeof spec.path === 'string' && spec.path.trim()) nodes = rshPathToNodes(spec.path);
+  else throw new Error('give a recipe, nodes or a path to build the shape from');
+  const sqDone = !!(spec.recipe && String(spec.recipe.kind).toLowerCase() === 'rounded_rect');
+  rshApplyShapeOps(nodes, { width_pct: sqDone ? 100 : spec.width_pct, height_pct: sqDone ? 100 : spec.height_pct, rotate_deg: spec.rotate_deg, flip_h: spec.flip_h, flip_v: spec.flip_v, fit: false }, f);
+  if (spec.fit !== false) rshFitNodes(nodes, f);
+  else rshMapNodes(nodes, function (x, y) { return [Math.max(0, Math.min(1000, x)), Math.max(0, Math.min(1000, y))]; });
+  if (nodes.length > RSH_SAYLA_MAX_NODES) throw new Error('that outline has too many points (' + nodes.length + '), simplify it');
+  const pts = csSamplePts(nodes, f, true, 8);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  pts.forEach(function (p) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+  if (!isFinite(x0) || x1 - x0 < 80 || y1 - y0 < 80) throw new Error('that outline is too small or too thin to cut a picture into');
+  if (rshNodesCross(nodes, f)) notes.push('the outline crosses itself a little');
+  return { nodes: nodes, smooth: smooth, notes: notes };
+}
+
+function rshSaylaCleanName(n, dflt) { return String(n == null ? '' : n).replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 40) || dflt; }
+
+async function rshSaylaSaveShape(name, built, existing) {
+  await rshMyShapesLoad();
+  const d = csBuildD(built.nodes, built.smooth / 100 / 6, true);
+  if (!rshShapePathOk(d)) throw new Error('the outline came out invalid, try something simpler');
+  let rec = existing || null;
+  if (rec) {
+    rec.name = name; rec.d = d; rec.nodes = csClone(built.nodes); rec.smooth = built.smooth; rec.updatedAt = Date.now();
+  } else {
+    rec = { id: 'cshape_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), name: name, d: d, nodes: csClone(built.nodes), smooth: built.smooth, createdAt: Date.now(), driveFileId: null, viaSayla: true };
+    rshMyShapes.unshift(rec);
+  }
+  await rshMyShapesPersist();
+  try { if (typeof sarvarcDriveSaveShape === 'function') sarvarcDriveSaveShape(rec).catch(function () {}); } catch (e) {}
+  try { renderReshapeGrid(); } catch (e) {}
+  return rec;
+}
+async function rshSaylaCreateShape(spec) {
+  const built = rshBuildShapeSpec(spec);
+  const rec = await rshSaylaSaveShape(rshSaylaCleanName(spec.name, 'My Shape'), built, null);
+  rec._notes = built.notes;
+  if (typeof swTrack === 'function') swTrack('sayla_shape_built', { module: 'pdf_editor', method: spec.recipe ? 'recipe' : (spec.nodes ? 'nodes' : 'path'), points: built.nodes.length });
+  return rec;
+}
+
+// ── WHAT TO HIGHLIGHT ──────────────────────────────────────────────────
+// Finds where the subject of a photo sits so a crop or zoom keeps it in view.
+// mode 'face' leans hard on skin tones, 'auto' blends detail + colour + skin,
+// both with a mild pull to the middle so a stray bright corner never wins.
+function rshSaylaFocus(img, mode) {
+  const sw = img.naturalWidth, sh = img.naturalHeight, G = 48, sc = G / Math.max(sw, sh);
+  const cw = Math.max(8, Math.round(sw * sc)), ch = Math.max(8, Math.round(sh * sc));
+  const centre = { x: 50, y: 50, how: 'the centre of the picture' };
+  let data;
+  try {
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, cw, ch);
+    data = x.getImageData(0, 0, cw, ch).data;
+  } catch (e) { return centre; }
+  const N = cw * ch, lum = new Float32Array(N), sat = new Float32Array(N), skin = new Uint8Array(N), vis = new Uint8Array(N);
+  let skinN = 0, visN = 0;
+  for (let i = 0; i < N; i++) {
+    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2], a = data[i * 4 + 3];
+    vis[i] = a > 24 ? 1 : 0; if (!vis[i]) continue; visN++;
+    lum[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    sat[i] = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+    const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b, cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+    if (cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173 && lum[i] > 40) { skin[i] = 1; skinN++; }
+  }
+  if (!visN) return centre;
+  const useFace = mode === 'face' && skinN / visN >= 0.015;
+  const score = new Float32Array(N); let any = 0;
+  for (let y = 1; y < ch - 1; y++) for (let x = 1; x < cw - 1; x++) {
+    const i = y * cw + x; if (!vis[i]) continue;
+    const gx = lum[i + 1] - lum[i - 1], gy = lum[i + cw] - lum[i - cw], g = Math.hypot(gx, gy) / 255;
+    const nx = x / cw - 0.5, ny = y / ch - 0.5, pull = 0.65 + 0.35 * Math.exp(-(nx * nx + ny * ny) / 0.18);
+    let s = g + sat[i] * 0.35 + (skin[i] ? (useFace ? 1.4 : 0.5) : 0);
+    s *= pull; score[i] = s; if (s > 0.02) any++;
+  }
+  if (any < 6) return centre;
+  const vals = Array.from(score).filter(function (v) { return v > 0.02; }).sort(function (a, b) { return a - b; });
+  const th = vals[Math.floor(vals.length * 0.75)];
+  let sx = 0, sy = 0, sw2 = 0;
+  for (let i = 0; i < N; i++) if (score[i] >= th) { sx += (i % cw) * score[i]; sy += Math.floor(i / cw) * score[i]; sw2 += score[i]; }
+  if (!sw2) return centre;
+  return {
+    x: Math.round((sx / sw2 + 0.5) / cw * 100), y: Math.round((sy / sw2 + 0.5) / ch * 100),
+    how: useFace ? 'the face-like, skin-tone area' : 'the area with the most detail and contrast'
+  };
+}
+
+// ── THE DEEPER BAKE ────────────────────────────────────────────────────
+// o: { keepProportions, zoomPct, focusX, focusY (0-100 point of the photo to keep centred),
+//      insetPct, rotateDeg, flipH, flipV, bevel, bevelStyle, borderColor, borderWidth, shadow }
+function rshSaylaBake(img, d, o) {
+  o = o || {};
+  const sw = img.naturalWidth, sh = img.naturalHeight;
+  const inset = rshNum(o.insetPct, 30, 100, 100) / 100, rot = rshNum(o.rotateDeg, -360, 360, 0);
+  const shapeM = new DOMMatrix().translate(500, 500).rotate(rot).scale((o.flipH ? -1 : 1) * inset, (o.flipV ? -1 : 1) * inset).translate(-500, -500);
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+  rshPathSamples(d, 240).forEach(function (p) {
+    const q = shapeM.transformPoint(new DOMPoint(p.x, p.y));
+    minX = Math.min(minX, q.x); minY = Math.min(minY, q.y); maxX = Math.max(maxX, q.x); maxY = Math.max(maxY, q.y);
+  });
+  let bx0 = 0, by0 = 0, bw = 1000, bh = 1000;
+  const keep = o.keepProportions === true;
+  if (keep) {
+    bx0 = minX; by0 = minY; bw = maxX - minX; bh = maxY - minY;
+    if (bw < 20 || bh < 20) throw new Error('that shape is too thin to cut a picture into');
+  }
+  const A = bw / bh, zoom = rshNum(o.zoomPct, 100, 400, 100) / 100;
+  const baseW = keep ? Math.min(sw, sh * A) : sw, baseH = keep ? baseW / A : sh;
+  const cap = 4096, k = Math.max(baseW, baseH) > cap ? cap / Math.max(baseW, baseH) : 1;
+  const fw = baseW * k, fh = baseH * k, minDim = Math.min(fw, fh);
+  const pad = (keep && (o.bevel || o.shadow)) ? Math.round(minDim * 0.05) : 0;
+  const W = Math.round(fw + 2 * pad), H = Math.round(fh + 2 * pad);
+  const kx = fw / bw, ky = fh / bh;
+  const M = new DOMMatrix().translate(pad, pad).scale(kx, ky).translate(-bx0, -by0).multiply(shapeM);
+  const path = new Path2D(); path.addPath(new Path2D(d), M);
+  // which part of the photo sits inside the frame
+  const rw = baseW / zoom, rh = baseH / zoom;
+  const cx = rshNum(o.focusX, 0, 100, 50) / 100 * sw, cy = rshNum(o.focusY, 0, 100, 50) / 100 * sh;
+  const x0 = Math.max(0, Math.min(sw - rw, cx - rw / 2)), y0 = Math.max(0, Math.min(sh - rh, cy - rh / 2));
+  const layer = document.createElement('canvas'); layer.width = W; layer.height = H;
+  const lc = layer.getContext('2d');
+  lc.save(); lc.clip(path); lc.drawImage(img, x0, y0, rw, rh, pad, pad, fw, fh);
+  if (/^#[0-9a-fA-F]{6}$/.test(o.borderColor || '') && rshNum(o.borderWidth, 0, 100, 0) > 0) {
+    lc.lineJoin = 'round'; lc.strokeStyle = o.borderColor; lc.lineWidth = rshNum(o.borderWidth, 0, 100, 16) / 1000 * minDim * 2; lc.stroke(path);
+  }
+  lc.restore();
+  if (o.bevel) {
+    const avg = (kx + ky) / 2;
+    const proxy = { createLinearGradient: function () { return lc.createLinearGradient(0, 0, W, H); } };
+    lc.save(); lc.lineJoin = 'round';
+    lc.strokeStyle = rshBuildBevelGradient(proxy, o.bevelStyle || 'gold'); lc.lineWidth = 20 * avg; lc.stroke(path);
+    lc.strokeStyle = 'rgba(255,255,255,0.65)'; lc.lineWidth = 5 * avg; lc.stroke(path);
+    lc.restore();
+  }
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const oc = out.getContext('2d');
+  if (o.shadow) { oc.shadowColor = 'rgba(0,0,0,0.45)'; oc.shadowBlur = minDim * 0.045; oc.shadowOffsetY = minDim * 0.02; }
+  oc.drawImage(layer, 0, 0);
+  return { dataUrl: out.toDataURL('image/png'), w: W, h: H, uw: W / k, uh: H / k, sw: sw, sh: sh, cropped: rw < sw * 0.99 || rh < sh * 0.99 };
+}
+
+// ── SAYLA — RESHAPE IMAGE ───────────────────────────────────────────────
+function rshSaylaLoadImg(src) {
+  return new Promise(function (resolve, reject) {
+    const img = new Image();
+    img.onload = function () { resolve(img); };
+    img.onerror = function () { reject(new Error('could not read the image to reshape it')); };
+    img.src = src;
+  });
+}
+
 async function pdfedSaylaReshapeImage(p) {
   p = p || {};
-  const requested = p.shape || p.shape_id || p.shapeId || p.name || 'circle';
-  const shape = pdfedSaylaFindReshapeShape(requested);
-  if (!shape) {
-    throw new Error('no shape called "' + requested + '". Available: ' +
-      rshAllShapes().map(function(s){ return s.id; }).join(', '));
-  }
-  const items = pdfedSaylaResolveDesignTargets(p.target);
-  if (items.length === 0) {
-    const pg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
-    if (pg && pg.placedImages && pg.placedImages.length > 1) {
-      throw new Error('there are several images on this page, select the one you mean first (or say "all images")');
+  await rshMyShapesLoad();
+  // 1. targets first, so a failed target never leaves a stray saved shape behind
+  const targets = []; let pageIdx = -1;
+  if (p.source === 'gallery') {
+    const list = (typeof state !== 'undefined' && state.extractedImages) || [];
+    if (!list.length) throw new Error('there are no gallery images to reshape');
+    if (p.target === 'all' || String(p.gallery_index).toLowerCase() === 'all') list.forEach(function (_, i) { targets.push({ kind: 'gallery', idx: i }); });
+    else {
+      const n = parseInt(p.gallery_index, 10);
+      if (!(n >= 1 && n <= list.length)) throw new Error('gallery image ' + (p.gallery_index || '?') + ' does not exist, there are ' + list.length + '. Say which number.');
+      targets.push({ kind: 'gallery', idx: n - 1 });
     }
-    throw new Error('no image to reshape, place or select one first');
+  } else {
+    const ap = pdfedSaylaActivePage(p), pg = ap.pg; pageIdx = ap.idx;
+    const imgs = pg.placedImages || [];
+    if (!imgs.length) throw new Error('no image to reshape, place one first');
+    if (p.target === 'all') imgs.forEach(function (it) { targets.push({ kind: 'placed', item: it }); });
+    else if (p.id || (p.which !== undefined && p.which !== null && p.which !== '')) targets.push({ kind: 'placed', item: pdfedSaylaFindImage(pg, p) });
+    else {
+      const items = (pageIdx === pdfed.active) ? pdfedSaylaResolveDesignTargets(undefined) : (imgs.length === 1 ? imgs.slice() : []);
+      if (!items.length) throw new Error(imgs.length > 1 ? 'there are several images on this page, say which one (or say all images)' : 'no image to reshape, place one first');
+      items.forEach(function (it) { targets.push({ kind: 'placed', item: it }); });
+    }
   }
-  const pageIdx = pdfed.active;
-  const bevel = p.bevel === true;
-  const bevelStyle = ['gold', 'silver', 'graphite'].indexOf(p.bevel_style) !== -1 ? p.bevel_style : 'gold';
+  // 2. the shape
+  let shape, built = null;
+  if (p.new_shape && typeof p.new_shape === 'object') {
+    built = await rshSaylaCreateShape(p.new_shape);
+    shape = { id: built.id, name: built.name, d: built.d };
+  } else {
+    const requested = p.shape || p.shape_id || p.shapeId || p.name;
+    if (!requested) throw new Error('give a shape (a built-in or a My Shapes name) or describe a new_shape to build');
+    shape = pdfedSaylaFindReshapeShape(requested);
+    if (!shape) throw new Error('no shape called "' + requested + '". Available: ' + rshAllShapes().map(function (s) { return s.id; }).join(', '));
+  }
+  // 3. how it is applied
+  const keep = p.keep_proportions === true;
+  const zoomPct = Math.round(rshNum(p.zoom_pct, 100, 400, 100));
+  const bevel = p.bevel === true, bevelStyle = ['gold', 'silver', 'graphite'].indexOf(p.bevel_style) !== -1 ? p.bevel_style : 'gold';
+  const borderColor = /^#[0-9a-fA-F]{6}$/.test(p.border_color || '') ? p.border_color : '';
+  const borderWidth = borderColor ? Math.round(rshNum(p.border_width, 0, 100, 16)) : 0;
+  const shadow = (p.shadow === true) || (bevel && p.shadow !== false);
+  const hasFx = isFinite(Number(p.focus_x)) && p.focus_x !== null && p.focus_x !== '', hasFy = isFinite(Number(p.focus_y)) && p.focus_y !== null && p.focus_y !== '';
+  const manual = hasFx || hasFy;
+  const focusMode = ['auto', 'face', 'center'].indexOf(p.focus) !== -1 ? p.focus : (manual ? 'manual' : ((keep || zoomPct > 100) ? 'auto' : 'center'));
 
-  const results = await Promise.all(items.map(function(item){ return new Promise(function(resolve, reject){
-    const img = new Image();
-    img.onload = function(){
-      const w = img.naturalWidth, h = img.naturalHeight;
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      const sx = w / 1000, sy = h / 1000, avgScale = (sx + sy) / 2;
-      const path = new Path2D(shape.d);
-      ctx.save();
-      ctx.scale(sx, sy);
-      if (bevel) {
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,0.55)';
-        ctx.shadowBlur = 40 / avgScale;
-        ctx.shadowOffsetY = 16 / avgScale;
-        ctx.fillStyle = 'rgba(0,0,0,0.001)';
-        ctx.fill(path);
-        ctx.restore();
+  const changes = []; const notes = []; let focusNote = '';
+  for (let ti = 0; ti < targets.length; ti++) {
+    const t = targets[ti];
+    const src = t.kind === 'placed' ? t.item.dataUrl : state.extractedImages[t.idx].dataUrl;
+    const img = await rshSaylaLoadImg(src);
+    let fx = 50, fy = 50;
+    if (focusMode === 'manual') { fx = hasFx ? Number(p.focus_x) : 50; fy = hasFy ? Number(p.focus_y) : 50; }
+    else if (focusMode === 'auto' || focusMode === 'face') { const f = rshSaylaFocus(img, focusMode); fx = f.x; fy = f.y; focusNote = 'kept ' + f.how + ' in view (about ' + f.x + '% across, ' + f.y + '% down)'; }
+    const r = rshSaylaBake(img, shape.d, {
+      keepProportions: keep, zoomPct: zoomPct, focusX: fx, focusY: fy, insetPct: p.shape_inset_pct, rotateDeg: p.shape_rotate_deg,
+      flipH: p.shape_flip_h === true, flipV: p.shape_flip_v === true, bevel: bevel, bevelStyle: bevelStyle,
+      borderColor: borderColor, borderWidth: borderWidth, shadow: shadow
+    });
+    if (!r.cropped) focusNote = '';
+    if (t.kind === 'placed') {
+      const it = t.item;
+      const prev = { dataUrl: it.dataUrl, x: it.x, y: it.y, w: it.w, h: it.h, shapedAs: it.shapedAs, shapedId: it.shapedId };
+      const next = { dataUrl: r.dataUrl, x: it.x, y: it.y, w: it.w, h: it.h, shapedAs: shape.name, shapedId: shape.id };
+      if (keep) {
+        const nw = Math.max(12, Math.round(r.uw * it.w / r.sw)), nh = Math.max(12, Math.round(r.uh * it.h / r.sh));
+        next.x = Math.round(it.x + (it.w - nw) / 2); next.y = Math.round(it.y + (it.h - nh) / 2); next.w = nw; next.h = nh;
       }
-      ctx.save();
-      ctx.clip(path);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(img, 0, 0, w, h);
-      ctx.restore();
-      if (bevel) {
-        ctx.save();
-        ctx.lineWidth = 20 / avgScale;
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = rshBuildBevelGradient(ctx, bevelStyle);
-        ctx.stroke(path);
-        ctx.lineWidth = 5 / avgScale;
-        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
-        ctx.stroke(path);
-        ctx.restore();
-      }
-      ctx.restore();
-      resolve({ item: item, prevDataUrl: item.dataUrl, newDataUrl: canvas.toDataURL('image/png') });
-    };
-    img.onerror = function(){ reject(new Error('could not read the image to reshape it')); };
-    img.src = item.dataUrl;
-  }); }));
-
-  results.forEach(function(r){ r.item.dataUrl = r.newDataUrl; });
-  pdfedMarkModified(pageIdx);
-  pdfedRenderPlacedImages(pageIdx);
-
+      changes.push({ t: t, prev: prev, next: next });
+    } else {
+      const im = state.extractedImages[t.idx];
+      changes.push({ t: t, prev: { dataUrl: im.dataUrl, width: im.width, height: im.height }, next: { dataUrl: r.dataUrl, width: r.w, height: r.h } });
+    }
+  }
+  const applyAll = function (which) {
+    changes.forEach(function (c) {
+      if (c.t.kind === 'placed') Object.assign(c.t.item, c[which]);
+      else { const im = state.extractedImages[c.t.idx]; if (im) Object.assign(im, c[which]); }
+    });
+    if (pageIdx >= 0) { pdfedMarkModified(pageIdx); pdfedRenderPlacedImages(pageIdx); }
+    try { const gw = document.getElementById('galleryWrap'); if (gw && gw.style.display !== 'none') renderGallery(); } catch (e) {}
+  };
+  applyAll('next');
   pushAppHistory({
     label: 'Reshape image (Sayla)',
-    undo: function(){
-      results.forEach(function(r){ r.item.dataUrl = r.prevDataUrl; });
-      pdfedMarkModified(pageIdx);
-      pdfedRenderPlacedImages(pageIdx);
-      toast('Reshape undone', 'info');
-    },
-    redo: function(){
-      results.forEach(function(r){ r.item.dataUrl = r.newDataUrl; });
-      pdfedMarkModified(pageIdx);
-      pdfedRenderPlacedImages(pageIdx);
-      toast('Shape applied, ' + shape.name, 'success');
-    }
+    undo: function () { applyAll('prev'); toast('Reshape undone', 'info'); },
+    redo: function () { applyAll('next'); toast('Shape applied, ' + shape.name, 'success'); }
   });
+  if (typeof swTrack === 'function') swTrack('sayla_image_reshaped', { module: 'pdf_editor', shape: built ? 'built' : shape.id, keep: keep, zoom: zoomPct, focus: focusMode, bevel: bevel, count: targets.length });
 
-  if (typeof swTrack === 'function') {
-    swTrack('sayla_image_reshaped', { module: 'pdf_editor', shape: shape.id, bevel: bevel, count: items.length });
+  const bits = [];
+  bits.push('Reshaped into ' + shape.name + (built ? ' (built now and saved to My Shapes)' : '') + (targets.length > 1 ? ' on ' + targets.length + ' images' : ''));
+  if (keep) bits.push("cropped to the shape's true proportions");
+  if (zoomPct > 100) bits.push('zoomed to ' + zoomPct + '%');
+  if (focusNote) bits.push(focusNote);
+  if (bevel) bits.push(bevelStyle + ' bevel rim'); else if (borderColor) bits.push('a ' + borderColor + ' border');
+  if (shadow) bits.push('soft shadow');
+  if (built && built._notes && built._notes.length) notes.push('Note: ' + built._notes.join('; ') + '.');
+  return bits.join(', ') + '.' + (notes.length ? ' ' + notes.join(' ') : '');
+}
+
+// ── SAYLA — SHAPE LIBRARY (create / edit / delete My Shapes) ────────────
+async function pdfedSaylaCreateCustomShape(p) {
+  p = p || {};
+  const rec = await rshSaylaCreateShape(p);
+  return 'Saved "' + rec.name + '" to My Shapes (' + (rec.nodes || []).length + ' points). It is not on an image yet.' + (rec._notes && rec._notes.length ? ' Note: ' + rec._notes.join('; ') + '.' : '');
+}
+
+async function pdfedSaylaEditCustomShape(p) {
+  p = p || {};
+  await rshMyShapesLoad();
+  if (!p.shape) throw new Error('say which shape to change');
+  const target = pdfedSaylaFindReshapeShape(p.shape);
+  if (!target) throw new Error('no shape called "' + p.shape + '"');
+  const mine = rshMyShapes.find(function (s) { return s.id === target.id; }) || null;
+  let nodes, smooth, geo = false, notes = [];
+  if (p.replace && typeof p.replace === 'object') {
+    const b = rshBuildShapeSpec(p.replace); nodes = b.nodes; smooth = b.smooth; geo = true; notes = b.notes;
+  } else {
+    if (mine && Array.isArray(mine.nodes) && mine.nodes.length >= 3) { nodes = csClone(mine.nodes); smooth = mine.smooth != null ? mine.smooth : 100; }
+    else { nodes = rshPathToNodes(target.d); smooth = 100; }
+    if (p.smooth !== undefined && p.smooth !== null && p.smooth !== '') { smooth = Math.round(rshNum(p.smooth, 0, 100, smooth)); geo = true; }
+    const f0 = smooth / 100 / 6;
+    if (p.mirror === 'left' || p.mirror === 'right') { nodes = rshMirrorSampled(nodes, f0, p.mirror === 'left'); geo = true; }
+    if (rshApplyShapeOps(nodes, p, f0)) geo = true;
+    if (geo && p.fit !== false) rshFitNodes(nodes, f0);
+    if (nodes.length > RSH_SAYLA_MAX_NODES) throw new Error('that outline has too many points');
   }
-  return 'Reshaped into ' + shape.name + (items.length > 1 ? ' on ' + items.length + ' images' : '') + '.';
+  const wantsName = typeof p.rename === 'string' && p.rename.trim();
+  if (!geo && !wantsName) throw new Error('nothing to change, give rename, flip, rotate, width_pct, height_pct, smooth, mirror or replace');
+  const asCopy = p.as_copy === true || !mine;
+  const name = wantsName ? rshSaylaCleanName(p.rename, target.name) : (asCopy ? rshSaylaCleanName(target.name + ' copy', 'My Shape') : target.name);
+  const rec = await rshSaylaSaveShape(name, { nodes: nodes, smooth: smooth }, asCopy ? null : mine);
+  if (typeof swTrack === 'function') swTrack('sayla_shape_edited', { module: 'pdf_editor', copy: asCopy });
+  return (asCopy ? 'Saved a new copy called "' : 'Updated "') + rec.name + '" in My Shapes. Images already cut with the old version stay as they are.' + (notes.length ? ' Note: ' + notes.join('; ') + '.' : '');
+}
+
+async function pdfedSaylaDeleteCustomShape(p) {
+  p = p || {};
+  await rshMyShapesLoad();
+  if (!p.shape) throw new Error('say which shape to delete');
+  const target = pdfedSaylaFindReshapeShape(p.shape);
+  if (!target) throw new Error('no shape called "' + p.shape + '"');
+  const mine = rshMyShapes.find(function (s) { return s.id === target.id; });
+  if (!mine) throw new Error('"' + target.name + '" is a built-in shape, built-in shapes cannot be deleted');
+  await rshDeleteMyShape(mine.id);
+  return 'Deleted "' + mine.name + '" from My Shapes. Images already cut with it are not affected.';
+}
+
+// What Sayla sees about the shaper on every turn (context.imageShaper).
+function pdfedSaylaShaperContext() {
+  try { if (!rshMyShapesLoaded) rshMyShapesLoad(); } catch (e) {}
+  return {
+    builtIn: RSH_SHAPES.map(function (s) { return s.id; }),
+    mine: (rshMyShapes || []).slice(0, 40).map(function (s) { return { id: s.id, name: s.name }; }),
+    recipes: RSH_SAYLA_RECIPE_KINDS,
+    canBuild: true,
+    autoFocus: true
+  };
+}
+function pdfedSaylaGalleryContext() {
+  try {
+    const list = (typeof state !== 'undefined' && state.extractedImages) || [];
+    if (!list.length) return undefined;
+    return list.slice(0, 30).map(function (im, i) { return { n: i + 1, w: im.width || null, h: im.height || null }; });
+  } catch (e) { return undefined; }
 }
 
 async function pdfedSaylaApplyImageDesign(p) {
@@ -79022,17 +79542,15 @@ if (document.readyState === 'loading') {
   //     a silent default. Throws when nothing is selected and the page has
   //     more than one image -- ask which one they mean rather than
   //     guessing, exactly like a missing required param elsewhere.
-  //   pdfed_reshape_image {shape, target?: 'selected'|'all', bevel?: boolean, bevel_style?: 'gold'|'silver'|'graphite'}
-  //     -- Cuts placed image(s) into a shape from the Image Reshaper (same
-  //     engine as the Reshape modal). Use this for "make it a circle / blob /
-  //     hexagon", "give it a custom shape", "crop it into a shape". `shape`
-  //     MUST be one of these ids: circle, squircle, hexagon, octagon, diamond,
-  //     shield, arch, wave, blob1 (soft blob), blob2, leaf, ribbon, medallion,
-  //     gem, starburst -- or the name/id of one of the person's own saved
-  //     "My Shapes". Pick the closest match yourself ("soft blob" -> blob1,
-  //     "rounded" -> squircle); only ask which shape if they gave no hint at
-  //     all. `target` works exactly like pdfed_apply_image_design. `bevel`
-  //     adds a metallic rim (default false) -- only set it when asked.
+  //   pdfed_reshape_image {shape? | new_shape?, source?: 'placed'|'gallery', id?, which?, gallery_index?, target?: 'all',
+  //       page_idx?, keep_proportions?, zoom_pct?, focus?: 'auto'|'face'|'center', focus_x?, focus_y?, shape_inset_pct?,
+  //       shape_rotate_deg?, shape_flip_h?, shape_flip_v?, bevel?, bevel_style?, border_color?, border_width?, shadow?}
+  //     -- Build 275. Cuts image(s) into a built-in shape, a My Shapes entry (`shape`) or a
+  //     shape she builds in the same call (`new_shape`: recipe | nodes(+mirror) | path). With
+  //     keep_proportions the photo is cropped to the shape; zoom/focus aim the crop, and
+  //     focus:'auto'|'face' finds the subject (skin tones, detail, contrast) itself.
+  //   pdfed_create_custom_shape {name, recipe|nodes|path, ...}   pdfed_edit_custom_shape {shape, ...}
+  //   pdfed_delete_custom_shape {shape}   (risk:'confirm')
   //   pdfed_read_page {pageNumber?: number}
   //     -- Reads a page and returns its text in the Extract Text modal.
   //     Omit pageNumber for whichever page the person currently has open
@@ -79852,6 +80370,7 @@ if (document.readyState === 'loading') {
           (page.placedImages || []).forEach(function(im){
             items.push({
               id: im.id, type: im.kind === 'logo' ? 'logo' : 'image', x: im.x, y: im.y, w: im.w, h: im.h,
+              shapedAs: im.shapedAs || undefined,
               locked: !!im.locked,
               opacityPct: Math.round((typeof pdfedGetOpacity === 'function' ? pdfedGetOpacity(im) : (im.opacity != null ? im.opacity : 1)) * 100)
             });
@@ -79906,6 +80425,9 @@ if (document.readyState === 'loading') {
           // pdfed_resize_image/pdfed_resize_text/pdfed_set_opacity. Capped so this
           // never balloons the context on a page with dozens of small placed items.
           placedItems: items.slice(0, 25),
+          // Build 275: presence of imageShaper is how the Worker knows this client has the full shape builder.
+          imageShaper: (typeof pdfedSaylaShaperContext === 'function') ? pdfedSaylaShaperContext() : undefined,
+          galleryImages: (typeof pdfedSaylaGalleryContext === 'function') ? pdfedSaylaGalleryContext() : undefined,
           // Build 242: real page size in canvas px, the page's own background
           // colour, and how far down the page existing content already reaches
           // (percent of page height). Sayla uses these with the screenshot to
@@ -79958,7 +80480,9 @@ if (document.readyState === 'loading') {
           activePanel: 'PDF Editor',
           totalPages: 0,
           activePageNumber: 0,
-          noDocumentOpen: true
+          noDocumentOpen: true,
+          imageShaper: (typeof pdfedSaylaShaperContext === 'function') ? pdfedSaylaShaperContext() : undefined,
+          galleryImages: (typeof pdfedSaylaGalleryContext === 'function') ? pdfedSaylaGalleryContext() : undefined
         };
       }
 
@@ -81019,16 +81543,39 @@ if (document.readyState === 'loading') {
         return 'Apply the ' + name + ' effect' + strengthNote + targetNote + '.';
       }
     },
-    // Cuts placed image(s) into an Image Reshaper shape (built-in or the
-    // person's own saved shape) -- same engine as the Reshape modal, no modal.
+    // Build 275: Sayla's own hands on the Image Reshaper + Shape Studio. Cuts placed
+    // or gallery images into a built-in shape, a My Shapes entry, or a shape she
+    // BUILDS in the same call (recipe / nodes / path), with keep-proportions, zoom,
+    // auto-focus on the subject, inset/rotate/flip, bevel, flat border and shadow.
     pdfed_reshape_image: {
       risk: 'safe',
       run: async function(p){ return await pdfedSaylaReshapeImage(p || {}); },
       label: function(p){
         p = p || {};
-        const sh = pdfedSaylaFindReshapeShape(p.shape || p.shape_id || p.shapeId || p.name || 'circle');
-        return 'Reshape the image into a ' + (sh ? sh.name : (p.shape || 'new')) + ' shape' + (p.target === 'all' ? ' (every image on this page)' : '') + '.';
+        if (p.new_shape && typeof p.new_shape === 'object') {
+          return 'Design a new shape' + (p.new_shape.name ? ' ("' + String(p.new_shape.name).slice(0, 40) + '")' : '') + ' and cut the image into it' + (p.target === 'all' ? ' (every image)' : '') + '.';
+        }
+        const sh = pdfedSaylaFindReshapeShape(p.shape || p.shape_id || p.shapeId || p.name || '');
+        return 'Reshape the image into a ' + (sh ? sh.name : (p.shape || 'new')) + ' shape' + (p.target === 'all' ? ' (every image)' : '') + '.';
       }
+    },
+    pdfed_create_custom_shape: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaCreateCustomShape(p || {}); },
+      label: function(p){ return 'Design a new shape called "' + String((p && p.name) || 'My Shape').slice(0, 40) + '" and save it to My Shapes.'; }
+    },
+    pdfed_edit_custom_shape: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaEditCustomShape(p || {}); },
+      label: function(p){
+        p = p || {};
+        return (p.as_copy ? 'Save a changed copy of the "' : 'Change the "') + String(p.shape || 'shape').slice(0, 40) + '" shape.';
+      }
+    },
+    pdfed_delete_custom_shape: {
+      risk: 'confirm',
+      run: async function(p){ return await pdfedSaylaDeleteCustomShape(p || {}); },
+      label: function(p){ return 'Delete the "' + String((p && p.shape) || 'shape').slice(0, 40) + '" shape from My Shapes. This cannot be undone.'; }
     },
     // Build 272: page-to-page transitions (see PAGE TRANSITIONS block). Same engine
     // as the picker next to each + insert button.
