@@ -28509,6 +28509,688 @@ async function pdfedSaylaSetOpacity(p) {
   return { opacity: Math.round(v * 100) };
 }
 
+// ── Sayla hooks: MOVE, LAYER ORDER, BEHIND-TEXT OPACITY and OVERLAPS (build 278) ──
+// Gives Sayla the same hands a person has on the canvas, driven by words alone:
+//   pdfed_move_item        move any placed image, logo, SIGNATURE, text box, table or shape
+//   pdfed_arrange_layer    put something behind or in front of the text, and pick an
+//                          opacity that keeps the writing readable
+//   pdfed_resolve_overlaps pull apart text boxes that were sitting on top of each other
+// Every write goes to the same item.x / item.y / item.zIndex / item.opacity fields the
+// manual drag, Arrange menu and opacity slider already use, then re-renders through
+// pdfedRenderAllPlaced, so the result is identical to a hand edit and each action is
+// undoable with "undo that" (pushSaylaAppHistory) or Ctrl+Z.
+//
+// A success returns { say: '...' }. saylaExecuteAction posts that line in the chat, which is
+// how Sayla can tell the person the number she picked (the reply text is written BEFORE the
+// action runs, so she cannot know an auto-chosen opacity in advance).
+
+const PDFED_SAYLA_DECOR_FLAGS = ['_sectionIcon', '_sectionDivider', '_sectionBar', '_headerDivider', '_watermark'];
+function pdfedSaylaIsDecor(it) {
+  return !!(it && PDFED_SAYLA_DECOR_FLAGS.some(function (k) { return it[k]; }));
+}
+
+// image / signature / logo / text / header text / table / shape / border
+function pdfedSaylaAssetLabel(kind, item) {
+  if (kind === 'image') return item.kind === 'logo' ? 'logo' : (item.kind === 'signature' ? 'signature' : 'image');
+  if (kind === 'text') return item._reportHeaderText ? 'header text' : 'text';
+  return kind;
+}
+
+// Every placed object on a page, whatever its type.
+function pdfedSaylaAllPlaced(pg) {
+  const out = [];
+  [['image', 'placedImages'], ['text', 'placedTexts'], ['table', 'placedTables'], ['shape', 'placedShapes'], ['border', 'placedBorders']].forEach(function (kk) {
+    ((pg && pg[kk[1]]) || []).forEach(function (it) {
+      out.push({ kind: kk[0], key: kk[1], item: it, label: pdfedSaylaAssetLabel(kk[0], it) });
+    });
+  });
+  return out;
+}
+
+// id -> stack position (1 = very back). Used by getSaylaContext.
+function pdfedSaylaZRankMap(pg) {
+  const map = {};
+  try { pdfedGetZOrderedItems(pg).forEach(function (c, i) { map[c.item.id] = i + 1; }); } catch (e) { /* no ranks */ }
+  return map;
+}
+
+// Picks ONE placed object: by id, by a few words of a text box, or by kind
+// (signature / logo / image / text / table / shape / border) plus first / last / number.
+function pdfedSaylaFindPlaced(pg, p, prefix) {
+  prefix = prefix || '';
+  const id = p[prefix + 'id'];
+  const query = p[prefix + 'query'] ? String(p[prefix + 'query']).trim().toLowerCase() : '';
+  const kindWanted = prefix ? '' : String(p.kind || '').trim().toLowerCase();
+  const all = pdfedSaylaAllPlaced(pg);
+  if (!all.length) throw new Error('this page has nothing placed on it yet');
+  const byZ = function (a, b) { return (a.item.zIndex || 0) - (b.item.zIndex || 0); };
+  if (id) {
+    const hit = all.find(function (c) { return c.item.id === id; });
+    if (!hit) throw new Error('no item with that id on this page');
+    return hit;
+  }
+  const pool = all.filter(function (c) { return !pdfedSaylaIsDecor(c.item); });
+  if (query) {
+    const hits = pool.filter(function (c) { return c.kind === 'text' && String(c.item.text || '').toLowerCase().indexOf(query) !== -1; });
+    if (!hits.length) throw new Error('no text box matching "' + (p[prefix + 'query']) + '" on this page');
+    hits.sort(byZ);
+    return hits[hits.length - 1];
+  }
+  if (kindWanted) {
+    let sub;
+    if (kindWanted === 'signature' || kindWanted === 'logo') {
+      sub = pool.filter(function (c) { return c.kind === 'image' && c.item.kind === kindWanted; });
+    } else if (kindWanted === 'image' || kindWanted === 'photo' || kindWanted === 'picture') {
+      sub = pool.filter(function (c) { return c.kind === 'image' && c.item.kind !== 'signature' && c.item.kind !== 'logo'; });
+      if (!sub.length) sub = pool.filter(function (c) { return c.kind === 'image'; });
+    } else {
+      sub = pool.filter(function (c) { return c.kind === kindWanted || c.label === kindWanted; });
+    }
+    if (!sub.length) throw new Error('this page has no ' + kindWanted);
+    sub.sort(byZ);
+    if (p.which === 'first') return sub[0];
+    if (p.which === undefined || p.which === null || p.which === '' || p.which === 'last') return sub[sub.length - 1];
+    const n = parseInt(p.which, 10);
+    if (n >= 1 && n <= sub.length) return sub[n - 1];
+    throw new Error('this page only has ' + sub.length + ' ' + kindWanted + (sub.length === 1 ? '' : 's'));
+  }
+  throw new Error('say which item: its id from the page list, a few words of its text, or a kind such as signature');
+}
+
+// Real box of an item in canvas px. Text boxes are measured from the live DOM (they have no
+// stored height); tables are the sum of their columns and rows.
+function pdfedSaylaBoxOf(pg, idx, c) {
+  const it = c.item;
+  if (c.kind === 'table') {
+    const w = (it.colWidths || []).reduce(function (a, b) { return a + b; }, 0);
+    const h = (it.rowHeights || []).reduce(function (a, b) { return a + b; }, 0);
+    return { x: it.x || 0, y: it.y || 0, w: w, h: h };
+  }
+  if (c.kind === 'text') {
+    let w = it.w || 0, h = it.h || 0;
+    if (typeof pdfed !== 'undefined' && idx === pdfed.active) {
+      const el = document.querySelector('.pdfed-placed-text[data-id="' + it.id + '"]');
+      if (el) { w = el.offsetWidth || w; h = el.offsetHeight || h; }
+    }
+    if (!w) w = 200;
+    if (!h) h = Math.round((it.fontSize || 14) * 1.45);
+    return { x: it.x || 0, y: it.y || 0, w: w, h: h };
+  }
+  return { x: it.x || 0, y: it.y || 0, w: it.w || 0, h: it.h || 0 };
+}
+
+// Tight box around the words a text box really shows (not the whole, often much wider, box),
+// in canvas px. Null when the page is not the open one.
+function pdfedSaylaTextInk(idx, item) {
+  try {
+    if (typeof pdfed === 'undefined' || idx !== pdfed.active) return null;
+    const el = document.querySelector('.pdfed-placed-text[data-id="' + item.id + '"]');
+    const content = el && el.querySelector('.pdfed-ptxt-content');
+    const pc = document.getElementById('pdfedPageCanvas');
+    if (!content || !pc || !pc.width) return null;
+    const cr = pc.getBoundingClientRect();
+    const k = cr.width / pc.width;
+    if (!k) return null;
+    const r = document.createRange();
+    r.selectNodeContents(content);
+    const rects = Array.prototype.slice.call(r.getClientRects()).filter(function (rc) { return rc.width > 0.5 && rc.height > 0.5; });
+    if (!rects.length) return null;
+    let l = Infinity, t = Infinity, rt = -Infinity, b = -Infinity;
+    rects.forEach(function (rc) { l = Math.min(l, rc.left); t = Math.min(t, rc.top); rt = Math.max(rt, rc.right); b = Math.max(b, rc.bottom); });
+    return { x: (l - cr.left) / k, y: (t - cr.top) / k, w: (rt - l) / k, h: (b - t) / k };
+  } catch (e) { return null; }
+}
+
+// [w, h] for getSaylaContext.
+function pdfedSaylaCtxSize(pg, kind, item) {
+  try {
+    const b = pdfedSaylaBoxOf(pg, pdfed.active, { kind: kind, item: item });
+    return [Math.round(b.w), Math.round(b.h)];
+  } catch (e) { return [item.w || 0, item.h || 0]; }
+}
+
+function pdfedSaylaRerender(idx) {
+  if (typeof pdfed !== 'undefined' && idx === pdfed.active) pdfedRenderAllPlaced(idx);
+}
+
+function pdfedSaylaLookup(pg, id) {
+  return pdfedSaylaAllPlaced(pg).find(function (c) { return c.item.id === id; }) || null;
+}
+
+function pdfedSaylaShortText(item) {
+  const s = String(item.text || '').replace(/\s+/g, ' ').trim();
+  return s ? '"' + s.slice(0, 26) + (s.length > 26 ? '...' : '') + '"' : '';
+}
+
+function pdfedSaylaNiceName(c) {
+  const t = c.kind === 'text' ? pdfedSaylaShortText(c.item) : '';
+  return t ? 'the text ' + t : 'the ' + c.label;
+}
+
+// ── MOVE ────────────────────────────────────────────────────────────────
+const PDFED_SAYLA_ANCHORS = {
+  top_left: [0, 0], top_center: [0.5, 0], top_right: [1, 0],
+  middle_left: [0, 0.5], center: [0.5, 0.5], middle_right: [1, 0.5],
+  bottom_left: [0, 1], bottom_center: [0.5, 1], bottom_right: [1, 1]
+};
+const PDFED_SAYLA_ANCHOR_ALIASES = {
+  top: 'top_center', bottom: 'bottom_center', left: 'middle_left', right: 'middle_right',
+  middle: 'center', centre: 'center', centered: 'center'
+};
+function pdfedSaylaAnchorKey(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const s = String(v).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (PDFED_SAYLA_ANCHORS[s]) return s;
+  return PDFED_SAYLA_ANCHOR_ALIASES[s] || null;
+}
+function pdfedSaylaNum(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function pdfedSaylaMoveItem(p) {
+  p = p || {};
+  const { pg, idx } = pdfedSaylaActivePage(p);
+  const c = pdfedSaylaFindPlaced(pg, p);
+  const it = c.item;
+  if (it.locked) throw new Error('that ' + c.label + ' is locked, unlock it first');
+  const size = pdfedSaylaPageSizePx(pg, idx);
+  const PW = size[0], PH = size[1];
+  const box = pdfedSaylaBoxOf(pg, idx, c);
+  const before = { x: it.x, y: it.y, rotation: it.rotation };
+  let nx = box.x, ny = box.y;
+  let didSomething = false;
+
+  // 1. a named spot on the page
+  const spot = pdfedSaylaAnchorKey(p.position);
+  if (p.position && !spot) throw new Error('"' + p.position + '" is not a spot I know, use top left, top center, top right, middle left, center, middle right, bottom left, bottom center or bottom right');
+  if (spot) {
+    const m = (pdfedSaylaNum(p.margin_pct) !== null ? Math.max(0, Math.min(30, pdfedSaylaNum(p.margin_pct))) : 4) / 100 * PW;
+    const a = PDFED_SAYLA_ANCHORS[spot];
+    nx = m + (PW - 2 * m - box.w) * a[0];
+    ny = m + (PH - 2 * m - box.h) * a[1];
+    didSomething = true;
+  }
+
+  // 2. an exact point, in percent of the page, that lines up with one anchor of the item
+  const xp = pdfedSaylaNum(p.x_pct), yp = pdfedSaylaNum(p.y_pct);
+  if (xp !== null || yp !== null) {
+    const anc = PDFED_SAYLA_ANCHORS[pdfedSaylaAnchorKey(p.anchor) || 'top_left'];
+    if (xp !== null) nx = Math.max(0, Math.min(100, xp)) / 100 * PW - anc[0] * box.w;
+    if (yp !== null) ny = Math.max(0, Math.min(100, yp)) / 100 * PH - anc[1] * box.h;
+    didSomething = true;
+  }
+
+  // 3. next to another item
+  if (p.relative_to_id || p.relative_to_query) {
+    const ref = pdfedSaylaFindPlaced(pg, p, 'relative_to_');
+    if (ref.item === it) throw new Error('an item cannot be placed relative to itself');
+    const rb = pdfedSaylaBoxOf(pg, idx, ref);
+    const rink = ref.kind === 'text' ? pdfedSaylaTextInk(idx, ref.item) : null;
+    const r = rink || rb;
+    const gap = pdfedSaylaNum(p.gap_px) !== null ? Math.max(0, Math.min(400, pdfedSaylaNum(p.gap_px))) : 12;
+    const rel = String(p.relation || 'below').toLowerCase().replace(/[\s-]+/g, '_');
+    const al = String(p.align || '').toLowerCase();
+    const alignX = function () {
+      if (al === 'start') return r.x;
+      if (al === 'end') return r.x + r.w - box.w;
+      if (al === 'center') return r.x + r.w / 2 - box.w / 2;
+      return null;
+    };
+    const alignY = function () {
+      if (al === 'start') return r.y;
+      if (al === 'end') return r.y + r.h - box.h;
+      if (al === 'center') return r.y + r.h / 2 - box.h / 2;
+      return null;
+    };
+    if (rel === 'below') { ny = r.y + r.h + gap; const ax = alignX(); if (ax !== null) nx = ax; }
+    else if (rel === 'above') { ny = r.y - box.h - gap; const ax = alignX(); if (ax !== null) nx = ax; }
+    else if (rel === 'right_of') { nx = r.x + r.w + gap; const ay = alignY(); if (ay !== null) ny = ay; }
+    else if (rel === 'left_of') { nx = r.x - box.w - gap; const ay = alignY(); if (ay !== null) ny = ay; }
+    else if (rel === 'center_on' || rel === 'over' || rel === 'on_top_of') { nx = r.x + r.w / 2 - box.w / 2; ny = r.y + r.h / 2 - box.h / 2; }
+    else throw new Error('relation must be below, above, left_of, right_of or center_on');
+    didSomething = true;
+  }
+
+  // 4. centre on the page
+  if (p.center_h === true || p.center_h === 'true') { nx = (PW - box.w) / 2; didSomething = true; }
+  if (p.center_v === true || p.center_v === 'true') { ny = (PH - box.h) / 2; didSomething = true; }
+
+  // 5. nudges
+  const dxp = pdfedSaylaNum(p.dx_pct), dyp = pdfedSaylaNum(p.dy_pct), dxx = pdfedSaylaNum(p.dx_px), dyy = pdfedSaylaNum(p.dy_px);
+  if (dxp !== null) { nx += dxp / 100 * PW; didSomething = true; }
+  if (dyp !== null) { ny += dyp / 100 * PH; didSomething = true; }
+  if (dxx !== null) { nx += dxx; didSomething = true; }
+  if (dyy !== null) { ny += dyy; didSomething = true; }
+
+  // 6. tilt
+  const rot = pdfedSaylaNum(p.rotation_deg);
+  if (rot !== null) { it.rotation = Math.max(-360, Math.min(360, Math.round(rot * 10) / 10)); didSomething = true; }
+
+  if (!didSomething) throw new Error('say where it should go: a spot like top right, an x and y in percent, next to another item, centred, or a nudge');
+
+  // keep the whole item on the page (unless the person really wants it hanging off)
+  let clamped = false;
+  if (!(p.allow_off_page === true || p.allow_off_page === 'true')) {
+    const maxX = PW - box.w, maxY = PH - box.h;
+    const cx = Math.min(Math.max(nx, Math.min(0, maxX)), Math.max(0, maxX));
+    const cy = Math.min(Math.max(ny, Math.min(0, maxY)), Math.max(0, maxY));
+    if (Math.abs(cx - nx) > 1 || Math.abs(cy - ny) > 1) clamped = true;
+    nx = cx; ny = cy;
+  }
+  it.x = Math.round(nx);
+  it.y = Math.round(ny);
+
+  const id = it.id;
+  const after = { x: it.x, y: it.y, rotation: it.rotation };
+  pdfedMarkModified(idx);
+  pdfedSaylaRerender(idx);
+
+  const restore = function (s) {
+    const cur = pdfedSaylaLookup(pdfed.pages[idx], id);
+    if (!cur) return;
+    cur.item.x = s.x; cur.item.y = s.y;
+    if (s.rotation === undefined) delete cur.item.rotation; else cur.item.rotation = s.rotation;
+    pdfedMarkModified(idx);
+    pdfedSaylaRerender(idx);
+  };
+  pushSaylaAppHistory({
+    label: 'Move ' + c.label + ' (Sayla)',
+    undo: function () { restore(before); toast('Put back where it was', 'info'); },
+    redo: function () { restore(after); }
+  });
+
+  const moved = Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1 || after.rotation !== before.rotation;
+  let say = null;
+  if (!moved) say = pdfedSaylaNiceName(c) + ' was already there, so nothing moved.';
+  else if (clamped) say = 'I kept ' + pdfedSaylaNiceName(c) + ' inside the page edge, so it sits a little short of where that pointed.';
+  return { id: id, kind: c.label, from: { x: before.x, y: before.y }, to: { x: it.x, y: it.y }, clamped: clamped, say: say };
+}
+
+// ── BEHIND / IN FRONT, AND THE OPACITY THAT KEEPS TEXT READABLE ──────────────
+function pdfedSaylaLoadImg(src) {
+  return new Promise(function (res, rej) {
+    const im = new Image();
+    im.onload = function () { res(im); };
+    im.onerror = function () { rej(new Error('could not read that picture')); };
+    im.src = src;
+  });
+}
+function pdfedSaylaLin(c) {
+  c = c / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+function pdfedSaylaHexLum(hex) {
+  const s = String(hex || '').trim();
+  let h = null;
+  if (/^#[0-9a-f]{6}$/i.test(s)) h = s.slice(1);
+  else if (/^#[0-9a-f]{3}$/i.test(s)) h = s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+  if (!h) {
+    const m = s.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+    if (!m) return null;
+    return 0.2126 * pdfedSaylaLin(+m[1]) + 0.7152 * pdfedSaylaLin(+m[2]) + 0.0722 * pdfedSaylaLin(+m[3]);
+  }
+  return 0.2126 * pdfedSaylaLin(parseInt(h.slice(0, 2), 16)) + 0.7152 * pdfedSaylaLin(parseInt(h.slice(2, 4), 16)) + 0.0722 * pdfedSaylaLin(parseInt(h.slice(4, 6), 16));
+}
+function pdfedSaylaContrast(l1, l2) {
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+// Looks at the picture under every text box and table that sits on it and returns the
+// strongest opacity (0.1 to 1) at which ALL of that text still reads comfortably: WCAG contrast of
+// at least 7 for normal text, 4.5 for large text, judged against the brightest and darkest
+// parts of the picture in that spot (a busy photo has to be fainter than a calm one).
+async function pdfedSaylaSuggestBackdropOpacity(pg, idx, imgItem) {
+  const size = pdfedSaylaPageSizePx(pg, idx);
+  const ib = { x: imgItem.x, y: imgItem.y, w: imgItem.w, h: imgItem.h };
+  const covered = [];
+  pdfedSaylaAllPlaced(pg).forEach(function (c) {
+    if ((c.kind !== 'text' && c.kind !== 'table') || pdfedSaylaIsDecor(c.item)) return;
+    const b = c.kind === 'text' ? (pdfedSaylaTextInk(idx, c.item) || pdfedSaylaBoxOf(pg, idx, c)) : pdfedSaylaBoxOf(pg, idx, c);
+    const ix = Math.min(ib.x + ib.w, b.x + b.w) - Math.max(ib.x, b.x);
+    const iy = Math.min(ib.y + ib.h, b.y + b.h) - Math.max(ib.y, b.y);
+    if (ix <= 2 || iy <= 2) return;
+    if (ix * iy < 0.05 * Math.max(1, b.w * b.h)) return;
+    covered.push({ c: c, box: b, region: { x: Math.max(ib.x, b.x), y: Math.max(ib.y, b.y), w: ix, h: iy } });
+  });
+  if (!covered.length) return { texts: 0 };
+
+  const img = await pdfedSaylaLoadImg(imgItem.dataUrl);
+  const cw = 80;
+  const ch = Math.max(8, Math.min(240, Math.round(cw * ib.h / Math.max(1, ib.w))));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const cx = cv.getContext('2d');
+  cx.drawImage(img, 0, 0, cw, ch);
+  let data = null;
+  try { data = cx.getImageData(0, 0, cw, ch).data; } catch (e) { data = null; }
+  if (!data) return { texts: covered.length, unreadable: true };
+
+  const spots = [];
+  let busy = false;
+  for (let t = 0; t < covered.length; t++) {
+    const cvd = covered[t];
+    const rx0 = Math.max(0, Math.min(cw - 1, Math.floor((cvd.region.x - ib.x) / ib.w * cw)));
+    const ry0 = Math.max(0, Math.min(ch - 1, Math.floor((cvd.region.y - ib.y) / ib.h * ch)));
+    const rx1 = Math.max(rx0 + 1, Math.min(cw, Math.ceil((cvd.region.x + cvd.region.w - ib.x) / ib.w * cw)));
+    const ry1 = Math.max(ry0 + 1, Math.min(ch, Math.ceil((cvd.region.y + cvd.region.h - ib.y) / ib.h * ch)));
+    let sum = 0, sum2 = 0, n = 0;
+    for (let yy = ry0; yy < ry1; yy++) {
+      for (let xx = rx0; xx < rx1; xx++) {
+        const o = (yy * cw + xx) * 4;
+        if (data[o + 3] < 25) continue;
+        const L = 0.2126 * pdfedSaylaLin(data[o]) + 0.7152 * pdfedSaylaLin(data[o + 1]) + 0.0722 * pdfedSaylaLin(data[o + 2]);
+        sum += L; sum2 += L * L; n++;
+      }
+    }
+    if (!n) continue; // the picture is see-through here, nothing to protect
+    const mean = sum / n;
+    const sd = Math.sqrt(Math.max(0, sum2 / n - mean * mean));
+    if (sd > 0.2) busy = true;
+
+    // what the page looks like without the picture, in this spot
+    let pageL;
+    try {
+      const luma = await pdfedSaylaBackdropLuma(pg, cvd.region, size); // 0 to 255
+      pageL = pdfedSaylaLin(luma);
+    } catch (e) { pageL = pdfedSaylaLin(pdfedSaylaLuma(pg && pg.bgColor)); }
+
+    // the text colour (tables are assumed dark)
+    let textL = cvd.c.kind === 'text' ? pdfedSaylaHexLum(cvd.c.item.color) : null;
+    if (textL === null) textL = pageL > 0.35 ? 0.006 : 0.9;
+    const fs = cvd.c.item.fontSize || 14;
+    const large = fs >= 24 || (cvd.c.item.bold && fs >= 19);
+    // Text laid over a picture reads worse than the same colours on flat paper, so aim for
+    // comfortable contrast: 7 for body text (WCAG AAA), 4.5 for large text.
+    spots.push({
+      lo: Math.max(0, mean - 1.3 * sd), mean: mean, hi: Math.min(1, mean + 1.3 * sd),
+      pageL: pageL, textL: textL, need: large ? 4.5 : 7
+    });
+  }
+  if (!spots.length) return { texts: covered.length, transparent: true };
+
+  // worst contrast any of the text gets if the picture is shown at strength a
+  const worstAt = function (sp, a) {
+    return Math.min.apply(null, [sp.lo, sp.mean, sp.hi].map(function (Li) {
+      return pdfedSaylaContrast(sp.textL, a * Li + (1 - a) * sp.pageL);
+    }));
+  };
+  let pick = 0.1, fail = false;
+  for (let a = 1; a >= 0.1 - 1e-9; a -= 0.05) {
+    if (spots.every(function (sp) { return worstAt(sp, a) >= sp.need; })) { pick = a; break; }
+    if (a <= 0.1 + 1e-9) fail = true;
+  }
+  pick = Math.max(0.1, Math.min(1, Math.round(pick * 20) / 20));
+  const contrast = Math.min.apply(null, spots.map(function (sp) { return worstAt(sp, pick); }));
+  return { texts: covered.length, opacity: pick, contrast: Math.round(contrast * 10) / 10, fail: fail, busy: busy };
+}
+
+// Crops a picture to exactly the page's shape, no stretching, and returns a data URL.
+async function pdfedSaylaCoverBake(dataUrl, PW, PH) {
+  const img = await pdfedSaylaLoadImg(dataUrl);
+  const nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height;
+  const s = Math.max(PW / nw, PH / nh);
+  const sw = PW / s, sh = PH / s;
+  const sx = (nw - sw) / 2, sy = (nh - sh) / 2;
+  const k = Math.min(2, 4096 / Math.max(PW, PH));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(PW * k)); cv.height = Math.max(1, Math.round(PH * k));
+  cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  return /^data:image\/jpe?g/i.test(dataUrl) ? cv.toDataURL('image/jpeg', 0.92) : cv.toDataURL('image/png');
+}
+
+async function pdfedSaylaArrangeLayer(p) {
+  p = p || {};
+  const { pg, idx } = pdfedSaylaActivePage(p);
+  const c = pdfedSaylaFindPlaced(pg, p);
+  const it = c.item;
+  if (it.locked) throw new Error('that ' + c.label + ' is locked, unlock it first');
+  const mode = String(p.mode || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const MODES = ['behind_text', 'in_front_of_text', 'to_back', 'to_front', 'behind', 'in_front_of'];
+  if (MODES.indexOf(mode) === -1) throw new Error('mode must be behind_text, in_front_of_text, to_back, to_front, behind or in_front_of');
+  const fit = String(p.fit || 'keep').toLowerCase();
+  if (fit !== 'keep' && c.kind !== 'image') throw new Error('only a picture can be fitted to the page');
+
+  // snapshot for undo: the whole stacking order plus this item's own geometry, picture and opacity
+  const snap = function () {
+    const z = {};
+    pdfedSaylaAllPlaced(pg).forEach(function (c2) { z[c2.item.id] = c2.item.zIndex; });
+    return { z: z, zSeq: pg._zSeq, x: it.x, y: it.y, w: it.w, h: it.h, rotation: it.rotation, dataUrl: it.dataUrl, opacity: it.opacity };
+  };
+  const before = snap();
+
+  // 1. size and place on the page
+  const size = pdfedSaylaPageSizePx(pg, idx);
+  const PW = size[0], PH = size[1];
+  if (fit === 'cover_page') {
+    it.dataUrl = await pdfedSaylaCoverBake(it.dataUrl, PW, PH);
+    it.x = 0; it.y = 0; it.w = PW; it.h = PH; delete it.rotation;
+  } else if (fit === 'contain_page') {
+    const s = Math.min(PW / Math.max(1, it.w), PH / Math.max(1, it.h));
+    it.w = Math.round(it.w * s); it.h = Math.round(it.h * s);
+    it.x = Math.round((PW - it.w) / 2); it.y = Math.round((PH - it.h) / 2);
+  }
+
+  // 2. stacking order
+  const others = pdfedGetZOrderedItems(pg).filter(function (o) { return o.item !== it; });
+  const isTextish = function (o) { return o.kind === 'text' || o.kind === 'table'; };
+  let at;
+  let hasText = others.some(isTextish);
+  if (mode === 'to_back') at = 0;
+  else if (mode === 'to_front') at = others.length;
+  else if (mode === 'behind_text') {
+    at = others.findIndex(isTextish);
+    if (at < 0) at = others.length;
+  } else if (mode === 'in_front_of_text') {
+    at = -1;
+    others.forEach(function (o, i) { if (isTextish(o)) at = i; });
+    at = at < 0 ? others.length : at + 1;
+  } else {
+    const ref = pdfedSaylaFindPlaced(pg, p, 'other_');
+    const ri = others.findIndex(function (o) { return o.item === ref.item; });
+    if (ri < 0) throw new Error('cannot layer an item against itself');
+    at = mode === 'behind' ? ri : ri + 1;
+  }
+  others.splice(at, 0, { kind: c.kind, item: it });
+  others.forEach(function (o, i) { o.item.zIndex = i + 1; });
+  pg._zSeq = Math.max(pg._zSeq || 0, others.length);
+
+  // 3. opacity: the number the person gave, or the strongest one that keeps the text readable
+  let say = null;
+  const given = pdfedSaylaNum(p.opacity);
+  if (given !== null) {
+    it.opacity = Math.max(0.1, Math.min(1, given / 100));
+  } else if (mode === 'behind_text' && c.kind === 'image' && p.auto_opacity !== false && p.auto_opacity !== 'false') {
+    let adv = null;
+    try { adv = await pdfedSaylaSuggestBackdropOpacity(pg, idx, it); } catch (e) { adv = null; }
+    if (adv && adv.opacity) {
+      const pct = Math.round(adv.opacity * 100);
+      it.opacity = adv.opacity >= 1 ? undefined : adv.opacity;
+      if (adv.opacity >= 1) delete it.opacity;
+      if (adv.fail) say = 'Image is behind the text at ' + pct + '%. Even that faint, the text is still hard to read against it (contrast ' + adv.contrast + '), so a lighter or darker text colour would help more than fading further.';
+      else if (adv.opacity >= 1) say = 'Image is behind the text at full strength. The text already reads clearly against it (contrast ' + adv.contrast + '), so I left it solid.';
+      else say = 'Image is behind the text at ' + pct + '%. That is the strongest it can be while the text stays easy to read (contrast ' + adv.contrast + ')' + (adv.busy ? ', and the picture is busy so it needed to be on the faint side' : '') + '.';
+    } else if (adv && adv.texts === 0) {
+      say = 'Image is behind the text. Nothing sits on top of it right now, so I left its opacity alone.';
+    }
+  }
+  if (!say && mode === 'behind_text' && !hasText) say = 'There is no text on this page yet, so the image is just at the back for now.';
+
+  const id = it.id;
+  const after = snap();
+  pdfedMarkModified(idx);
+  pdfedSaylaRerender(idx);
+
+  const restore = function (s) {
+    const pgNow = pdfed.pages[idx];
+    pdfedSaylaAllPlaced(pgNow).forEach(function (c2) { if (s.z[c2.item.id] !== undefined) c2.item.zIndex = s.z[c2.item.id]; });
+    pgNow._zSeq = s.zSeq;
+    const cur = pdfedSaylaLookup(pgNow, id);
+    if (cur) {
+      cur.item.x = s.x; cur.item.y = s.y; cur.item.w = s.w; cur.item.h = s.h;
+      if (s.rotation === undefined) delete cur.item.rotation; else cur.item.rotation = s.rotation;
+      if (s.dataUrl !== undefined) cur.item.dataUrl = s.dataUrl;
+      if (s.opacity === undefined) delete cur.item.opacity; else cur.item.opacity = s.opacity;
+    }
+    pdfedMarkModified(idx);
+    pdfedSaylaRerender(idx);
+  };
+  pushSaylaAppHistory({
+    label: 'Change layer order (Sayla)',
+    undo: function () { restore(before); toast('Layering put back', 'info'); },
+    redo: function () { restore(after); }
+  });
+  return { id: id, mode: mode, opacityPct: Math.round(pdfedGetOpacity(it) * 100), say: say };
+}
+
+// ── OVERLAPS: find them (for the context) and pull text apart ────────────────
+// Returns the overlaps worth knowing about, most serious first. Overlaps a designer would
+// call intentional (a picture behind text, a big background picture) are listed but marked.
+function pdfedSaylaAnalyzeOverlaps(pg, idx) {
+  const out = [];
+  if (!pg) return out;
+  const entries = [];
+  pdfedGetZOrderedItems(pg).forEach(function (c, rank) {
+    if (c.kind === 'border' || c.kind === 'shape') return;
+    if (pdfedSaylaIsDecor(c.item)) return;
+    const cc = { kind: c.kind, item: c.item, label: pdfedSaylaAssetLabel(c.kind, c.item) };
+    const ink = c.kind === 'text' ? pdfedSaylaTextInk(idx, c.item) : null;
+    const b = ink || pdfedSaylaBoxOf(pg, idx, cc);
+    if (b.w < 4 || b.h < 4) return;
+    entries.push({ id: c.item.id, kind: c.kind, label: cc.label, z: rank + 1, box: b, item: c.item });
+  });
+  const textish = function (e) { return e.kind === 'text' || e.kind === 'table'; };
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const a = entries[i], b = entries[j];
+      const ix = Math.min(a.box.x + a.box.w, b.box.x + b.box.w) - Math.max(a.box.x, b.box.x);
+      const iy = Math.min(a.box.y + a.box.h, b.box.y + b.box.h) - Math.max(a.box.y, b.box.y);
+      if (ix <= 2 || iy <= 2) continue;
+      const areaA = a.box.w * a.box.h, areaB = b.box.w * b.box.h;
+      const pct = Math.round(ix * iy / Math.max(1, Math.min(areaA, areaB)) * 100);
+      if (pct < 5) continue;
+      const under = a.z < b.z ? a : b, over = a.z < b.z ? b : a;
+      let type = null, note = '', intentional = false;
+      if (textish(a) && textish(b)) {
+        type = 'text-on-text';
+        note = 'the words collide, so both are hard to read';
+      } else if (textish(under) && over.kind === 'image') {
+        const op = Math.round(pdfedGetOpacity(over.item) * 100);
+        if (over.label === 'signature') {
+          if (pct >= 25) { type = 'signature-on-text'; note = 'the signature covers some of the writing'; }
+        } else if (op >= 85) {
+          type = 'text-hidden-by-image';
+          note = 'a nearly solid image sits above the text and hides it';
+        } else {
+          type = 'image-over-text';
+          note = 'a see-through image (' + op + '%) sits above the text';
+        }
+      } else if (under.kind === 'image' && textish(over)) {
+        type = 'image-behind-text';
+        note = 'picture behind the text at ' + Math.round(pdfedGetOpacity(under.item) * 100) + '% opacity, layered on purpose';
+        intentional = true;
+      } else if (a.kind === 'image' && b.kind === 'image') {
+        const big = areaA >= areaB ? a : b, small = areaA >= areaB ? b : a;
+        if (big.box.w * big.box.h > 2.5 * small.box.w * small.box.h && big.z < small.z) {
+          type = 'image-background'; note = 'a larger picture sits behind a smaller one'; intentional = true;
+        } else if (a.label !== 'signature' && b.label !== 'signature') {
+          type = 'image-on-image'; note = 'two pictures cover each other';
+        }
+      }
+      if (type) out.push({ a: under.id, b: over.id, type: type, overlapPct: pct, lowerLayer: under.z, upperLayer: over.z, intentional: intentional, note: note });
+    }
+  }
+  const rankOf = function (o) { return o.intentional ? 9 : (o.type === 'text-hidden-by-image' ? 0 : (o.type === 'text-on-text' ? 1 : 5)); };
+  out.sort(function (x, y) { return rankOf(x) - rankOf(y) || y.overlapPct - x.overlapPct; });
+  return out;
+}
+
+// Pulls apart text boxes and tables that sit on each other by moving the lower one down until
+// there is a gap. Locked boxes never move. If it would push anything off the bottom of the
+// page nothing is changed and the person is told how much room is missing.
+async function pdfedSaylaResolveOverlaps(p) {
+  p = p || {};
+  const { pg, idx } = pdfedSaylaActivePage(p);
+  const size = pdfedSaylaPageSizePx(pg, idx);
+  const PH = size[1];
+  const gap = pdfedSaylaNum(p.gap_px) !== null ? Math.max(2, Math.min(80, pdfedSaylaNum(p.gap_px))) : 10;
+  const onlyIds = Array.isArray(p.ids) && p.ids.length ? p.ids.map(String) : null;
+
+  const blocks = [];
+  pdfedSaylaAllPlaced(pg).forEach(function (c) {
+    if ((c.kind !== 'text' && c.kind !== 'table') || pdfedSaylaIsDecor(c.item)) return;
+    const ink = (c.kind === 'text' && pdfedSaylaTextInk(idx, c.item)) || pdfedSaylaBoxOf(pg, idx, c);
+    blocks.push({
+      c: c, id: c.item.id, ink: { x: ink.x, y: ink.y, w: ink.w, h: ink.h },
+      locked: !!c.item.locked, movable: !onlyIds || onlyIds.indexOf(c.item.id) !== -1, moved: 0
+    });
+  });
+  if (blocks.length < 2) return { fixed: 0, say: 'There are not enough text boxes on this page to overlap.' };
+
+  const overlapping = function (A, B) {
+    const ix = Math.min(A.ink.x + A.ink.w, B.ink.x + B.ink.w) - Math.max(A.ink.x, B.ink.x);
+    const iy = Math.min(A.ink.y + A.ink.h, B.ink.y + B.ink.h) - Math.max(A.ink.y, B.ink.y);
+    return ix > 4 && iy > 2;
+  };
+  const stuck = {};
+  for (let guard = 0; guard < 300; guard++) {
+    blocks.sort(function (a, b) { return a.ink.y - b.ink.y || a.ink.x - b.ink.x; });
+    let changed = false;
+    outer:
+    for (let j = 1; j < blocks.length; j++) {
+      for (let i = 0; i < j; i++) {
+        const A = blocks[i], B = blocks[j];
+        if (!overlapping(A, B)) continue;
+        if (B.locked || !B.movable) { stuck[A.id + '|' + B.id] = [A, B]; continue; }
+        const dy = (A.ink.y + A.ink.h + gap) - B.ink.y;
+        if (dy <= 0) continue;
+        B.ink.y += dy; B.moved += dy; changed = true;
+        break outer;
+      }
+    }
+    if (!changed) break;
+  }
+  const movers = blocks.filter(function (b) { return b.moved > 0; });
+  const stillStuck = Object.keys(stuck).map(function (k) { return stuck[k]; }).filter(function (pair) { return overlapping(pair[0], pair[1]); });
+  if (!movers.length) {
+    return { fixed: 0, say: stillStuck.length
+      ? 'The text that overlaps is locked, so I could not move it. Unlock it and ask again.'
+      : 'Nothing on this page overlaps by mistake, so I left it as it is.' };
+  }
+  const lowest = Math.max.apply(null, movers.map(function (b) { return b.ink.y + b.ink.h; }));
+  if (lowest > PH - 12) {
+    return { fixed: 0, say: 'Pulling the text apart would push it off the bottom of the page (about ' + Math.round(lowest - (PH - 12)) + ' px short). Shrink the text a little, or move some of it to a new page, and I will separate it.' };
+  }
+
+  const beforeY = {};
+  movers.forEach(function (b) { beforeY[b.id] = b.c.item.y; });
+  movers.forEach(function (b) { b.c.item.y = Math.round(b.c.item.y + b.moved); });
+  const afterY = {};
+  movers.forEach(function (b) { afterY[b.id] = b.c.item.y; });
+  pdfedMarkModified(idx);
+  pdfedSaylaRerender(idx);
+
+  const apply = function (ys) {
+    const pgNow = pdfed.pages[idx];
+    Object.keys(ys).forEach(function (id) {
+      const cur = pdfedSaylaLookup(pgNow, id);
+      if (cur) cur.item.y = ys[id];
+    });
+    pdfedMarkModified(idx);
+    pdfedSaylaRerender(idx);
+  };
+  pushSaylaAppHistory({
+    label: 'Separate overlapping text (Sayla)',
+    undo: function () { apply(beforeY); toast('Text put back where it was', 'info'); },
+    redo: function () { apply(afterY); }
+  });
+  const names = movers.slice(0, 3).map(function (b) { return b.c.kind === 'text' ? (pdfedSaylaShortText(b.c.item) || 'a text box') : 'a table'; });
+  let say = 'Pulled ' + movers.length + ' overlapping ' + (movers.length === 1 ? 'box' : 'boxes') + ' apart by moving ' + (movers.length === 1 ? 'it' : 'them') + ' down: ' + names.join(', ') + (movers.length > 3 ? ' and more' : '') + '.';
+  if (stillStuck.length) say += ' A locked box still touches something, unlock it if you want that one moved too.';
+  return { fixed: movers.length, say: say };
+}
+
 function teResetBlock() {
   const bd = teState.focusedBlock;
   if (!bd) return;
@@ -80812,6 +81494,9 @@ if (document.readyState === 'loading') {
         // eyeball pixel positions from a description.
         let layoutIssues = [];
         let items = [];
+        let overlapReport = [];
+        let shapeItems = [];
+        const zRank = (typeof pdfedSaylaZRankMap === 'function') ? pdfedSaylaZRankMap(page) : {};
         if (page){
           const PXMM = 3.7795;
           const pgMM = page.pageMM || [210, 297];
@@ -80820,26 +81505,39 @@ if (document.readyState === 'loading') {
           (page.placedTables || []).forEach(function(t){
             const w = (t.colWidths || []).reduce(function(a,b){ return a+b; }, 0);
             const h = (t.rowHeights || []).reduce(function(a,b){ return a+b; }, 0);
-            items.push({ id: t.id, type: 'table', x: t.x, y: t.y, w: w, h: h, locked: !!t.locked });
+            items.push({ id: t.id, type: 'table', z: zRank[t.id], x: t.x, y: t.y, w: w, h: h, locked: !!t.locked });
           });
           (page.placedTexts || []).forEach(function(t){
             items.push({
-              id: t.id, type: t._reportHeaderText ? 'header text' : 'text', x: t.x, y: t.y, w: t.w || 0, h: t.h || 0,
+              id: t.id, type: t._reportHeaderText ? 'header text' : 'text', z: zRank[t.id], x: t.x, y: t.y,
+              // Build 278: the box's REAL rendered size (text boxes have no stored height).
+              w: (typeof pdfedSaylaCtxSize === 'function' ? pdfedSaylaCtxSize(page, 'text', t)[0] : (t.w || 0)),
+              h: (typeof pdfedSaylaCtxSize === 'function' ? pdfedSaylaCtxSize(page, 'text', t)[1] : (t.h || 0)),
               locked: !!t.locked,
               // A short snippet, not the full string -- enough for Sayla to match "the
               // heading" / a quoted phrase to a real id without bloating the payload.
               text: String(t.text || '').slice(0, 60),
               fontSizePx: t.fontSize || null,
+              color: (typeof t.color === 'string' ? t.color : null),
               opacityPct: Math.round((typeof pdfedGetOpacity === 'function' ? pdfedGetOpacity(t) : (t.opacity != null ? t.opacity : 1)) * 100)
             });
           });
           (page.placedImages || []).forEach(function(im){
             items.push({
-              id: im.id, type: im.kind === 'logo' ? 'logo' : 'image', x: im.x, y: im.y, w: im.w, h: im.h,
+              id: im.id, type: im.kind === 'logo' ? 'logo' : (im.kind === 'signature' ? 'signature' : 'image'), z: zRank[im.id],
+              decor: (typeof pdfedSaylaIsDecor === 'function' && pdfedSaylaIsDecor(im)) || undefined,
+              x: im.x, y: im.y, w: im.w, h: im.h,
               shapedAs: im.shapedAs || undefined,
               locked: !!im.locked,
               opacityPct: Math.round((typeof pdfedGetOpacity === 'function' ? pdfedGetOpacity(im) : (im.opacity != null ? im.opacity : 1)) * 100)
             });
+          });
+
+          (page.placedShapes || []).forEach(function(sh){
+            shapeItems.push({ id: sh.id, type: 'shape', z: zRank[sh.id], x: sh.x, y: sh.y, w: sh.w, h: sh.h, locked: !!sh.locked });
+          });
+          (page.placedBorders || []).forEach(function(bd){
+            shapeItems.push({ id: bd.id, type: 'border', z: zRank[bd.id], x: bd.x, y: bd.y, w: bd.w, h: bd.h, locked: !!bd.locked });
           });
 
           items.forEach(function(it){
@@ -80848,13 +81546,12 @@ if (document.readyState === 'loading') {
             }
           });
 
-          for (let i = 0; i < items.length; i++){
-            for (let j = i + 1; j < items.length; j++){
-              const a = items[i], b = items[j];
-              const overlap = a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + (b.h || 20) && a.y + (a.h || 20) > b.y;
-              if (overlap) layoutIssues.push(a.type + ' (' + a.id + ') overlaps ' + b.type + ' (' + b.id + ')');
-            }
-          }
+          // Build 278: overlaps are measured from the REAL rendered boxes and classified, so a
+          // picture placed behind text on purpose is not reported as a problem.
+          overlapReport = (typeof pdfedSaylaAnalyzeOverlaps === 'function') ? pdfedSaylaAnalyzeOverlaps(page, pdfed.active) : [];
+          overlapReport.forEach(function(o){
+            if (!o.intentional) layoutIssues.push(o.type + ': ' + o.a + ' (lower) and ' + o.b + ' (upper), ' + o.overlapPct + '% overlap, ' + o.note);
+          });
 
           const logo = items.find(function(it){ return it.type === 'logo'; });
           if (logo && logo.y > pageH * 0.25){
@@ -80890,7 +81587,12 @@ if (document.readyState === 'loading') {
           // to an exact id instead of guessing by "first"/"last"/position -- see
           // pdfed_resize_image/pdfed_resize_text/pdfed_set_opacity. Capped so this
           // never balloons the context on a page with dozens of small placed items.
-          placedItems: items.slice(0, 25),
+          placedItems: items.concat(shapeItems).slice(0, 30),
+          // Build 278: back-to-front list of ids, the measured overlaps on this page, and the flag
+          // the Worker uses to know this client has pdfed_move_item / _arrange_layer / _resolve_overlaps.
+          stackOrder: Object.keys(zRank).sort(function(a, b){ return zRank[a] - zRank[b]; }).slice(0, 40),
+          overlaps: overlapReport.slice(0, 12),
+          assetLayout: (typeof pdfedSaylaMoveItem === 'function'),
           // Build 275: presence of imageShaper is how the Worker knows this client has the full shape builder.
           imageShaper: (typeof pdfedSaylaShaperContext === 'function') ? pdfedSaylaShaperContext() : undefined,
           galleryImages: (typeof pdfedSaylaGalleryContext === 'function') ? pdfedSaylaGalleryContext() : undefined,
@@ -81850,6 +82552,36 @@ if (document.readyState === 'loading') {
         return 'Set ' + which + ' opacity to ' + p.opacity + '%.';
       }
     },
+    // Build 278: move things, layer them, and untangle overlapping text. See the block of
+    // pdfedSaylaMoveItem / pdfedSaylaArrangeLayer / pdfedSaylaResolveOverlaps above. These hand
+    // back { say } when the app made a choice the reply could not know in advance (an
+    // auto-picked opacity, a nudge that was kept on the page); saylaExecuteAction posts it.
+    pdfed_move_item: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaMoveItem(p || {}); },
+      label: function(p){
+        p = p || {};
+        const what = p.id ? 'that item' : (p.query ? '"' + p.query + '"' : 'the ' + (p.kind || 'item'));
+        const where = p.position ? ' to the ' + String(p.position).replace(/_/g, ' ')
+          : ((p.relative_to_id || p.relative_to_query) ? ' next to another item' : ' to a new spot');
+        return 'Move ' + what + where + '.';
+      }
+    },
+    pdfed_arrange_layer: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaArrangeLayer(p || {}); },
+      label: function(p){
+        p = p || {};
+        const what = p.id ? 'that item' : (p.query ? '"' + p.query + '"' : 'the ' + (p.kind || 'item'));
+        const how = String(p.mode || '').replace(/_/g, ' ');
+        return 'Put ' + what + ' ' + (how || 'in a new layer') + '.';
+      }
+    },
+    pdfed_resolve_overlaps: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaResolveOverlaps(p || {}); },
+      label: function(){ return 'Pull overlapping text apart on this page.'; }
+    },
     // Inserts a brand-new blank page anywhere in the document -- between
     // two existing pages (after_idx), at the end (position:'end'), or right
     // after whichever page is open (both omitted) -- at a real page size.
@@ -82396,8 +83128,12 @@ if (document.readyState === 'loading') {
         const ok = await sarvarcModalConfirm('Let Sayla do this?', entry.label(action.params || {}), 'Do it');
         if (!ok) return null; // silent cancel, no need to narrate a no-op
       }
-      await entry.run(action.params || {});
-      return null; // success is silent -- the workspace UI updating IS the confirmation
+      const ran = await entry.run(action.params || {});
+      // Build 278: move / layer / overlap actions make choices the reply could not know in
+      // advance (an auto-picked opacity, an item kept inside the page), so they hand back a
+      // short line to post. Every other action stays silent on success.
+      if (ran && typeof ran === 'object' && typeof ran.say === 'string' && ran.say) return ran.say;
+      return null; // success is otherwise silent -- the workspace UI updating IS the confirmation
     } catch(e){
       return "Couldn't complete that -- " + (e && e.message ? e.message : 'something went wrong') + ".";
     }
