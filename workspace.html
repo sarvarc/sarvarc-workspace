@@ -2280,6 +2280,67 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   font-size:8px; font-weight:600; color:var(--text3); white-space:nowrap;
   overflow:hidden; text-overflow:ellipsis;
 }
+
+/* ─── SHAPE STUDIO + MY SHAPES (custom Image Reshaper shapes) ─── */
+.rsh-my-head { display:flex; align-items:center; justify-content:space-between; }
+.rsh-create-tile { border-style:dashed !important; border-color:rgba(201,150,47,0.55) !important; color:#c9962f; }
+.rsh-create-tile:hover { background:rgba(201,150,47,0.10) !important; border-color:#c9962f !important; }
+.rsh-create-tile svg { width:46% !important; height:46% !important; }
+.rsh-create-tile .rsh-shape-name { color:#c9962f; font-weight:800; }
+.rsh-my-btn {
+  position:absolute; top:-6px; width:20px; height:20px; border-radius:50%;
+  border:1px solid var(--border2); background:var(--bg2); color:var(--text2);
+  font-size:10px; line-height:1; cursor:pointer; display:none; align-items:center; justify-content:center; padding:0;
+}
+.rsh-shape-swatch:hover .rsh-my-btn { display:flex; }
+.rsh-my-edit { right:16px; }
+.rsh-my-del { right:-6px; }
+.rsh-my-btn:hover { color:#c9962f; border-color:#c9962f; }
+.rsh-my-btn.armed { width:auto; border-radius:10px; padding:0 6px; background:#c0392b; color:#fff; border-color:#c0392b; display:flex; right:-6px; }
+@media (hover:none) { .rsh-my-btn { display:flex; } }
+.cs-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 22px; width: 96vw; max-width: 1040px;
+  max-height: 94vh; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.7), var(--glow-blue);
+}
+.cs-body { display:flex; gap:20px; overflow:hidden; flex:1; min-height:0; }
+.cs-stage-col {
+  flex:1.25; display:flex; align-items:center; justify-content:center; min-width:0;
+  background:#0b0d12; border-radius:14px; padding:18px; position:relative; overflow:auto;
+}
+.cs-stage { position:relative; display:inline-block; max-width:100%; user-select:none; -webkit-user-select:none; }
+.cs-stage img#csStageRef { max-width:100%; max-height:56vh; min-width:260px; display:block; visibility:hidden; }
+.cs-stage svg { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair; overflow:visible; }
+.cs-stage svg g { pointer-events:none; }
+.cs-tools { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.cs-tool {
+  display:flex; flex-direction:column; align-items:center; gap:5px; padding:10px 6px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; cursor:pointer;
+  color:var(--text2); font-size:10.5px; font-weight:700; font-family:inherit; transition:all .15s;
+}
+.cs-tool:hover { border-color:var(--border2); color:var(--text); }
+.cs-tool.active { border-color:#c9962f; background:rgba(201,150,47,0.12); color:#c9962f; box-shadow:0 0 0 1px rgba(201,150,47,0.5); }
+.cs-hint { font-size:11px; color:var(--text3); line-height:1.5; margin-top:8px; }
+.cs-mini-row { display:flex; flex-wrap:wrap; gap:6px; }
+.cs-mini {
+  flex:1 1 auto; padding:8px 10px; font-size:11px; font-weight:700; font-family:inherit; cursor:pointer;
+  background:var(--surface); border:1px solid var(--border); color:var(--text2); border-radius:9px; transition:all .15s; white-space:nowrap;
+}
+.cs-mini:hover:not(:disabled) { border-color:#c9962f; color:#c9962f; }
+.cs-mini:disabled { opacity:.4; cursor:default; }
+.cs-select, .cs-input {
+  width:100%; padding:9px 11px; font-size:12px; font-family:inherit; color:var(--text);
+  background:var(--surface); border:1px solid var(--border); border-radius:9px; margin-top:8px;
+}
+.cs-input { margin-top:0; }
+.cs-range { width:100%; accent-color:#c9962f; }
+@media (max-width: 760px) {
+  .cs-body { flex-direction:column; overflow-y:auto; overflow-x:hidden; }
+  .cs-stage-col { flex:0 0 auto; padding:12px; overflow:visible; }
+  .cs-panel-col { flex:0 0 auto !important; max-width:none !important; min-width:0 !important; overflow:visible !important; padding-right:0 !important; }
+  .cs-stage img#csStageRef { max-height:42vh; min-width:200px; }
+}
 .rsh-bevel-toggle {
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; cursor:pointer;
@@ -15277,7 +15338,9 @@ async function bpInsertContinuationPage(key, opts) {
       </div>
       <div class="rsh-panel">
         <div>
-          <div class="rsh-section-label">Choose a Border Shape</div>
+          <div class="rsh-section-label">My Shapes</div>
+          <div class="rsh-shape-grid" id="rshMyShapeGrid"></div>
+          <div class="rsh-section-label" style="margin-top:6px">Choose a Border Shape</div>
           <div class="rsh-shape-grid" id="rshShapeGrid"></div>
         </div>
         <div class="rsh-bevel-toggle" onclick="toggleReshapeBevel()">
@@ -15297,6 +15360,92 @@ async function bpInsertContinuationPage(key, opts) {
     <div class="rsh-actions">
       <button class="btn-secondary" onclick="closeReshape()">Cancel</button>
       <button class="btn-primary" onclick="applyReshapeConfirm()">Apply Shape</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHAPE STUDIO: draw your own shape for the Image Reshaper. Opens from the
+     "+ Create" tile in the Reshaper's My Shapes row. -->
+<div class="crop-overlay" id="shapeStudioOverlay" style="z-index:620">
+  <div class="cs-modal">
+    <div class="rsh-modal-header">
+      <h2>Shape Studio <span class="rsh-badge">Create</span></h2>
+      <div class="crop-close" onclick="csClose()">&#10005;</div>
+    </div>
+    <div class="cs-body">
+      <div class="cs-stage-col">
+        <div class="cs-stage" id="csStage">
+          <img id="csStageRef" src="" alt="">
+          <svg id="csSvg" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+            <defs>
+              <clipPath id="csClip" clipPathUnits="userSpaceOnUse"><path id="csClipPath" d=""></path></clipPath>
+            </defs>
+            <image id="csImgDim" href="" x="0" y="0" width="1000" height="1000" preserveAspectRatio="none" opacity="0.3"></image>
+            <image id="csImgLive" href="" x="0" y="0" width="1000" height="1000" preserveAspectRatio="none" clip-path="url(#csClip)" style="display:none"></image>
+            <g id="csGrid"></g>
+            <path id="csPathClose" d="" fill="none" stroke="#e8c76b" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.6" vector-effect="non-scaling-stroke"></path>
+            <path id="csPathLine" d="" fill="none" stroke="#e8c76b" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+            <g id="csHandles"></g>
+            <g id="csNodes"></g>
+          </svg>
+        </div>
+      </div>
+      <div class="rsh-panel cs-panel-col">
+        <div>
+          <div class="rsh-section-label rsh-my-head"><span>Tools</span><span id="csCount" style="text-transform:none;letter-spacing:0;font-weight:600">0 points</span></div>
+          <div class="cs-tools">
+            <button type="button" class="cs-tool active" data-tool="pen" onclick="csSetTool('pen')" title="Pen (P)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/></svg>
+              <span>Pen</span>
+            </button>
+            <button type="button" class="cs-tool" data-tool="free" onclick="csSetTool('free')" title="Freehand (F)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3-6 5 2 8-4s5 1 10-6"/></svg>
+              <span>Freehand</span>
+            </button>
+            <button type="button" class="cs-tool" data-tool="edit" onclick="csSetTool('edit')" title="Edit points (V)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 17 2.5-7.5L20 10z"/></svg>
+              <span>Edit Points</span>
+            </button>
+          </div>
+          <div class="cs-hint" id="csHint"></div>
+        </div>
+        <div>
+          <div class="rsh-section-label rsh-my-head"><span>Smoothness</span><span id="csSmoothVal" style="text-transform:none;letter-spacing:0;font-weight:700">100%</span></div>
+          <input type="range" class="cs-range" id="csSmooth" min="0" max="150" value="100" oninput="csOnSmooth(this.value)" onchange="csCommit()">
+        </div>
+        <div class="rsh-bevel-toggle" onclick="csToggleSnap()">
+          <div class="rsh-bevel-toggle-label"><b>Snap to grid</b><span>Neat, even points. The dashed line marks the centre.</span></div>
+          <div class="rsh-switch" id="csSnapSwitch"></div>
+        </div>
+        <div>
+          <div class="rsh-section-label">Shape tools</div>
+          <div class="cs-mini-row">
+            <button type="button" class="cs-mini" id="csMirrorBtn" onclick="csMirrorHalf()" title="Draw one half of the shape, then tap this to complete it symmetrically">Mirror half</button>
+            <button type="button" class="cs-mini" id="csFlipHBtn" onclick="csFlip('h')">Flip &#8596;</button>
+            <button type="button" class="cs-mini" id="csFlipVBtn" onclick="csFlip('v')">Flip &#8597;</button>
+            <button type="button" class="cs-mini" id="csRotBtn" onclick="csRotate()">Rotate 90&deg;</button>
+            <button type="button" class="cs-mini" id="csFitBtn" onclick="csFit()" title="Scale the shape to fill the frame">Fit</button>
+          </div>
+          <select class="cs-select" id="csStart" onchange="csStartFrom(this.value)"></select>
+        </div>
+        <div class="cs-mini-row">
+          <button type="button" class="cs-mini" id="csUndoBtn" onclick="csUndo()">Undo</button>
+          <button type="button" class="cs-mini" id="csRedoBtn" onclick="csRedo()">Redo</button>
+          <button type="button" class="cs-mini" onclick="csClear()">Clear</button>
+        </div>
+        <div>
+          <div class="rsh-section-label">Name</div>
+          <input type="text" class="cs-input" id="csName" maxlength="40" placeholder="Name your shape">
+        </div>
+        <div class="rsh-bevel-toggle" onclick="csToggleSave()">
+          <div class="rsh-bevel-toggle-label"><b>Save to My Shapes</b><span>Keep it for next time. Backs up to your Google Drive when you're signed in.</span></div>
+          <div class="rsh-switch on" id="csSaveSwitch"></div>
+        </div>
+      </div>
+    </div>
+    <div class="rsh-actions">
+      <button class="btn-secondary" onclick="csClose()">Cancel</button>
+      <button class="btn-primary" id="csUseBtn" onclick="csUse()"><span id="csUseLabel">Save &amp; Use Shape</span></button>
     </div>
   </div>
 </div>
@@ -17070,6 +17219,9 @@ const RSH_SHAPES = [
 // they only differ in where the result gets written back to (see
 // applyReshapeConfirm). Exactly one of idx/placedRef is set at a time.
 let reshape = { idx: null, placedRef: null, shapeId: 'circle', bevel: false, bevelStyle: 'gold', natW: 1, natH: 1 };
+// Referenced by the gallery-image reshape flow below but never declared anywhere, which threw a
+// ReferenceError right after a gallery reshape was applied. null = no gallery modal image open.
+let modalImgIdx = null;
 
 function openReshapeForIndex(idx, e) {
   if (e) e.stopPropagation();
@@ -17118,11 +17270,17 @@ function openReshapeForPlaced(pageIdx, item, e) {
 
 // Shared setup for the reshape preview stage, used by both entry points above.
 function openReshapeStage(dataUrl) {
+  rshTempShape = null;
   const ref = document.getElementById('rshStageRef');
   ref.onload = () => {
     reshape.natW = ref.naturalWidth;
     reshape.natH = ref.naturalHeight;
     renderReshapeGrid();
+    rshMyShapesLoad(true).then(() => renderReshapeGrid());
+    if (!rshShapesSyncedOnce && typeof sarvarcShapesSyncDown === 'function') {
+      rshShapesSyncedOnce = true;
+      sarvarcShapesSyncDown();
+    }
     document.getElementById('rshBevelSwitch').classList.remove('on');
     document.getElementById('rshBevelStylesWrap').style.display = 'none';
     document.querySelectorAll('.rsh-bevel-style').forEach((s, i) => s.classList.toggle('active', i === 0));
@@ -17138,13 +17296,25 @@ function closeReshape() {
 }
 
 function renderReshapeGrid() {
-  const grid = document.getElementById('rshShapeGrid');
-  grid.innerHTML = RSH_SHAPES.map(s => `
-    <div class="rsh-shape-swatch ${s.id === reshape.shapeId ? 'active' : ''}" data-shape="${s.id}" onclick="selectReshapeShape('${s.id}',this)" title="${s.name}">
+  const swatch = (s, extra) => `
+    <div class="rsh-shape-swatch ${s.id === reshape.shapeId ? 'active' : ''}" data-shape="${rshEsc(s.id)}" onclick="selectReshapeShape('${rshEsc(s.id)}',this)" title="${rshEsc(s.name)}">
       <svg viewBox="0 0 1000 1000"><path d="${s.d}"></path></svg>
-      <span class="rsh-shape-name">${s.name}</span>
-    </div>
-  `).join('');
+      <span class="rsh-shape-name">${rshEsc(s.name)}</span>${extra || ''}
+    </div>`;
+  const grid = document.getElementById('rshShapeGrid');
+  grid.innerHTML = RSH_SHAPES.map(s => swatch(s)).join('');
+  const my = document.getElementById('rshMyShapeGrid');
+  if (!my) return;
+  const createTile = `
+    <div class="rsh-shape-swatch rsh-create-tile" onclick="csOpen()" title="Draw your own shape">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="rsh-shape-name">Create</span>
+    </div>`;
+  const tmp = rshTempShape ? swatch(rshTempShape) : '';
+  const mine = rshMyShapes.map(s => swatch(s,
+    `<button type="button" class="rsh-my-btn rsh-my-edit" title="Edit shape" onclick="event.stopPropagation();csOpen('${rshEsc(s.id)}')">&#9998;</button>` +
+    `<button type="button" class="rsh-my-btn rsh-my-del" title="Delete shape" onclick="event.stopPropagation();rshDeleteMyShape('${rshEsc(s.id)}',this)">&#10005;</button>`)).join('');
+  my.innerHTML = createTile + tmp + mine;
 }
 
 function selectReshapeShape(id, el) {
@@ -17169,7 +17339,7 @@ function setReshapeBevelStyle(style, el) {
 }
 
 function updateReshapePreview() {
-  const shape = RSH_SHAPES.find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
+  const shape = rshAllShapes().find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
   document.getElementById('rshClipPathShape').setAttribute('d', shape.d);
   const rimOuter = document.getElementById('rshRimOuter');
   const rimInner = document.getElementById('rshRimInner');
@@ -17203,7 +17373,7 @@ function rshBuildBevelGradient(ctx, style) {
 
 function applyReshapeConfirm() {
   if (reshape.idx === null && !reshape.placedRef) return;
-  const shape = RSH_SHAPES.find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
+  const shape = rshAllShapes().find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
   const srcImg = new Image();
   srcImg.onload = () => {
     const w = srcImg.naturalWidth, h = srcImg.naturalHeight;
@@ -17316,11 +17486,684 @@ function applyReshapeConfirm() {
       });
     }
 
-    swTrack('image_shaper_used', { module: 'pdf_editor', shape: shape.id, bevel: !!reshape.bevel });
+    swTrack('image_shaper_used', { module: 'pdf_editor', shape: shape.custom ? 'custom' : shape.id, bevel: !!reshape.bevel });
     closeReshape();
     toast('Shape applied, ' + shape.name, 'success');
   };
   srcImg.src = reshape.srcDataUrl;
+}
+
+// ─── SHAPE STUDIO — draw your own Image Reshaper borders ───────────────────
+// A custom shape is stored exactly like the built-in ones: ONE SVG path in a
+// 1000×1000 box (`d`). That single string is what the live preview, the
+// canvas clip and the 3D bevel already read, so a hand-drawn shape works with
+// every existing Reshaper feature with no extra plumbing. On top of `d`, the
+// Studio keeps the editable `nodes` the path was built from, so a saved shape
+// can be re-opened and tweaked later.
+//
+// Saved shapes ("My Shapes") live in this account's IndexedDB (the 'kv'
+// store, key 'myShapes' — already scoped per signed-in account by
+// idbKvOpen) and mirror to the person's own Google Drive folder
+// "SARVARC Shapes", exactly like the Assets library does (see GOOGLE DRIVE
+// SYNC — MY SHAPES further down). Drive is a best-effort mirror: any failure
+// is swallowed so the local save can never break.
+const CS_GRID = 50;
+const CS_HINTS = {
+  pen:  'Click to place points. Click and drag to pull a curve. Click the first point to close the shape.',
+  free: 'Draw with your finger or mouse. When you let go it becomes a smooth, editable shape.',
+  edit: 'Drag points to move them. Click the outline to add a point. Double-click a point to switch sharp / smooth. Delete removes the selected point.'
+};
+const cs = {
+  nodes: [], closed: false, tool: 'pen', sel: -1, snap: false, smooth: 100,
+  hist: [], hpos: -1, drag: null, free: null, hover: null,
+  editingId: null, saveIt: true, ready: false
+};
+let rshMyShapes = [];
+let rshMyShapesLoaded = false;
+let rshTempShape = null;
+let rshShapesSyncedOnce = false;
+
+// ── small helpers ─────────────────────────────────────────────────────────
+function csR(n) { return Math.round(n * 10) / 10; }
+function csClone(o) { return JSON.parse(JSON.stringify(o)); }
+function rshEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function csSvgEl() { return document.getElementById('csSvg'); }
+function csK() {
+  const r = csSvgEl().getBoundingClientRect();
+  return { kx: 1000 / (r.width || 1), ky: 1000 / (r.height || 1) };
+}
+function csToSvg(e) {
+  const r = csSvgEl().getBoundingClientRect();
+  return { x: (e.clientX - r.left) / (r.width || 1) * 1000, y: (e.clientY - r.top) / (r.height || 1) * 1000 };
+}
+function csPxDist(a, b, k) { return Math.hypot((a.x - b.x) / k.kx, (a.y - b.y) / k.ky); }
+function csSnapPt(p) {
+  if (!cs.snap) return { x: p.x, y: p.y };
+  return { x: Math.round(p.x / CS_GRID) * CS_GRID, y: Math.round(p.y / CS_GRID) * CS_GRID };
+}
+function csClampPt(p) { return { x: Math.max(0, Math.min(1000, p.x)), y: Math.max(0, Math.min(1000, p.y)) }; }
+function csF() { return cs.smooth / 100 / 6; }
+
+// ── path maths ────────────────────────────────────────────────────────────
+// Every smooth point gets automatic Catmull-Rom style handles (scaled by the
+// Smoothness slider). A point can also carry hand-pulled handles (ho = out,
+// hi = in, absolute coordinates) which always win over the automatic ones.
+// Sharp ("corner") points have no automatic handles at all.
+function csHandles(nodes, i, f, closed) {
+  const N = nodes.length, n = nodes[i];
+  const p = (closed || i > 0) ? nodes[(i - 1 + N) % N] : n;
+  const q = (closed || i < N - 1) ? nodes[(i + 1) % N] : n;
+  let ho = { x: n.x, y: n.y }, hi = { x: n.x, y: n.y };
+  if (n.t !== 'c' && f > 0) {
+    const tx = (q.x - p.x) * f, ty = (q.y - p.y) * f;
+    const cap = (h, nb) => {
+      // Stop a handle overshooting its neighbour (prevents loops on sharp turns)
+      const dx = h.x - n.x, dy = h.y - n.y, len = Math.hypot(dx, dy);
+      const lim = Math.hypot(nb.x - n.x, nb.y - n.y) * 0.5;
+      if (len > lim && len > 0) { h.x = n.x + dx * lim / len; h.y = n.y + dy * lim / len; }
+      return h;
+    };
+    ho = cap({ x: n.x + tx, y: n.y + ty }, q);
+    hi = cap({ x: n.x - tx, y: n.y - ty }, p);
+  }
+  return { ho: n.ho || ho, hi: n.hi || hi };
+}
+function csSegments(nodes, f, closed) {
+  const N = nodes.length, out = [];
+  if (N < 2) return out;
+  const H = nodes.map((_, i) => csHandles(nodes, i, f, closed));
+  const cnt = closed ? N : N - 1;
+  for (let i = 0; i < cnt; i++) {
+    const j = (i + 1) % N;
+    out.push({ i, j, p0: nodes[i], c1: H[i].ho, c2: H[j].hi, p1: nodes[j] });
+  }
+  return out;
+}
+function csBuildD(nodes, f, closed) {
+  const segs = csSegments(nodes, f, closed);
+  if (!segs.length) return '';
+  let d = 'M ' + csR(nodes[0].x) + ',' + csR(nodes[0].y);
+  segs.forEach(s => {
+    d += ' C ' + csR(s.c1.x) + ',' + csR(s.c1.y) + ' ' + csR(s.c2.x) + ',' + csR(s.c2.y) + ' ' + csR(s.p1.x) + ',' + csR(s.p1.y);
+  });
+  return d + (closed ? ' Z' : '');
+}
+function csBez(s, t) {
+  const u = 1 - t;
+  return {
+    x: u * u * u * s.p0.x + 3 * u * u * t * s.c1.x + 3 * u * t * t * s.c2.x + t * t * t * s.p1.x,
+    y: u * u * u * s.p0.y + 3 * u * u * t * s.c1.y + 3 * u * t * t * s.c2.y + t * t * t * s.p1.y
+  };
+}
+function csSamplePts(nodes, f, closed, steps) {
+  const pts = [];
+  csSegments(nodes, f, closed).forEach(s => { for (let k = 0; k < steps; k++) pts.push(csBez(s, k / steps)); });
+  return pts;
+}
+// Nearest point on the drawn outline, measured in screen pixels
+function csNearestOnCurve(raw, k) {
+  const segs = csSegments(cs.nodes, csF(), cs.closed);
+  let best = null;
+  segs.forEach((s, si) => {
+    const STEPS = 28;
+    let bt = 0, bd = Infinity;
+    for (let m = 0; m <= STEPS; m++) {
+      const d = csPxDist(raw, csBez(s, m / STEPS), k);
+      if (d < bd) { bd = d; bt = m / STEPS; }
+    }
+    const lo = Math.max(0, bt - 1 / STEPS), hi = Math.min(1, bt + 1 / STEPS);
+    for (let m = 0; m <= 10; m++) {
+      const t = lo + (hi - lo) * m / 10;
+      const d = csPxDist(raw, csBez(s, t), k);
+      if (d < bd) { bd = d; bt = t; }
+    }
+    if (!best || bd < best.dist) best = { seg: s, si, t: bt, dist: bd };
+  });
+  return best;
+}
+// Insert a point on the outline WITHOUT changing its shape (de Casteljau split)
+function csSplitAt(hit) {
+  const s = hit.seg, t = hit.t;
+  const L = (a, b) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  const q0 = L(s.p0, s.c1), q1 = L(s.c1, s.c2), q2 = L(s.c2, s.p1);
+  const r0 = L(q0, q1), r1 = L(q1, q2), m = L(r0, r1);
+  const a = cs.nodes[s.i], b = cs.nodes[s.j];
+  a.ho = { x: q0.x, y: q0.y };
+  b.hi = { x: q2.x, y: q2.y };
+  const nn = { x: m.x, y: m.y, t: 's', hi: { x: r0.x, y: r0.y }, ho: { x: r1.x, y: r1.y } };
+  const at = (s.j === 0 && s.i === cs.nodes.length - 1) ? cs.nodes.length : s.i + 1;
+  cs.nodes.splice(at, 0, nn);
+  return at;
+}
+function csRdp(pts, eps) {
+  if (pts.length < 3) return pts.slice();
+  const a = pts[0], b = pts[pts.length - 1];
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+  let dmax = 0, idx = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i];
+    const d = len ? Math.abs(dy * p.x - dx * p.y + b.x * a.y - b.y * a.x) / len : Math.hypot(p.x - a.x, p.y - a.y);
+    if (d > dmax) { dmax = d; idx = i; }
+  }
+  if (dmax > eps) {
+    const l = csRdp(pts.slice(0, idx + 1), eps), r = csRdp(pts.slice(idx), eps);
+    return l.slice(0, -1).concat(r);
+  }
+  return [a, b];
+}
+
+// ── history (undo / redo) ─────────────────────────────────────────────────
+function csSnap() { return JSON.stringify({ nodes: cs.nodes, closed: cs.closed, smooth: cs.smooth }); }
+function csCommit() {
+  cs.hist = cs.hist.slice(0, cs.hpos + 1);
+  cs.hist.push(csSnap());
+  if (cs.hist.length > 80) cs.hist.shift();
+  cs.hpos = cs.hist.length - 1;
+  csUpdateUi();
+}
+function csRestore(str) {
+  const o = JSON.parse(str);
+  cs.nodes = o.nodes; cs.closed = o.closed; cs.smooth = o.smooth; cs.sel = -1; cs.drag = null;
+  const sl = document.getElementById('csSmooth');
+  if (sl) sl.value = cs.smooth;
+  csRender(); csUpdateUi();
+}
+function csUndo() { if (cs.hpos > 0) { cs.hpos--; csRestore(cs.hist[cs.hpos]); } }
+function csRedo() { if (cs.hpos < cs.hist.length - 1) { cs.hpos++; csRestore(cs.hist[cs.hpos]); } }
+function csClear() {
+  if (!cs.nodes.length) return;
+  cs.nodes = []; cs.closed = false; cs.sel = -1;
+  csSetTool('pen', true);
+  csCommit(); csRender();
+}
+
+// ── UI state ──────────────────────────────────────────────────────────────
+function csSetTool(t, silent) {
+  if (cs.tool === 'pen' && t !== 'pen' && cs.nodes.length >= 3) cs.closed = true;
+  cs.tool = t; cs.free = null; cs.drag = null; cs.hover = null;
+  if (t === 'pen') cs.sel = -1;
+  if (!silent) csRender();
+  csUpdateUi();
+}
+function csUpdateUi() {
+  const n = cs.nodes.length;
+  document.querySelectorAll('#shapeStudioOverlay .cs-tool').forEach(b => b.classList.toggle('active', b.dataset.tool === cs.tool));
+  const hint = document.getElementById('csHint'); if (hint) hint.textContent = CS_HINTS[cs.tool] || '';
+  const cnt = document.getElementById('csCount'); if (cnt) cnt.textContent = n + (n === 1 ? ' point' : ' points');
+  const use = document.getElementById('csUseBtn');
+  if (use) { use.disabled = n < 3; use.style.opacity = n < 3 ? '0.5' : '1'; }
+  const u = document.getElementById('csUndoBtn'), r = document.getElementById('csRedoBtn');
+  if (u) u.disabled = cs.hpos <= 0;
+  if (r) r.disabled = cs.hpos >= cs.hist.length - 1;
+  ['csMirrorBtn', 'csFlipHBtn', 'csFlipVBtn', 'csRotBtn', 'csFitBtn'].forEach(id => {
+    const b = document.getElementById(id); if (b) b.disabled = n < 2;
+  });
+  const sv = document.getElementById('csSmoothVal'); if (sv) sv.textContent = cs.smooth + '%';
+  const ss = document.getElementById('csSnapSwitch'); if (ss) ss.classList.toggle('on', cs.snap);
+  const sw = document.getElementById('csSaveSwitch'); if (sw) sw.classList.toggle('on', cs.saveIt);
+  const lbl = document.getElementById('csUseLabel'); if (lbl) lbl.textContent = cs.saveIt ? 'Save & Use Shape' : 'Use Shape';
+}
+function csToggleSnap() { cs.snap = !cs.snap; csRender(); csUpdateUi(); }
+function csToggleSave() { cs.saveIt = !cs.saveIt; csUpdateUi(); }
+function csOnSmooth(v) { cs.smooth = parseInt(v, 10) || 0; csRender(); csUpdateUi(); }
+
+// ── rendering ─────────────────────────────────────────────────────────────
+function csRender() {
+  const svg = csSvgEl(); if (!svg) return;
+  const N = cs.nodes.length, f = csF(), k = csK();
+  const rx = 7 * k.kx, ry = 7 * k.ky;
+
+  // shape outline (open while drawing, closed afterwards)
+  const dLine = csBuildD(cs.nodes, f, cs.closed);
+  const dFill = N >= 3 ? (dLine + (cs.closed ? '' : ' Z')) : '';
+  document.getElementById('csClipPath').setAttribute('d', dFill);
+  document.getElementById('csImgLive').style.display = dFill ? '' : 'none';
+  let lineD = dLine;
+  if (cs.free && cs.free.pts.length > 1) {
+    lineD = 'M ' + cs.free.pts.map(p => csR(p.x) + ',' + csR(p.y)).join(' L ');
+  }
+  document.getElementById('csPathLine').setAttribute('d', lineD);
+
+  // dashed guide: last point → cursor (pen) and last → first while unclosed
+  let guide = '';
+  if (!cs.closed && cs.tool === 'pen' && N > 0) {
+    const last = cs.nodes[N - 1];
+    if (cs.hover) guide += 'M ' + csR(last.x) + ',' + csR(last.y) + ' L ' + csR(cs.hover.x) + ',' + csR(cs.hover.y) + ' ';
+    if (N >= 3) guide += 'M ' + csR(last.x) + ',' + csR(last.y) + ' L ' + csR(cs.nodes[0].x) + ',' + csR(cs.nodes[0].y);
+  }
+  document.getElementById('csPathClose').setAttribute('d', guide);
+
+  // grid + centre line
+  let g = '<line x1="500" y1="0" x2="500" y2="1000" stroke="rgba(120,200,255,.55)" stroke-width="1" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/>';
+  if (cs.snap) {
+    for (let v = CS_GRID; v < 1000; v += CS_GRID) {
+      if (v === 500) continue;
+      g += '<line x1="' + v + '" y1="0" x2="' + v + '" y2="1000" stroke="rgba(255,255,255,.14)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+      g += '<line x1="0" y1="' + v + '" x2="1000" y2="' + v + '" stroke="rgba(255,255,255,.14)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+    }
+    g += '<line x1="0" y1="500" x2="1000" y2="500" stroke="rgba(255,255,255,.14)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  }
+  document.getElementById('csGrid').innerHTML = g;
+
+  // handles of the selected point
+  let hs = '';
+  if (cs.tool !== 'free' && cs.sel >= 0 && cs.sel < N) {
+    const n = cs.nodes[cs.sel], h = csHandles(cs.nodes, cs.sel, f, cs.closed);
+    [h.hi, h.ho].forEach(p => {
+      if (Math.hypot((p.x - n.x) / k.kx, (p.y - n.y) / k.ky) < 3) return;
+      hs += '<line x1="' + n.x + '" y1="' + n.y + '" x2="' + p.x + '" y2="' + p.y + '" stroke="#e8c76b" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
+      hs += '<ellipse cx="' + p.x + '" cy="' + p.y + '" rx="' + 5 * k.kx + '" ry="' + 5 * k.ky + '" fill="#0b0d12" stroke="#e8c76b" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    });
+  }
+  document.getElementById('csHandles').innerHTML = hs;
+
+  // points: round = smooth, square = sharp, gold = selected, green = "click to close"
+  let ns = '';
+  cs.nodes.forEach((n, i) => {
+    const isSel = i === cs.sel;
+    const closable = !cs.closed && i === 0 && N >= 3 && cs.tool === 'pen';
+    const fill = isSel ? '#e8c76b' : (closable ? '#3ddc97' : '#ffffff');
+    const stroke = isSel ? '#8a6100' : (closable ? '#0f7a4d' : '#1a1f2b');
+    const R = closable ? 9 : 7;
+    if (n.t === 'c') {
+      ns += '<rect x="' + (n.x - R * k.kx) + '" y="' + (n.y - R * k.ky) + '" width="' + 2 * R * k.kx + '" height="' + 2 * R * k.ky + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    } else {
+      ns += '<ellipse cx="' + n.x + '" cy="' + n.y + '" rx="' + R * k.kx + '" ry="' + R * k.ky + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    }
+  });
+  document.getElementById('csNodes').innerHTML = ns;
+}
+
+// ── pointer interaction ───────────────────────────────────────────────────
+function csHitNode(raw, k) {
+  let best = -1, bd = 13;
+  cs.nodes.forEach((n, i) => { const d = csPxDist(raw, n, k); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+function csOnDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  e.preventDefault();
+  // preventDefault keeps focus where it was; release the name box so Delete / P / F / V shortcuts reach the canvas
+  if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
+  try { csSvgEl().setPointerCapture(e.pointerId); } catch (err) {}
+  const raw = csToSvg(e), k = csK(), f = csF();
+
+  if (cs.tool === 'free') {
+    cs.free = { pts: [csClampPt(csSnapPt(raw))] };
+    cs.sel = -1;
+    csRender();
+    return;
+  }
+
+  // 1) a handle of the selected point?
+  if (cs.sel >= 0 && cs.sel < cs.nodes.length) {
+    const n = cs.nodes[cs.sel], h = csHandles(cs.nodes, cs.sel, f, cs.closed);
+    for (const which of ['hi', 'ho']) {
+      const p = h[which];
+      if (Math.hypot((p.x - n.x) / k.kx, (p.y - n.y) / k.ky) < 3) continue;
+      if (csPxDist(raw, p, k) < 11) {
+        n.hi = { x: h.hi.x, y: h.hi.y }; n.ho = { x: h.ho.x, y: h.ho.y };  // automatic → hand-pulled
+        cs.drag = { type: 'handle', idx: cs.sel, which, moved: false };
+        return;
+      }
+    }
+  }
+  // 2) a point?
+  const hit = csHitNode(raw, k);
+  if (cs.tool === 'pen') {
+    if (hit === 0 && cs.nodes.length >= 3 && !cs.closed) {
+      cs.closed = true; cs.sel = -1;
+      csSetTool('edit', true);
+      csCommit(); csRender();
+      return;
+    }
+    if (hit >= 0) { cs.sel = hit; cs.drag = { type: 'node', idx: hit, moved: false }; csRender(); return; }
+    const p = csClampPt(csSnapPt(raw));
+    cs.nodes.push({ x: p.x, y: p.y, t: 's' });
+    cs.sel = cs.nodes.length - 1;
+    cs.drag = { type: 'out', idx: cs.sel, moved: true, fresh: true };
+    csRender(); csUpdateUi();
+    return;
+  }
+  // edit tool
+  if (hit >= 0) { cs.sel = hit; cs.drag = { type: 'node', idx: hit, moved: false }; csRender(); return; }
+  const near = csNearestOnCurve(raw, k);
+  if (near && near.dist < 10) {
+    const at = csSplitAt(near);
+    cs.sel = at;
+    cs.drag = { type: 'node', idx: at, moved: true };
+    csRender(); csUpdateUi();
+    return;
+  }
+  cs.sel = -1; csRender();
+}
+function csOnMove(e) {
+  const raw = csToSvg(e), k = csK();
+  if (cs.free) {
+    const last = cs.free.pts[cs.free.pts.length - 1], p = csClampPt(csSnapPt(raw));
+    if (csPxDist(p, last, k) > 4) { cs.free.pts.push(p); csRender(); }
+    return;
+  }
+  const d = cs.drag;
+  if (!d) {
+    if (cs.tool === 'pen' && !cs.closed && cs.nodes.length) { cs.hover = csClampPt(csSnapPt(raw)); csRender(); }
+    return;
+  }
+  const n = cs.nodes[d.idx]; if (!n) return;
+  if (d.type === 'node') {
+    const p = csClampPt(csSnapPt(raw)), dx = p.x - n.x, dy = p.y - n.y;
+    if (dx || dy) {
+      n.x = p.x; n.y = p.y;
+      if (n.ho) { n.ho.x += dx; n.ho.y += dy; }
+      if (n.hi) { n.hi.x += dx; n.hi.y += dy; }
+      d.moved = true;
+    }
+  } else if (d.type === 'handle') {
+    const p = csSnapPt(raw);
+    n[d.which] = { x: p.x, y: p.y };
+    if (n.t !== 'c' && !e.altKey) {                       // keep the curve smooth through the point
+      const other = d.which === 'ho' ? 'hi' : 'ho';
+      n[other] = { x: 2 * n.x - p.x, y: 2 * n.y - p.y };
+    }
+    d.moved = true;
+  } else if (d.type === 'out') {                          // click-drag while placing a point pulls a curve
+    const p = csSnapPt(raw);
+    if (csPxDist(p, n, k) > 5) {
+      n.ho = { x: p.x, y: p.y };
+      n.hi = { x: 2 * n.x - p.x, y: 2 * n.y - p.y };
+      n.t = 's';
+    }
+  }
+  csRender();
+}
+function csOnUp(e) {
+  try { csSvgEl().releasePointerCapture(e.pointerId); } catch (err) {}
+  if (cs.free) { csFinishFree(); return; }
+  const d = cs.drag; cs.drag = null;
+  if (d && d.moved) { csCommit(); }
+  csRender();
+}
+function csOnDbl(e) {
+  const raw = csToSvg(e), k = csK();
+  const i = csHitNode(raw, k);
+  if (i < 0) return;
+  const n = cs.nodes[i];
+  n.t = n.t === 'c' ? 's' : 'c';
+  delete n.ho; delete n.hi;
+  cs.sel = i; csCommit(); csRender();
+}
+function csDeleteSel() {
+  if (cs.sel < 0 || cs.sel >= cs.nodes.length) return;
+  if (cs.nodes.length <= 3 && cs.closed) { toast('A shape needs at least 3 points', 'info'); return; }
+  cs.nodes.splice(cs.sel, 1);
+  cs.sel = -1;
+  csCommit(); csRender();
+}
+function csFinishFree() {
+  const pts = cs.free.pts; cs.free = null;
+  if (pts.length < 6) { csRender(); return; }
+  const k = csK(), base = 9 * (k.kx + k.ky) / 2;
+  let eps = base, s = csRdp(pts, eps);
+  const first = pts[0], last = pts[pts.length - 1];
+  while (s.length > 48 && eps < 200) { eps *= 1.3; s = csRdp(pts, eps); }
+  if (s.length > 2 && Math.hypot(first.x - last.x, first.y - last.y) < base * 2.5) s.pop();
+  if (s.length < 3) { toast('Draw a little bigger, a shape needs at least 3 points', 'info'); csRender(); return; }
+  cs.nodes = s.map(p => ({ x: csR(p.x), y: csR(p.y), t: 's' }));
+  cs.closed = true; cs.sel = -1;
+  csSetTool('edit', true);
+  csCommit(); csRender();
+}
+
+// ── shape tools ───────────────────────────────────────────────────────────
+function csTransform(fn) {
+  cs.nodes.forEach(n => {
+    const a = fn(n.x, n.y); n.x = csR(a[0]); n.y = csR(a[1]);
+    ['ho', 'hi'].forEach(w => { if (n[w]) { const b = fn(n[w].x, n[w].y); n[w] = { x: csR(b[0]), y: csR(b[1]) }; } });
+  });
+  csCommit(); csRender();
+}
+function csFlip(axis) { csTransform(axis === 'h' ? (x, y) => [1000 - x, y] : (x, y) => [x, 1000 - y]); }
+function csRotate() { csTransform((x, y) => [1000 - y, x]); }
+function csFit() {
+  if (cs.nodes.length < 2) return;
+  const pts = csSamplePts(cs.nodes, csF(), cs.closed || cs.nodes.length >= 3, 12);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  pts.forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+  const w = x1 - x0, h = y1 - y0;
+  if (w < 5 && h < 5) return;
+  const s = Math.min(940 / Math.max(w, 1), 940 / Math.max(h, 1)), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  csTransform((x, y) => [500 + (x - cx) * s, 500 + (y - cy) * s]);
+}
+// Draw one half along the centre line, tap Mirror, get a perfectly symmetric shape
+function csMirrorHalf() {
+  if (cs.nodes.length < 2) return;
+  const left = cs.nodes.filter(n => n.x < 500).length >= cs.nodes.filter(n => n.x > 500).length;
+  const src = csClone(cs.nodes);
+  src.forEach(n => {
+    if (left ? n.x > 500 : n.x < 500) n.x = 500;      // keep everything on the drawn side
+    if (Math.abs(n.x - 500) < 14) { n.x = 500; delete n.ho; delete n.hi; n.t = 's'; }
+  });
+  const onAxis = n => n.x === 500;
+  const startOn = onAxis(src[0]), endOn = onAxis(src[src.length - 1]);
+  const mir = n => {
+    const m = csClone(n); m.x = 1000 - m.x;
+    if (m.ho) m.ho.x = 1000 - m.ho.x;
+    if (m.hi) m.hi.x = 1000 - m.hi.x;
+    const t = m.hi; m.hi = m.ho; m.ho = t;             // reflecting reverses direction
+    if (!m.hi) delete m.hi; if (!m.ho) delete m.ho;
+    return m;
+  };
+  const out = src.slice();
+  for (let i = src.length - 1; i >= 0; i--) {
+    if (i === src.length - 1 && endOn) continue;
+    if (i === 0 && startOn) continue;
+    out.push(mir(src[i]));
+  }
+  if (out.length < 3) { toast('Add a few more points on one side first', 'info'); return; }
+  cs.nodes = out; cs.closed = true; cs.sel = -1;
+  csSetTool('edit', true);
+  csCommit(); csRender();
+}
+function csStarterD(id) {
+  if (id === 'heart') return 'M 500,900 C 150,640 40,430 130,270 C 210,130 400,120 500,290 C 600,120 790,130 870,270 C 960,430 850,640 500,900 Z';
+  if (id === 'star5') {
+    let d = '';
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 200 : 480;
+      d += (i ? ' L ' : 'M ') + csR(500 + r * Math.cos(a)) + ',' + csR(530 + r * Math.sin(a));
+    }
+    return d + ' Z';
+  }
+  const s = RSH_SHAPES.find(x => x.id === id);
+  return s ? s.d : '';
+}
+// Turn any existing shape into editable points
+function csStartFrom(id) {
+  const sel = document.getElementById('csStart');
+  if (!id) return;
+  if (id === '__blank') { cs.nodes = []; cs.closed = false; cs.sel = -1; csSetTool('pen', true); csCommit(); csRender(); if (sel) sel.value = ''; return; }
+  const d = csStarterD(id) || ((rshMyShapes.find(x => x.id === id) || {}).d || '');
+  if (sel) sel.value = '';
+  if (!d) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const host = document.createElementNS(NS, 'g');
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', d); host.appendChild(path);
+  csSvgEl().appendChild(host);
+  let pts = [];
+  try {
+    const L = path.getTotalLength(), M = 320;
+    for (let i = 0; i <= M; i++) { const p = path.getPointAtLength(L * i / M); pts.push({ x: p.x, y: p.y }); }
+  } catch (err) { pts = []; }
+  csSvgEl().removeChild(host);
+  if (pts.length < 8) { toast('Could not load that shape', 'error'); return; }
+  let eps = 5, s = csRdp(pts, eps);
+  while (s.length > 48 && eps < 100) { eps *= 1.25; s = csRdp(pts, eps); }
+  if (s.length > 2 && Math.hypot(s[0].x - s[s.length - 1].x, s[0].y - s[s.length - 1].y) < 3) s.pop();
+  const nodes = s.map((p, i) => {
+    const a = s[(i - 1 + s.length) % s.length], b = s[(i + 1) % s.length];
+    const v1 = { x: a.x - p.x, y: a.y - p.y }, v2 = { x: b.x - p.x, y: b.y - p.y };
+    const cos = (v1.x * v2.x + v1.y * v2.y) / ((Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y)) || 1);
+    const ang = Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+    return { x: csR(p.x), y: csR(p.y), t: ang < 140 ? 'c' : 's' };
+  });
+  cs.nodes = nodes; cs.closed = true; cs.sel = -1;
+  csSetTool('edit', true);
+  csCommit(); csRender();
+}
+
+// ── open / close / use ────────────────────────────────────────────────────
+function csInitOnce() {
+  if (cs.ready) return;
+  cs.ready = true;
+  const svg = csSvgEl();
+  svg.addEventListener('pointerdown', csOnDown);
+  svg.addEventListener('pointermove', csOnMove);
+  svg.addEventListener('pointerup', csOnUp);
+  svg.addEventListener('pointercancel', csOnUp);
+  svg.addEventListener('dblclick', csOnDbl);
+  svg.addEventListener('pointerleave', () => { if (cs.hover) { cs.hover = null; csRender(); } });
+  window.addEventListener('resize', () => { if (csIsOpen()) csRender(); });
+  window.addEventListener('keydown', (e) => {
+    if (!csIsOpen()) return;
+    const tag = (e.target && e.target.tagName) || '';
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    const mod = e.ctrlKey || e.metaKey, key = (e.key || '').toLowerCase();
+    if (mod && !typing && key === 'z') { e.preventDefault(); e.stopImmediatePropagation(); e.shiftKey ? csRedo() : csUndo(); return; }
+    if (mod && !typing && key === 'y') { e.preventDefault(); e.stopImmediatePropagation(); csRedo(); return; }
+    if (key === 'escape') { e.stopImmediatePropagation(); csClose(); return; }
+    if (typing) { e.stopPropagation(); return; }
+    if (key === 'delete' || key === 'backspace') { e.preventDefault(); e.stopImmediatePropagation(); csDeleteSel(); return; }
+    if (!mod && key === 'p') { e.stopImmediatePropagation(); csSetTool('pen'); }
+    else if (!mod && key === 'f') { e.stopImmediatePropagation(); csSetTool('free'); }
+    else if (!mod && (key === 'v' || key === 'e')) { e.stopImmediatePropagation(); csSetTool('edit'); }
+  }, true);
+}
+function csIsOpen() { const o = document.getElementById('shapeStudioOverlay'); return !!(o && o.classList.contains('open')); }
+
+async function csOpen(editId) {
+  if (!reshape || !reshape.srcDataUrl) return;
+  csInitOnce();
+  await rshMyShapesLoad();
+  cs.editingId = null; cs.drag = null; cs.free = null; cs.hover = null; cs.sel = -1;
+  cs.snap = false; cs.saveIt = true; cs.smooth = 100;
+  cs.nodes = []; cs.closed = false; cs.tool = 'pen';
+  let name = 'My Shape ' + (rshMyShapes.length + 1);
+  const rec = editId ? rshMyShapes.find(s => s.id === editId) : null;
+  if (rec && Array.isArray(rec.nodes) && rec.nodes.length >= 3) {
+    cs.editingId = rec.id; cs.nodes = csClone(rec.nodes); cs.closed = true; cs.tool = 'edit';
+    cs.smooth = typeof rec.smooth === 'number' ? rec.smooth : 100; name = rec.name;
+  }
+  document.getElementById('csName').value = name;
+  const sl = document.getElementById('csSmooth'); sl.value = cs.smooth;
+  const opts = ['<option value="">Start from…</option>', '<option value="__blank">Blank canvas</option>'];
+  const starters = [['heart', 'Heart'], ['star5', 'Star']].concat(RSH_SHAPES.map(s => [s.id, s.name]));
+  opts.push(starters.map(s => '<option value="' + s[0] + '">' + rshEsc(s[1]) + '</option>').join(''));
+  if (rshMyShapes.length) opts.push('<optgroup label="My Shapes">' + rshMyShapes.map(s => '<option value="' + rshEsc(s.id) + '">' + rshEsc(s.name) + '</option>').join('') + '</optgroup>');
+  document.getElementById('csStart').innerHTML = opts.join('');
+
+  const ref = document.getElementById('csStageRef');
+  ref.onload = () => csRender();
+  ref.src = reshape.srcDataUrl;
+  document.getElementById('csImgDim').setAttribute('href', reshape.srcDataUrl);
+  document.getElementById('csImgLive').setAttribute('href', reshape.srcDataUrl);
+  cs.hist = []; cs.hpos = -1; csCommit();
+  document.getElementById('shapeStudioOverlay').classList.add('open');
+  requestAnimationFrame(() => { csRender(); csUpdateUi(); });
+}
+function csClose() {
+  document.getElementById('shapeStudioOverlay').classList.remove('open');
+  cs.drag = null; cs.free = null;
+}
+async function csUse() {
+  if (cs.nodes.length < 3) return;
+  if (!cs.closed) cs.closed = true;
+  const d = csBuildD(cs.nodes, csF(), true);
+  const name = (document.getElementById('csName').value || '').trim().slice(0, 40) || 'My Shape';
+  if (cs.saveIt) {
+    await rshMyShapesLoad();
+    let rec = cs.editingId ? rshMyShapes.find(s => s.id === cs.editingId) : null;
+    if (rec) {
+      rec.name = name; rec.d = d; rec.nodes = csClone(cs.nodes); rec.smooth = cs.smooth; rec.updatedAt = Date.now();
+    } else {
+      rec = {
+        id: 'cshape_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        name, d, nodes: csClone(cs.nodes), smooth: cs.smooth, createdAt: Date.now(), driveFileId: null
+      };
+      rshMyShapes.unshift(rec);
+    }
+    await rshMyShapesPersist();
+    reshape.shapeId = rec.id;
+    // Best-effort Google Drive mirror: never blocks or breaks the local save
+    const drive = (typeof sarvarcDriveSaveShape === 'function')
+      ? sarvarcDriveSaveShape(rec).then(() => true).catch(() => false) : Promise.resolve(false);
+    toast('Saved to My Shapes', 'success');
+    drive.then(ok => { if (ok) toast('Backed up to your Google Drive', 'info'); });
+  } else {
+    rshTempShape = { id: 'cshape_tmp', name, d, custom: true };
+    reshape.shapeId = 'cshape_tmp';
+  }
+  if (typeof swTrack === 'function') swTrack('custom_shape_created', { module: 'pdf_editor', saved: !!cs.saveIt, points: cs.nodes.length, tool: cs.tool });
+  csClose();
+  renderReshapeGrid();
+  updateReshapePreview();
+}
+
+// ── My Shapes: local storage ──────────────────────────────────────────────
+function rshShapeIdOk(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id); }
+function rshShapePathOk(d) { return typeof d === 'string' && d.length < 20000 && /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]+$/.test(d); }
+async function rshKvGet(key, fallback) {
+  try {
+    const db = await idbKvOpen();
+    return await new Promise((resolve) => {
+      const rq = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+      rq.onsuccess = () => resolve(rq.result === undefined ? fallback : rq.result);
+      rq.onerror = () => resolve(fallback);
+    });
+  } catch (e) { return fallback; }
+}
+async function rshKvPut(key, val) {
+  try {
+    const db = await idbKvOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(val, key);
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('[My Shapes] could not save locally', e); }
+}
+async function rshMyShapesLoad(force) {
+  if (rshMyShapesLoaded && !force) return rshMyShapes;
+  const arr = await rshKvGet('myShapes', []);
+  rshMyShapes = (Array.isArray(arr) ? arr : []).filter(s => s && rshShapeIdOk(s.id) && rshShapePathOk(s.d));
+  rshMyShapesLoaded = true;
+  return rshMyShapes;
+}
+function rshMyShapesPersist() { return rshKvPut('myShapes', rshMyShapes); }
+async function rshTombLoad() { const a = await rshKvGet('myShapesDeleted', []); return Array.isArray(a) ? a : []; }
+function rshAllShapes() {
+  const mine = rshMyShapes.map(s => ({ id: s.id, name: s.name, d: s.d, custom: true }));
+  return RSH_SHAPES.concat(rshTempShape ? [rshTempShape] : [], mine);
+}
+async function rshDeleteMyShape(id, btn) {
+  if (btn && btn.dataset.armed !== '1') {           // first tap arms, second tap deletes
+    btn.dataset.armed = '1'; btn.classList.add('armed'); btn.textContent = 'Sure?';
+    setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.classList.remove('armed'); btn.innerHTML = '&#10005;'; } }, 2500);
+    return;
+  }
+  const rec = rshMyShapes.find(s => s.id === id);
+  rshMyShapes = rshMyShapes.filter(s => s.id !== id);
+  await rshMyShapesPersist();
+  // Tombstone so the Drive copy is removed (now, or next time Drive is reachable)
+  // and can never be re-pulled onto this device.
+  const tomb = await rshTombLoad();
+  tomb.push({ id, driveFileId: rec ? rec.driveFileId || null : null });
+  await rshKvPut('myShapesDeleted', tomb);
+  if (reshape.shapeId === id) reshape.shapeId = 'circle';
+  renderReshapeGrid(); updateReshapePreview();
+  if (typeof sarvarcShapesSyncUp === 'function') sarvarcShapesSyncUp();
 }
 
 // ─── DESIGN — CINEMATIC FADE ───────────────────────────────────────────
@@ -20968,6 +21811,7 @@ async function smRunDriveRefresh(opts) {
     // net the person can always fall back on. Background/auto passes
     // (poll, tab-focus, opts.silent true) stay on the efficient delta path.
     if (typeof sarvarcDriveSyncDown === 'function') await sarvarcDriveSyncDown({ forceFull: !opts.silent });
+    if (!opts.silent && typeof sarvarcShapesSyncDown === 'function') sarvarcShapesSyncDown();
     const gained = Math.max(0, smCountSessionRows() - before);
     if (gained > 0) {
       smPtrSetState('found', gained);
@@ -74308,7 +75152,7 @@ if (document.readyState === 'loading') {
   async function sarvarcDriveListSessions(opts) {
     opts = opts || {};
     const folderId = await sarvarcDriveEnsureFolder();
-    let q = `'${folderId}' in parents and trashed=false`;
+    let q = `'${folderId}' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'`;
     if (opts.modifiedAfter) {
       q += ` and modifiedTime > '${new Date(opts.modifiedAfter).toISOString()}'`;
     }
@@ -74709,6 +75553,148 @@ if (document.readyState === 'loading') {
         try { await sarvarcDriveSaveAsset(rec); } catch (e) { /* best-effort, ignore */ }
       }
     } catch (e) { console.warn('[Drive sync] assets up skipped', e); }
+  }
+
+  // ============== GOOGLE DRIVE SYNC — MY SHAPES (optional, opt-in, additive) ==
+  // Custom Image Reshaper shapes ("My Shapes") follow the signed-in account
+  // exactly like the Assets library does: the local IndexedDB copy is the
+  // source of truth and always works offline / logged out; this layer is a
+  // best-effort MIRROR using the person's own OAuth token, so it can never
+  // block or break a local save. Each shape is one tiny JSON file (its path
+  // + editable points) in a "SARVARC Shapes" folder nested in the same app
+  // folder the sessions and assets use. Local copies always win on sync, and
+  // a deleted shape is tracked so it's removed from Drive too and never
+  // re-appears on another device.
+  const SARVARC_SHAPES_FOLDER_NAME = 'SARVARC Shapes';
+  let sarvarcShapesDriveFolderId = null;
+
+  async function sarvarcDriveEnsureShapesFolder() {
+    if (sarvarcShapesDriveFolderId) return sarvarcShapesDriveFolderId;
+    const parentId = await sarvarcDriveEnsureFolder();
+    const q = encodeURIComponent(
+      `name='${SARVARC_SHAPES_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+    );
+    const listRes = await sarvarcDriveFetch(`files?q=${q}&fields=files(id,name)&spaces=drive`);
+    const listData = await listRes.json();
+    if (listData.files && listData.files.length) {
+      sarvarcShapesDriveFolderId = listData.files[0].id;
+      return sarvarcShapesDriveFolderId;
+    }
+    const token = await sarvarcDriveGetToken();
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: SARVARC_SHAPES_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
+    });
+    if (!createRes.ok) throw new Error('DRIVE_SHAPES_FOLDER_CREATE_' + createRes.status);
+    const createData = await createRes.json();
+    sarvarcShapesDriveFolderId = createData.id;
+    return sarvarcShapesDriveFolderId;
+  }
+
+  // Create-or-update one shape as a JSON file. rec.driveFileId (if known)
+  // updates the same file instead of duplicating it.
+  async function sarvarcDriveSaveShape(rec) {
+    const folderId = await sarvarcDriveEnsureShapesFolder();
+    const isUpdate = !!rec.driveFileId;
+    const payload = { id: rec.id, name: rec.name, d: rec.d, nodes: rec.nodes || null, smooth: rec.smooth, createdAt: rec.createdAt, updatedAt: rec.updatedAt || null };
+    const metadata = isUpdate
+      ? { appProperties: { sarvarcShapeId: rec.id } }
+      : { name: rec.id + '.json', parents: [folderId], appProperties: { sarvarcShapeId: rec.id } };
+    const token = await sarvarcDriveGetToken();
+    if (!token) throw new Error('NO_DRIVE_TOKEN');
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    const url = isUpdate
+      ? `https://www.googleapis.com/upload/drive/v3/files/${rec.driveFileId}?uploadType=multipart`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+    const res = await fetch(url, { method: isUpdate ? 'PATCH' : 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+    if (!res.ok) throw new Error('DRIVE_SHAPE_SAVE_' + res.status);
+    const data = await res.json();
+    if (!isUpdate) {
+      rec.driveFileId = data.id;
+      if (typeof rshMyShapesPersist === 'function') await rshMyShapesPersist();
+    }
+    return data.id;
+  }
+
+  async function sarvarcDriveListShapes() {
+    const folderId = await sarvarcDriveEnsureShapesFolder();
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const res = await sarvarcDriveFetch(`files?q=${q}&fields=files(id,appProperties,modifiedTime)&spaces=drive&pageSize=1000`);
+    const data = await res.json();
+    return (data.files || []).map(f => ({
+      id: (f.appProperties && f.appProperties.sarvarcShapeId) || null,
+      driveFileId: f.id
+    })).filter(f => f.id);
+  }
+
+  async function sarvarcDriveLoadShape(driveFileId) {
+    const res = await sarvarcDriveFetch(`files/${driveFileId}?alt=media`);
+    return await res.json();
+  }
+
+  async function sarvarcDriveDeleteShape(driveFileId) {
+    await sarvarcDriveFetch(`files/${driveFileId}`, { method: 'DELETE' });
+  }
+
+  // Pulls down any Drive shape not already on this device. Local copies win.
+  async function sarvarcShapesSyncDown() {
+    try {
+      if (!(await sarvarcDriveAvailable())) return;
+      const remote = await sarvarcDriveListShapes();
+      await rshMyShapesLoad(true);
+      const dead = await rshTombLoad();
+      let changed = false;
+      for (const rf of remote) {
+        if (dead.some(t => t.id === rf.id || (t.driveFileId && t.driveFileId === rf.driveFileId))) continue;
+        const local = rshMyShapes.find(s => s.id === rf.id);
+        if (local) {
+          if (!local.driveFileId) { local.driveFileId = rf.driveFileId; changed = true; }
+          continue;
+        }
+        try {
+          const rec = await sarvarcDriveLoadShape(rf.driveFileId);
+          if (!rec || !rshShapeIdOk(rec.id) || !rshShapePathOk(rec.d)) continue;
+          rshMyShapes.push({
+            id: rec.id, name: String(rec.name || 'My Shape').slice(0, 40), d: rec.d,
+            nodes: Array.isArray(rec.nodes) ? rec.nodes : null,
+            smooth: typeof rec.smooth === 'number' ? rec.smooth : 100,
+            createdAt: rec.createdAt || Date.now(), driveFileId: rf.driveFileId
+          });
+          changed = true;
+        } catch (e) { console.warn('[Drive sync] could not pull shape', rf.id, e); }
+      }
+      if (changed) {
+        rshMyShapes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        await rshMyShapesPersist();
+        const ov = document.getElementById('reshapeOverlay');
+        if (ov && ov.classList.contains('open') && typeof renderReshapeGrid === 'function') renderReshapeGrid();
+      }
+    } catch (e) { console.warn('[Drive sync] shapes skipped', e); }
+  }
+
+  // Pushes up shapes that never reached Drive, and removes deleted ones.
+  async function sarvarcShapesSyncUp() {
+    try {
+      if (!(await sarvarcDriveAvailable())) return;
+      const tomb = await rshTombLoad();
+      if (tomb.length) {
+        const keep = [];
+        for (const t of tomb) {
+          if (!t.driveFileId) continue;
+          try { await sarvarcDriveDeleteShape(t.driveFileId); }
+          catch (e) { if (!/_404$/.test(String(e && e.message))) keep.push(t); }
+        }
+        await rshKvPut('myShapesDeleted', keep);
+      }
+      await rshMyShapesLoad(true);
+      for (const rec of rshMyShapes) {
+        if (rec.driveFileId) continue;
+        try { await sarvarcDriveSaveShape(rec); } catch (e) { /* best-effort, ignore */ }
+      }
+    } catch (e) { console.warn('[Drive sync] shapes up skipped', e); }
   }
 
   let sarvarcAuthMode = 'login'; // 'login' | 'signup'
@@ -75235,6 +76221,8 @@ if (document.readyState === 'loading') {
     // signatures), so it follows a signed-in account across PCs too.
     if (typeof sarvarcAssetsSyncDown === 'function') sarvarcAssetsSyncDown();
     if (typeof sarvarcAssetsSyncUp === 'function') sarvarcAssetsSyncUp();
+    // And My Shapes (custom Image Reshaper shapes), so they follow the account too.
+    if (typeof sarvarcShapesSyncDown === 'function') sarvarcShapesSyncDown().then(() => { if (typeof sarvarcShapesSyncUp === 'function') sarvarcShapesSyncUp(); });
     return displayName;
   }
 
