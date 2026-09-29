@@ -31429,6 +31429,472 @@ async function confirmInsertPage() {
   }
 }
 
+// --- SAYLA: CHANGE CANVAS SIZE + REFLOW CONTENT (build 277) ---------------
+// Lets Sayla switch a page to another format or ratio (A4 to 16:9, A3, square,
+// story, custom) and rearrange what is on it, without cropping or distorting.
+// --- SAYLA: CANVAS RESIZE + CONTENT REFLOW (pure layout, no DOM) ---
+// items: [{ id, key, kind, x, y, w, h, wm }]  kind: text|table|image|shape|border
+//   x/y/w/h are page px on the OLD page (W x H). wm = watermark/decor flag.
+// Returns { mode, columns, scale, warnings, boxes: { id: {x,y,w,h,s} } }
+//   s = the uniform factor that item's own font/stroke/column sizes should get.
+// Nothing here ever crops, overlaps or distorts: content is only moved, and
+// scaled by ONE shared factor. If no layout fits, it falls back to a plain
+// contain-and-center fit, which cannot hurt anything.
+function pdfedReflowPlan(items, W, H, W2, H2, opts) {
+  opts = opts || {};
+  const sx = W2 / W, sy = H2 / H, sFit = Math.min(sx, sy);
+  const boxes = {};
+  const warnings = [];
+  const fitAll = function(why) {
+    const ox = (W2 - W * sFit) / 2, oy = (H2 - H * sFit) / 2;
+    items.forEach(function(it) { boxes[it.id] = { x: it.x * sFit + ox, y: it.y * sFit + oy, w: it.w * sFit, h: it.h * sFit, s: sFit }; });
+    return { mode: 'fit', columns: 1, scale: sFit, warnings: why ? [why] : [], boxes: boxes };
+  };
+  if (!items.length) return { mode: 'empty', columns: 1, scale: sFit, warnings: [], boxes: boxes };
+  const layout = opts.layout || 'auto';
+  if (layout === 'fit') return fitAll();
+
+  const aspectOld = W / H, aspectNew = W2 / H2;
+  const sameShape = Math.abs(aspectNew / aspectOld - 1) < 0.06;
+  if (sameShape && !opts.columns && layout !== 'reflow') {
+    // Same shape, different size: everything keeps its place, just scaled.
+    items.forEach(function(it) { boxes[it.id] = { x: it.x * sx, y: it.y * sy, w: it.w * sFit, h: it.h * sFit, s: sFit }; });
+    return { mode: 'scale', columns: 1, scale: sFit, warnings: [], boxes: boxes };
+  }
+
+  // 1. Page-anchored decoration (frames, full-page backdrops, watermarks).
+  const frames = [], content = [];
+  items.forEach(function(it) {
+    const isFrame = it.wm || (it.w >= 0.8 * W && it.h >= 0.8 * H);
+    (isFrame ? frames : content).push(it);
+  });
+  frames.forEach(function(it) {
+    if (it.kind !== 'shape' && it.kind !== 'border') {
+      const w2 = it.w * sFit, h2 = it.h * sFit;
+      boxes[it.id] = { x: (it.x + it.w / 2) * sx - w2 / 2, y: (it.y + it.h / 2) * sy - h2 / 2, w: w2, h: h2, s: sFit };
+    } else {
+      boxes[it.id] = { x: it.x * sx, y: it.y * sy, w: it.w * sx, h: it.h * sy, s: sFit };
+    }
+  });
+  if (!content.length) return { mode: 'scale', columns: 1, scale: sFit, warnings: [], boxes: boxes };
+
+  // 2. Bands: items that share vertical space stay together as one rigid group,
+  //    so side-by-side layouts and text-on-a-card keep their internal geometry.
+  const sorted = content.slice().sort(function(a, b) { return a.y - b.y || a.x - b.x; });
+  let bands = [];
+  sorted.forEach(function(it) {
+    const last = bands[bands.length - 1];
+    if (last && it.y < last.maxY - 2) {
+      last.items.push(it);
+      last.maxY = Math.max(last.maxY, it.y + it.h);
+      last.minX = Math.min(last.minX, it.x);
+      last.maxX = Math.max(last.maxX, it.x + it.w);
+    } else {
+      bands.push({ items: [it], minX: it.x, maxX: it.x + it.w, minY: it.y, maxY: it.y + it.h });
+    }
+  });
+  bands.forEach(function(b) { b.w = Math.max(1, b.maxX - b.minX); b.h = Math.max(1, b.maxY - b.minY); });
+
+  // 3. A slim band sitting at the very bottom is a footer: pin it there.
+  let footers = [];
+  if (bands.length > 1) {
+    const lb = bands[bands.length - 1];
+    if (lb.minY >= 0.86 * H && lb.h <= 0.14 * H) footers = [bands.pop()];
+  }
+
+  const margin = Math.max(20, Math.round(0.05 * Math.min(W2, H2)));
+  const gap = Math.max(14, Math.round(0.03 * Math.min(W2, H2)));
+  const bandGap = function(i, s) {
+    if (i <= 0) return 0;
+    const g = bands[i].minY - bands[i - 1].maxY;
+    return Math.max(6, g * s);
+  };
+  const footerReserve = function(s) {
+    return footers.reduce(function(a, f) { return a + f.h * s; }, 0) + (footers.length ? gap : 0);
+  };
+
+  // Flow the bands into `c` columns at scale s. Bands too wide for one column
+  // span several; a spanning band closes the current columns and starts a new row.
+  function flow(c, s) {
+    const usableW = W2 - 2 * margin;
+    const colW = (usableW - gap * (c - 1)) / c;
+    const bottom = H2 - margin - footerReserve(s);
+    const out = [];
+    let y = margin, i = 0;
+    while (i < bands.length) {
+      const b = bands[i];
+      const needW = b.w * s;
+      const span = Math.ceil((needW + gap) / (colW + gap) - 1e-9);
+      if (span > c) return { ok: false };
+      if (span > 1) {
+        const spanW = colW * span + gap * (span - 1);
+        if (y + (i ? bandGap(i, s) : 0) + b.h * s > bottom + 0.5) return { ok: false };
+        y += (i ? bandGap(i, s) : 0);
+        out.push({ b: b, x: margin, w: c > 1 && span === c ? usableW : spanW, top: y });
+        y += b.h * s; i++;
+        continue;
+      }
+      // a run of ordinary bands: balance them across the columns
+      let j = i;
+      while (j < bands.length && Math.ceil((bands[j].w * s + gap) / (colW + gap) - 1e-9) <= 1) j++;
+      const run = bands.slice(i, j);
+      const hs = run.map(function(r, k) { return r.h * s + (k ? bandGap(i + k, s) : 0); });
+      const total = hs.reduce(function(a, v) { return a + v; }, 0);
+      const tallest = Math.max.apply(null, run.map(function(r) { return r.h * s; }));
+      const avail = bottom - (y + (i ? bandGap(i, s) : 0));
+      if (tallest > avail + 0.5) return { ok: false };
+      const startY = y + (i ? bandGap(i, s) : 0);
+      let placed = null;
+      for (let target = Math.max(tallest, total / c); target <= avail + 0.5; target += Math.max(2, avail / 60)) {
+        const cols = [[]]; let used = 0, fail = false;
+        run.forEach(function(r, k) {
+          const need = r.h * s;
+          const gapBefore = cols[cols.length - 1].length ? bandGap(i + k, s) : 0;
+          if (used + gapBefore + need > target + 0.01 && cols[cols.length - 1].length) {
+            if (cols.length >= c) { fail = true; return; }
+            cols.push([]); used = 0;
+          }
+          const gb = cols[cols.length - 1].length ? bandGap(i + k, s) : 0;
+          cols[cols.length - 1].push({ r: r, top: startY + used + gb });
+          used += gb + need;
+        });
+        if (!fail) { placed = cols; break; }
+      }
+      if (!placed) return { ok: false };
+      let rowBottom = startY;
+      placed.forEach(function(col, ci) {
+        col.forEach(function(e) {
+          out.push({ b: e.r, x: margin + ci * (colW + gap), w: colW, top: e.top });
+          rowBottom = Math.max(rowBottom, e.top + e.r.h * s);
+        });
+      });
+      y = rowBottom; i = j;
+    }
+    return { ok: true, out: out, endY: y };
+  }
+
+  const maxC = opts.columns ? Math.max(1, Math.min(4, Math.round(opts.columns))) : 3;
+  const minC = opts.columns ? maxC : 1;
+  const sTop = Math.min(opts.maxScale || 2.5, Math.max(sx, sy));
+  let best = null;
+  for (let c = minC; c <= maxC; c++) {
+    for (let s = sTop; s >= 0.2; s *= 0.97) {
+      const r = flow(c, s);
+      if (r.ok) {
+        const score = s * (1 - 0.03 * (c - 1));
+        if (!best || score > best.score + 1e-6) best = { c: c, s: s, r: r, score: score };
+        break;
+      }
+    }
+  }
+  if (!best || best.s < 0.25) return fitAll('the content was too much to reflow, so it was scaled to fit instead');
+
+  const s = best.s;
+  // Puts one band's items into the box p = {x, w, top}. Items keep their left /
+  // right / centre anchoring, shapes and bars that spanned their band stretch to
+  // its new width, and anything that bled off a page edge keeps bleeding.
+  function placeBand(b, p) {
+    b.items.forEach(function(it) {
+      const gl = it.x - b.minX, gr = b.maxX - (it.x + it.w);
+      const stretch = (it.kind === 'shape' || it.kind === 'border') && it.w >= 0.9 * b.w;
+      let nx, nw = it.w * s, ny = p.top + (it.y - b.minY) * s, nh = it.h * s;
+      if (stretch) {
+        nx = p.x; nw = p.w;
+        if (it.x <= 2 && it.x + it.w >= W - 2) { nx = 0; nw = W2; }
+        if (it.y <= 2) { ny = 0; nh = p.top + (it.y - b.minY) * s + it.h * s; }
+        else if (it.y + it.h >= H - 2) { nh = (H2 - ny); }
+      }
+      else if (gl <= gr * 0.5 + 1) nx = p.x + gl * s;
+      else if (gr <= gl * 0.5 + 1) nx = p.x + p.w - gr * s - nw;
+      else nx = p.x + p.w / 2 + ((it.x + it.w / 2) - (b.minX + b.w / 2)) * s - nw / 2;
+      boxes[it.id] = { x: nx, y: ny, w: nw, h: nh, s: s };
+    });
+  }
+  best.r.out.forEach(function(p) { placeBand(p.b, p); });
+  footers.forEach(function(f) { placeBand(f, { x: margin, w: W2 - 2 * margin, top: H2 - margin - f.h * s }); });
+  if (s < 0.55) warnings.push('text became small on the new canvas');
+  return { mode: 'reflow', columns: best.c, scale: s, warnings: warnings, boxes: boxes };
+}
+
+// Standard page sizes Sayla can switch to (mm, portrait w x h). Same table as
+// PDFED_FORMAT_MM plus US Letter.
+const PDFED_SAYLA_FORMAT_MM = { a4: [210, 297], a3: [297, 420], a5: [148, 210], legal: [215.9, 355.6], letter: [215.9, 279.4] };
+
+// Works out the new page size in mm from what Sayla asked for. Returns null
+// when no size was named. A ratio keeps the page's LONG edge (A4 portrait to
+// 16:9 gives 297 x 167 mm), a preset keeps the current orientation unless one
+// is given, and custom takes width/height in mm or px (96 dpi).
+function pdfedSaylaTargetMM(p, curMM) {
+  const wantLand = p.orientation === 'landscape', wantPort = p.orientation === 'portrait';
+  const fmt = p.format ? String(p.format).toLowerCase() : '';
+  let w, h;
+  if (p.aspect_ratio) {
+    const m = String(p.aspect_ratio).match(/^\s*(\d+(?:\.\d+)?)\s*[:x\/]\s*(\d+(?:\.\d+)?)\s*$/i);
+    if (!m || !(parseFloat(m[1]) > 0) || !(parseFloat(m[2]) > 0)) throw new Error('aspect_ratio must look like 16:9');
+    let a = parseFloat(m[1]), b = parseFloat(m[2]);
+    if (wantLand && a < b) { const t = a; a = b; b = t; }
+    else if (wantPort && a > b) { const t = a; a = b; b = t; }
+    const long = Math.max(curMM[0], curMM[1]);
+    if (a >= b) { w = long; h = long * b / a; } else { h = long; w = long * a / b; }
+  } else if (fmt && fmt !== 'custom') {
+    const preset = PDFED_SAYLA_FORMAT_MM[fmt];
+    if (!preset) throw new Error('unknown page format "' + p.format + '"');
+    w = preset[0]; h = preset[1];
+    const land = wantLand || (!wantPort && curMM[0] > curMM[1]);
+    if (land) { const t = w; w = h; h = t; }
+  } else if (Number(p.width_mm) > 0 && Number(p.height_mm) > 0) {
+    w = Number(p.width_mm); h = Number(p.height_mm);
+  } else if (Number(p.width_px) > 0 && Number(p.height_px) > 0) {
+    w = Number(p.width_px) / 3.7795; h = Number(p.height_px) / 3.7795;
+  } else if (fmt === 'custom') {
+    throw new Error('custom size needs both a width and a height');
+  } else {
+    return null;
+  }
+  if (!(w >= 20 && h >= 20 && w <= 5000 && h <= 5000)) throw new Error('that page size is out of range');
+  return [w, h];
+}
+
+// True when the page bitmap is only a background (solid colour or a smooth
+// gradient), so it can be stretched to any shape without distorting anything.
+// Text, logos, scans and artwork all show up as hard edges and return false.
+async function pdfedSaylaRasterIsFlat(img) {
+  const k = Math.min(1, 500 / img.naturalWidth);
+  const w = Math.max(8, Math.round(img.naturalWidth * k)), h = Math.max(8, Math.round(img.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data;
+  let edges = 0;
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w - 1; x++) {
+      const i = (y * w + x) * 4, r = i + 4, b = i + w * 4;
+      const dx = Math.abs(d[i] - d[r]) + Math.abs(d[i + 1] - d[r + 1]) + Math.abs(d[i + 2] - d[r + 2]);
+      const dy = Math.abs(d[i] - d[b]) + Math.abs(d[i + 1] - d[b + 1]) + Math.abs(d[i + 2] - d[b + 2]);
+      if (dx > 45 || dy > 45) { if (++edges > 40) return false; }
+    }
+  }
+  return true;
+}
+
+// Colour for the bars left around a page that is scaled to fit: the median of
+// its corners and edge midpoints.
+function pdfedSaylaEdgeColor(img) {
+  const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0, 32, 32);
+  const pts = [[0, 0], [31, 0], [0, 31], [31, 31], [16, 0], [16, 31], [0, 16], [31, 16]];
+  const ch = [[], [], []];
+  pts.forEach(function(pt) { const px = g.getImageData(pt[0], pt[1], 1, 1).data; for (let n = 0; n < 3; n++) ch[n].push(px[n]); });
+  const med = ch.map(function(a) { a.sort(function(x, y) { return x - y; }); return Math.round((a[3] + a[4]) / 2); });
+  return 'rgb(' + med[0] + ',' + med[1] + ',' + med[2] + ')';
+}
+
+const PDFED_SAYLA_PLACED_KEYS = [['placedTexts', 'text'], ['placedImages', 'image'], ['placedTables', 'table'], ['placedShapes', 'shape'], ['placedBorders', 'border']];
+
+// Everything a canvas resize can change on one page, so undo/redo can put it back.
+function pdfedSaylaCanvasSnap(pg) {
+  const o = {
+    dataUrl: pg.dataUrl, pageMM: pg.pageMM ? pg.pageMM.slice() : pg.pageMM, width: pg.width, height: pg.height,
+    textBlocks: pg.textBlocks ? JSON.parse(JSON.stringify(pg.textBlocks)) : pg.textBlocks,
+    pre: pg.edits ? pg.edits.preTintDataUrl : undefined, base: pg.edits ? pg.edits.canvasTintBaseDataUrl : undefined,
+    placed: {}
+  };
+  PDFED_SAYLA_PLACED_KEYS.forEach(function(kk) {
+    const a = pg[kk[0]];
+    o.placed[kk[0]] = Array.isArray(a) ? a.map(function(it) { return Object.assign({}, it); }) : a;
+  });
+  return o;
+}
+function pdfedSaylaCanvasRestore(pg, o) {
+  pg.dataUrl = o.dataUrl; pg.pageMM = o.pageMM ? o.pageMM.slice() : o.pageMM; pg.width = o.width; pg.height = o.height;
+  pg.textBlocks = o.textBlocks ? JSON.parse(JSON.stringify(o.textBlocks)) : o.textBlocks;
+  pg._teFafGeom = null;
+  if (pg.edits) { pg.edits.preTintDataUrl = o.pre; pg.edits.canvasTintBaseDataUrl = o.base; }
+  PDFED_SAYLA_PLACED_KEYS.forEach(function(kk) {
+    const a = o.placed[kk[0]];
+    pg[kk[0]] = Array.isArray(a) ? a.map(function(it) { return Object.assign({}, it); }) : a;
+  });
+  pg.modified = true;
+}
+
+// Writes one planned box onto a live placed object. Sizes that belong to the
+// object (font, strokes, table columns and rows) scale by the box's own factor.
+function pdfedSaylaApplyBox(it, kind, o, b) {
+  const s = b.s;
+  const sc = function(k) { if (typeof o[k] === 'number') it[k] = o[k] * s; };
+  it.x = b.x; it.y = b.y;
+  if (kind === 'table') {
+    it.colWidths = (o.colWidths || []).map(function(v) { return v * s; });
+    it.rowHeights = (o.rowHeights || []).map(function(v) { return v * s; });
+    ['fontSize', 'padding', 'cellPadding', 'borderWidth'].forEach(sc);
+  } else if (kind === 'text') {
+    if (typeof o.w === 'number') it.w = b.w;
+    if (typeof o.h === 'number') it.h = b.h;
+    ['fontSize', 'letterSpacing', 'padding', 'borderRadius', 'borderWidth'].forEach(sc);
+  } else if (kind === 'image') {
+    it.w = b.w; it.h = b.h;
+    ['borderWidth', 'borderRadius'].forEach(sc);
+  } else if (kind === 'shape') {
+    it.w = b.w; it.h = b.h;
+    if (typeof o.size === 'number') it.size = Math.max(1, o.size * s);
+  } else if (kind === 'border') {
+    it.w = b.w; it.h = b.h;
+    if (typeof o.thickness === 'number') it.thickness = Math.max(1, o.thickness * s);
+  }
+}
+
+// After a reflow: does any text box now run past the edge of the page?
+function pdfedSaylaTextOverflows(pg, W2, H2) {
+  return (pg.placedTexts || []).some(function(t) {
+    const el = document.querySelector('.pdfed-placed-text[data-id="' + t.id + '"]');
+    return !!el && (t.x + el.offsetWidth > W2 + 2 || t.y + el.offsetHeight > H2 + 2);
+  });
+}
+
+// Changes the canvas size of one, some or all pages and rearranges the content
+// to suit the new shape. Nothing is cropped or stretched:
+//  - a page whose bitmap is just a background (solid or gradient) gets a new
+//    background at the new size and its placed text, images, tables and shapes
+//    are REFLOWED (columns, anchoring, one shared scale) by pdfedReflowPlan;
+//  - a page whose bitmap is real content (a scanned or imported PDF, artwork)
+//    is scaled to fit, centred, with everything on it moving together.
+// After each reflow the real text boxes are measured; if any runs off the page
+// the scale is trimmed and it is retried, and the last resort is a plain fit.
+async function pdfedSaylaResizeCanvas(p) {
+  p = p || {};
+  if (!pdfed.pages.length) throw new Error('open a document first');
+  const total = pdfed.pages.length;
+  let nums;
+  if (p.pages === 'all') nums = Array.from({ length: total }, function(_, i) { return i + 1; });
+  else if (Array.isArray(p.pages) && p.pages.length) nums = p.pages.map(function(n) { return parseInt(n, 10); }).filter(function(n) { return n >= 1 && n <= total; });
+  else nums = [(pdfed.active < 0 ? 0 : pdfed.active) + 1];
+  if (!nums.length) throw new Error('none of those page numbers exist in this document');
+  nums = Array.from(new Set(nums));
+
+  const layout = (p.layout === 'reflow' || p.layout === 'fit') ? p.layout : 'auto';
+  const columns = Math.max(0, Math.min(4, parseInt(p.columns, 10) || 0));
+  const bgMode = (p.background === 'stretch' || p.background === 'fit') ? p.background : 'auto';
+  const startActive = pdfed.active >= 0 ? pdfed.active : 0;
+  const results = [], changed = [];
+  const fmtMM = function(v) { return Math.round(v * 10) / 10; };
+
+  for (const num of nums) {
+    const idx = num - 1, pg = pdfed.pages[idx];
+    const img = await pdfedLoadPageImage(pg);
+    if (!img || !img.naturalWidth) { results.push({ page: num, skipped: 'could not read this page' }); continue; }
+    const W = img.naturalWidth, H = img.naturalHeight, pxmm = pdfedPageDensity(pg);
+    const curMM = [W / pxmm, H / pxmm];
+    let target = pdfedSaylaTargetMM(p, curMM);
+    if (!target) {
+      if (columns || layout === 'reflow') target = curMM;
+      else throw new Error('tell me the new size: a format like A3, a ratio like 16:9, or a custom width and height');
+    }
+    const W2 = Math.max(1, Math.round(target[0] * pxmm)), H2 = Math.max(1, Math.round(target[1] * pxmm));
+    if (W2 * H2 > 60000000) throw new Error('that size is too large to render');
+    if (Math.abs(W2 - W) <= 1 && Math.abs(H2 - H) <= 1 && !columns && layout !== 'reflow') {
+      results.push({ page: num, skipped: 'already that size' });
+      continue;
+    }
+
+    await pdfedGoto(idx); // the page must be on screen so text boxes can be measured
+    const snapBefore = pdfedSaylaCanvasSnap(pg);
+    const hasBlocks = Array.isArray(snapBefore.textBlocks) && snapBefore.textBlocks.length > 0;
+    let stretch;
+    if (bgMode === 'stretch') stretch = true;
+    else if (bgMode === 'fit') stretch = false;
+    else stretch = pg.type === 'blank' && await pdfedSaylaRasterIsFlat(img);
+    if (hasBlocks) stretch = false; // edited scan text sits on the bitmap: move it as one piece
+
+    // new bitmap
+    const out = document.createElement('canvas'); out.width = W2; out.height = H2;
+    const g = out.getContext('2d');
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    const sF = Math.min(W2 / W, H2 / H), ox = (W2 - W * sF) / 2, oy = (H2 - H * sF) / 2;
+    if (stretch) g.drawImage(img, 0, 0, W2, H2);
+    else {
+      g.fillStyle = pg.bgColor || pdfedSaylaEdgeColor(img);
+      g.fillRect(0, 0, W2, H2);
+      g.drawImage(img, ox, oy, W * sF, H * sF);
+    }
+    let newUrl;
+    try { newUrl = out.toDataURL('image/png'); }
+    catch (e) { results.push({ page: num, skipped: 'could not re-render this page' }); continue; }
+
+    // placed objects
+    const items = [], live = {}, orig = {};
+    PDFED_SAYLA_PLACED_KEYS.forEach(function(kk) {
+      (pg[kk[0]] || []).forEach(function(it, n) {
+        if (typeof it.x !== 'number' || typeof it.y !== 'number') return;
+        let w = it.w, h = it.h;
+        if (kk[1] === 'table') {
+          w = (it.colWidths || []).reduce(function(a, v) { return a + v; }, 0);
+          h = (it.rowHeights || []).reduce(function(a, v) { return a + v; }, 0);
+        } else if (kk[1] === 'text') {
+          const el = document.querySelector('.pdfed-placed-text[data-id="' + it.id + '"]');
+          w = (typeof it.w === 'number' && it.w > 0) ? it.w : (el ? el.offsetWidth : 200);
+          h = el ? el.offsetHeight : (it.h || (it.fontSize || 14) * 1.5);
+        }
+        if (!(w > 0)) w = 1;
+        if (!(h > 0)) h = 1;
+        const id = kk[0] + ':' + n;
+        items.push({ id: id, key: kk[0], kind: kk[1], x: it.x, y: it.y, w: w, h: h, wm: !!it._watermark });
+        live[id] = it; orig[id] = Object.assign({}, it);
+      });
+    });
+
+    const planLayout = stretch ? layout : 'fit';
+    let plan = null, cap = 0, note = '';
+    for (let a = 0; a < 6; a++) {
+      const lastResort = (a === 5);
+      plan = pdfedReflowPlan(items, W, H, W2, H2, { layout: lastResort ? 'fit' : planLayout, columns: stretch ? columns : 0, maxScale: cap || undefined });
+      items.forEach(function(row) { Object.assign(live[row.id], orig[row.id]); pdfedSaylaApplyBox(live[row.id], row.kind, orig[row.id], plan.boxes[row.id]); });
+      if (hasBlocks) {
+        pg.textBlocks = JSON.parse(JSON.stringify(snapBefore.textBlocks)).map(function(tb) {
+          tb.x = tb.x * sF + ox; tb.y = tb.y * sF + oy;
+          ['fontSize', 'origWidth', 'origHeight'].forEach(function(k) { if (typeof tb[k] === 'number') tb[k] = tb[k] * sF; });
+          return tb;
+        });
+        pg._teFafGeom = null;
+      }
+      pg.dataUrl = newUrl; pg.pageMM = [target[0], target[1]]; pg.width = W2; pg.height = H2;
+      if (pg.edits) { pg.edits.preTintDataUrl = undefined; pg.edits.canvasTintBaseDataUrl = undefined; }
+      await pdfedGoto(idx);
+      if (plan.mode !== 'reflow' || lastResort || !pdfedSaylaTextOverflows(pg, W2, H2)) { if (lastResort) note = 'the layout would not fit cleanly, so it was scaled to fit instead'; break; }
+      cap = plan.scale * 0.94;
+    }
+    pdfedMarkModified(idx);
+    changed.push({ idx: idx, before: snapBefore, after: pdfedSaylaCanvasSnap(pg) });
+    if (!note && stretch === false && columns) note = 'this page is a picture or scan, so its content was scaled to fit instead of rearranged';
+    if (!note && plan.warnings.length) note = plan.warnings[0];
+    results.push({
+      page: num, from: fmtMM(curMM[0]) + ' x ' + fmtMM(curMM[1]) + ' mm', to: fmtMM(target[0]) + ' x ' + fmtMM(target[1]) + ' mm',
+      layout: plan.mode, columns: plan.columns, contentScalePct: Math.round(plan.scale * 100), note: note || undefined
+    });
+  }
+
+  if (!changed.length) return { pagesChanged: 0, results: results };
+
+  await pdfedBuildStrip();
+  await pdfedGoto(Math.min(startActive, pdfed.pages.length - 1));
+  setTimeout(function() { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 50);
+
+  const restoreAll = async function(which) {
+    changed.forEach(function(c) { if (pdfed.pages[c.idx]) pdfedSaylaCanvasRestore(pdfed.pages[c.idx], c[which]); });
+    await pdfedBuildStrip();
+    await pdfedGoto(Math.min(Math.max(pdfed.active, 0), pdfed.pages.length - 1));
+    setTimeout(function() { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); }, 50);
+  };
+  pushSaylaAppHistory({
+    label: 'Resize canvas (Sayla)',
+    undo: async function() { await restoreAll('before'); toast('Canvas size put back', 'info'); },
+    redo: async function() { await restoreAll('after'); toast('Canvas resized again', 'success'); }
+  });
+  toast('Canvas resized and content rearranged to fit', 'success');
+  return { pagesChanged: changed.length, results: results };
+}
+
+
 // ─── SAYLA: INSERT PAGE (programmatic, no modal) ─────────────────────────
 // Same core page-creation path confirmInsertPage() above uses (blank page
 // only -- Sayla can't attach an image file mid-conversation, so the
@@ -80433,6 +80899,10 @@ if (document.readyState === 'loading') {
           // (percent of page height). Sayla uses these with the screenshot to
           // choose a region for pdfed_add_text_to_page.
           pageSizePx: (typeof pdfedSaylaPageSizePx === 'function') ? pdfedSaylaPageSizePx(page, pdfed.active) : null,
+          // Build 277: real page size in mm (so Sayla knows A4 vs 16:9), and the flag the Worker
+          // uses to know this client has pdfed_resize_canvas.
+          pageMM: page ? (page.pageMM || null) : null,
+          canvasResize: (typeof pdfedSaylaResizeCanvas === 'function'),
           pageBgColor: page ? (page.bgColor || null) : null,
           contentBottomPct: (function(){
             try {
@@ -81433,6 +81903,23 @@ if (document.readyState === 'loading') {
     // whichever action Sayla herself performed most recently, without the
     // person needing to reach for Ctrl+Z. See saylaUndoLastAction above for
     // why this only fires when nothing has happened on top of it.
+    // Changes the canvas size of one / some / all pages and rearranges the content
+    // to suit the new shape (see pdfedSaylaResizeCanvas). Undo puts every page back.
+    pdfed_resize_canvas: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaResizeCanvas(p || {}); },
+      label: function(p){
+        p = p || {};
+        let to;
+        if (p.aspect_ratio) to = String(p.aspect_ratio);
+        else if (p.format && String(p.format).toLowerCase() !== 'custom') to = String(p.format).toUpperCase() + (p.orientation ? ' ' + p.orientation : '');
+        else if (p.width_mm && p.height_mm) to = p.width_mm + '\u00d7' + p.height_mm + 'mm';
+        else if (p.width_px && p.height_px) to = p.width_px + '\u00d7' + p.height_px + 'px';
+        else to = 'a new layout';
+        const where = p.pages === 'all' ? 'every page' : (Array.isArray(p.pages) && p.pages.length ? 'page' + (p.pages.length === 1 ? ' ' + p.pages[0] : 's ' + p.pages.join(', ')) : 'this page');
+        return 'Change ' + where + ' to ' + to + ' and rearrange the content to fit.';
+      }
+    },
     sayla_undo_last_action: {
       risk: 'safe',
       run: function(){
