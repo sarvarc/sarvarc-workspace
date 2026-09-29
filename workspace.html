@@ -18933,6 +18933,122 @@ function pdfedSaylaResolveDesignTargets(target) {
   return pg.placedImages.length === 1 ? pg.placedImages.slice() : [];
 }
 
+// ─── SAYLA — RESHAPE IMAGE ──────────────────────────────────────────────
+// Lets Sayla cut a placed image into one of the Image Reshaper's shapes
+// (built-ins like circle/blob1/hexagon AND the person's own "My Shapes")
+// without opening the modal. Uses the exact same clip/bevel pipeline and
+// undo/redo entry as applyReshapeConfirm so a Sayla-made reshape is
+// indistinguishable from a manual one. Target resolution matches
+// pdfedSaylaApplyImageDesign: 'all' = every image on the page, otherwise
+// the selected image(s), or the only image if the page has just one.
+function pdfedSaylaFindReshapeShape(query) {
+  const all = rshAllShapes();
+  const q = String(query == null ? '' : query).trim().toLowerCase();
+  if (!q) return null;
+  const norm = function(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+  const nq = norm(q);
+  // Plain-English aliases so "soft blob", "round", "rounded square" etc. land somewhere sensible.
+  const aliases = {
+    round: 'circle', oval: 'circle', rounded: 'squircle', roundedsquare: 'squircle',
+    blob: 'blob1', softblob: 'blob1', organic: 'blob1', hex: 'hexagon',
+    star: 'starburst', badge: 'medallion', crest: 'shield', gemstone: 'gem', diamondcut: 'gem'
+  };
+  return all.find(function(s){ return s.id.toLowerCase() === q; })
+      || all.find(function(s){ return norm(s.name) === nq || norm(s.id) === nq; })
+      || all.find(function(s){ return s.id === aliases[nq]; })
+      || all.find(function(s){ return norm(s.name).indexOf(nq) !== -1 || nq.indexOf(norm(s.name)) !== -1; })
+      || null;
+}
+
+async function pdfedSaylaReshapeImage(p) {
+  p = p || {};
+  const requested = p.shape || p.shape_id || p.shapeId || p.name || 'circle';
+  const shape = pdfedSaylaFindReshapeShape(requested);
+  if (!shape) {
+    throw new Error('no shape called "' + requested + '". Available: ' +
+      rshAllShapes().map(function(s){ return s.id; }).join(', '));
+  }
+  const items = pdfedSaylaResolveDesignTargets(p.target);
+  if (items.length === 0) {
+    const pg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
+    if (pg && pg.placedImages && pg.placedImages.length > 1) {
+      throw new Error('there are several images on this page, select the one you mean first (or say "all images")');
+    }
+    throw new Error('no image to reshape, place or select one first');
+  }
+  const pageIdx = pdfed.active;
+  const bevel = p.bevel === true;
+  const bevelStyle = ['gold', 'silver', 'graphite'].indexOf(p.bevel_style) !== -1 ? p.bevel_style : 'gold';
+
+  const results = await Promise.all(items.map(function(item){ return new Promise(function(resolve, reject){
+    const img = new Image();
+    img.onload = function(){
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      const sx = w / 1000, sy = h / 1000, avgScale = (sx + sy) / 2;
+      const path = new Path2D(shape.d);
+      ctx.save();
+      ctx.scale(sx, sy);
+      if (bevel) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.55)';
+        ctx.shadowBlur = 40 / avgScale;
+        ctx.shadowOffsetY = 16 / avgScale;
+        ctx.fillStyle = 'rgba(0,0,0,0.001)';
+        ctx.fill(path);
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.clip(path);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(img, 0, 0, w, h);
+      ctx.restore();
+      if (bevel) {
+        ctx.save();
+        ctx.lineWidth = 20 / avgScale;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = rshBuildBevelGradient(ctx, bevelStyle);
+        ctx.stroke(path);
+        ctx.lineWidth = 5 / avgScale;
+        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+        ctx.stroke(path);
+        ctx.restore();
+      }
+      ctx.restore();
+      resolve({ item: item, prevDataUrl: item.dataUrl, newDataUrl: canvas.toDataURL('image/png') });
+    };
+    img.onerror = function(){ reject(new Error('could not read the image to reshape it')); };
+    img.src = item.dataUrl;
+  }); }));
+
+  results.forEach(function(r){ r.item.dataUrl = r.newDataUrl; });
+  pdfedMarkModified(pageIdx);
+  pdfedRenderPlacedImages(pageIdx);
+
+  pushAppHistory({
+    label: 'Reshape image (Sayla)',
+    undo: function(){
+      results.forEach(function(r){ r.item.dataUrl = r.prevDataUrl; });
+      pdfedMarkModified(pageIdx);
+      pdfedRenderPlacedImages(pageIdx);
+      toast('Reshape undone', 'info');
+    },
+    redo: function(){
+      results.forEach(function(r){ r.item.dataUrl = r.newDataUrl; });
+      pdfedMarkModified(pageIdx);
+      pdfedRenderPlacedImages(pageIdx);
+      toast('Shape applied, ' + shape.name, 'success');
+    }
+  });
+
+  if (typeof swTrack === 'function') {
+    swTrack('sayla_image_reshaped', { module: 'pdf_editor', shape: shape.id, bevel: bevel, count: items.length });
+  }
+  return 'Reshaped into ' + shape.name + (items.length > 1 ? ' on ' + items.length + ' images' : '') + '.';
+}
+
 async function pdfedSaylaApplyImageDesign(p) {
   p = p || {};
   const preset = PDFED_DESIGN_PRESETS.find(pr => pr.id === p.preset);
@@ -78906,6 +79022,17 @@ if (document.readyState === 'loading') {
   //     a silent default. Throws when nothing is selected and the page has
   //     more than one image -- ask which one they mean rather than
   //     guessing, exactly like a missing required param elsewhere.
+  //   pdfed_reshape_image {shape, target?: 'selected'|'all', bevel?: boolean, bevel_style?: 'gold'|'silver'|'graphite'}
+  //     -- Cuts placed image(s) into a shape from the Image Reshaper (same
+  //     engine as the Reshape modal). Use this for "make it a circle / blob /
+  //     hexagon", "give it a custom shape", "crop it into a shape". `shape`
+  //     MUST be one of these ids: circle, squircle, hexagon, octagon, diamond,
+  //     shield, arch, wave, blob1 (soft blob), blob2, leaf, ribbon, medallion,
+  //     gem, starburst -- or the name/id of one of the person's own saved
+  //     "My Shapes". Pick the closest match yourself ("soft blob" -> blob1,
+  //     "rounded" -> squircle); only ask which shape if they gave no hint at
+  //     all. `target` works exactly like pdfed_apply_image_design. `bevel`
+  //     adds a metallic rim (default false) -- only set it when asked.
   //   pdfed_read_page {pageNumber?: number}
   //     -- Reads a page and returns its text in the Extract Text modal.
   //     Omit pageNumber for whichever page the person currently has open
@@ -80890,6 +81017,17 @@ if (document.readyState === 'loading') {
         const strengthNote = (p.strength !== undefined && p.strength !== null && p.strength !== '') ? ' at ' + p.strength + '% strength' : '';
         const targetNote = p.target === 'all' ? ' to every image on this page' : '';
         return 'Apply the ' + name + ' effect' + strengthNote + targetNote + '.';
+      }
+    },
+    // Cuts placed image(s) into an Image Reshaper shape (built-in or the
+    // person's own saved shape) -- same engine as the Reshape modal, no modal.
+    pdfed_reshape_image: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaReshapeImage(p || {}); },
+      label: function(p){
+        p = p || {};
+        const sh = pdfedSaylaFindReshapeShape(p.shape || p.shape_id || p.shapeId || p.name || 'circle');
+        return 'Reshape the image into a ' + (sh ? sh.name : (p.shape || 'new')) + ' shape' + (p.target === 'all' ? ' (every image on this page)' : '') + '.';
       }
     },
     // Build 272: page-to-page transitions (see PAGE TRANSITIONS block). Same engine
