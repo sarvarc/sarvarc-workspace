@@ -83457,14 +83457,31 @@ if (document.readyState === 'loading') {
             await api.load({ which: p.photo.which });
           }
         }
+        if (p.photos && typeof p.photos === 'object'){
+          let urls = [];
+          if (String(p.photos.source || 'attached') === 'page') urls = api.pageImages(p.photos.which || 'all');
+          else {
+            urls = saylaPendingAttachments.filter(function(a){ return a.kind === 'logo' && a.dataUrl; }).map(function(a){ return a.dataUrl; });
+            if (!urls.length) throw new Error('no photos are attached. Use the paperclip in my chat to attach them first');
+          }
+          const lr = await api.loadMany(urls, p.photos.mode === 'add' ? 'add' : 'replace');
+          notes.push('Showcase now holds ' + lr.total + ' photo' + (lr.total === 1 ? '' : 's') + '.' + (lr.dropped ? ' It keeps up to 12, so ' + lr.dropped + ' did not fit.' : ''));
+        }
+        if (p.gallery && typeof p.gallery === 'object'){
+          const did = api.editGallery(p.gallery);
+          if (did.length) notes.push('I ' + did.join(', ') + '.');
+        }
         const r = api.configure(p.settings || {});
         if (r.skipped.length) notes.push('I skipped ' + r.skipped.join('; ') + '.');
         if (api.hasCut() || (p.photo && typeof p.photo === 'object')) api.flushCut();
         if (p.playback) api.setPlayback(String(p.playback));
         if (p.time !== undefined && p.time !== null && p.time !== '') api.seek(p.time);
         if (p.compare !== undefined) api.setCompare(p.compare === true || p.compare === 'true');
-        if (Object.keys(r.applied).length && typeof pushSaylaAppHistory === 'function'){
+        const tr = p.tour ? api.tour(p.tour.motions, p.tour.secs_each) : null;
+        if (p.tour && !tr) notes.push('None of those motions fit the current layout, so I left the motion as it was.');
+        if ((Object.keys(r.applied).length || tr) && typeof pushSaylaAppHistory === 'function'){
           const after = api.snapshot();
+          if (tr) after.o[tr.key] = tr.last;
           pushSaylaAppHistory({
             label: 'Showcase settings (Sayla)',
             undo: function(){ api.restore(before); toast('Showcase settings put back', 'info'); },
@@ -83487,6 +83504,9 @@ if (document.readyState === 'loading') {
         const st = p.settings || {};
         const n = Object.keys(st).length;
         if (n) bits.push('adjust ' + n + ' Showcase setting' + (n === 1 ? '' : 's'));
+        if (p.photos) bits.push('load the photos');
+        if (p.gallery) bits.push('arrange the photos');
+        if (p.tour) bits.push('preview the motions');
         if (p.playback || p.time !== undefined) bits.push('control playback');
         if (p.output) bits.push({ png: 'download a PNG', video: 'record the video', place: 'place it on the page', live: 'place it as a live clip' }[p.output] || 'export');
         return 'In Showcase: ' + (bits.length ? bits.join(', ') : 'open it') + '.';
@@ -86779,6 +86799,15 @@ html.spp-open #sayla-panel{z-index:100004}
 #sppFMotionSeg button{padding:8px 4px;text-align:center}
 .spp-scroll{counter-reset:sppn}
 .spp-scroll>.spp-grp>summary>i::before{counter-increment:sppn;content:counter(sppn,decimal-leading-zero)}
+
+/* Presets + multi-photo */
+.spp-modal:not(.spp-galmode) .spp-galonly,.spp-galmode .spp-solo,.spp-galmode #sppMotionNote,.spp-galmode #sppFMotionSeg,.spp-galmode #sppCmpBtn{display:none!important}
+.spp-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}
+.spp-th{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1.5px solid var(--sp-line2)}
+.spp-th img{width:100%;height:100%;object-fit:cover;display:block}
+.spp-th button{position:absolute;border:0;background:rgba(0,0,0,.62);color:#fff;font:700 12px/1 inherit;width:18px;height:18px;border-radius:5px;cursor:pointer;padding:0}
+.spp-th button:hover{background:var(--sp-cy);color:#02121c}
+.spp-th .x{top:3px;right:3px}.spp-th .l{bottom:3px;left:3px}.spp-th .r{bottom:3px;right:3px}
 </style>
 
 <div class="spp-overlay" id="sppOverlay" onmousedown="if(event.target===this)sppClose()">
@@ -86805,10 +86834,25 @@ html.spp-open #sayla-panel{z-index:100004}
       <div class="spp-side">
         <div class="spp-scroll">
           <details class="spp-grp" open><summary><i></i>Photo</summary><div class="spp-in">
-            <div class="spp-seg" id="sppFitSeg" style="margin-bottom:12px"><button class="on" data-v="product" onclick="sppSetSeg('fit','product',this)" title="Cut the product out and show it on a background">Product cutout</button><button data-v="fill" onclick="sppSetSeg('fit','fill',this)" title="Your photo fills the whole frame, edge to edge, with your text written on it">Fill to edges</button></div>
-            <div class="spp-drop" id="sppDrop" onclick="document.getElementById('sppFile').click()">Drop a photo, or click to upload</div>
+            <div class="spp-seg" id="sppFitSeg" style="margin-bottom:12px"><button class="on" data-v="product" onclick="sppSetSeg('fit','product',this)" title="Cut the product out and show it on a background">Product cutout</button><button data-v="fill" onclick="sppSetSeg('fit','fill',this)" title="Your photo fills the whole frame, edge to edge, with your text written on it">Fill to edges</button><button data-v="gallery" onclick="sppSetSeg('fit','gallery',this)" title="Several photos as a slideshow, collage, spotlight or coverflow">Multi-photo</button></div>
+            <div class="spp-drop spp-solo" id="sppDrop" onclick="document.getElementById('sppFile').click()">Drop a photo, or click to upload</div>
             <input type="file" id="sppFile" accept="image/*" style="display:none" onchange="sppPickFile(this.files[0]);this.value=''">
-            <button class="spp-link" onclick="sppUseFromPage()">Use selected image from page</button>
+            <button class="spp-link spp-solo" onclick="sppUseFromPage()">Use selected image from page</button>
+            <div class="spp-galonly">
+              <div class="spp-drop" id="sppGalDrop" onclick="document.getElementById('sppGalFile').click()">Drop several photos, or click to add (up to 12)</div>
+              <input type="file" id="sppGalFile" accept="image/*" multiple style="display:none" onchange="sppPickMany(this.files);this.value=''">
+              <div class="spp-thumbs" id="sppGalThumbs"></div>
+              <div class="spp-row"><label>Layout</label></div>
+              <div class="spp-seg" id="sppGalSeg">
+                <button class="on" data-v="slideshow" onclick="sppSetSeg('gal','slideshow',this)" title="Full-frame photos that fade into each other">Slideshow</button>
+                <button data-v="collage" onclick="sppSetSeg('gal','collage',this)" title="All photos in a grid that pops in">Collage</button>
+                <button data-v="spotlight" onclick="sppSetSeg('gal','spotlight',this)" title="One big photo with a thumbnail row">Spotlight</button>
+                <button data-v="coverflow" onclick="sppSetSeg('gal','coverflow',this)" title="Photos glide past like a showroom carousel">Coverflow</button>
+              </div>
+              <div class="spp-row"><label>Backdrop (not for Slideshow)</label></div>
+              <div class="spp-swatches" id="sppGalSwatches" style="margin-top:0"></div>
+              <button class="spp-link" onclick="sppGalClear()">Clear all photos</button>
+            </div>
             <div class="spp-row spp-prod"><label>Remove background</label><input type="checkbox" id="sppCutout" checked onchange="sppSet('cutout',this.checked)"></div>
             <div id="sppCutBox" class="spp-prod">
               <div class="spp-row"><label>Tolerance</label><input type="range" id="sppTol" min="6" max="120" value="42" oninput="sppSet('tol',+this.value,true)"><span class="spp-val" id="sppTolV">42</span></div>
@@ -86825,6 +86869,10 @@ html.spp-open #sayla-panel{z-index:100004}
               <button data-v="zoomout" onclick="sppSetSeg('fmotion','zoomout',this)" title="Starts close, slowly pulls out">Pull out</button>
               <button data-v="pan" onclick="sppSetSeg('fmotion','pan',this)">Pan</button>
               <button data-v="drift" onclick="sppSetSeg('fmotion','drift',this)">Drift</button>
+              <button data-v="kenburns" onclick="sppSetSeg('fmotion','kenburns',this)" title="Slow diagonal push, the classic cinematic move">Ken Burns</button>
+              <button data-v="beat" onclick="sppSetSeg('fmotion','beat',this)" title="Quick rhythmic zoom punches, like a reel synced to music">Beat</button>
+              <button data-v="shine" onclick="sppSetSeg('fmotion','shine',this)" title="A light sweep glides across the photo">Shine</button>
+              <button data-v="whip" onclick="sppSetSeg('fmotion','whip',this)" title="Whips in fast from a tight zoom and slides to a stop, then a slow push. Replays each loop">Whip</button>
             </div>
             <div class="spp-seg spp-prod" id="sppMotionSeg">
               <button class="on" data-v="turntable" onclick="sppSetSeg('motion','turntable',this)">Turntable</button>
@@ -86836,9 +86884,19 @@ html.spp-open #sayla-panel{z-index:100004}
               <button data-v="slice" onclick="sppSetSeg('motion','slice',this)">Slice</button>
               <button data-v="bounce" onclick="sppSetSeg('motion','bounce',this)">Bounce</button>
               <button data-v="echo" onclick="sppSetSeg('motion','echo',this)">Echo</button>
+              <button data-v="pulse" onclick="sppSetSeg('motion','pulse',this)">Pulse</button>
+              <button data-v="levitate" onclick="sppSetSeg('motion','levitate',this)">Levitate</button>
+              <button data-v="pop" onclick="sppSetSeg('motion','pop',this)">Pop</button>
+              <button data-v="orbit" onclick="sppSetSeg('motion','orbit',this)">Orbit</button>
+              <button data-v="swing" onclick="sppSetSeg('motion','swing',this)">Swing</button>
+              <button data-v="roll" onclick="sppSetSeg('motion','roll',this)">Roll in</button>
+              <button data-v="acrobat" onclick="sppSetSeg('motion','acrobat',this)">Acrobat</button>
+              <button data-v="breakdance" onclick="sppSetSeg('motion','breakdance',this)">Breakdance</button>
+              <button data-v="spinin" onclick="sppSetSeg('motion','spinin',this)">Spin in</button>
+              <button data-v="tumble" onclick="sppSetSeg('motion','tumble',this)">Tumble</button>
             </div>
             <div class="spp-note" id="sppMotionNote">Full 360 turn. Uses your one photo for the front and a shaded mirror for the back.</div>
-            <div class="spp-row"><label>Seconds per loop</label><input type="range" id="sppSecs" min="2" max="14" step="0.5" value="6" oninput="sppSet('secs',+this.value)"><span class="spp-val" id="sppSecsV">6</span></div>
+            <div class="spp-row"><label>Seconds per loop</label><input type="range" id="sppSecs" min="2" max="30" step="0.5" value="6" oninput="sppSet('secs',+this.value)"><span class="spp-val" id="sppSecsV">6</span></div>
             <div class="spp-row spp-prod"><label>Direction</label>
               <div class="spp-seg" style="flex:1" id="sppDirSeg"><button class="on" data-v="1" onclick="sppSetSeg('dir',1,this)">Clockwise</button><button data-v="-1" onclick="sppSetSeg('dir',-1,this)">Counter</button></div></div>
             <div class="spp-row spp-prod" id="sppAmpRow" style="display:none"><label>Sway angle</label><input type="range" id="sppAmp" min="10" max="70" value="35" oninput="sppSet('amp',+this.value)"><span class="spp-val" id="sppAmpV">35</span></div>
@@ -86938,7 +86996,7 @@ html.spp-open #sayla-panel{z-index:100004}
     bold: '"Arial Black","Impact",Haettenschweiler,sans-serif',
     mono: '"SFMono-Regular",Menlo,Consolas,"Courier New",monospace'
   };
-  var SPECIAL = { glint: 1, carousel: 1, slice: 1, bounce: 1, echo: 1 };   // motions that draw the whole product themselves
+  var SPECIAL = { glint: 1, carousel: 1, slice: 1, bounce: 1, echo: 1, pulse: 1, levitate: 1, pop: 1, orbit: 1, swing: 1, roll: 1, acrobat: 1, breakdance: 1, spinin: 1, tumble: 1 };   // motions that draw the whole product themselves
   var PREVIEW = { 'page': [680, 960], '16:9': [960, 540], '1:1': [720, 720], '4:5': [648, 810], '9:16': [540, 960] };
   var EXPORT = { 'page': [930, 1280], '16:9': [1280, 720], '1:1': [1080, 1080], '4:5': [1080, 1350], '9:16': [1080, 1920] };
   var MOTION_NOTES = {
@@ -86950,6 +87008,16 @@ html.spp-open #sayla-panel{z-index:100004}
     slice: 'The product splits into strips, drifts apart and snaps back together.',
     bounce: 'A playful drop with squash and stretch, and a shadow that reacts.',
     echo: 'The product glides side to side, leaving a fading trail.',
+    pulse: 'The product beats like a heartbeat, twice per loop. Made for offers, drops and anything you want noticed in a feed.',
+    levitate: 'The product rises and settles while its floor shadow shrinks and grows. Great for food, drinks, cosmetics and jewellery.',
+    pop: 'Springs in with a bouncy pop, settles, and pops in again each loop. Made for sales, new arrivals and launch posts.',
+    orbit: 'The product glides round a small circle, growing as it comes toward you and shrinking as it moves away. Good for gadgets and brands.',
+    swing: 'Hangs and swings like a price tag or a shop-window sign. Good for offers and boutique items.',
+    roll: 'Rolls in from the side like a wheel, settles, then rolls out the other side. A fast, fun intro. Direction picks the side.',
+    acrobat: 'Jumps and does a full flip in the air, lands with a squash, then flips back the other way.',
+    breakdance: 'Spins fast with a little hop, then hits a tilted freeze pose with a bounce before resetting.',
+    spinin: 'Spins in from nothing at high speed, holds, then spins away. A quick punchy intro.',
+    tumble: 'Drops in from above, tumbling and bouncing to a stop, then falls away. A funky entrance.',
     hover: 'Floats gently with a small tilt. Good for shoes, gadgets and anything you want to keep facing forward.'
   };
 
@@ -86957,14 +87025,14 @@ html.spp-open #sayla-panel{z-index:100004}
     open: false, playing: true, raf: 0, t0: 0, tNorm: 0, busy: false, recording: false,
     srcCanvas: null, procCanvas: null, srcNat: null, srcName: '', hasAlpha: false, bgColor: { r: 240, g: 242, b: 246 }, bgBusy: false,
     cut: null, sprites: null, spriteKey: '', cutVer: 0, edgeRGB: [70, 70, 70], cutTimer: 0,
-    layers: {},
+    layers: {}, gal: [],
     o: {
       cutout: true, tol: 42, trim: 1, soft: 1,
       motion: 'turntable', secs: 6, dir: 1, amp: 35, thick: 5, size: 100, back: 'plain', shadow: true, reflect: true,
       bgMode: 'matched', fillA: '#0b1220', fillB: '#1f4e8c', fillGrad: true,
       head: '', sub: '', badge: '', txtPos: 'bottom', font: 'clean', txtSize: 100, txtAuto: true, txtCol: '#ffffff',
       accent: '#00c2ff', txtAnim: 'rise', ratio: '16:9',
-      fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center'
+      fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center', gal: 'slideshow'
     }
   };
 
@@ -86983,6 +87051,7 @@ html.spp-open #sayla-panel{z-index:100004}
     ov.classList.add('open'); S.open = true; document.documentElement.classList.add('spp-open');
     try { if (window.sppSync) window.sppSync('open'); } catch (e) {}
     if (!$('sppSwatches').children.length) buildSwatches();
+    if (!$('sppGalSwatches').children.length) buildSwatches($('sppGalSwatches'));
     if (pageDims() && !S._userRatio && S.o.ratio === '16:9') {
       var pb = $('sppRatioSeg') && $('sppRatioSeg').querySelector('[data-v="page"]'); if (pb) window.sppSetSeg('ratio', 'page', pb);
     }
@@ -86997,8 +87066,8 @@ html.spp-open #sayla-panel{z-index:100004}
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open && !(e.target && e.target.closest && e.target.closest('#sayla-panel'))) sppClose(); });
 
-  function buildSwatches() {
-    var box = $('sppSwatches');
+  function buildSwatches(target) {
+    var box = target || $('sppSwatches');
     PRESET_SWATCHES.forEach(function (p) {
       var i = document.createElement('i');
       i.style.background = 'linear-gradient(135deg,' + p[0] + ',' + p[1] + ')';
@@ -87008,6 +87077,7 @@ html.spp-open #sayla-panel{z-index:100004}
         $('sppFillA').value = p[0]; $('sppFillB').value = p[1]; $('sppFillGrad').checked = true;
         $('sppFillBRow').style.display = '';
         sppSetSeg('bgMode', 'filled', $('sppBgSeg').querySelector('[data-v="filled"]'));
+        if (S.o.fit === 'gallery') sppSet('fillA', p[0]);
       };
       box.appendChild(i);
     });
@@ -87015,7 +87085,7 @@ html.spp-open #sayla-panel{z-index:100004}
 
   /* ───────────────────────── settings ───────────────────────── */
   window.sppSet = function (k, v, rebuildCutout) {
-    S.o[k] = v;
+    S.o[k] = v; if (k === 'head' || k === 'sub' || k === 'badge') S._autoTxt = false;
     var lab = { tol: 'sppTolV', trim: 'sppTrimV', soft: 'sppSoftV', secs: 'sppSecsV', amp: 'sppAmpV', thick: 'sppThickV', size: 'sppSizeV', txtSize: 'sppTxtSizeV', scrim: 'sppScrimV' }[k];
     if (lab && $(lab)) $(lab).textContent = v;
     if (k === 'cutout') { $('sppCutBox').style.opacity = v ? 1 : .35; scheduleCut(0); }
@@ -87042,7 +87112,8 @@ html.spp-open #sayla-panel{z-index:100004}
         v === 'matched' ? 'Matched uses the colour of your original photo background.' : 'Pick your own colour or gradient.';
     }
     if (k === 'ratio') { if (window.event && window.event.type === 'click') S._userRatio = true; sizePreview(); }
-    if (k === 'fit') { var md = document.querySelector('#sppOverlay .spp-modal'); if (md) md.classList.toggle('spp-fillmode', v === 'fill'); scheduleCut(0); }
+    if (k === 'fit') { var md = document.querySelector('#sppOverlay .spp-modal'); if (md) { md.classList.toggle('spp-fillmode', v === 'fill' || v === 'gallery'); md.classList.toggle('spp-galmode', v === 'gallery'); }
+      if (v === 'gallery' && $('sppWrapRel').classList.contains('cmp')) window.sppToggleCompare(); scheduleCut(0); }
   };
   // 'Page' ratio = the exact shape of the editor page that is open, so the result fills it edge to edge.
   function pageDims() {
@@ -87216,7 +87287,7 @@ html.spp-open #sayla-panel{z-index:100004}
     S.cutTimer = setTimeout(function () { try { rebuildCut(); } catch (e) { console.error('Showcase cutout failed', e); say('Cutout failed. Try turning Remove background off.', 'error'); } }, ms);
   }
   function rebuildCut() {
-    var src = S.srcCanvas; if (!src) return;
+    var src = S.srcCanvas; if (!src || S.o.fit === 'gallery') return;
     if (S.o.fit === 'fill') {   // Fill to edges: the whole photo is used as it is, no cutout, no crop
       S.cut = src; S.cutVer++; S.spriteKey = ''; $('sppEmptyMsg').style.display = 'none'; return;
     }
@@ -87434,7 +87505,8 @@ html.spp-open #sayla-panel{z-index:100004}
     opt = opt || {};
     ctx.clearRect(0, 0, W, H);
     var o = S.o, tp = opt.textT == null ? textProgress(tn, opt.tAbs) : opt.textT;
-    if (o.fit === 'fill' && S.cut) { drawFill(ctx, W, H, tn); drawScrim(ctx, W, H, tp); }
+    if (o.fit === 'gallery') { if (S.gal.length) { galDraw(ctx, W, H, tn, opt.textT === 1 ? 99 : (opt.tAbs != null ? opt.tAbs : tn * o.secs)); if (o.gal === 'slideshow') drawScrim(ctx, W, H, tp); } }
+    else if (o.fit === 'fill' && S.cut) { drawFill(ctx, W, H, tn); drawScrim(ctx, W, H, tp); }
     else { drawBackground(ctx, W, H, opt.flatten); if (S.cut) drawProduct(ctx, W, H, tn); }
     drawText(ctx, W, H, tp);
     if (opt.watermark) stampMark(ctx, W, H);
@@ -87447,11 +87519,24 @@ html.spp-open #sayla-panel{z-index:100004}
     else if (m === 'zoomout') z = 1.12 - 0.12 * k;
     else if (m === 'pan') { z = 1.12; px = 2 * k - 1; }
     else if (m === 'drift') { z = 1.1; px = 0.8 * Math.sin(TAU * tn); py = 0.8 * Math.cos(TAU * tn); }
+    else if (m === 'kenburns') { z = 1.04 + 0.14 * k; px = 0.7 * (2 * k - 1); py = -0.5 * (2 * k - 1); }
+    else if (m === 'beat') { z = 1.02 + 0.07 * Math.pow(Math.max(0, Math.sin(TAU * tn * 4)), 4); }
+    else if (m === 'shine') z = 1.05;
+    else if (m === 'whip') { var wq = eo(clamp(tn / 0.2, 0, 1)); z = 1.05 + 0.45 * (1 - wq) + 0.05 * tn; px = -(1 - wq); }
     var s = Math.max(W / c.width, H / c.height) * z, dw = c.width * s, dh = c.height * s;
     var img = mipFor(c, Math.max(c.width, c.height) * Math.max(W / c.width, H / c.height) * 1.12);
     ctx.save(); ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, (W - dw) / 2 + px * (dw - W) / 2, (H - dh) / 2 + py * (dh - H) / 2, dw, dh);
     ctx.restore();
+    if (m === 'shine') {
+      var q = ease((tn - 0.15) / 0.6);
+      if (q > 0 && q < 1) {
+        var bw = W * 0.3, sg;
+        ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.translate(W * (-0.3 + 1.6 * q), H / 2); ctx.rotate(0.4);
+        sg = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,255,0.45)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sg; ctx.fillRect(-bw / 2, -H, bw, H * 2); ctx.restore();
+      }
+    }
   }
   // Soft dark fade from the edge the words sit on, so text stays readable on any photo
   function drawScrim(ctx, W, H, prog) {
@@ -87518,6 +87603,9 @@ html.spp-open #sayla-panel{z-index:100004}
   }
 
   /* ───────────────────────── extra motions ───────────────────────── */
+  function eo(x) { x = clamp(x, 0, 1); return 1 - Math.pow(1 - x, 3); }
+  function eb(x) { x = clamp(x, 0, 1); var c = 1.70158; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); }
+  function ob(x) { x = clamp(x, 0, 1); var n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) { x -= 1.5 / d; return n * x * x + 0.75; } if (x < 2.5 / d) { x -= 2.25 / d; return n * x * x + 0.9375; } x -= 2.625 / d; return n * x * x + 0.984375; }
   function ease(x) { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); }
   // Draws the whole product for the special motions. Returns what the shadow needs: width, lift and sideways shift.
   function drawSpecial(pc, spr, cx, cy, dw, dh, tn, W) {
@@ -87576,6 +87664,64 @@ html.spp-open #sayla-panel{z-index:100004}
         pc.translate(cx + p.x, cy + p.y); pc.rotate(p.r); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
       }
       r.sx = pos(tn).x; r.projW = dw * 1.05;
+
+    } else if (m === 'pulse') {                            // heartbeat: the photo itself beats twice per loop
+      var ps = 1 + 0.09 * Math.pow(Math.max(0, Math.sin(TAU * tn * 2)), 3);
+      pc.save(); pc.translate(cx, cy); pc.scale(ps, ps); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.projW = dw * ps;
+
+    } else if (m === 'levitate') {                         // rises and settles, the floor shadow shrinks and grows with it
+      var lf = (0.5 - 0.5 * Math.cos(TAU * tn)) * dh * 0.09;
+      pc.save(); pc.translate(cx, cy - lf); pc.rotate(Math.sin(TAU * tn) * 0.015 * e); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.lift = lf;
+
+    } else if (m === 'pop') {                              // springy entrance, then a soft settle; re-pops each loop
+      var u2 = clamp(tn / 0.26, 0, 1), c1 = 1.70158, bk = 1 + (c1 + 1) * Math.pow(u2 - 1, 3) + c1 * Math.pow(u2 - 1, 2);
+      var pz = Math.max(0.001, (u2 >= 1 ? 1 + 0.02 * Math.sin(TAU * (tn - 0.26) / 0.74 * 2) : bk) * (1 - ease((tn - 0.92) / 0.08)));
+      pc.save(); pc.translate(cx, cy); pc.rotate(Math.sin(TAU * tn) * 0.02 * e); pc.scale(pz, pz); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.projW = dw * Math.max(pz, 0.1);
+
+    } else if (m === 'orbit') {                            // glides round a small circle, larger toward you, smaller away
+      var oa = e * TAU * tn, dp = Math.sin(oa), ox = Math.cos(oa) * dw * 0.24, os = 1 + 0.08 * dp;
+      pc.save(); pc.translate(cx + ox, cy + dp * dh * 0.02); pc.rotate(Math.cos(oa) * 0.03); pc.scale(os, os); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh);
+      pc.globalAlpha = (1 - dp) * 0.1; pc.drawImage(spr.shade, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.sx = ox; r.projW = dw * os;
+
+    } else if (m === 'roll') {                             // rolls in like a wheel, rests, rolls out the far side
+      var PW = pc.canvas.width, offd = PW * 0.6 + dw, rin = eo(clamp(tn / 0.3, 0, 1)), rout = clamp((tn - 0.78) / 0.22, 0, 1);
+      var rdx = -e * (1 - rin) * offd + e * rout * rout * offd, rang = rdx / (Math.max(dw, dh) * 0.5) + (tn > 0.3 && tn < 0.78 ? 0.03 * Math.sin(TAU * (tn - 0.3) / 0.48) : 0);
+      pc.save(); pc.translate(cx + rdx, cy); pc.rotate(rang); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.sx = rdx;
+
+    } else if (m === 'acrobat') {                          // jump, full flip in the air, landing squash; second jump flips back
+      var au = (tn * 2) % 1, av = clamp(au / 0.68, 0, 1), aj = 4 * av * (1 - av) * dh * 0.5, aa = (tn < 0.5 ? 1 : -1) * e * TAU * ease(av);
+      var asq = au > 0.68 ? Math.sin(Math.PI * clamp((au - 0.68) / 0.32, 0, 1)) : 0, akx = 1 + 0.12 * asq, aky = 1 - 0.14 * asq;
+      pc.save(); pc.translate(cx, floorY - aj - dh / 2 * aky); pc.rotate(aa); pc.scale(akx, aky); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.lift = aj; r.projW = dw * akx;
+
+    } else if (m === 'breakdance') {                       // fast spin with a hop, then a tilted freeze pose
+      var bd = 0, bh = 0, bs = 1, u1, u3;
+      if (tn < 0.5) { u1 = tn / 0.5; bd = e * TAU * 3 * eo(u1); bh = Math.sin(Math.PI * u1) * dh * 0.08; }
+      else if (tn < 0.88) { u3 = (tn - 0.5) / 0.38; bd = -e * 0.42 * eb(u3 / 0.3); bs = 1 - 0.07 * Math.sin(Math.PI * clamp(u3 / 0.25, 0, 1)); }
+      else bd = -e * 0.42 * (1 - ease((tn - 0.88) / 0.12));
+      pc.save(); pc.translate(cx, cy - bh); pc.rotate(bd); pc.scale(bs, bs); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.lift = bh; r.projW = dw * bs;
+
+    } else if (m === 'spinin') {                           // spins in from nothing, holds, spins away
+      var si = eo(clamp(tn / 0.3, 0, 1)), so = ease((tn - 0.86) / 0.14), sz = Math.max(0.001, si * (1 - so));
+      pc.save(); pc.translate(cx, cy); pc.rotate(e * TAU * 3 * (1 - si) - e * TAU * 2 * so); pc.scale(sz, sz); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.projW = dw * Math.max(sz, 0.1);
+
+    } else if (m === 'tumble') {                           // drops in tumbling and bouncing, then falls away
+      var PH = pc.canvas.height, tu = clamp(tn / 0.4, 0, 1), ty = cy - (1 - ob(tu)) * (cy + dh) + ease((tn - 0.86) / 0.14) * (PH - cy + dh);
+      var ta = e * TAU * (1 - eo(tu)) + Math.sin(TAU * tu * 3) * 0.12 * (1 - tu);
+      pc.save(); pc.translate(cx, ty); pc.rotate(ta); pc.drawImage(spr.front, -dw / 2, -dh / 2, dw, dh); pc.restore();
+      r.lift = Math.max(0, cy - ty);
+
+    } else if (m === 'swing') {                            // hangs from the top edge and swings
+      var sa = Math.sin(TAU * tn) * 0.22 * e;
+      pc.save(); pc.translate(cx, cy - dh / 2); pc.rotate(sa); pc.drawImage(spr.front, -dw / 2, 0, dw, dh); pc.restore();
+      r.sx = -Math.sin(sa) * dh; r.lift = dh * (1 - Math.cos(sa)); r.projW = dw * 0.9;
     }
     return r;
   }
@@ -87632,6 +87778,7 @@ html.spp-open #sayla-panel{z-index:100004}
   function textColor(pos) {
     var o = S.o;
     if (!o.txtAuto) return o.txtCol;
+    if (o.fit === 'gallery') return o.gal === 'slideshow' ? (o.scrim >= 25 ? '#ffffff' : '#0f172a') : (lum(hexToRgb(o.fillA)) > 0.6 ? '#0f172a' : '#ffffff');
     if (o.fit === 'fill' && S.cut) return (o.scrim >= 25 || bandLum(pos) < 0.6) ? '#ffffff' : '#0f172a';
     var b = backdropColor();
     if (!b) return '#111827';
@@ -87655,7 +87802,7 @@ html.spp-open #sayla-panel{z-index:100004}
     var headPx = unit, subPx = unit * 0.46, badgePx = unit * 0.3, weight = o.font === 'bold' ? '400' : '800';
     var maxW = sideways ? W * 0.4 : W * 0.86, align = sideways ? 'left' : 'center';
     var x = sideways ? (pos === 'left' ? W * 0.07 : W * 0.53) : W / 2;
-    if (!sideways && o.fit === 'fill' && o.txtAlign === 'left') { align = 'left'; x = W * 0.07; maxW = W * 0.8; }
+    if (!sideways && (o.fit === 'fill' || o.fit === 'gallery') && o.txtAlign === 'left') { align = 'left'; x = W * 0.07; maxW = W * 0.8; }
     ctx.save();
     ctx.globalAlpha = prog; ctx.textBaseline = 'alphabetic'; ctx.textAlign = align;
     var rise = (1 - prog) * H * 0.03, slide = o.txtAnim === 'rise' ? rise : 0;
@@ -87704,6 +87851,146 @@ html.spp-open #sayla-panel{z-index:100004}
     ctx.fillStyle = 'rgba(15,23,42,0.85)'; ctx.fillText(t, W - m - px, H - m - py); ctx.restore();
   }
 
+  /* ───────────────────────── presets + multi-photo gallery ───────────────────────── */
+  var GAL_MAX = 12;
+  function hasArt() { return S.o.fit === 'gallery' ? S.gal.length > 0 : !!S.cut; }
+  window.sppPickMany = function (files) {
+    files = [].slice.call(files || []).filter(function (f) { return /^image\//.test(f.type); });
+    if (!files.length) { say('Please choose image files', 'error'); return; }
+    var room = Math.max(0, GAL_MAX - S.gal.length);
+    if (files.length > room) { say('Showcase holds up to ' + GAL_MAX + ' photos. Using the first ' + room + '.', 'info'); files = files.slice(0, room); }
+    if (!files.length) return;
+    var out = [], left = files.length;
+    function done() {
+      if (--left) return;
+      out.forEach(function (c) { if (c) S.gal.push(c); });
+      galThumbs();
+      if (S.o.gal !== 'collage') { var v = clamp(Math.round(S.gal.length * 2.5 * 2) / 2, 6, 30); window.sppSet('secs', v); if ($('sppSecs')) { $('sppSecs').value = v; paintRanges(); } }
+    }
+    files.forEach(function (f, i) {
+      var r = new FileReader();
+      r.onerror = function () { say(f.name + ' could not be read', 'error'); done(); };
+      r.onload = function (e) {
+        var im = new Image();
+        im.onload = function () {
+          try {
+            var k = Math.min(1, 1800 / Math.max(im.naturalWidth, im.naturalHeight)), c = mk(im.naturalWidth * k, im.naturalHeight * k), x = c.getContext('2d');
+            x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height); out[i] = c;
+          } catch (er) { say(f.name + ' is too large for this browser', 'error'); }
+          done();
+        };
+        im.onerror = function () { say(f.name + ' could not be opened', 'error'); done(); };
+        im.src = e.target.result;
+      };
+      r.readAsDataURL(f);
+    });
+    if (S.o.fit !== 'gallery') window.sppSetSeg('fit', 'gallery', $('sppFitSeg').querySelector('[data-v="gallery"]'));
+  };
+  window.sppGalClear = function () { S.gal = []; galThumbs(); };
+  function galThumbs() {
+    var box = $('sppGalThumbs'); if (!box) return; box.innerHTML = '';
+    S.gal.forEach(function (c, i) {
+      if (!c._th) {
+        var t = mk(96, 96), x = t.getContext('2d'), k = Math.max(96 / c.width, 96 / c.height);
+        x.drawImage(c, (96 - c.width * k) / 2, (96 - c.height * k) / 2, c.width * k, c.height * k); c._th = t.toDataURL('image/jpeg', 0.7);
+      }
+      var d = document.createElement('div'), im = new Image(); d.className = 'spp-th'; im.src = c._th; im.alt = ''; d.appendChild(im);
+      [['x', '×', 'Remove', function () { S.gal.splice(i, 1); }],
+       ['l', '‹', 'Move earlier', function () { if (i > 0) S.gal.splice(i - 1, 0, S.gal.splice(i, 1)[0]); }],
+       ['r', '›', 'Move later', function () { if (i < S.gal.length - 1) S.gal.splice(i + 1, 0, S.gal.splice(i, 1)[0]); }]].forEach(function (a) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = a[0]; b.textContent = a[1]; b.title = a[2];
+        b.onclick = function () { a[3](); galThumbs(); }; d.appendChild(b);
+      });
+      box.appendChild(d);
+    });
+  }
+  (function () {
+    var d = $('sppGalDrop'); if (!d) return;
+    ['dragenter', 'dragover'].forEach(function (ev) { d.addEventListener(ev, function (e) { e.preventDefault(); d.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { d.addEventListener(ev, function (e) { e.preventDefault(); d.classList.remove('over'); }); });
+    d.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) window.sppPickMany(e.dataTransfer.files); });
+  })();
+
+  function galCover(ctx, c, x, y, w, h, z, px, py, rad) {
+    var s = Math.max(w / c.width, h / c.height) * (z || 1), dw = c.width * s, dh = c.height * s;
+    ctx.save(); if (rad) rr(ctx, x, y, w, h, rad); else { ctx.beginPath(); ctx.rect(x, y, w, h); }
+    ctx.clip(); ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(mipFor(c, Math.max(dw, dh)), x + (w - dw) / 2 + (px || 0) * (dw - w) / 2, y + (h - dh) / 2 + (py || 0) * (dh - h) / 2, dw, dh);
+    ctx.restore();
+  }
+  function galShadow(ctx, x, y, w, h, rad, blur) {
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = blur; ctx.shadowOffsetY = blur * 0.35; ctx.fillStyle = '#000'; rr(ctx, x, y, w, h, rad); ctx.fill(); ctx.restore();
+  }
+  function galBg(ctx, W, H) {
+    var o = S.o, g = ctx.createLinearGradient(0, 0, W * 0.25, H);
+    g.addColorStop(0, o.fillA); g.addColorStop(1, o.fillGrad ? o.fillB : o.fillA); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  // Area left for photos once the words have their space
+  function galRect(W, H) {
+    var o = S.o, L = layout(W, H), m = Math.min(W, H) * 0.06, R = { x: m, y: m, w: W - 2 * m, h: H - 2 * m };
+    if (!L.hasText) return R;
+    if (L.pos === 'left' || L.pos === 'right') { R.w -= W * 0.42; if (L.pos === 'left') R.x += W * 0.42; return R; }
+    var u = Math.min(W, H) * 0.1 * o.txtSize / 100, cpl = 0.86 * W / (0.56 * u), hl = o.head ? Math.min(2, Math.ceil(o.head.length / cpl)) : 0, rp = u * (0.75 + (o.badge ? 0.75 : 0) + hl * 1.1 + (o.sub ? 0.75 : 0));
+    rp = Math.min(rp, H * 0.42); R.h -= rp; if (L.pos === 'top') R.y += rp;
+    return R;
+  }
+  function galDraw(ctx, W, H, tn, ent) {
+    var n = S.gal.length, m = S.o.gal;
+    if (m === 'slideshow') { galSlide(ctx, 0, 0, W, H, tn, n, 0); return; }
+    galBg(ctx, W, H);
+    var R = galRect(W, H);
+    if (m === 'collage') galCollage(ctx, R, tn, n, ent);
+    else if (m === 'spotlight') galSpot(ctx, R, tn, n);
+    else galFlow(ctx, R, tn, n);
+  }
+  // One photo at a time: slow push, then a soft fade into the next. Loops cleanly.
+  function galSlide(ctx, x, y, w, h, tn, n, rad) {
+    var seg = tn * n, i = Math.floor(seg) % n, f = seg - Math.floor(seg), X = 0.22;
+    function one(idx, ff, a) { ctx.globalAlpha = a; galCover(ctx, S.gal[idx], x, y, w, h, 1 + 0.09 * ff, (idx % 2 ? 1 : -1) * (ff - 0.5) * 0.8, 0, rad); }
+    one(i, f, 1);
+    if (n > 1 && f > 1 - X) one((i + 1) % n, 0, ease((f - (1 - X)) / X));
+    ctx.globalAlpha = 1;
+  }
+  function galCollage(ctx, R, tn, n, ent) {
+    var TAU = Math.PI * 2, g = Math.min(R.w, R.h) * 0.025, cols = clamp(Math.ceil(Math.sqrt(n * R.w / R.h)), 1, n), rows = Math.ceil(n / cols);
+    var tw = (R.w - g * (cols - 1)) / cols, th = (R.h - g * (rows - 1)) / rows, rad = Math.min(tw, th) * 0.07;
+    for (var i = 0; i < n; i++) {
+      var r = Math.floor(i / cols), c = i % cols, cnt = r === rows - 1 ? n - cols * (rows - 1) : cols;
+      var x0 = R.x + (cols - cnt) * (tw + g) / 2 + c * (tw + g), y0 = R.y + r * (th + g), pe = ease((ent - i * 0.12) / 0.6);
+      if (pe <= 0) continue;
+      ctx.save(); ctx.globalAlpha = pe; ctx.translate(x0 + tw / 2, y0 + th / 2 + (1 - pe) * th * 0.12); ctx.scale(0.9 + 0.1 * pe, 0.9 + 0.1 * pe);
+      galShadow(ctx, -tw / 2, -th / 2, tw, th, rad, g * 2);
+      galCover(ctx, S.gal[i], -tw / 2, -th / 2, tw, th, 1.12, Math.sin(TAU * (tn + i / n)), Math.cos(TAU * (tn + i / n)) * 0.6, rad);
+      ctx.restore();
+    }
+  }
+  function galSpot(ctx, R, tn, n) {
+    var g = Math.min(R.w, R.h) * 0.03, hh = n > 1 ? R.h * 0.76 : R.h, th = R.h - hh - g, rad = Math.min(R.w, hh) * 0.035;
+    galShadow(ctx, R.x, R.y, R.w, hh, rad, g * 2.5); galSlide(ctx, R.x, R.y, R.w, hh, tn, n, rad);
+    if (n < 2) return;
+    var tw = Math.min((R.w - g * (n - 1)) / n, th * 1.5), x0 = R.x + (R.w - (n * tw + (n - 1) * g)) / 2, act = Math.floor(tn * n) % n, ty = R.y + hh + g, tr = rad * 0.6;
+    for (var i = 0; i < n; i++) {
+      var tx = x0 + i * (tw + g); ctx.globalAlpha = i === act ? 1 : 0.5; galCover(ctx, S.gal[i], tx, ty, tw, th, 1, 0, 0, tr);
+      if (i === act) { ctx.globalAlpha = 1; ctx.strokeStyle = S.o.accent; ctx.lineWidth = Math.max(2, g * 0.35); rr(ctx, tx, ty, tw, th, tr); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Photos glide past a centre stage: each one rests, then the row slides on.
+  function galFlow(ctx, R, tn, n) {
+    var fr = tn * n, k0 = Math.floor(fr), f = fr - k0, p = k0 + ease((f - 0.35) / 0.65), items = [];
+    var ch = R.h * 0.94, cw = Math.min(ch * 0.78, R.w * 0.46), cx0 = R.x + R.w / 2, cy = R.y + R.h / 2;
+    for (var k = 0; k < n; k++) { var d = (((k - p) % n) + n) % n; if (d > n / 2) d -= n; items.push({ k: k, d: d }); }
+    items.sort(function (a, b) { return Math.abs(b.d) - Math.abs(a.d); });
+    items.forEach(function (it) {
+      var ad = Math.abs(it.d); if (ad >= 2.6) return;
+      var s = 1 - Math.min(ad, 2) * 0.17, w = cw * s * (1 - Math.min(ad, 1) * 0.1), h = ch * s, sg = it.d < 0 ? -1 : 1;
+      var x = cx0 + sg * (Math.min(ad, 1) * cw * 0.72 + Math.max(0, Math.min(ad, 2) - 1) * cw * 0.34);
+      ctx.save(); ctx.globalAlpha = clamp((2.6 - ad) / 1.6, 0, 1) * (1 - Math.min(ad, 1) * 0.25);
+      var rad = w * 0.05; galShadow(ctx, x - w / 2, cy - h / 2, w, h, rad, cw * 0.06);
+      galCover(ctx, S.gal[it.k], x - w / 2, cy - h / 2, w, h, 1, 0, 0, rad); ctx.restore();
+    });
+  }
+
   /* ───────────────────────── preview loop ───────────────────────── */
   function tick(ts) {
     if (!S.open) return;
@@ -87716,7 +88003,7 @@ html.spp-open #sayla-panel{z-index:100004}
       $('sppScrub').value = Math.round(S.tNorm * 1000);
     }
     try { draw(ctx, c.width, c.height, S.tNorm, { tAbs: S.tNorm * S.o.secs }); } catch (e) { console.error(e); }
-    $('sppEmptyMsg').style.display = S.cut ? 'none' : '';
+    $('sppEmptyMsg').style.display = hasArt() ? 'none' : ''; $('sppEmptyMsg').textContent = S.o.fit === 'gallery' ? 'Add a few photos to begin' : 'Add a photo to begin';
     S.raf = requestAnimationFrame(tick);
   }
 
@@ -87727,7 +88014,7 @@ html.spp-open #sayla-panel{z-index:100004}
     return c;
   }
   window.sppGate = function (fn) {
-    if (!S.cut) { say('Add a photo first', 'info'); return Promise.resolve(); }
+    if (!hasArt()) { say('Add a photo first', 'info'); return Promise.resolve(); }
     var gate = window.sarvarcGateExport;
     var run = typeof gate === 'function' ? gate : function (f) { return f(); };
     return Promise.resolve().then(function () { return run(fn); }).catch(function (e) {
@@ -87751,7 +88038,7 @@ html.spp-open #sayla-panel{z-index:100004}
   }
 
   window.sppPlaceOnPage = async function () {
-    if (!S.cut) { say('Add a photo first', 'info'); return; }
+    if (!hasArt()) { say('Add a photo first', 'info'); return; }
     var c = renderStill(false), url = c.toDataURL('image/png');
     try { if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('image', url, 'Showcase.png'); } catch (e) {}
     if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
@@ -87776,7 +88063,7 @@ html.spp-open #sayla-panel{z-index:100004}
 
   window.sppExportVideo = async function () {
     if (S.recording) return;
-    if (!S.cut) { say('Add a photo first', 'info'); return; }
+    if (!hasArt()) { say('Add a photo first', 'info'); return; }
     if (!window.MediaRecorder) { say('Video export is not supported in this browser', 'error'); return; }
     var btns = ['sppPlaceBtn', 'sppPlaceLiveBtn', 'sppPngBtn', 'sppVidBtn'];
     var wasPlaying = S.playing, rec = null;
@@ -87988,7 +88275,8 @@ html.spp-open #sayla-panel{z-index:100004}
   }
 
   window.sppPlaceLiveOnPage = async function () {
-    if (!S.cut) { say('Add a photo first', 'info'); return; }
+    if (S.o.fit === 'gallery') { say('Live clip needs a single photo. For several photos use Place on page, PNG or Video.', 'info'); return; }
+    if (!hasArt()) { say('Add a photo first', 'info'); return; }
     if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
       say('Open or create a page first, then place the live clip on it.', 'info'); return;
     }
@@ -88148,7 +88436,7 @@ html.spp-open #sayla-panel{z-index:100004}
     if ($('sppCutBox')) $('sppCutBox').style.opacity = o.cutout ? 1 : .35;
     if ($('sppFillBRow')) $('sppFillBRow').style.display = o.fillGrad ? '' : 'none';
     if ($('sppTxtColRow')) $('sppTxtColRow').style.display = o.txtAuto ? 'none' : '';
-    [['motion', 'sppMotionSeg'], ['dir', 'sppDirSeg'], ['bgMode', 'sppBgSeg'], ['ratio', 'sppRatioSeg'], ['fit', 'sppFitSeg'], ['fmotion', 'sppFMotionSeg'], ['txtAlign', 'sppAlignSeg']].forEach(function (p) {
+    [['motion', 'sppMotionSeg'], ['dir', 'sppDirSeg'], ['bgMode', 'sppBgSeg'], ['ratio', 'sppRatioSeg'], ['fit', 'sppFitSeg'], ['fmotion', 'sppFMotionSeg'], ['txtAlign', 'sppAlignSeg'], ['gal', 'sppGalSeg']].forEach(function (p) {
       var seg = $(p[1]); if (!seg) return;
       var btn = seg.querySelector('[data-v="' + o[p[0]] + '"]');
       if (btn) window.sppSetSeg(p[0], o[p[0]], btn);
@@ -88223,11 +88511,11 @@ html.spp-open #sayla-panel{z-index:100004}
     dir: { clockwise: 1, cw: 1, counter: -1, counterclockwise: -1, ccw: -1, anticlockwise: -1 }
   };
   var SP_SPEC = {
-    fit: { t: 'enum', v: ['product', 'fill'], alias: SP_ALIAS.fit },
+    fit: { t: 'enum', v: ['product', 'fill', 'gallery'], alias: SP_ALIAS.fit }, gal: { t: 'enum', v: ['slideshow', 'collage', 'spotlight', 'coverflow'] },
     cutout: { t: 'bool' }, tol: { t: 'num', min: 6, max: 120 }, trim: { t: 'num', min: 0, max: 4 }, soft: { t: 'num', min: 0, max: 4 },
-    motion: { t: 'enum', v: ['turntable', 'sway', 'wrap', 'hover', 'glint', 'carousel', 'slice', 'bounce', 'echo'] },
-    fmotion: { t: 'enum', v: ['still', 'zoomin', 'zoomout', 'pan', 'drift'] },
-    secs: { t: 'num', min: 2, max: 14, step: 0.5 }, dir: { t: 'enum', v: [1, -1], alias: SP_ALIAS.dir },
+    motion: { t: 'enum', v: ['turntable', 'sway', 'wrap', 'hover', 'glint', 'carousel', 'slice', 'bounce', 'echo', 'pulse', 'levitate', 'pop', 'orbit', 'swing', 'roll', 'acrobat', 'breakdance', 'spinin', 'tumble'] },
+    fmotion: { t: 'enum', v: ['still', 'zoomin', 'zoomout', 'pan', 'drift', 'kenburns', 'beat', 'shine', 'whip'] },
+    secs: { t: 'num', min: 2, max: 30, step: 0.5 }, dir: { t: 'enum', v: [1, -1], alias: SP_ALIAS.dir },
     amp: { t: 'num', min: 10, max: 70 }, size: { t: 'num', min: 50, max: 120 }, thick: { t: 'num', min: 0, max: 16 },
     back: { t: 'enum', v: ['plain', 'mirror'] }, shadow: { t: 'bool' }, reflect: { t: 'bool' },
     bgMode: { t: 'enum', v: ['empty', 'matched', 'filled'] }, fillA: { t: 'color' }, fillB: { t: 'color' }, fillGrad: { t: 'bool' },
@@ -88340,7 +88628,8 @@ html.spp-open #sayla-panel{z-index:100004}
   // What she sees each turn while Showcase is open: the settings, the photo, and what the photo suggests.
   function spContext() {
     var o = S.o, lp = $('sppLoops'), e = EXPORT[o.ratio] || EXPORT['16:9'], sc = S.srcCanvas, ctx = {
-      activePanel: 'Showcase', showcaseHands: true, showcaseOpen: !!S.open, hasPhoto: !!sc, settings: JSON.parse(JSON.stringify(o)),
+      activePanel: 'Showcase', showcaseHands: true, showcaseOpen: !!S.open, hasPhoto: !!sc || S.gal.length > 0,
+      gallery: { count: S.gal.length, max: GAL_MAX, layout: S.o.gal, active: S.o.fit === 'gallery' }, settings: JSON.parse(JSON.stringify(o)),
       loops: lp ? +lp.value : 1, exportSize: [e[0], e[1]], playing: !!S.playing, position: Math.round(S.tNorm * 100) / 100,
       compareOn: !!($('sppWrapRel') && $('sppWrapRel').classList.contains('cmp')), busy: !!S.busy || !!S.recording, recording: !!S.recording
     };
@@ -88365,7 +88654,72 @@ html.spp-open #sayla-panel{z-index:100004}
     }
     return ctx;
   }
+  /* build 281: Sayla's hands on multi-photo and on motions */
+  function spDecode(url) {
+    return new Promise(function (resolve, reject) {
+      var im = new Image();
+      im.onload = function () {
+        try {
+          var k = Math.min(1, 1800 / Math.max(im.naturalWidth, im.naturalHeight)), c = mk(im.naturalWidth * k, im.naturalHeight * k), x = c.getContext('2d');
+          x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height); resolve(c);
+        } catch (er) { reject(new Error('a photo is too large for this browser')); }
+      };
+      im.onerror = function () { reject(new Error('a photo could not be opened')); };
+      im.src = url;
+    });
+  }
+  async function spLoadMany(urls, mode) {
+    if (mode !== 'add') S.gal = [];
+    var use = urls.slice(0, Math.max(0, GAL_MAX - S.gal.length)), cs = [];
+    for (var i = 0; i < use.length; i++) cs.push(await spDecode(use[i]));
+    cs.forEach(function (c) { S.gal.push(c); });
+    if (S.o.fit !== 'gallery') window.sppSetSeg('fit', 'gallery', $('sppFitSeg').querySelector('[data-v="gallery"]'));
+    galThumbs();
+    if (S.o.gal !== 'collage') { var v = clamp(Math.round(S.gal.length * 2.5 * 2) / 2, 6, 30); window.sppSet('secs', v); if ($('sppSecs')) { $('sppSecs').value = v; paintRanges(); } }
+    return { added: cs.length, dropped: urls.length - use.length, total: S.gal.length };
+  }
+  function spPageImages(w) {
+    if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) throw new Error('there is no open page to take photos from. Attach photos in chat instead');
+    var list = (pdfed.pages[pdfed.active].placedImages || []).filter(function (it) { return it && it.dataUrl; });
+    if (!list.length) throw new Error('there is no image on this page yet. Attach photos in chat, or place some first');
+    if (Array.isArray(w)) { var sel = w.map(function (n) { return list[Number(n) - 1]; }).filter(Boolean); if (sel.length) list = sel; }
+    else if (w === 'selected' && typeof pdfedSelectedImgs !== 'undefined' && pdfedSelectedImgs.size) { var s2 = list.filter(function (it) { return pdfedSelectedImgs.has(it.id); }); if (s2.length) list = s2; }
+    return list.map(function (it) { return it.dataUrl; });
+  }
+  function spGalEdit(g) {
+    g = g || {}; var did = [];
+    if (g.clear) { S.gal = []; did.push('cleared the photos'); }
+    else {
+      if (Array.isArray(g.remove)) {
+        var rm = g.remove.map(Number); var n0 = S.gal.length;
+        S.gal = S.gal.filter(function (c, i) { return rm.indexOf(i + 1) === -1; });
+        if (S.gal.length !== n0) did.push('removed ' + (n0 - S.gal.length) + ' photo' + (n0 - S.gal.length === 1 ? '' : 's'));
+      }
+      if (g.move) {
+        var f = Number(g.move.from) - 1, t = Number(g.move.to) - 1;
+        if (f >= 0 && t >= 0 && f < S.gal.length && t < S.gal.length && f !== t) { S.gal.splice(t, 0, S.gal.splice(f, 1)[0]); did.push('moved photo ' + (f + 1) + ' to position ' + (t + 1)); }
+      }
+      if (g.reverse && S.gal.length > 1) { S.gal.reverse(); did.push('reversed the order'); }
+    }
+    galThumbs(); return did;
+  }
+  var tourTok = 0;
+  // Plays a list of motions one after another in the preview so the person can SEE them, then leaves the last one on.
+  function spTour(list, each) {
+    var o = S.o, key = o.fit === 'gallery' ? 'gal' : (o.fit === 'fill' ? 'fmotion' : 'motion'), spec = SP_SPEC[key];
+    var ok = (list || []).map(function (v) { return String(v).toLowerCase().replace(/[\s_-]+/g, ''); }).filter(function (v) { return spec.v.indexOf(v) !== -1; }).slice(0, 8);
+    if (!ok.length) return null;
+    var ms = clamp(Number(each) || 2.5, 1.5, 6) * 1000, tok = ++tourTok, i = 0;
+    if (!S.playing) window.sppTogglePlay();
+    (function step() {
+      if (tok !== tourTok || !S.open) return;
+      var patch = {}; patch[key] = ok[i]; spConfigure(patch); S.t0 = performance.now(); i++;
+      if (i < ok.length) setTimeout(step, ms);
+    })();
+    return { key: key, names: ok, last: ok[ok.length - 1], ms: ms };
+  }
   window.sppSayla = {
+    loadMany: spLoadMany, pageImages: spPageImages, editGallery: spGalEdit, tour: spTour,
     isOpen: function () { return !!S.open; },
     open: function () { if (!S.open) window.sppOpen(); },
     close: function () { if (S.open) window.sppClose(); },
@@ -88380,7 +88734,8 @@ html.spp-open #sayla-panel{z-index:100004}
     setCompare: function (on) { var w = $('sppWrapRel'); if (w && w.classList.contains('cmp') !== !!on) window.sppToggleCompare(); },
     hasCut: function () { return !!S.cut; },
     output: async function (kind) {
-      if (!S.cut) throw new Error('add a photo first');
+      if (!hasArt()) throw new Error('add a photo first');
+      if (kind === 'live' && S.o.fit === 'gallery') throw new Error('a live clip needs a single photo. Use video or place instead');
       if (kind === 'png') return window.sppGate(window.sppDownloadPng);
       if (kind === 'video') return window.sppGate(window.sppExportVideo);
       if (kind === 'place') return window.sppPlaceOnPage();
