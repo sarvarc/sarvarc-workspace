@@ -45022,9 +45022,10 @@ function pdfedRenderPlacedImages(idx) {
       lcv.style.cssText = `width:100%;height:100%;display:block;pointer-events:none;opacity:${pdfedGetOpacity(item)};`;
       rotInner.appendChild(lcv);
       sppLiveMount(lcv, item.clip, item.dataUrl);
+      el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); if (typeof sppEditLive === 'function') sppEditLive(idx, item); });
       const ltag = document.createElement('div');
       ltag.textContent = 'LIVE';
-      ltag.title = 'Live clip. Downloads as an MP4 presentation only.';
+      ltag.title = 'Live clip. Double-click to edit it in Showcase. Downloads as an MP4 presentation only.';
       ltag.style.cssText = 'position:absolute;left:6px;top:6px;padding:1px 6px;border-radius:8px;font:800 9px/14px system-ui,sans-serif;letter-spacing:.6px;color:#fff;background:#e11d48;pointer-events:none;';
       rotInner.appendChild(ltag);
     } else {
@@ -45118,6 +45119,14 @@ function pdfedRenderPlacedImages(idx) {
       // el's own top:4px;right:4px on .pdfed-badge-row), matching the
       // original absolute-offset layout: fill, reshape, opacity, forward,
       // backward, arrange, delete, then lock rightmost.
+      if (item.clip) {
+        const editBtn = document.createElement('button');
+        editBtn.title = 'Edit this live clip in Showcase';
+        editBtn.className = 'pdfed-badge-btn is-premium';
+        editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+        editBtn.onclick = (ev) => { ev.stopPropagation(); if (typeof sppEditLive === 'function') sppEditLive(idx, item); };
+        badgeRow.appendChild(editBtn);
+      }
       badgeRow.appendChild(fillBtn); badgeRow.appendChild(rshBtn); badgeRow.appendChild(opBtn);
       badgeRow.appendChild(fwdBtn); badgeRow.appendChild(bwdBtn); badgeRow.appendChild(arrBtn);
       badgeRow.appendChild(delBtn);
@@ -86856,6 +86865,32 @@ html.spp-open #sayla-panel{z-index:100004}
                 <button data-v="focus" onclick="sppSetSeg('gal','focus',this)" title="Smart focus: finds the subject in every photo and pushes the camera into it automatically, fills odd-shaped photos with a soft blur, and locks on with a brand-colour reticle. No cropping needed.">&#10022; Smart focus</button>
                 <button data-v="brand" onclick="sppSetSeg('gal','brand',this)" title="Brand sweep: your accent colour wipes between photos, every photo gets a subtle brand grade, and chapter ticks with a counter make it feel like a finished product reel.">&#10022; Brand sweep</button>
                 <button data-v="aura" onclick="sppSetSeg('gal','aura',this)" title="Aura: the backdrop is created from your photos' own colours and melts from one photo to the next. No backdrop to pick.">&#10022; Aura</button>
+                <button data-v="fastcuts" onclick="sppSetSeg('gal','fastcuts',this)" title="Fast cuts for ads: quick-fire editing with flashes, punch-ins and whip pans. Even 2 or 3 photos cut like a full ad, because each photo comes back from a new camera distance.">&#9889; Fast cuts</button>
+              </div>
+              <div id="sppFxColRow" style="display:none">
+                <div class="spp-row"><label>Effect colour (lines, flashes, ticks)</label></div>
+                <div class="spp-seg" id="sppFxColSeg">
+                  <button class="on" data-v="white" onclick="sppSetSeg('fxCol','white',this)" title="Neutral white. No coloured lines.">White</button>
+                  <button data-v="auto" onclick="sppSetSeg('fxCol','auto',this)" title="Takes the strongest colour from each photo">From photo</button>
+                  <button data-v="brand" onclick="sppSetSeg('fxCol','brand',this)" title="Uses your accent colour">Brand colour</button>
+                  <button data-v="off" onclick="sppSetSeg('fxCol','off',this)" title="No lines, bars or frames at all">None</button>
+                </div>
+              </div>
+              <div id="sppCutStyleRow" style="display:none">
+                <div class="spp-row"><label>Fast-cut style</label></div>
+                <div class="spp-seg" id="sppCutStyleSeg">
+                  <button class="on" data-v="hype" onclick="sppSetSeg('cutStyle','hype',this)" title="Steady fast cuts with punch-in and flash. Uses rapid flashes: see the flashing-light notice.">Hype</button>
+                  <button data-v="accel" onclick="sppSetSeg('cutStyle','accel',this)" title="Speeds up, then lands on a hero shot">Build-up</button>
+                  <button data-v="flash" onclick="sppSetSeg('cutStyle','flash',this)" title="Strobe flash on every cut. Uses rapid flashes: see the flashing-light notice.">Strobe</button>
+                  <button data-v="whip" onclick="sppSetSeg('cutStyle','whip',this)" title="Fast whip pans with motion smear">Whip pan</button>
+                  <button data-v="beat" onclick="sppSetSeg('cutStyle','beat',this)" title="Cuts on a long-short-short rhythm. Uses quick flashes: see the flashing-light notice.">Beat cut</button>
+                  <button data-v="crash" onclick="sppSetSeg('cutStyle','crash',this)" title="Snap zoom toward the subject with a hit">Crash zoom</button>
+                  <button data-v="slam" onclick="sppSetSeg('cutStyle','slam',this)" title="Photos slam onto a pile">Slam stack</button>
+                  <button data-v="glitch" onclick="sppSetSeg('cutStyle','glitch',this)" title="Digital tear on every cut. Uses rapid screen tears: see the flashing-light notice.">Glitch</button>
+                  <button data-v="pop" onclick="sppSetSeg('cutStyle','pop',this)" title="Four photos pop into a grid, then the hero shot">Pop grid</button>
+                </div>
+                <div class="spp-note" id="sppCutStyleNote">Hard cuts every half second. Each shot punches in with a tiny camera shake and a white flash.</div>
+                <div class="spp-note" id="sppCutWarn" style="display:none;margin-top:6px;padding:7px 9px;border-radius:8px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.45);color:inherit">&#9888; <b>Flashing-light notice:</b> this style uses rapid flashes or screen tears. It can bother people who are sensitive to flashing lights, and can trigger seizures in people with photosensitive epilepsy. Check it before sharing widely, and consider Build-up, Whip pan or Slam stack for a gentler look.</div>
               </div>
               <div class="spp-row"><label>Backdrop (not for full-screen layouts)</label></div>
               <div class="spp-swatches" id="sppGalSwatches" style="margin-top:0"></div>
@@ -87003,7 +87038,7 @@ html.spp-open #sayla-panel{z-index:100004}
           <div class="spp-btns">
             <button class="spp-btn primary" id="sppPlaceBtn" onclick="sppPlaceOnPage()">Place on page</button>
             <div class="spp-btns2">
-              <button class="spp-btn" id="sppPlaceLiveBtn" onclick="sppPlaceLiveOnPage()" title="Keeps the product moving on the page. Documents with live clips download as an MP4 presentation.">Live clip</button>
+              <button class="spp-btn" id="sppPlaceLiveBtn" onclick="sppPlaceLiveOnPage()" title="Keeps it moving on the page, for one photo or a whole multi-photo reel. Documents with live clips download as an MP4 presentation.">Live clip</button>
               <button class="spp-btn" id="sppPngBtn" onclick="sppGate(sppDownloadPng)">PNG</button>
               <button class="spp-btn" id="sppVidBtn" onclick="sppGate(sppExportVideo)">Video</button>
             </div>
@@ -87078,7 +87113,7 @@ html.spp-open #sayla-panel{z-index:100004}
       bgMode: 'matched', fillA: '#0b1220', fillB: '#1f4e8c', fillGrad: true,
       head: '', sub: '', badge: '', txtPos: 'bottom', font: 'clean', txtSize: 100, txtAuto: true, txtCol: '#ffffff',
       accent: '#00c2ff', txtAnim: 'rise', ratio: '16:9',
-      fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center', gal: 'slideshow'
+      fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center', gal: 'slideshow', cutStyle: 'hype', fxCol: 'white'
     }
   };
 
@@ -87107,7 +87142,7 @@ html.spp-open #sayla-panel{z-index:100004}
   };
   window.sppClose = function () {
     if (S.recording) { say('Video is still recording. Wait for it to finish.', 'info'); return; }
-    $('sppOverlay').classList.remove('open'); S.open = false; document.documentElement.classList.remove('spp-open'); cancelAnimationFrame(S.raf);
+    $('sppOverlay').classList.remove('open'); S.open = false; document.documentElement.classList.remove('spp-open'); cancelAnimationFrame(S.raf); S.editTarget = null;
     try { if (window.sppFlush) window.sppFlush(); } catch (e) {}
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open && !(e.target && e.target.closest && e.target.closest('#sayla-panel'))) sppClose(); });
@@ -88114,7 +88149,7 @@ html.spp-open #sayla-panel{z-index:100004}
       if (--left) return;
       out.forEach(function (c) { if (c) S.gal.push(c); });
       galThumbs();
-      if (S.o.gal !== 'collage' && S.o.gal !== 'polaroid' && S.o.gal !== 'bento') { var v = clamp(Math.round(S.gal.length * 2.5 * 2) / 2, 6, 30); window.sppSet('secs', v); if ($('sppSecs')) { $('sppSecs').value = v; paintRanges(); } }
+      if (S.o.gal !== 'collage' && S.o.gal !== 'polaroid' && S.o.gal !== 'bento' && S.o.gal !== 'fastcuts') { var v = clamp(Math.round(S.gal.length * 2.5 * 2) / 2, 6, 30); window.sppSet('secs', v); if ($('sppSecs')) { $('sppSecs').value = v; paintRanges(); } }
     }
     files.forEach(function (f, i) {
       var r = new FileReader();
@@ -88191,6 +88226,7 @@ html.spp-open #sayla-panel{z-index:100004}
     if (m === 'focus') { galFocus(ctx, W, H, tn, n); return; }
     if (m === 'brand') { galBrand(ctx, W, H, tn, n); return; }
     if (m === 'aura') { galAura(ctx, W, H, tn, n, galRect(W, H)); return; }
+    if (m === 'fastcuts') { galFast(ctx, W, H, tn, n); return; }
     galBg(ctx, W, H);
     var R = galRect(W, H);
     if (m === 'collage') galCollage(ctx, R, tn, n, ent);
@@ -88249,7 +88285,7 @@ html.spp-open #sayla-panel{z-index:100004}
   }
 
   /* ───────────────────────── premium multi-photo layouts ───────────────────────── */
-  var GALFULL = { slideshow: 1, cuts: 1, panels: 1, focus: 1, brand: 1, aura: 1 };               // layouts that fill the whole frame (no backdrop)
+  var GALFULL = { slideshow: 1, cuts: 1, panels: 1, focus: 1, brand: 1, aura: 1, fastcuts: 1 };               // layouts that fill the whole frame (no backdrop)
   var CUT_FX = ['flip', 'warp', 'pixel', 'ripple', 'glitch', 'waterfall', 'assemble', 'shutter', 'iris'];
   // The photo scaled to cover a W x H frame, cached so the cinematic layouts stay smooth
   function galCv(c, W, H) {
@@ -88392,25 +88428,43 @@ html.spp-open #sayla-panel{z-index:100004}
     var ks = Object.keys(h); if (ks.length >= 2) delete h[ks[0]];
     return (h[key] = cv);
   }
-  // One photo, framed automatically. Returns where the subject is on screen.
+  // Effect colour for lines, flashes and ticks. Default is white (neutral). 'auto' takes the photo's own strongest colour, 'brand' uses the accent colour, 'off' removes the lines.
+  function galFx(idx) {
+    var m = S.o.fxCol || 'white', n = S.gal.length; if (m === 'off') return null;
+    if (m === 'brand') return S.o.accent;
+    if (m === 'auto' && n) {
+      var v = galInfo(S.gal[((idx % n) + n) % n]).vivid, mx = Math.max(v[0], v[1], v[2]) || 1, k = Math.min(1.7, 235 / mx);
+      return 'rgb(' + Math.min(255, Math.round(v[0] * k)) + ',' + Math.min(255, Math.round(v[1] * k)) + ',' + Math.min(255, Math.round(v[2] * k)) + ')';
+    }
+    return '#ffffff';
+  }
+  // Crop that never cuts the subject: zoom is held back so the area around the subject always stays inside the frame
+  function galSafeCrop(c, W, H, z) {
+    var inf = galInfo(c), s0 = Math.max(W / c.width, H / c.height), bx = 0.3 * c.width, by = 0.3 * c.height, maxS = Math.min(W / (2 * bx), H / (2 * by)), s = s0 * z, dw, dh;
+    if (s > maxS) s = Math.max(s0, maxS);
+    dw = c.width * s; dh = c.height * s;
+    return { dw: dw, dh: dh, ox: clamp(W / 2 - inf.fx * dw, W - dw, 0), oy: clamp(H / 2 - inf.fy * dh, H - dh, 0) };
+  }
+  function galMism(c, W, H) { return Math.abs(Math.log((c.width / c.height) / (W / H))) > 0.42; }
+  // One photo, framed automatically. Odd-shaped photos are shown whole on a soft self-blur (never cropped). Returns where the subject is on screen.
   function galShot(ctx, c, W, H, ff) {
-    var inf = galInfo(c), e = ease(ff), mism = Math.abs(Math.log((c.width / c.height) / (W / H))) > 0.42, s, dw, dh, ox, oy;
-    if (mism) {
+    var inf = galInfo(c), e = ease(ff), s, dw, dh, ox, oy, cr;
+    if (galMism(c, W, H)) {
       ctx.drawImage(galBlurBg(c, W, H), 0, 0);
-      s = Math.min(W * 0.88 / c.width, H * 0.88 / c.height) * (1 + 0.07 * e); dw = c.width * s; dh = c.height * s; ox = (W - dw) / 2; oy = (H - dh) / 2;
+      s = Math.min(W / c.width, H / c.height) * 0.88 * (1 + 0.07 * e); dw = c.width * s; dh = c.height * s; ox = (W - dw) / 2; oy = (H - dh) / 2;
       galShadow(ctx, ox, oy, dw, dh, Math.min(dw, dh) * 0.025, Math.min(W, H) * 0.06);
       ctx.save(); rr(ctx, ox, oy, dw, dh, Math.min(dw, dh) * 0.025); ctx.clip(); ctx.drawImage(mipFor(c, Math.max(dw, dh)), ox, oy, dw, dh); ctx.restore();
-    } else {
-      s = Math.max(W / c.width, H / c.height) * (1 + 0.2 * e); dw = c.width * s; dh = c.height * s; ox = (W - dw) / 2; oy = (H - dh) / 2;
-      ox += (clamp(W / 2 - inf.fx * dw, W - dw, 0) - ox) * e; oy += (clamp(H / 2 - inf.fy * dh, H - dh, 0) - oy) * e;
-      ctx.drawImage(mipFor(c, Math.max(dw, dh)), ox, oy, dw, dh);
+      return { x: ox + inf.fx * dw, y: oy + inf.fy * dh };
     }
-    return { x: ox + inf.fx * dw, y: oy + inf.fy * dh };
+    cr = galSafeCrop(c, W, H, 1 + 0.12 * e);
+    ctx.drawImage(mipFor(c, Math.max(cr.dw, cr.dh)), cr.ox, cr.oy, cr.dw, cr.dh);
+    return { x: cr.ox + inf.fx * cr.dw, y: cr.oy + inf.fy * cr.dh };
   }
-  function galReticle(ctx, p, W, H, f) {
+  function galReticle(ctx, p, W, H, f, col) {
+    if (!col) return;
     var a = clamp(f / 0.1, 0, 1) * (1 - clamp((f - 0.5) / 0.25, 0, 1)); if (a <= 0) return;
     var u = Math.min(W, H), q = eo(clamp(f / 0.32, 0, 1)), r = u * 0.085 * (2 - q), l = r * 0.42, sg = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-    ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = S.o.accent; ctx.fillStyle = S.o.accent; ctx.lineWidth = Math.max(2, u * 0.005); ctx.lineCap = 'round';
+    ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = Math.max(2, u * 0.005); ctx.lineCap = 'round';
     ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = u * 0.01;
     sg.forEach(function (v) { ctx.beginPath(); ctx.moveTo(p.x + v[0] * r, p.y + v[1] * r - v[1] * l); ctx.lineTo(p.x + v[0] * r, p.y + v[1] * r); ctx.lineTo(p.x + v[0] * r - v[0] * l, p.y + v[1] * r); ctx.stroke(); });
     ctx.beginPath(); ctx.arc(p.x, p.y, u * 0.006 * q, 0, 6.2832); ctx.fill(); ctx.restore();
@@ -88420,28 +88474,30 @@ html.spp-open #sayla-panel{z-index:100004}
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     p = galShot(ctx, S.gal[i], W, H, f);
     if (n > 1 && f > 1 - X) { ctx.globalAlpha = ease((f - (1 - X)) / X); galShot(ctx, S.gal[(i + 1) % n], W, H, 0); ctx.globalAlpha = 1; }
-    else galReticle(ctx, p, W, H, f);
+    else galReticle(ctx, p, W, H, f, galFx(i));
   }
-  // BRAND SWEEP
+  // BRAND SWEEP: a wipe between photos with chapter ticks and a counter. Colour follows the Effect colour setting.
   function galBrand(ctx, W, H, tn, n) {
-    var seg = tn * n, i = Math.floor(seg) % n, f = seg - Math.floor(seg), nx = (i + 1) % n, o = S.o, u = Math.min(W, H), t = n > 1 ? ease(clamp((f - 0.76) / 0.24, 0, 1)) : 0, sk = H * 0.3, bw = W * 0.07, e, ex, k;
-    function grade() { ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.3; ctx.fillStyle = o.accent; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+    var seg = tn * n, i = Math.floor(seg) % n, f = seg - Math.floor(seg), nx = (i + 1) % n, o = S.o, u = Math.min(W, H), t = n > 1 ? ease(clamp((f - 0.76) / 0.24, 0, 1)) : 0, sk = H * 0.3, bw = W * 0.07, ex, k, colA = galFx(i), colB = galFx(nx);
+    function grade(col) { if (!col || o.fxCol === 'white') return; ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fillRect(0, 0, W, H); ctx.restore(); }
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    galShot(ctx, S.gal[i], W, H, f); grade();
+    galShot(ctx, S.gal[i], W, H, f); grade(colA);
     if (t > 0) {
       ex = t * (W + sk + bw);
       ctx.save(); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ex, 0); ctx.lineTo(ex - sk, H); ctx.lineTo(0, H); ctx.closePath(); ctx.clip();
-      galShot(ctx, S.gal[nx], W, H, 0); grade(); ctx.restore();
-      ctx.save(); ctx.fillStyle = o.accent; ctx.beginPath(); ctx.moveTo(ex, 0); ctx.lineTo(ex + bw, 0); ctx.lineTo(ex + bw - sk, H); ctx.lineTo(ex - sk, H); ctx.closePath(); ctx.fill();
-      ctx.globalAlpha = 0.25; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(ex + bw, 0); ctx.lineTo(ex + bw * 1.25, 0); ctx.lineTo(ex + bw * 1.25 - sk, H); ctx.lineTo(ex + bw - sk, H); ctx.closePath(); ctx.fill(); ctx.restore();
+      galShot(ctx, S.gal[nx], W, H, 0); grade(colB); ctx.restore();
+      if (colB) {
+        ctx.save(); ctx.fillStyle = colB; ctx.beginPath(); ctx.moveTo(ex, 0); ctx.lineTo(ex + bw, 0); ctx.lineTo(ex + bw - sk, H); ctx.lineTo(ex - sk, H); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.25; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(ex + bw, 0); ctx.lineTo(ex + bw * 1.25, 0); ctx.lineTo(ex + bw * 1.25 - sk, H); ctx.lineTo(ex + bw - sk, H); ctx.closePath(); ctx.fill(); ctx.restore();
+      }
     }
-    // chapter ticks + counter, placed on the side away from the words
-    var bot = layout(W, H).pos === 'top', m = u * 0.045, th = Math.max(3, u * 0.007), gp = u * 0.012, y = bot ? H - m - th : m, tw = (W - 2 * m - gp * (n - 1)) / n, cur = t > 0.5 ? nx : i;
+    var cur = t > 0.5 ? nx : i, cc = t > 0.5 ? colB : colA; if (!cc) return;
+    var bot = layout(W, H).pos === 'top', m = u * 0.045, th = Math.max(3, u * 0.007), gp = u * 0.012, y = bot ? H - m - th : m, tw = (W - 2 * m - gp * (n - 1)) / n;
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = u * 0.01;
     for (k = 0; k < n; k++) {
       ctx.globalAlpha = 0.35; ctx.fillStyle = '#fff'; rr(ctx, m + k * (tw + gp), y, tw, th, th / 2); ctx.fill();
       var fill = k < cur ? 1 : (k === cur ? (t > 0.5 ? t - 0.5 : f * 0.9 + 0.1) : 0); if (k === cur && t > 0.5) fill = 0.1;
-      if (fill > 0) { ctx.globalAlpha = 1; ctx.fillStyle = o.accent; rr(ctx, m + k * (tw + gp), y, tw * clamp(fill, 0, 1), th, th / 2); ctx.fill(); }
+      if (fill > 0) { ctx.globalAlpha = 1; ctx.fillStyle = cc; rr(ctx, m + k * (tw + gp), y, tw * clamp(fill, 0, 1), th, th / 2); ctx.fill(); }
     }
     var fs = Math.round(u * 0.026); ctx.globalAlpha = 0.95; ctx.fillStyle = '#fff'; ctx.font = '700 ' + fs + 'px ' + FONTS.clean; ctx.textAlign = 'left'; ctx.textBaseline = bot ? 'bottom' : 'top';
     ctx.fillText((cur + 1 < 10 ? '0' : '') + (cur + 1) + ' / ' + (n < 10 ? '0' : '') + n, m, bot ? y - th : y + th * 2.2);
@@ -88480,6 +88536,169 @@ html.spp-open #sayla-panel{z-index:100004}
     }
     S.gal = out; galThumbs(); say('Photos re-ordered so colours flow smoothly', 'success'); return out.length;
   };
+
+
+  /* ───────────────────────── build 284: FAST CUTS (ad pace) ─────────────────────────
+     Quick-fire editing for ads and reels. The pace comes from the style, not from the photo count: with few photos the same
+     photo returns from a new camera distance. Zoom is held back so the subject is never cut, and photos whose shape does
+     not match the frame are shown whole on a soft blur instead of being cropped. Lines and flashes are white unless you pick another Effect colour. */
+  var FAST_STYLES = { hype: 0.5, accel: 0.6, flash: 0.5, whip: 0.6, beat: 0.45, crash: 0.6, slam: 0.55, glitch: 0.5, pop: 0.7 };
+  var FAST_NOTES = {
+    hype: 'Hard cuts every half second. Each shot punches in with a tiny camera shake and a white flash.',
+    accel: 'Starts slow and keeps getting faster, then lands on a long hero shot with a lock-on and a tension bar.',
+    flash: 'Strobe look: a flash on every cut with a double pulse and shake. Loud and attention-grabbing.',
+    whip: 'Fast whip pans. Each photo slides away with motion smear while the next one whips in.',
+    beat: 'Cuts on a long-short-short music rhythm. Long beats slam a frame around the picture.',
+    crash: 'Crash zoom: each shot snaps in fast toward the subject, lands with a hit, and every other shot pulls back instead.',
+    slam: 'Slam stack: photos slam down onto a pile, one on top of the other, each landing with a thud.',
+    glitch: 'Digital glitch: the picture tears into shifting bands on every cut, then snaps clean.',
+    pop: 'Pop grid: four photos pop into a grid one after another, then it hard-cuts to the hero shot.'
+  };
+  var FAST_FLASHY = { hype: 1, flash: 1, beat: 1, glitch: 1 };   // styles with rapid flashes or tears: they carry a visible notice
+  var FAST_VAR = [1, 1.15, 1.3, 1.08];
+  var fastPlans = {}, fastTmpC = null;
+  function galFastPlan(n, secs, st) {
+    var per = FAST_STYLES[st], T = clamp(Math.round(secs / per), Math.max(4, Math.min(n, 48)), 48), key = n + '|' + T + '|' + st;
+    if (fastPlans[key]) return fastPlans[key];
+    var w = [], sum = 0, i, a = 0, plan = [], BEAT = [2, 1, 1, 2, 1, 1, 1, 1];
+    for (i = 0; i < T; i++) {
+      w[i] = st === 'accel' ? (i === T - 1 ? 2.8 : 1.7 - 1.25 * (i / Math.max(1, T - 2))) : (st === 'beat' ? BEAT[i % 8] : 1);
+      sum += w[i];
+    }
+    for (i = 0; i < T; i++) { plan.push({ k: i % n, v: Math.floor(i / n) % 4, a: a, d: w[i] / sum, long: st === 'beat' && w[i] === 2 }); a += w[i] / sum; }
+    var ks = Object.keys(fastPlans); if (ks.length > 12) delete fastPlans[ks[0]];
+    return (fastPlans[key] = plan);
+  }
+  // One picture at camera distance z. Safe: the subject area stays in frame; odd shapes stay whole on a soft blur.
+  function galFastPic(ctx, W, H, c, z, dx, dy) {
+    var inf = galInfo(c), s, dw, dh, ox, oy, cr, lv;
+    dx = dx || 0; dy = dy || 0;
+    if (galMism(c, W, H)) {
+      lv = clamp((z - 1) / 0.5, 0, 1); s = Math.min(W / c.width, H / c.height) * (0.82 + 0.14 * lv); dw = c.width * s; dh = c.height * s; ox = (W - dw) / 2 + dx; oy = (H - dh) / 2 + dy;
+      ctx.drawImage(galBlurBg(c, W, H), 0, 0, W, H);
+      galShadow(ctx, ox, oy, dw, dh, Math.min(dw, dh) * 0.025, Math.min(W, H) * 0.06);
+      ctx.save(); rr(ctx, ox, oy, dw, dh, Math.min(dw, dh) * 0.025); ctx.clip(); ctx.drawImage(mipFor(c, Math.max(dw, dh)), ox, oy, dw, dh); ctx.restore();
+      return { x: ox + inf.fx * dw, y: oy + inf.fy * dh };
+    }
+    cr = galSafeCrop(c, W, H, z * 1.03);
+    ox = clamp(cr.ox + dx, W - cr.dw, 0); oy = clamp(cr.oy + dy, H - cr.dh, 0);
+    ctx.drawImage(mipFor(c, Math.max(cr.dw, cr.dh)), ox, oy, cr.dw, cr.dh);
+    return { x: ox + inf.fx * cr.dw, y: oy + inf.fy * cr.dh };
+  }
+  function galFastDraw(ctx, W, H, sh, f, i, st) {
+    var c = S.gal[sh.k], odd = i % 2, z = FAST_VAR[sh.v], sk = Math.pow(clamp(1 - f / 0.22, 0, 1), 2), dx = 0, dy = 0, cq;
+    if (st === 'crash') {
+      cq = eo(clamp(f / 0.28, 0, 1)); z = odd ? 1.3 - 0.3 * cq + 0.03 * f : 1 + 0.3 * cq + 0.03 * f;
+      sk = f >= 0.28 ? Math.pow(clamp(1 - (f - 0.28) / 0.15, 0, 1), 2) : 0; dx = (rnd(i, 1) - 0.5) * W * 0.02 * sk; dy = (rnd(i, 2) - 0.5) * H * 0.014 * sk;
+    } else {
+      z *= odd ? 1 + 0.07 * eo(f) : 1 + 0.05 * (1 - eo(clamp(f / 0.4, 0, 1))) + 0.02 * f;
+      if (st === 'beat' && sh.long) z *= 1 + 0.04 * (1 - eo(clamp(f / 0.3, 0, 1)));
+      if (st === 'hype' || st === 'flash' || st === 'beat') { dx = (rnd(i, 1) - 0.5) * W * 0.03 * sk; dy = (rnd(i, 2) - 0.5) * H * 0.02 * sk; }
+    }
+    return galFastPic(ctx, W, H, c, z, dx, dy);
+  }
+  function galFastCard(ctx, W, H, c, sc, ang, ox, oy, dim) {
+    var s = Math.min(W * 0.86 / c.width, H * 0.86 / c.height) * sc, w = c.width * s, h = c.height * s, rad = Math.min(w, h) * 0.03;
+    ctx.save(); ctx.translate(W / 2 + ox, H / 2 + oy); ctx.rotate(ang);
+    galShadow(ctx, -w / 2, -h / 2, w, h, rad, Math.min(W, H) * 0.07);
+    ctx.save(); rr(ctx, -w / 2, -h / 2, w, h, rad); ctx.clip(); ctx.drawImage(mipFor(c, Math.max(w, h)), -w / 2, -h / 2, w, h);
+    if (dim > 0) { ctx.fillStyle = 'rgba(0,0,0,' + dim + ')'; ctx.fillRect(-w / 2, -h / 2, w, h); } ctx.restore(); ctx.restore();
+  }
+  function galFastSlam(ctx, W, H, plan, i, f) {
+    var d, idx, q = eo(clamp(f / 0.2, 0, 1)), sh = 0, a;
+    ctx.drawImage(galBlurBg(S.gal[plan[i].k], W, H), 0, 0, W, H);
+    for (d = 2; d >= 0; d--) {
+      idx = (i - d + plan.length * 2) % plan.length;
+      if (d === 0) {
+        sh = f > 0.2 ? Math.pow(clamp(1 - (f - 0.2) / 0.15, 0, 1), 2) : 0;
+        ctx.save(); ctx.globalAlpha = clamp(f / 0.05, 0, 1);
+        galFastCard(ctx, W, H, S.gal[plan[idx].k], 1 + 0.22 * (1 - q), (rnd(idx, 4) - 0.5) * 0.09 * (1 - 0.5 * q), (rnd(idx, 5) - 0.5) * W * 0.012 * sh, (rnd(idx, 6) - 0.5) * H * 0.012 * sh, 0);
+        ctx.restore();
+      } else galFastCard(ctx, W, H, S.gal[plan[idx].k], 1 - 0.015 * d, (rnd(idx, 4) - 0.5) * 0.09, 0, 0, 0.22 * d);
+    }
+    a = 0.22 * clamp(1 - Math.abs(f - 0.2) / 0.05, 0, 1);
+    if (a > 0) { ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+  function galFastPop(ctx, W, H, plan, i, f, n) {
+    var g = Math.min(W, H) * 0.012, tw = (W - g * 3) / 2, th = (H - g * 3) / 2, t, q, x, y, sc, c, a;
+    ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0, 0, W, H);
+    if (f >= 0.7) {
+      galFastPic(ctx, W, H, S.gal[plan[i].k], 1.05 + 0.05 * clamp((f - 0.7) / 0.3, 0, 1), 0, 0);
+      a = 0.45 * Math.pow(clamp(1 - (f - 0.7) / 0.08, 0, 1), 2); if (a > 0) { ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fillRect(0, 0, W, H); }
+      return;
+    }
+    for (t = 0; t < 4; t++) {
+      q = eb(clamp((f - t * 0.1) / 0.16, 0, 1)); if (q <= 0) continue;
+      c = S.gal[(plan[i].k + t) % n]; x = g + (t % 2) * (tw + g); y = g + Math.floor(t / 2) * (th + g); sc = 0.6 + 0.4 * q;
+      ctx.save(); ctx.globalAlpha = clamp(q * 1.5, 0, 1); ctx.translate(x + tw / 2, y + th / 2); ctx.scale(sc, sc); ctx.translate(-tw / 2, -th / 2);
+      ctx.beginPath(); ctx.rect(0, 0, tw, th); ctx.clip(); galFastPic(ctx, tw, th, c, 1, 0, 0); ctx.restore();
+    }
+  }
+  function galFast(ctx, W, H, tn, n) {
+    var o = S.o, st = FAST_STYLES[o.cutStyle] ? o.cutStyle : 'hype', plan = galFastPlan(n, o.secs, st), u = Math.min(W, H), i, sh, f, p, a, m, q, sm, ni, col;
+    for (i = 0; i < plan.length - 1 && tn >= plan[i].a + plan[i].d; i++);
+    sh = plan[i]; f = clamp((tn - sh.a) / sh.d, 0, 1); col = galFx(sh.k);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    if (st === 'slam') { galFastSlam(ctx, W, H, plan, i, f); return; }
+    if (st === 'pop') { galFastPop(ctx, W, H, plan, i, f, n); return; }
+    if (st === 'whip' && f > 0.78) {
+      q = ease((f - 0.78) / 0.22); sm = Math.sin(Math.PI * q) * W * 0.06; ni = (i + 1) % plan.length;
+      var at = function (idx, sf, xo, al) { ctx.save(); ctx.globalAlpha = al; ctx.translate(xo, 0); galFastDraw(ctx, W, H, plan[idx], sf, idx, st); ctx.restore(); };
+      for (m = 3; m >= 1; m--) at(i, f, -W * q + m * sm / 3, 0.22);
+      at(i, f, -W * q, 1);
+      for (m = 3; m >= 1; m--) at(ni, 0, (1 - q) * W + m * sm / 3, 0.22);
+      at(ni, 0, (1 - q) * W, 1);
+      return;
+    }
+    if (st === 'glitch') {
+      if (!fastTmpC || fastTmpC.width !== W || fastTmpC.height !== H) fastTmpC = mk(W, H);
+      var tx = fastTmpC.getContext('2d'), N = 12, j, y0, hh, g = Math.pow(clamp(1 - f / 0.3, 0, 1), 2) + 0.6 * clamp(1 - Math.abs(f - 0.63) / 0.04, 0, 1);
+      tx.clearRect(0, 0, W, H); galFastDraw(tx, W, H, sh, f, i, st); ctx.drawImage(fastTmpC, 0, 0);
+      if (g > 0.02) {
+        for (j = 0; j < N; j++) {
+          if (rnd(i * 13 + j, 3) < 0.3) continue;
+          y0 = Math.floor(j * H / N); hh = Math.ceil(H / N) + 1;
+          ctx.drawImage(fastTmpC, 0, y0, W, hh, (rnd(i * 7 + j, 8) - 0.5) * W * 0.28 * g, y0, W, hh);
+        }
+        if (g > 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; for (j = 0; j < 3; j++) ctx.fillRect(0, rnd(i * 5 + j, 9) * H, W, Math.max(2, u * 0.004)); }
+      }
+      return;
+    }
+    p = galFastDraw(ctx, W, H, sh, f, i, st);
+    if (st === 'hype' || st === 'accel' || st === 'crash') {
+      a = (st === 'hype' ? 0.55 : 0.35) * Math.pow(clamp(1 - f / 0.12, 0, 1), 2);
+      if (st === 'crash') a = 0.3 * clamp(1 - Math.abs(f - 0.28) / 0.05, 0, 1);
+      if (a > 0) { ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fillRect(0, 0, W, H); }
+    } else if (st === 'flash') {
+      a = 0.9 * Math.pow(clamp(1 - f / 0.2, 0, 1), 2);
+      if (a > 0) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = a; ctx.fillStyle = col || '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      a = 0.3 * clamp(1 - Math.abs(f - 0.56) / 0.07, 0, 1);
+      if (a > 0) { ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fillRect(0, 0, W, H); }
+    } else if (st === 'beat') {
+      a = (sh.long ? 0.35 : 0.2) * Math.pow(clamp(1 - f / 0.1, 0, 1), 2);
+      if (a > 0) { ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fillRect(0, 0, W, H); }
+      if (col && sh.long && f < 0.3) { var lw = u * 0.016 * (1 - f / 0.3); ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.strokeRect(lw / 2, lw / 2, W - lw, H - lw); ctx.restore(); }
+    }
+    if (st === 'accel' && col) {
+      var bh = Math.max(3, u * 0.012), top = layout(W, H).pos === 'bottom';
+      ctx.fillStyle = col; ctx.fillRect(0, top ? 0 : H - bh, W * tn, bh);
+      if (i === plan.length - 1) galReticle(ctx, p, W, H, f, col);
+    }
+  }
+  (function () {   // show the pickers only where they apply, and describe the chosen style
+    var f = window.sppSetSeg;
+    window.sppSetSeg = function (k) {
+      var r = f.apply(this, arguments);
+      if (k === 'gal' || k === 'cutStyle' || k === 'fit') {
+        var g = S.o.fit === 'gallery', row = $('sppCutStyleRow'), fx = $('sppFxColRow');
+        if (row) row.style.display = (g && S.o.gal === 'fastcuts') ? '' : 'none';
+        if (fx) fx.style.display = (g && (S.o.gal === 'fastcuts' || S.o.gal === 'focus' || S.o.gal === 'brand')) ? '' : 'none';
+        var nt = $('sppCutStyleNote'); if (nt) nt.textContent = FAST_NOTES[S.o.cutStyle] || '';
+        var wn = $('sppCutWarn'); if (wn) wn.style.display = (g && S.o.gal === 'fastcuts' && FAST_FLASHY[S.o.cutStyle]) ? '' : 'none';
+      }
+      return r;
+    };
+  })();
 
   /* ───────────────────────── preview loop ───────────────────────── */
   function tick(ts) {
@@ -88623,10 +88842,14 @@ html.spp-open #sayla-panel{z-index:100004}
   function clipRt(clip) {
     var rt = RT.get(clip);
     if (rt) return rt;
-    rt = { ready: false, cut: null, sprites: null, spriteKey: '', layers: {}, cutVer: 1,
+    rt = { ready: false, cut: null, gal: null, sprites: null, spriteKey: '', layers: {}, cutVer: 1,
            edgeRGB: (clip.edge || [70, 70, 70]).slice(), bgColor: clip.bg || { r: 240, g: 242, b: 246 },
            o: Object.assign({}, clip.o), promise: null };
-    rt.promise = getCut(clip.cut).then(function (c) { if (c) { rt.cut = c; rt.ready = true; } return rt; });
+    if (clip.gal && clip.gal.length) {   // multi-photo clip: decode every photo once, then play exactly like the preview
+      rt.promise = Promise.all(clip.gal.map(getCut)).then(function (list) {
+        list = list.filter(Boolean); if (list.length) { rt.gal = list; rt.ready = true; } return rt;
+      });
+    } else rt.promise = getCut(clip.cut).then(function (c) { if (c) { rt.cut = c; rt.ready = true; } return rt; });
     RT.set(clip, rt);
     return rt;
   }
@@ -88644,12 +88867,12 @@ html.spp-open #sayla-panel{z-index:100004}
     });
     p.then(function (c) { if (!c) CUTS.delete(url); });
     CUTS.set(url, p);
-    if (CUTS.size > 8) CUTS.delete(CUTS.keys().next().value);
+    if (CUTS.size > 26) CUTS.delete(CUTS.keys().next().value);
     return p;
   }
   function withRt(rt, fn) {
-    var keep = { cut: S.cut, sprites: S.sprites, spriteKey: S.spriteKey, layers: S.layers, cutVer: S.cutVer, edgeRGB: S.edgeRGB, bgColor: S.bgColor, o: S.o };
-    S.cut = rt.cut; S.sprites = rt.sprites; S.spriteKey = rt.spriteKey; S.layers = rt.layers; S.cutVer = rt.cutVer;
+    var keep = { cut: S.cut, gal: S.gal, sprites: S.sprites, spriteKey: S.spriteKey, layers: S.layers, cutVer: S.cutVer, edgeRGB: S.edgeRGB, bgColor: S.bgColor, o: S.o };
+    S.cut = rt.cut; S.gal = rt.gal || S.gal; S.sprites = rt.sprites; S.spriteKey = rt.spriteKey; S.layers = rt.layers; S.cutVer = rt.cutVer;
     S.edgeRGB = rt.edgeRGB; S.bgColor = rt.bgColor; S.o = rt.o;
     try { return fn(); }
     finally {
@@ -88661,7 +88884,7 @@ html.spp-open #sayla-panel{z-index:100004}
   window.sppLiveAspect = function (clip) { var d = (clip.dims && clip.dims.e) || EXPORT[(clip.o && clip.o.ratio)] || EXPORT['16:9']; return d[0] / d[1]; };
   // Draws the clip at time tSec (seconds since it first appeared) onto ctx. Returns false until its cut-out has decoded.
   window.sppLiveFrame = function (clip, ctx, W, H, tSec) {
-    var rt = clipRt(clip); if (!rt.ready || !rt.cut) return false;
+    var rt = clipRt(clip); if (!rt.ready || !(rt.cut || (rt.gal && rt.gal.length))) return false;
     withRt(rt, function () { draw(ctx, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
     return true;
   };
@@ -88754,7 +88977,18 @@ html.spp-open #sayla-panel{z-index:100004}
     liveKick();
   };
 
+  // A multi-photo clip carries every photo (compressed) so it can replay the same reel on the page, in previews and in MP4 export.
+  function snapshotGalleryClip() {
+    var urls = S.gal.map(function (g) {
+      var k = Math.min(1, 1100 / Math.max(g.width, g.height)), c = mk(g.width * k, g.height * k), x = c.getContext('2d');
+      x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(g, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.86);
+    });
+    return { v: 1, cut: '', gal: urls, edge: [70, 70, 70], bg: { r: 240, g: 242, b: 246 }, o: JSON.parse(JSON.stringify(S.o)),
+      dims: { p: PREVIEW[S.o.ratio].slice(), e: EXPORT[S.o.ratio].slice() } };
+  }
   function snapshotClip() {
+    if (S.o.fit === 'gallery') return snapshotGalleryClip();
     var cut = S.cut, fill = S.o.fit === 'fill', k = Math.min(1, (fill ? 1400 : 900) / Math.max(cut.width, cut.height)), c = cut;
     if (k < 1) { c = mk(cut.width * k, cut.height * k); var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cut, 0, 0, c.width, c.height); }
     return {
@@ -88764,22 +88998,50 @@ html.spp-open #sayla-panel{z-index:100004}
     };
   }
 
+  // Re-opens a live clip that is already on the page inside Showcase, exactly as it was made (photos + every setting).
+  window.sppEditLive = async function (idx, item) {
+    var clip = item && item.clip; if (!clip) return;
+    try {
+      window.sppOpen(); S.editTarget = { idx: idx, id: item.id };
+      Object.keys(clip.o || {}).forEach(function (k) { if (k in S.o) S.o[k] = clip.o[k]; });
+      if (clip.gal && clip.gal.length) {
+        var list = []; for (var i = 0; i < clip.gal.length; i++) list.push(await spDecode(clip.gal[i]));
+        S.gal = list; S.o.fit = 'gallery'; syncUi(); galThumbs();
+      } else {
+        loadDataUrl(clip.cut, 'Live clip', true, function () { syncUi(); });
+        syncUi();
+      }
+      say('Editing this live clip. Change anything, then press Live clip to update it on the page.', 'info');
+    } catch (e) { console.error('Edit live clip failed', e); S.editTarget = null; say('Could not open this live clip for editing.', 'error'); }
+  };
+
   window.sppPlaceLiveOnPage = async function () {
-    if (S.o.fit === 'gallery') { say('Live clip needs a single photo. For several photos use Place on page, PNG or Video.', 'info'); return; }
     if (!hasArt()) { say('Add a photo first', 'info'); return; }
     if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
       say('Open or create a page first, then place the live clip on it.', 'info'); return;
     }
-    var clip = snapshotClip();
+    var clip = snapshotClip(), multi = !!clip.gal;
     // Still poster: used anywhere a page is flattened to a picture (thumbnails, previews).
     refreshPageRatio();
     var d = EXPORT[S.o.ratio], k = 800 / Math.max(d[0], d[1]), poster = mk(d[0] * k, d[1] * k);
     draw(poster.getContext('2d'), poster.width, poster.height, S.tNorm, { textT: 1 });
     var url = poster.toDataURL('image/png');
-    var idx = pdfed.active, pg = pdfed.pages[idx], pcv = document.getElementById('pdfedPageCanvas');
+    var tgt = S.editTarget, tItem = null; S.editTarget = null;
+    if (tgt && pdfed.pages[tgt.idx]) tItem = (pdfed.pages[tgt.idx].placedImages || []).filter(function (it) { return it.id === tgt.id; })[0] || null;
+    var idx = tItem ? tgt.idx : pdfed.active, pg = pdfed.pages[idx], pcv = document.getElementById('pdfedPageCanvas');
     var pw = (pcv && pcv.width) || 800, ph = (pcv && pcv.height) || 1100;
     var f = Math.min(pw / poster.width, ph / poster.height), w = Math.round(poster.width * f), h = Math.round(poster.height * f);
     if (S.o.ratio === 'page') { w = pw; h = ph; }
+    if (tItem) {   // update the clip that is already on the page: same spot, same width, same rotation and layer
+      var cx = tItem.x + tItem.w / 2, cy = tItem.y + tItem.h / 2, nw = tItem.w, nh = Math.round(nw * poster.height / poster.width);
+      if (S.o.ratio === 'page') { nw = pw; nh = ph; cx = pw / 2; cy = ph / 2; }
+      tItem.clip = clip; tItem.dataUrl = url; tItem.w = nw; tItem.h = nh; tItem.x = Math.round(cx - nw / 2); tItem.y = Math.round(cy - nh / 2);
+      if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
+      if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
+      sppClose();
+      say('Live clip updated on your page.', 'success');
+      return;
+    }
     pdfedAnnotState.placedImgSeq++;
     (pg.placedImages = pg.placedImages || []).push({
       id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: url, clip: clip,
@@ -88788,7 +89050,7 @@ html.spp-open #sayla-panel{z-index:100004}
     if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
     if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
     sppClose();
-    say('Live clip placed. It keeps playing on the page and in the slideshow preview. Download this document as an MP4 presentation (Export, Slideshow Clip).', 'success');
+    say((multi ? 'Live reel placed (' + clip.gal.length + ' photos). ' : 'Live clip placed. ') + 'It keeps playing on the page and in the slideshow preview. Download this document as an MP4 presentation (Export, Slideshow Clip).', 'success');
   };
 
   ['sppPlaceOnPage', 'sppPlaceLiveOnPage'].forEach(function (name) {
@@ -88926,7 +89188,7 @@ html.spp-open #sayla-panel{z-index:100004}
     if ($('sppCutBox')) $('sppCutBox').style.opacity = o.cutout ? 1 : .35;
     if ($('sppFillBRow')) $('sppFillBRow').style.display = o.fillGrad ? '' : 'none';
     if ($('sppTxtColRow')) $('sppTxtColRow').style.display = o.txtAuto ? 'none' : '';
-    [['motion', 'sppMotionSeg'], ['dir', 'sppDirSeg'], ['bgMode', 'sppBgSeg'], ['ratio', 'sppRatioSeg'], ['fit', 'sppFitSeg'], ['fmotion', 'sppFMotionSeg'], ['txtAlign', 'sppAlignSeg'], ['gal', 'sppGalSeg']].forEach(function (p) {
+    [['motion', 'sppMotionSeg'], ['dir', 'sppDirSeg'], ['bgMode', 'sppBgSeg'], ['ratio', 'sppRatioSeg'], ['fit', 'sppFitSeg'], ['fmotion', 'sppFMotionSeg'], ['txtAlign', 'sppAlignSeg'], ['gal', 'sppGalSeg'], ['cutStyle', 'sppCutStyleSeg'], ['fxCol', 'sppFxColSeg']].forEach(function (p) {
       var seg = $(p[1]); if (!seg) return;
       var btn = seg.querySelector('[data-v="' + o[p[0]] + '"]');
       if (btn) window.sppSetSeg(p[0], o[p[0]], btn);
@@ -89001,7 +89263,7 @@ html.spp-open #sayla-panel{z-index:100004}
     dir: { clockwise: 1, cw: 1, counter: -1, counterclockwise: -1, ccw: -1, anticlockwise: -1 }
   };
   var SP_SPEC = {
-    fit: { t: 'enum', v: ['product', 'fill', 'gallery'], alias: SP_ALIAS.fit }, gal: { t: 'enum', v: ['slideshow', 'collage', 'spotlight', 'coverflow', 'cuts', 'panels', 'polaroid', 'bento', 'film', 'focus', 'brand', 'aura'] },
+    fit: { t: 'enum', v: ['product', 'fill', 'gallery'], alias: SP_ALIAS.fit }, gal: { t: 'enum', v: ['slideshow', 'collage', 'spotlight', 'coverflow', 'cuts', 'panels', 'polaroid', 'bento', 'film', 'focus', 'brand', 'aura', 'fastcuts'] }, cutStyle: { t: 'enum', v: ['hype', 'accel', 'flash', 'whip', 'beat', 'crash', 'slam', 'glitch', 'pop'] }, fxCol: { t: 'enum', v: ['white', 'auto', 'brand', 'off'], alias: { none: 'off', clean: 'off', neutral: 'white', photo: 'auto', accent: 'brand' } },
     cutout: { t: 'bool' }, tol: { t: 'num', min: 6, max: 120 }, trim: { t: 'num', min: 0, max: 4 }, soft: { t: 'num', min: 0, max: 4 },
     motion: { t: 'enum', v: ['turntable', 'sway', 'wrap', 'hover', 'glint', 'carousel', 'slice', 'bounce', 'echo', 'pulse', 'levitate', 'pop', 'orbit', 'swing', 'roll', 'acrobat', 'breakdance', 'spinin', 'tumble', 'hero', 'assemble', 'shatter', 'dust', 'blinds', 'scan', 'warp', 'snap', 'flip', 'ripple', 'pixel', 'glitch', 'waterfall'] },
     fmotion: { t: 'enum', v: ['still', 'zoomin', 'zoomout', 'pan', 'drift', 'kenburns', 'beat', 'shine', 'whip', 'assemble', 'shutter', 'iris', 'cinema', 'warp', 'snap', 'flip', 'ripple', 'pixel', 'glitch', 'waterfall'] },
@@ -89165,7 +89427,7 @@ html.spp-open #sayla-panel{z-index:100004}
     cs.forEach(function (c) { S.gal.push(c); });
     if (S.o.fit !== 'gallery') window.sppSetSeg('fit', 'gallery', $('sppFitSeg').querySelector('[data-v="gallery"]'));
     galThumbs();
-    if (S.o.gal !== 'collage' && S.o.gal !== 'polaroid' && S.o.gal !== 'bento') { var v = clamp(Math.round(S.gal.length * 2.5 * 2) / 2, 6, 30); window.sppSet('secs', v); if ($('sppSecs')) { $('sppSecs').value = v; paintRanges(); } }
+    if (S.o.gal !== 'collage' && S.o.gal !== 'polaroid' && S.o.gal !== 'bento' && S.o.gal !== 'fastcuts') { var v = clamp(Math.round(S.gal.length * 2.5 * 2) / 2, 6, 30); window.sppSet('secs', v); if ($('sppSecs')) { $('sppSecs').value = v; paintRanges(); } }
     return { added: cs.length, dropped: urls.length - use.length, total: S.gal.length };
   }
   function spPageImages(w) {
@@ -89225,7 +89487,6 @@ html.spp-open #sayla-panel{z-index:100004}
     hasCut: function () { return !!S.cut; },
     output: async function (kind) {
       if (!hasArt()) throw new Error('add a photo first');
-      if (kind === 'live' && S.o.fit === 'gallery') throw new Error('a live clip needs a single photo. Use video or place instead');
       if (kind === 'png') return window.sppGate(window.sppDownloadPng);
       if (kind === 'video') return window.sppGate(window.sppExportVideo);
       if (kind === 'place') return window.sppPlaceOnPage();
