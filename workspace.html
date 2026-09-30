@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -3209,21 +3208,6 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
   pointer-events: none;
 }
 
-/* Touch devices have no :hover, so the insert zone stayed opacity:0 and the
-   chip stayed clipped to 22px, hiding both "+" and the page-transition ▶
-   button. Show them always and let the chip expand on touch screens. */
-@media (hover: none) {
-  .pdfed-insert-zone { opacity: 1; height: 40px; }
-  .pdfed-insert-chip { max-width: 240px; padding-right: 8px; background: rgba(0,194,255,0.16); }
-  .pdfed-insert-chip .pdfed-insert-btn,
-  .pdfed-insert-chip .pdfed-anim-btn { width: 28px; height: 28px; }
-  .pdfed-insert-chip .pdfed-anim-btn { margin-left: 6px; }
-}
-/* Transition picker: fit narrow phones (JS positions using its rendered width) */
-@media (max-width: 420px) {
-  body .pdfed-anim-picker { width: calc(100vw - 16px); }
-}
-
 /* Drag-reorder for thumb */
 .pdfed-thumb[draggable="true"] { cursor: grab; }
 .pdfed-thumb.drag-over-top { border-top: 3px solid var(--blue); }
@@ -4832,6 +4816,9 @@ input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-r
 }
 
 .sarvarc-auth-fields { display: flex; flex-direction: column; gap: 10px; }
+/* The sign-up / login prompt must sit above the fullscreen slideshow (z-index 900), otherwise an Export Clip
+   click that hits the free-export limit opens it invisibly underneath and looks like nothing happened. */
+#sarvarcAuthOverlay { z-index: 1000000; }
 #sarvarcAuthOverlay .pdfed-export-range-input {
   margin-top: 0; padding: 13px 14px; border-radius: 11px; font-size: 13.5px;
   background: var(--bg3); border: 1.5px solid var(--border);
@@ -10390,6 +10377,10 @@ button.dg-show-chip.active { background:var(--blue); }
                 <button class="pdfed-appbar-btn" id="pdfedBrandKitBtn" onclick="bkTogglePanel()" title="Save your logo once, auto-brand every proposal you insert">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
                   Brand Kit
+                </button>
+                <button class="pdfed-appbar-btn" id="sppOpenBtn" onclick="sppOpen()" title="Turn a product photo into a rotating showcase with background and text">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+                  Product Presenter
                 </button>
                 <!-- BRAND KIT panel: save a logo + company identity once, then every
                      proposal template inserted onto the canvas auto-applies it (see
@@ -24773,6 +24764,65 @@ async function pdfedPageUrl(pg) {
 const pdfedPageUrlBase = pdfedPageUrl;
 
 // ─── BUILD STRIP ───
+// ─── LIVE CLIPS IN THE THUMBNAIL STRIP ───
+// A page holding a live clip (made in Product Presenter) plays on the canvas. Its thumbnail used to be
+// a flat picture (clip frozen on its poster). Now the thumbnail gets a small running canvas layered
+// over that picture: the page is re-composed per frame with each clip drawn at the current time,
+// at the right depth between the other items. Only thumbnails on screen draw, at a capped frame rate.
+const pdfedThumbLive = { set: new Set(), raf: 0, io: null, tok: 0 };
+function pdfedThumbLiveDetach(card) {
+  if (!card) return;
+  card._liveTok = ++pdfedThumbLive.tok;
+  const old = card._liveEnt;
+  if (old) {
+    pdfedThumbLive.set.delete(old);
+    if (pdfedThumbLive.io) { try { pdfedThumbLive.io.unobserve(old.canvas); } catch (e) {} }
+    if (old.canvas.parentNode) old.canvas.parentNode.removeChild(old.canvas);
+    card._liveEnt = null;
+  }
+}
+async function pdfedThumbLiveAttach(card, imgEl, pg) {
+  if (!card || !pg) return;
+  pdfedThumbLiveDetach(card);
+  const tok = card._liveTok;
+  let built;
+  try { built = await pdfedBuildLivePage(pg, 300, 460); } catch (e) { console.warn('Live thumbnail failed', e); return; }
+  // The strip may have been rebuilt or the page edited again while this was composing.
+  if (!built || card._liveTok !== tok || !card.isConnected) return;
+  const cv = built.canvas;
+  cv.className = 'pdfed-thumb-live';
+  cv.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border-radius:6px;pointer-events:none;display:block;';
+  card.insertBefore(cv, imgEl && imgEl.nextSibling);
+  const firstClip = (pg.placedImages || []).filter(it => it && it.clip)[0];
+  const ent = { canvas: cv, update: built.update, clip: firstClip ? firstClip.clip : null, t0: performance.now(), last: 0, vis: true };
+  card._liveEnt = ent;
+  pdfedThumbLive.set.add(ent);
+  if ('IntersectionObserver' in window) {
+    if (!pdfedThumbLive.io) pdfedThumbLive.io = new IntersectionObserver(list => {
+      list.forEach(r => { const e = r.target._thumbLiveEnt; if (e) e.vis = r.isIntersecting; });
+    }, { rootMargin: '60px' });
+    cv._thumbLiveEnt = ent;
+    pdfedThumbLive.io.observe(cv);
+  }
+  if (!pdfedThumbLive.raf) pdfedThumbLive.raf = requestAnimationFrame(pdfedThumbLiveTick);
+}
+function pdfedThumbLiveTick() {
+  pdfedThumbLive.raf = 0;
+  const now = performance.now();
+  pdfedThumbLive.set.forEach(e => {
+    if (!e.canvas.isConnected) { pdfedThumbLive.set.delete(e); return; }   // strip was rebuilt
+    if (document.hidden || !e.vis) return;
+    if (now - e.last < 66) return;                                           // ~15 fps is plenty at thumbnail size
+    e.last = now;
+    // Use the same clock as the clip on the canvas when it is open there, so both play in step.
+    let t = null;
+    if (e.clip && typeof sppLiveTime === 'function') t = sppLiveTime(e.clip);
+    if (t == null) t = (now - e.t0) / 1000;
+    try { e.update(t); } catch (err) { console.error('Live thumbnail frame failed', err); pdfedThumbLive.set.delete(e); }
+  });
+  if (pdfedThumbLive.set.size) pdfedThumbLive.raf = requestAnimationFrame(pdfedThumbLiveTick);
+}
+
 async function pdfedBuildStrip() {
   pdfedPersist();
   const strip = document.getElementById('pdfedStrip');
@@ -24807,6 +24857,7 @@ async function pdfedBuildStrip() {
       try {
         const url = await pdfedComposeThumb(pgRef, i);
         imgEl.src = url;
+        if (pdfedPageHasLive(pgRef)) pdfedThumbLiveAttach(card, imgEl, pgRef);
       } catch(err) { console.warn(err); }
     })(pg, img, i);
 
@@ -29410,9 +29461,10 @@ async function pdfedFlattenPageDataUrl(pg) {
 // matches on-screen stacking exactly, an image sent to front actually
 // paints over text underneath it, and vice versa, instead of images always
 // being drawn first no matter what Arrange says.
-async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages) {
+async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages, itemFilter) {
   const ordered = pdfedGetZOrderedItems(pg);
   for (const { kind, item } of ordered) {
+    if (itemFilter && !itemFilter(kind, item)) continue;
     // skipTexts lets the "editable PDF" export path leave text boxes OUT of
     // the flattened raster entirely, so they can be re-added a moment later
     // as real, selectable/editable vector text (see pdfedRenderPlacedTextsAsPdfText)
@@ -29897,6 +29949,7 @@ async function pdfedRefreshThumb(idx) {
     }
   } catch(e) { console.warn(e); }
   card.classList.remove('refreshing');
+  try { if (pdfedPageHasLive(pg)) pdfedThumbLiveAttach(card, img, pg); else pdfedThumbLiveDetach(card); } catch (e) { console.warn(e); }
   // Only drop the header "Live" tag once nothing else is mid-refresh.
   if (!Object.keys(_pdfedThumbRefreshTimers).some(k => _pdfedThumbRefreshTimers[k])) {
     const liveTag = document.getElementById('pdfedStripLive');
@@ -33766,6 +33819,7 @@ async function pdfedRenderBlankPage(htmlContent, bg, mmW, mmH) {
 // callers, which call pdfedExport() with no args, working exactly as before).
 async function pdfedExport(pageIndices, password, suffixOverride, successLabel) {
   if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
+  if (pdfedLiveBlock(pageIndices)) return;
   // Finalize any image the user was still mid-drag/mid-resize on the currently
   // open page, so it lands in pg.placedImages before we read that array below.
   pdfedAutoStampPendingGhost();
@@ -33891,8 +33945,16 @@ async function pdfedOpenExportModal() {
 
   sarvarcInitBrandCheckbox('pdfedExportBrandFilename');
 
+  // Live clips cannot live inside a still format: default to the MP4 presentation and grey the rest out.
+  const liveDoc = pdfedDocHasLive();
+  if (liveDoc) startFmt = 'video';
   pdfedApplyExportFormat(startFmt);
-  document.querySelectorAll('#pdfedExportTypeMenu .pdfed-export-menu-item').forEach(el => el.classList.toggle('sel', el.dataset.fmt === startFmt));
+  document.querySelectorAll('#pdfedExportTypeMenu .pdfed-export-menu-item').forEach(el => {
+    el.classList.toggle('sel', el.dataset.fmt === startFmt);
+    const off = liveDoc && el.dataset.fmt !== 'video';
+    el.style.opacity = off ? '.4' : '';
+    el.title = off ? 'This document has live clips, so it can only be downloaded as an MP4 presentation' : '';
+  });
 
   // Logo/letterhead handling only applies to Word exports; always reset to
   // the safe default ("Normal") each time the modal is opened.
@@ -34015,6 +34077,7 @@ function pdfedExportPasswordChanged() {
 }
 
 function pdfedExportPickFormat(fmt, el) {
+  if (fmt !== 'video' && pdfedDocHasLive()) { pdfedLiveBlock(); return; }
   pdfedApplyExportFormat(fmt);
   document.querySelectorAll('#pdfedExportTypeMenu .pdfed-export-menu-item').forEach(c => c.classList.remove('sel'));
   el.classList.add('sel');
@@ -34396,6 +34459,59 @@ function pdfedFxCustom(ctx, cw, ch, prev, cur, t, dir, lay, zp, zc, raw) {
   } finally { _pdfedFxEaseFn = keep; }
 }
 
+/* ---------- Live clips in the slideshow preview ---------- */
+// A page holding a live clip is shown through a canvas that is re-drawn every frame, so the clip keeps
+// moving in the preview (and inside page transitions), exactly as it will in the exported MP4.
+// The still <img> underneath stays as the fallback; the canvas is laid exactly over it and copies its
+// size, zoom drift and fade, so nothing jumps.
+const pdfedSlideLive = { raf: 0, t0: {}, prevIdx: null, prevUntil: 0, el: null, last: 0 };
+function pdfedSlideLiveEl() {
+  if (pdfedSlideLive.el && pdfedSlideLive.el.isConnected) return pdfedSlideLive.el;
+  const st = document.querySelector('.pdfed-slideshow-stage'); if (!st) return null;
+  const c = document.createElement('canvas');
+  c.style.cssText = 'position:absolute;left:50%;top:50%;z-index:2;pointer-events:none;border-radius:4px;display:none;';
+  st.appendChild(c); pdfedSlideLive.el = c; return c;
+}
+function pdfedSlideLiveHide() { if (pdfedSlideLive.el) pdfedSlideLive.el.style.display = 'none'; }
+function pdfedSlideLiveStart(idx, prevIdx) {
+  const now = performance.now();
+  pdfedSlideLive.t0[idx] = now;
+  pdfedSlideLive.prevIdx = (prevIdx === undefined ? null : prevIdx);
+  pdfedSlideLive.prevUntil = now + 3000;
+  if (!pdfedSlideLive.raf) pdfedSlideLive.raf = requestAnimationFrame(pdfedSlideLiveTick);
+}
+function pdfedSlideLiveStop() {
+  if (pdfedSlideLive.raf) { cancelAnimationFrame(pdfedSlideLive.raf); pdfedSlideLive.raf = 0; }
+  pdfedSlideLiveHide();
+}
+function pdfedSlideLiveTick(ts) {
+  pdfedSlideLive.raf = 0;
+  const ov = document.getElementById('pdfedSlideshowOverlay');
+  if (!ov || !ov.classList.contains('open')) { pdfedSlideLiveHide(); return; }
+  pdfedSlideLive.raf = requestAnimationFrame(pdfedSlideLiveTick);
+  if (document.hidden || ts - pdfedSlideLive.last < 30) return; // ~30 fps is plenty
+  pdfedSlideLive.last = ts;
+  try {
+    const now = performance.now(), cur = pdfedSlideshow.indices[pdfedSlideshow.pos], el = pdfedSlideLiveEl();
+    if (!el) return;
+    const ids = [cur];
+    if (pdfedSlideLive.prevIdx != null && pdfedSlideLive.prevIdx !== cur && now < pdfedSlideLive.prevUntil) ids.push(pdfedSlideLive.prevIdx);
+    let curCv = null;
+    ids.forEach(function (id) {
+      const cv = _pdfedFxImgs[id];
+      if (cv && cv._live) { cv._live.update((now - (pdfedSlideLive.t0[id] || now)) / 1000); if (id === cur) curCv = cv; }
+    });
+    const img = document.getElementById(pdfedSlideshow.layer === 'a' ? 'pdfedSlideshowImgA' : 'pdfedSlideshowImgB');
+    if (!curCv || !img || !img.offsetWidth) { el.style.display = 'none'; return; }
+    if (el.width !== curCv.width || el.height !== curCv.height) { el.width = curCv.width; el.height = curCv.height; }
+    el.getContext('2d').drawImage(curCv, 0, 0);
+    const cs = getComputedStyle(img);
+    el.style.width = img.offsetWidth + 'px'; el.style.height = img.offsetHeight + 'px';
+    el.style.transform = (cs.transform && cs.transform !== 'none') ? cs.transform : 'translate(-50%,-50%)';
+    el.style.opacity = cs.opacity; el.style.display = 'block';
+  } catch (e) { /* one bad frame never stops the preview */ }
+}
+
 /* ---------- Present mode ---------- */
 let _pdfedFxRun = 0, _pdfedFxImgs = {};
 function pdfedFxStageBox() {
@@ -34411,6 +34527,17 @@ function pdfedFxImg(idx) {
   const box = pdfedFxStageBox();
   if (_pdfedFxImgs._key !== box.key) { _pdfedFxImgs = { _key: box.key }; }
   if (_pdfedFxImgs[idx]) return Promise.resolve(_pdfedFxImgs[idx]);
+  if (pdfedPageHasLive(pdfed.pages[idx])) {
+    // Live page: hand back a canvas that is re-drawn as time passes (see pdfedSlideLiveTick), so the
+    // clip also keeps moving inside transitions. Built once per size; concurrent callers share it.
+    const store = _pdfedFxImgs, pk = 'p' + idx;
+    if (!store[pk]) {
+      store[pk] = pdfedBuildLivePage(pdfed.pages[idx], Math.round(0.86 * box.W * box.dpr), Math.round(0.82 * box.H * box.dpr))
+        .then(function (lp) { lp.canvas._live = lp; store[idx] = lp.canvas; return lp.canvas; })
+        .catch(function (e) { console.warn('[Workspace] live preview page failed, showing still', e); delete store[pk]; return null; });
+    }
+    return store[pk];
+  }
   return Promise.resolve(pdfedSlideshow.cache[idx] || pdfedSlideshowGetImage(idx)).then(function (url) {
     return new Promise(function (res) {
       const im = new Image();
@@ -34698,6 +34825,7 @@ async function pdfedOpenSlideshow() {
 function pdfedCloseSlideshow() {
   const overlayEl = document.getElementById('pdfedSlideshowOverlay');
   overlayEl.classList.remove('open');
+  pdfedSlideLiveStop();
   pdfedSlideshowSetPlaying(false);
   if (pdfedSlideshow.keyHandler) {
     document.removeEventListener('keydown', pdfedSlideshow.keyHandler);
@@ -34791,6 +34919,7 @@ async function pdfedSlideshowRenderCurrent() {
   pdfedSlideshow.layer = pdfedSlideshow.layer === 'a' ? 'b' : 'a';
   pdfedAnimPlayPresent(incoming, outgoing, idx, _animPrev);
   pdfedSlideshow.lastIdx = idx;
+  pdfedSlideLiveStart(idx, _animPrev);
 
   document.getElementById('pdfedSlideshowCount').textContent = (pos + 1) + ' / ' + total;
   document.getElementById('pdfedSlideshowPrevBtn').disabled = total <= 1;
@@ -35101,7 +35230,104 @@ function pdfedClipCancel() {
   toast('Clip export cancelled', 'error');
 }
 
+
+// ─── LIVE CLIPS: document-level rules + frame compositing for the MP4 presentation ───
+// A page that holds a live clip (a placed image carrying a `clip` spec, made in Product
+// Presenter) keeps moving on screen. A still format (PDF, PNG, Word, Excel, CSV) cannot hold
+// motion, so a document with live clips can ONLY be downloaded as an MP4 presentation.
+function pdfedPageHasLive(pg) { return !!(pg && (pg.placedImages || []).some(function (it) { return it && it.clip; })); }
+function pdfedDocHasLive(indices) {
+  const idxs = (indices && indices.length) ? indices : pdfed.pages.map(function (_, i) { return i; });
+  return idxs.some(function (i) { return pdfedPageHasLive(pdfed.pages[i]); });
+}
+function pdfedLiveBlock(indices) {
+  if (!pdfedDocHasLive(indices)) return false;
+  toast('This document has live clips, so it can only be downloaded as an MP4 presentation. Use Export, then Slideshow Clip.', 'error');
+  return true;
+}
+
+// Splits one page into stacked pictures so live clips can be slotted in at the right depth:
+// layers[0] = background + everything under the first clip, layers[k] = everything between clip k-1
+// and clip k (the last also carries pen/highlighter marks). Live clips themselves are left out.
+async function pdfedComposeLiveLayers(pg) {
+  const baseUrl = await pdfedFlattenPageDataUrl(pg);
+  const baseImg = await new Promise(function (res, rej) { const im = new Image(); im.onload = function () { res(im); }; im.onerror = rej; im.src = baseUrl; });
+  const W = baseImg.naturalWidth, H = baseImg.naturalHeight;
+  pdfedGetZOrderedItems(pg); // seeds zIndex on legacy items
+  const clips = (pg.placedImages || []).filter(function (it) { return it && it.clip; }).sort(function (a, b) { return a.zIndex - b.zIndex; });
+  await pdfedEnsureFontsLoaded(pg);
+  const layers = [];
+  for (let k = 0; k <= clips.length; k++) {
+    const lo = k === 0 ? -Infinity : clips[k - 1].zIndex, hi = k === clips.length ? Infinity : clips[k].zIndex;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    if (k === 0) x.drawImage(baseImg, 0, 0);
+    await pdfedDrawOrderedPlacedOnCtx(x, pg, false, false, function (kind, item) {
+      if (kind === 'image' && item.clip) return false;
+      return item.zIndex >= lo && item.zIndex < hi;
+    });
+    if (k === clips.length && pg.annotStrokes && pg.annotStrokes.length) {
+      try {
+        const ai = await new Promise(function (res, rej) { const im = new Image(); im.onload = function () { res(im); }; im.onerror = rej; im.src = pg.annotStrokes[pg.annotStrokes.length - 1]; });
+        x.drawImage(ai, 0, 0, W, H);
+      } catch (e) { /* skip marks that fail to decode */ }
+    }
+    layers.push(c);
+  }
+  return { w: W, h: H, layers: layers, clips: clips };
+}
+
+// A page whose picture is re-drawn per frame: page layers, with each live clip rendered at time tSec.
+async function pdfedBuildLivePage(pg, cw, ch) {
+  const L = await pdfedComposeLiveLayers(pg);
+  let f = Math.min(cw / L.w, ch / L.h) * 1.035; if (f > 1) f = 1;
+  const can = document.createElement('canvas');
+  can.width = Math.max(2, Math.round(L.w * f)); can.height = Math.max(2, Math.round(L.h * f));
+  can._ow = L.w; can._oh = L.h;
+  const g = can.getContext('2d'), k = can.width / L.w, tmp = {};
+  await Promise.all(L.clips.map(function (it) { return sppLiveReady(it.clip); }));
+  function update(tSec) {
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, can.width, can.height);
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.setTransform(k, 0, 0, k, 0, 0);
+    g.drawImage(L.layers[0], 0, 0);
+    L.clips.forEach(function (it, j) {
+      const ar = sppLiveAspect(it.clip), tw = Math.max(64, Math.min(1920, Math.round(it.w * k))), th = Math.max(36, Math.round(tw / ar));
+      let oc = tmp[j];
+      if (!oc || oc.width !== tw || oc.height !== th) { oc = tmp[j] = document.createElement('canvas'); oc.width = tw; oc.height = th; }
+      const ox = oc.getContext('2d'); ox.clearRect(0, 0, tw, th);
+      sppLiveFrame(it.clip, ox, tw, th, tSec);
+      g.save();
+      g.globalAlpha = pdfedGetOpacity(it);
+      if (it.rotation) { const cx = it.x + it.w / 2, cy = it.y + it.h / 2; g.translate(cx, cy); g.rotate(it.rotation * Math.PI / 180); g.translate(-cx, -cy); }
+      g.drawImage(oc, it.x, it.y, it.w, it.h);
+      g.restore();
+      g.drawImage(L.layers[j + 1], 0, 0);
+    });
+  }
+  update(0);
+  return { canvas: can, update: update };
+}
+
+// Wrapper so Export Clip can never fail silently: any error is shown to the person, the progress card is
+// closed, and the "already rendering" flag is cleared (a stuck flag made every later click do nothing).
 async function pdfedRunClipExport() {
+  const prog = document.getElementById('pdfedClipProgressOverlay');
+  if (pdfedClip.rendering && !(prog && prog.classList.contains('open'))) pdfedClip.rendering = false; // stale flag from an earlier failed run
+  if (pdfedClip.rendering) { toast('A clip is already being rendered. Wait for it to finish or press Cancel export.', 'info'); return; }
+  try {
+    await pdfedRunClipExportInner();
+  } catch (err) {
+    console.error('[Workspace] Export Clip failed', err);
+    pdfedClip.rendering = false;
+    try { if (pdfedClip.raf) cancelAnimationFrame(pdfedClip.raf); } catch (e) {}
+    try { if (pdfedClip.recorder && pdfedClip.recorder.state !== 'inactive') pdfedClip.recorder.stop(); } catch (e) {}
+    if (prog) prog.classList.remove('open');
+    toast('Clip export failed: ' + ((err && err.message) ? err.message : 'unknown error') + '. Press F12 and check the Console for details.', 'error');
+    throw err; // lets the free-export gate skip its "Export complete" message for a run that failed
+  }
+}
+async function pdfedRunClipExportInner() {
   if (pdfedClip.rendering) return;
   const input = document.getElementById('pdfedClipSeconds');
   let secs = parseFloat(input && input.value);
@@ -35156,6 +35382,21 @@ async function pdfedRunClipExport() {
   cw -= cw % 2; ch -= ch % 2;
   for (let i = 0; i < images.length; i++) { images[i] = pdfedClipPrep(images[i], cw, ch); }
 
+  // Pages with live clips: swap the still picture for a canvas that is re-drawn for every frame,
+  // so the clip keeps moving inside the MP4 (and moves through the page transitions too).
+  const liveCtl = {};
+  let hasLiveClips = false;
+  for (let i = 0; i < images.length; i++) {
+    const pgL = pdfed.pages[indices[i]];
+    if (!pdfedPageHasLive(pgL)) continue;
+    hasLiveClips = true;
+    pdfedClipSetProgress(0.25, 'Preparing live clips\u2026');
+    try { const lp = await pdfedBuildLivePage(pgL, cw, ch); liveCtl[i] = lp; images[i] = lp.canvas; }
+    catch (e) { console.warn('[Workspace] live clip page failed, using still', e); }
+    if (pdfedClip.cancelled) return;
+  }
+  const liveUpdate = function (i, sec) { if (liveCtl[i]) { try { liveCtl[i].update(sec); } catch (e) {} } };
+
   const canvas = document.createElement('canvas');
   canvas.width = cw; canvas.height = ch;
   const ctx = canvas.getContext('2d');
@@ -35168,14 +35409,15 @@ async function pdfedRunClipExport() {
   // One function decides what any moment of the clip looks like. Both the offline encoder and the
   // live-recorder fallback use it, so the two always show the same thing.
   function renderAt(vt) {
-    if (vt >= totalMs) { pdfedClipDrawFrame(ctx, cw, ch, images, images.length - 1, null, 1, 1, avgColors); return images.length - 1; }
+    if (vt >= totalMs) { liveUpdate(images.length - 1, slideMs / 1000); pdfedClipDrawFrame(ctx, cw, ch, images, images.length - 1, null, 1, 1, avgColors); return images.length - 1; }
     const idx = Math.min(images.length - 1, Math.floor(vt / slideMs));
     const localMs = vt - idx * slideMs;
+    liveUpdate(idx, localMs / 1000);
     const zoomT = Math.min(1, localMs / slideMs);
     let alpha = 1, prevIdx = null;
     const gapFx = idx > 0 ? pdfedAnimGet(pdfed.pages[indices[idx - 1]]) : null;
     const tMs = gapFx ? Math.min(gapFx.ms, slideMs * 0.5) : transitionMs;
-    if (idx > 0 && localMs < tMs && !(gapFx && gapFx.type === 'none')) { prevIdx = idx - 1; alpha = localMs / tMs; }
+    if (idx > 0 && localMs < tMs && !(gapFx && gapFx.type === 'none')) { prevIdx = idx - 1; alpha = localMs / tMs; liveUpdate(prevIdx, (slideMs + localMs) / 1000); }
     try { pdfedClipDrawFrame(ctx, cw, ch, images, idx, prevIdx, alpha, zoomT, avgColors, gapFx); }
     catch (e1) { try { pdfedClipDrawFrame(ctx, cw, ch, images, idx, null, 1, zoomT, avgColors); } catch (e2) {} }
     return idx;
@@ -35284,6 +35526,12 @@ async function pdfedRunClipExport() {
     blob = new Blob(pdfedClip.chunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
   }
 
+  if (hasLiveClips && !isMp4) {
+    pdfedClip.rendering = false;
+    document.getElementById('pdfedClipProgressOverlay').classList.remove('open');
+    toast('This browser cannot create an MP4 file. Live-clip documents download as MP4 only, so please try Chrome, Edge or Safari (latest).', 'error');
+    return;
+  }
   const baseName = (pdfed.file && pdfed.file.name) ? pdfed.file.name.replace(/\.pdf$/i, '') : 'SARVARC-Slideshow';
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -35312,6 +35560,7 @@ async function pdfedRunExportFromModal() {
   } else {
     indices = pdfed.pages.map((_, i) => i);
   }
+  if (pdfedExportModalFmt !== 'video' && pdfedLiveBlock(indices)) return;
 
   // Password protection: only relevant for the real PDF format, and only
   // once the person has ticked the checkbox. A ticked box with an empty
@@ -35350,10 +35599,15 @@ async function pdfedRunExportFromModal() {
 // count/watermark/"Export complete" messaging before anyone has actually
 // rendered anything. The real gate for it sits on the clip panel's own
 // "Export Clip" button, at the point a file is actually produced.
-function pdfedHandleExportClick() {
+async function pdfedHandleExportClick() {
   if (pdfedExportModalFmt === 'video') {
     pdfedCloseExportModal();
-    pdfedOpenSlideshow();
+    // Export is an explicit "make me a file" click, so go straight to the clip settings (seconds per slide,
+    // frame, motion) with its Export Clip button, on top of the slideshow. Previously this only opened the
+    // preview and the person had to find a small camera icon that fades away when idle, which read as
+    // "I clicked Export and nothing happened".
+    await pdfedOpenSlideshow();
+    try { pdfedOpenClipPanel(); } catch (e) { console.warn('[Workspace] could not open clip panel', e); }
     return;
   }
   sarvarcGateExport(pdfedRunExportFromModal);
@@ -35373,6 +35627,7 @@ function pdfedDownloadBlob(blob, fname) {
 // all baked in identically) and saves them as PNG image files — one plain
 // download if there's a single page, or a ZIP bundle if there's more than one.
 async function pdfedExportImages(pageIndices) {
+  if (pdfedLiveBlock(pageIndices)) return;
   if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
   pdfedAutoStampPendingGhost();
   await pdfedFinalizePendingCanvasTint();
@@ -35564,6 +35819,7 @@ function pdfedRowsToCSV(rows) {
 }
 
 async function pdfedExportCSV(indices) {
+  if (pdfedLiveBlock(indices)) return;
   if (!pdfed.pages.length) { toast('No PDF loaded', 'error'); return; }
   showExportOverlay('Exporting CSV…', 'Reading page text…');
   try {
@@ -35721,6 +35977,7 @@ function pdfedXlsxCellXml(ref, value, styleIdx) {
 }
 
 async function pdfedExportXLSX(indices) {
+  if (pdfedLiveBlock(indices)) return;
   if (!pdfed.pages.length) { toast('No PDF loaded', 'error'); return; }
   if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
   showExportOverlay('Exporting Excel…', 'Reading page text…');
@@ -36374,6 +36631,7 @@ function pdfedBuildDocxParagraphsXml(rows, pageWidthPt) {
 }
 
 async function pdfedExportDOCX(indices) {
+  if (pdfedLiveBlock(indices)) return;
   if (!pdfed.pages.length) { toast('No PDF loaded', 'error'); return; }
   if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
   showExportOverlay('Exporting Word…', 'Reading page text…');
@@ -44740,7 +44998,21 @@ function pdfedRenderPlacedImages(idx) {
     // what you actually see. Filling the box means the handles are always
     // flush against the visible picture, true edge-to-edge.
     img.style.cssText = `width:100%;height:100%;object-fit:fill;pointer-events:none;display:block;opacity:${pdfedGetOpacity(item)};`;
-    rotInner.appendChild(img);
+    if (item.clip && typeof sppLiveMount === 'function') {
+      // LIVE CLIP: a running canvas instead of a still picture.
+      // Re-renders of this layer hand back the SAME running canvas (never a rebuilt one), so the clip stays smooth.
+      const lcv = (typeof sppLiveCanvas === 'function') ? sppLiveCanvas(item.clip) : document.createElement('canvas');
+      lcv.style.cssText = `width:100%;height:100%;display:block;pointer-events:none;opacity:${pdfedGetOpacity(item)};`;
+      rotInner.appendChild(lcv);
+      sppLiveMount(lcv, item.clip, item.dataUrl);
+      const ltag = document.createElement('div');
+      ltag.textContent = 'LIVE';
+      ltag.title = 'Live clip. Downloads as an MP4 presentation only.';
+      ltag.style.cssText = 'position:absolute;left:6px;top:6px;padding:1px 6px;border-radius:8px;font:800 9px/14px system-ui,sans-serif;letter-spacing:.6px;color:#fff;background:#e11d48;pointer-events:none;';
+      rotInner.appendChild(ltag);
+    } else {
+      rotInner.appendChild(img);
+    }
 
     // Every action badge lives in one non-rotating row, dim until hovered
     // (see .pdfed-badge-row CSS) so it never fights the rotated picture for
@@ -77536,7 +77808,16 @@ if (document.readyState === 'loading') {
   }
 
   async function sarvarcGateExport(actionFn) {
-    const { data: { user } } = await sarvarcSupabase.auth.getUser();
+    // If the sign-in service can't be reached (offline, blocked script, ad-blocker, file opened locally),
+    // treat the person as a guest instead of throwing, otherwise the Export click silently does nothing.
+    let user = null;
+    try {
+      const res = await Promise.race([
+        sarvarcSupabase.auth.getUser(),
+        new Promise(function (r) { setTimeout(function () { r(null); }, 4000); })
+      ]);
+      user = (res && res.data && res.data.user) || null;
+    } catch (e) { console.warn('[Workspace] sign-in check unavailable, exporting as guest', e); }
     if (user) {
       window.sarvarcApplyFreeWatermark = false;
       await actionFn();
@@ -86257,5 +86538,1056 @@ If you want to offset all timestamps of a track such that the first one is zero,
 if (typeof module === "object" && typeof module.exports === "object") Object.assign(module.exports, Mp4Muxer)
 
 </script>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PRODUCT PRESENTER (SARVARC Workspace)
+     Turns one static product photo into a rotating / revolving showcase
+     with an Empty, Matched or Filled background plus headline text.
+     Everything runs in the browser on a <canvas>. No upload, no server.
+     Entry point: the "Product Presenter" button in the Workspace app bar.
+     Prefix "spp" = SARVARC Product Presenter (all globals/ids/classes).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<style id="sppStyles">
+.spp-overlay{position:fixed;inset:0;z-index:100001;background:rgba(3,8,18,.72);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:18px}
+.spp-overlay.open{display:flex}
+.spp-modal{width:min(1180px,100%);max-height:calc(100vh - 36px);background:var(--bg2);border:1px solid var(--border2);border-radius:18px;box-shadow:0 30px 90px rgba(0,0,0,.55);color:var(--text);display:flex;flex-direction:column;overflow:hidden}
+.spp-head{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.spp-head .spp-ico{width:32px;height:32px;border-radius:10px;background:var(--blue);color:#02121c;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.spp-head b{font-size:15px;font-weight:700}
+.spp-head span.spp-sub{font-size:11.5px;opacity:.6;display:block;margin-top:1px}
+.spp-head .spp-x{margin-left:auto;width:30px;height:30px;border-radius:9px;border:none;background:transparent;color:inherit;font-size:20px;cursor:pointer;opacity:.65}
+.spp-head .spp-x:hover{opacity:1;background:var(--surface2, rgba(255,255,255,.08))}
+.spp-body{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:0;flex:1;overflow:hidden}
+.spp-stage{padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0;overflow:auto}
+.spp-canvas-wrap{flex:1;min-height:260px;display:flex;align-items:center;justify-content:center;border-radius:14px;border:1px solid var(--border);
+  background-color:#cfd6df;background-image:linear-gradient(45deg,#e6ebf1 25%,transparent 25%,transparent 75%,#e6ebf1 75%),linear-gradient(45deg,#e6ebf1 25%,transparent 25%,transparent 75%,#e6ebf1 75%);background-size:20px 20px;background-position:0 0,10px 10px;padding:10px}
+.spp-canvas-wrap canvas{max-width:100%;max-height:min(58vh,560px);width:auto;height:auto;display:block;border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.spp-empty{position:absolute;text-align:center;font-size:13px;color:#334155;pointer-events:none}
+.spp-wrap-rel{position:relative;display:flex;flex:1;min-height:0}
+.spp-wrap-rel .spp-canvas-wrap{flex:1}
+.spp-transport{display:flex;align-items:center;gap:10px}
+.spp-transport button{padding:7px 14px;border-radius:9px;border:1px solid var(--border2);background:var(--bg3);color:inherit;font:600 12px inherit;font-family:inherit;cursor:pointer}
+.spp-transport button:hover{border-color:var(--blue)}
+.spp-transport input[type=range]{flex:1;accent-color:var(--blue)}
+.spp-transport .spp-tip{font-size:11px;opacity:.6;white-space:nowrap}
+.spp-side{border-left:1px solid var(--border);background:var(--bg2);overflow-y:auto;padding:4px 16px 16px}
+.spp-sec{font-size:10px;font-weight:800;letter-spacing:.9px;opacity:.6;margin:16px 0 8px;text-transform:uppercase}
+.spp-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:12px;font-weight:600}
+.spp-row label{flex-shrink:0}
+.spp-row input[type=range]{flex:1;min-width:0;accent-color:var(--blue)}
+.spp-row .spp-val{width:34px;text-align:right;font-weight:500;opacity:.7;font-size:11px;flex-shrink:0}
+.spp-side input[type=text],.spp-side select{width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--border2);background:var(--bg3);color:inherit;font-family:inherit;font-size:12.5px;box-sizing:border-box}
+.spp-side input[type=text]{margin:4px 0}
+.spp-side input[type=color]{width:34px;height:28px;padding:0;border:1px solid var(--border2);border-radius:7px;background:transparent;cursor:pointer}
+.spp-seg{display:flex;gap:4px;background:var(--bg3);padding:3px;border-radius:10px;flex-wrap:wrap}
+.spp-seg button{flex:1 1 auto;padding:6px 9px;font-size:11.5px;font-weight:600;border-radius:8px;cursor:pointer;background:transparent;border:none;color:inherit;font-family:inherit;white-space:nowrap}
+.spp-seg button.on{background:var(--blue);color:#02121c}
+.spp-btn{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border2);background:var(--bg3);color:inherit;font:600 12.5px inherit;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.spp-btn:hover{border-color:var(--blue)}
+.spp-btn.primary{background:var(--blue);color:#02121c;border-color:var(--blue)}
+.spp-btn:disabled{opacity:.4;cursor:default}
+.spp-btns{display:grid;gap:8px;margin-top:6px}
+.spp-btns2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.spp-note{font-size:11px;line-height:1.5;opacity:.65;margin:6px 0 0}
+.spp-note.warn{color:#f5b942;opacity:.95}
+.spp-swatches{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.spp-swatches i{width:22px;height:22px;border-radius:7px;border:2px solid transparent;cursor:pointer;display:block}
+.spp-swatches i:hover{border-color:var(--blue)}
+.spp-drop{border:1.5px dashed var(--border2);border-radius:12px;padding:14px;text-align:center;font-size:12px;cursor:pointer;background:var(--bg3)}
+.spp-drop.over{border-color:var(--blue);background:rgba(0,194,255,.08)}
+.spp-prog{display:none;margin-top:8px}
+.spp-prog.on{display:block}
+.spp-prog div{height:6px;border-radius:4px;background:var(--bg3);overflow:hidden}
+.spp-prog i{display:block;height:100%;width:0;background:var(--blue);transition:width .1s linear}
+.spp-prog small{font-size:11px;opacity:.65;display:block;margin-top:4px}
+@media (max-width:860px){.spp-body{grid-template-columns:1fr;overflow:auto}.spp-side{border-left:none;border-top:1px solid var(--border)}}
+</style>
+
+<div class="spp-overlay" id="sppOverlay" onmousedown="if(event.target===this)sppClose()">
+  <div class="spp-modal" role="dialog" aria-label="Product Presenter">
+    <div class="spp-head">
+      <div class="spp-ico">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      </div>
+      <div><b>Product Presenter</b><span class="spp-sub">Turn one product photo into a rotating showcase, add a background and text</span></div>
+      <button class="spp-x" onclick="sppClose()" title="Close">&times;</button>
+    </div>
+    <div class="spp-body">
+      <div class="spp-stage">
+        <div class="spp-wrap-rel">
+          <div class="spp-canvas-wrap" id="sppCanvasWrap"><canvas id="sppCanvas" width="960" height="540"></canvas></div>
+          <div class="spp-empty" id="sppEmptyMsg" style="left:0;right:0;top:50%;transform:translateY(-50%)">Add a product photo on the right to start</div>
+        </div>
+        <div class="spp-transport">
+          <button id="sppPlayBtn" onclick="sppTogglePlay()">Pause</button>
+          <input type="range" id="sppScrub" min="0" max="1000" value="0" oninput="sppScrubTo(this.value)">
+          <span class="spp-tip">Pause on an angle, then Place on page</span>
+        </div>
+      </div>
+
+      <div class="spp-side">
+        <div class="spp-sec">1 · Product photo</div>
+        <div class="spp-drop" id="sppDrop" onclick="document.getElementById('sppFile').click()">Drop a photo here or click to upload</div>
+        <input type="file" id="sppFile" accept="image/*" style="display:none" onchange="sppPickFile(this.files[0]);this.value=''">
+        <div class="spp-btns" style="margin-top:8px"><button class="spp-btn" onclick="sppUseFromPage()">Use selected image from page</button></div>
+        <div class="spp-row"><label>Remove background</label><input type="checkbox" id="sppCutout" checked onchange="sppSet('cutout',this.checked)"></div>
+        <div id="sppCutBox">
+          <div class="spp-row"><label>Tolerance</label><input type="range" id="sppTol" min="6" max="120" value="42" oninput="sppSet('tol',+this.value,true)"><span class="spp-val" id="sppTolV">42</span></div>
+          <div class="spp-row"><label>Edge trim</label><input type="range" id="sppTrim" min="0" max="4" value="1" oninput="sppSet('trim',+this.value,true)"><span class="spp-val" id="sppTrimV">1</span></div>
+          <div class="spp-row"><label>Edge soften</label><input type="range" id="sppSoft" min="0" max="4" value="1" oninput="sppSet('soft',+this.value,true)"><span class="spp-val" id="sppSoftV">1</span></div>
+        </div>
+        <div class="spp-note" id="sppCutNote">Works best on a plain, single-colour photo background. If the cutout eats into your product, lower the tolerance.</div>
+
+        <div class="spp-sec">2 · Motion</div>
+        <div class="spp-seg" id="sppMotionSeg">
+          <button class="on" data-v="turntable" onclick="sppSetSeg('motion','turntable',this)">Turntable</button>
+          <button data-v="sway" onclick="sppSetSeg('motion','sway',this)">Showroom sway</button>
+          <button data-v="wrap" onclick="sppSetSeg('motion','wrap',this)">Can / bottle spin</button>
+          <button data-v="hover" onclick="sppSetSeg('motion','hover',this)">Hover tilt</button>
+        </div>
+        <div class="spp-note" id="sppMotionNote">Full 360 turn. Uses your one photo for the front and a shaded mirror for the back.</div>
+        <div class="spp-row"><label>Seconds per loop</label><input type="range" id="sppSecs" min="2" max="14" step="0.5" value="6" oninput="sppSet('secs',+this.value)"><span class="spp-val" id="sppSecsV">6</span></div>
+        <div class="spp-row"><label>Direction</label>
+          <div class="spp-seg" style="flex:1" id="sppDirSeg"><button class="on" data-v="1" onclick="sppSetSeg('dir',1,this)">Clockwise</button><button data-v="-1" onclick="sppSetSeg('dir',-1,this)">Counter</button></div></div>
+        <div class="spp-row" id="sppAmpRow" style="display:none"><label>Sway angle</label><input type="range" id="sppAmp" min="10" max="70" value="35" oninput="sppSet('amp',+this.value)"><span class="spp-val" id="sppAmpV">35</span></div>
+        <div class="spp-row" id="sppBackRow"><label>Back side</label>
+          <select id="sppBack" onchange="sppSet('back',this.value)" style="width:auto;flex:1"><option value="plain">Plain colour</option><option value="mirror">Mirrored photo</option></select></div>
+        <div class="spp-row" id="sppThickRow"><label>Thickness</label><input type="range" id="sppThick" min="0" max="16" value="5" oninput="sppSet('thick',+this.value)"><span class="spp-val" id="sppThickV">5</span></div>
+        <div class="spp-row"><label>Product size</label><input type="range" id="sppSize" min="50" max="120" value="100" oninput="sppSet('size',+this.value)"><span class="spp-val" id="sppSizeV">100</span></div>
+        <div class="spp-row"><label>Floor shadow</label><input type="checkbox" id="sppShadow" checked onchange="sppSet('shadow',this.checked)"></div>
+        <div class="spp-row"><label>Reflection</label><input type="checkbox" id="sppReflect" checked onchange="sppSet('reflect',this.checked)"></div>
+
+        <div class="spp-sec">3 · Background</div>
+        <div class="spp-seg" id="sppBgSeg">
+          <button data-v="empty" onclick="sppSetSeg('bgMode','empty',this)">Empty</button>
+          <button class="on" data-v="matched" onclick="sppSetSeg('bgMode','matched',this)">Matched</button>
+          <button data-v="filled" onclick="sppSetSeg('bgMode','filled',this)">Filled</button>
+        </div>
+        <div class="spp-note" id="sppBgNote">Matched uses the colour of your original photo background.</div>
+        <div id="sppFillBox" style="display:none">
+          <div class="spp-row"><label>Colour</label><input type="color" id="sppFillA" value="#0b1220" oninput="sppSet('fillA',this.value)"></div>
+          <div class="spp-row"><label>Gradient</label><input type="checkbox" id="sppFillGrad" checked onchange="sppSet('fillGrad',this.checked)"></div>
+          <div class="spp-row" id="sppFillBRow"><label>Second colour</label><input type="color" id="sppFillB" value="#1f4e8c" oninput="sppSet('fillB',this.value)"></div>
+          <div class="spp-swatches" id="sppSwatches"></div>
+        </div>
+
+        <div class="spp-sec">4 · Text</div>
+        <input type="text" id="sppHead" placeholder="Headline, e.g. Aero Bottle" oninput="sppSet('head',this.value)">
+        <input type="text" id="sppSubl" placeholder="Subline, e.g. Now ₹499 only" oninput="sppSet('sub',this.value)">
+        <input type="text" id="sppBadge" placeholder="Badge, e.g. NEW" oninput="sppSet('badge',this.value)">
+        <div class="spp-row"><label>Position</label>
+          <select id="sppTxtPos" onchange="sppSet('txtPos',this.value)" style="width:auto;flex:1">
+            <option value="bottom">Bottom</option><option value="top">Top</option><option value="left">Left</option><option value="right">Right</option>
+          </select></div>
+        <div class="spp-row"><label>Font</label>
+          <select id="sppFont" onchange="sppSet('font',this.value)" style="width:auto;flex:1">
+            <option value="clean">Clean sans</option><option value="serif">Elegant serif</option><option value="bold">Bold impact</option><option value="mono">Mono</option>
+          </select></div>
+        <div class="spp-row"><label>Text size</label><input type="range" id="sppTxtSize" min="60" max="150" value="100" oninput="sppSet('txtSize',+this.value)"><span class="spp-val" id="sppTxtSizeV">100</span></div>
+        <div class="spp-row"><label>Auto text colour</label><input type="checkbox" id="sppTxtAuto" checked onchange="sppSet('txtAuto',this.checked)"></div>
+        <div class="spp-row" id="sppTxtColRow" style="display:none"><label>Text colour</label><input type="color" id="sppTxtCol" value="#ffffff" oninput="sppSet('txtCol',this.value)"></div>
+        <div class="spp-row"><label>Badge colour</label><input type="color" id="sppAccent" value="#00c2ff" oninput="sppSet('accent',this.value)"></div>
+        <div class="spp-row"><label>Text entrance</label>
+          <select id="sppTxtAnim" onchange="sppSet('txtAnim',this.value)" style="width:auto;flex:1">
+            <option value="rise">Fade and rise</option><option value="fade">Fade</option><option value="none">None</option>
+          </select></div>
+
+        <div class="spp-sec">5 · Shape and export</div>
+        <div class="spp-seg" id="sppRatioSeg">
+          <button class="on" data-v="16:9" onclick="sppSetSeg('ratio','16:9',this)">16:9</button>
+          <button data-v="1:1" onclick="sppSetSeg('ratio','1:1',this)">1:1</button>
+          <button data-v="4:5" onclick="sppSetSeg('ratio','4:5',this)">4:5</button>
+          <button data-v="9:16" onclick="sppSetSeg('ratio','9:16',this)">9:16</button>
+        </div>
+        <div class="spp-row"><label>Loops in video</label>
+          <select id="sppLoops" style="width:auto;flex:1"><option value="1">1 loop</option><option value="2">2 loops</option><option value="3">3 loops</option></select></div>
+        <div class="spp-btns">
+          <button class="spp-btn primary" id="sppPlaceBtn" onclick="sppPlaceOnPage()">Place on page</button>
+          <button class="spp-btn" id="sppPlaceLiveBtn" onclick="sppPlaceLiveOnPage()" title="Keeps the product moving on the page. Documents with live clips download as an MP4 presentation.">Place as live clip</button>
+          <div class="spp-btns2">
+            <button class="spp-btn" id="sppPngBtn" onclick="sppGate(sppDownloadPng)">Download PNG</button>
+            <button class="spp-btn" id="sppVidBtn" onclick="sppGate(sppExportVideo)">Export video</button>
+          </div>
+        </div>
+        <div class="spp-prog" id="sppProg"><div><i id="sppProgBar"></i></div><small id="sppProgTxt">Recording...</small></div>
+        <div class="spp-note"><b>Live clip:</b> keeps turning on the page while you work. A document that contains a live clip can only be downloaded as an MP4 presentation (PDF, image, Word, Excel and CSV are switched off for it, because they cannot hold motion). The slideshow preview plays it live too.</div>
+        <div class="spp-note">Empty background keeps the PNG transparent. Videos cannot hold transparency in most browsers, so they use white. Keep this tab open while a video records.</div>
+        <div class="spp-note">The turn is a smart 3D effect built from a single photo, so the back is a shaded mirror. For a true all-round view, shoot several angles.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="sppScript">
+(function () {
+  'use strict';
+
+  var PRESET_SWATCHES = [
+    ['#ffffff', '#e8eef7'], ['#f5efe6', '#e6d8c3'], ['#0b1220', '#1f4e8c'], ['#111111', '#3a3a3a'],
+    ['#ff7a59', '#ffb36b'], ['#0f766e', '#34d399'], ['#7c3aed', '#c084fc'], ['#be123c', '#fb7185']
+  ];
+  var FONTS = {
+    clean: '"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+    serif: 'Georgia,"Times New Roman",serif',
+    bold: '"Arial Black","Impact",Haettenschweiler,sans-serif',
+    mono: '"SFMono-Regular",Menlo,Consolas,"Courier New",monospace'
+  };
+  var PREVIEW = { '16:9': [960, 540], '1:1': [720, 720], '4:5': [648, 810], '9:16': [540, 960] };
+  var EXPORT = { '16:9': [1280, 720], '1:1': [1080, 1080], '4:5': [1080, 1350], '9:16': [1080, 1920] };
+  var MOTION_NOTES = {
+    turntable: 'Full 360 turn. Your photo is the front, and the back is a shaded plain colour (or a mirror, your choice).',
+    sway: 'Swings left and right like a showroom display, so the front stays mostly visible.',
+    wrap: 'Wraps the photo around a cylinder, so the label slides around. Best for cans, jars and tubes. The back repeats your label.',
+    hover: 'Floats gently with a small tilt. Good for shoes, gadgets and anything you want to keep facing forward.'
+  };
+
+  var S = {
+    open: false, playing: true, raf: 0, t0: 0, tNorm: 0, busy: false, recording: false,
+    srcCanvas: null, srcName: '', hasAlpha: false, bgColor: { r: 240, g: 242, b: 246 }, bgBusy: false,
+    cut: null, sprites: null, spriteKey: '', cutVer: 0, edgeRGB: [70, 70, 70], cutTimer: 0,
+    layers: {},
+    o: {
+      cutout: true, tol: 42, trim: 1, soft: 1,
+      motion: 'turntable', secs: 6, dir: 1, amp: 35, thick: 5, size: 100, back: 'plain', shadow: true, reflect: true,
+      bgMode: 'matched', fillA: '#0b1220', fillB: '#1f4e8c', fillGrad: true,
+      head: '', sub: '', badge: '', txtPos: 'bottom', font: 'clean', txtSize: 100, txtAuto: true, txtCol: '#ffffff',
+      accent: '#00c2ff', txtAnim: 'rise', ratio: '16:9'
+    }
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function mk(w, h) { var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function hexToRgb(h) { h = (h || '#000').replace('#', ''); if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; var n = parseInt(h, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
+  function rgbStr(c, a) { return 'rgba(' + Math.round(c.r) + ',' + Math.round(c.g) + ',' + Math.round(c.b) + ',' + (a == null ? 1 : a) + ')'; }
+  function mix(c, t, k) { return { r: c.r + (t.r - c.r) * k, g: c.g + (t.g - c.g) * k, b: c.b + (t.b - c.b) * k }; }
+  function lum(c) { return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255; }
+  function say(msg, type) { if (typeof toast === 'function') toast(msg, type || 'info'); }
+
+  /* ───────────────────────── open / close ───────────────────────── */
+  window.sppOpen = function () {
+    var ov = $('sppOverlay'); if (!ov) return;
+    ov.classList.add('open'); S.open = true;
+    if (!$('sppSwatches').children.length) buildSwatches();
+    sizePreview();
+    S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
+    cancelAnimationFrame(S.raf); S.raf = requestAnimationFrame(tick);
+  };
+  window.sppClose = function () {
+    if (S.recording) { say('Video is still recording. Wait for it to finish.', 'info'); return; }
+    $('sppOverlay').classList.remove('open'); S.open = false; cancelAnimationFrame(S.raf);
+  };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) sppClose(); });
+
+  function buildSwatches() {
+    var box = $('sppSwatches');
+    PRESET_SWATCHES.forEach(function (p) {
+      var i = document.createElement('i');
+      i.style.background = 'linear-gradient(135deg,' + p[0] + ',' + p[1] + ')';
+      i.title = 'Use this colour pair';
+      i.onclick = function () {
+        S.o.fillA = p[0]; S.o.fillB = p[1]; S.o.fillGrad = true;
+        $('sppFillA').value = p[0]; $('sppFillB').value = p[1]; $('sppFillGrad').checked = true;
+        $('sppFillBRow').style.display = '';
+        sppSetSeg('bgMode', 'filled', $('sppBgSeg').querySelector('[data-v="filled"]'));
+      };
+      box.appendChild(i);
+    });
+  }
+
+  /* ───────────────────────── settings ───────────────────────── */
+  window.sppSet = function (k, v, rebuildCutout) {
+    S.o[k] = v;
+    var lab = { tol: 'sppTolV', trim: 'sppTrimV', soft: 'sppSoftV', secs: 'sppSecsV', amp: 'sppAmpV', thick: 'sppThickV', size: 'sppSizeV', txtSize: 'sppTxtSizeV' }[k];
+    if (lab && $(lab)) $(lab).textContent = v;
+    if (k === 'cutout') { $('sppCutBox').style.opacity = v ? 1 : .35; scheduleCut(0); }
+    else if (rebuildCutout) scheduleCut(180);
+    if (k === 'fillGrad') $('sppFillBRow').style.display = v ? '' : 'none';
+    if (k === 'txtAuto') $('sppTxtColRow').style.display = v ? 'none' : '';
+    if (k === 'secs') S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
+    if (k === 'thick' || k === 'size') S.spriteKey = '';
+  };
+  window.sppSetSeg = function (k, v, btn) {
+    S.o[k] = v;
+    var seg = btn && btn.parentNode;
+    if (seg) [].forEach.call(seg.children, function (b) { b.classList.toggle('on', b === btn); });
+    if (k === 'motion') {
+      $('sppMotionNote').textContent = MOTION_NOTES[v] || '';
+      $('sppAmpRow').style.display = v === 'sway' ? '' : 'none';
+      $('sppThickRow').style.display = v === 'wrap' ? 'none' : '';
+      $('sppBackRow').style.display = v === 'wrap' ? 'none' : '';
+    }
+    if (k === 'bgMode') {
+      $('sppFillBox').style.display = v === 'filled' ? '' : 'none';
+      $('sppBgNote').textContent = v === 'empty' ? 'Transparent. Great for placing on your page or for a PNG cut-out.' :
+        v === 'matched' ? 'Matched uses the colour of your original photo background.' : 'Pick your own colour or gradient.';
+    }
+    if (k === 'ratio') sizePreview();
+  };
+  function sizePreview() {
+    var d = PREVIEW[S.o.ratio], c = $('sppCanvas');
+    if (c.width !== d[0] || c.height !== d[1]) { c.width = d[0]; c.height = d[1]; }
+  }
+  window.sppTogglePlay = function () {
+    S.playing = !S.playing;
+    $('sppPlayBtn').textContent = S.playing ? 'Pause' : 'Play';
+    if (S.playing) S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
+  };
+  window.sppScrubTo = function (v) {
+    S.tNorm = clamp(+v / 1000, 0, 0.9999);
+    if (S.playing) { S.playing = false; $('sppPlayBtn').textContent = 'Play'; }
+  };
+
+  /* ───────────────────────── source image ───────────────────────── */
+  function dropSetup() {
+    var d = $('sppDrop'); if (!d) return;
+    ['dragenter', 'dragover'].forEach(function (ev) { d.addEventListener(ev, function (e) { e.preventDefault(); d.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { d.addEventListener(ev, function (e) { e.preventDefault(); d.classList.remove('over'); }); });
+    d.addEventListener('drop', function (e) { var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) sppPickFile(f); });
+  }
+  window.sppPickFile = function (file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { say('Please choose an image file', 'error'); return; }
+    var r = new FileReader();
+    r.onload = function (e) { loadDataUrl(e.target.result, file.name); };
+    r.readAsDataURL(file);
+  };
+  window.sppUseFromPage = function () {
+    try {
+      if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) { say('Open a page first, or upload a photo here.', 'info'); return; }
+      var pg = pdfed.pages[pdfed.active], list = pg.placedImages || [], pick = null;
+      if (typeof pdfedSelectedImgs !== 'undefined' && pdfedSelectedImgs.size) {
+        list.forEach(function (it) { if (pdfedSelectedImgs.has(it.id)) pick = it; });
+      }
+      if (!pick && list.length) pick = list[list.length - 1];
+      if (!pick) { say('No image on this page yet. Upload a photo here instead.', 'info'); return; }
+      loadDataUrl(pick.dataUrl, 'Page image');
+    } catch (e) { say('Could not read the image from the page', 'error'); }
+  };
+  function loadDataUrl(url, name) {
+    var im = new Image();
+    im.onload = function () {
+      var maxD = 1200, k = Math.min(1, maxD / Math.max(im.naturalWidth, im.naturalHeight));
+      var c = mk(im.naturalWidth * k, im.naturalHeight * k), x = c.getContext('2d');
+      x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
+      S.srcCanvas = c; S.srcName = name || 'Product';
+      analyseBorder();
+      scheduleCut(0);
+    };
+    im.onerror = function () { say('That image could not be opened', 'error'); };
+    im.src = url;
+  }
+
+  // Looks at the photo's outer ring: what colour is the backdrop, and is it
+  // already transparent? Feeds both the cutout and the "Matched" background.
+  function analyseBorder() {
+    var c = S.srcCanvas, w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    var ring = Math.max(2, Math.round(Math.min(w, h) * 0.012)), n = 0, tr = 0, R = 0, G = 0, B = 0, R2 = 0, G2 = 0, B2 = 0;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (x >= ring && x < w - ring && y >= ring && y < h - ring) { x = w - ring - 1; continue; }
+        var i = (y * w + x) * 4; n++;
+        if (d[i + 3] < 240) { tr++; continue; }
+        R += d[i]; G += d[i + 1]; B += d[i + 2]; R2 += d[i] * d[i]; G2 += d[i + 1] * d[i + 1]; B2 += d[i + 2] * d[i + 2];
+      }
+    }
+    S.hasAlpha = tr / Math.max(1, n) > 0.5;
+    var m = Math.max(1, n - tr);
+    if (S.hasAlpha) { S.bgColor = { r: 238, g: 241, b: 246 }; S.busy = false; setCutNote('This photo already has a transparent background, so no cutout is needed.', false); return; }
+    S.bgColor = { r: R / m, g: G / m, b: B / m };
+    var sd = Math.sqrt(Math.max(0, (R2 / m - S.bgColor.r * S.bgColor.r) + (G2 / m - S.bgColor.g * S.bgColor.g) + (B2 / m - S.bgColor.b * S.bgColor.b)));
+    S.bgSpread = sd;
+    setCutNote(sd > 38 ? 'The photo background looks busy, so the cutout may be rough. Try a lower tolerance, or turn Remove background off to rotate the whole photo as a card.'
+      : 'Works best on a plain, single-colour photo background. If the cutout eats into your product, lower the tolerance.', sd > 38);
+  }
+  function setCutNote(t, warn) { var n = $('sppCutNote'); if (n) { n.textContent = t; n.className = 'spp-note' + (warn ? ' warn' : ''); } }
+
+  /* ───────────────────────── background removal ───────────────────────── */
+  function scheduleCut(ms) {
+    clearTimeout(S.cutTimer);
+    S.cutTimer = setTimeout(function () { try { rebuildCut(); } catch (e) { console.error('Product Presenter cutout failed', e); say('Cutout failed. Try turning Remove background off.', 'error'); } }, ms);
+  }
+  function rebuildCut() {
+    var src = S.srcCanvas; if (!src) return;
+    var w = src.width, h = src.height, work = mk(w, h), wx = work.getContext('2d');
+    wx.drawImage(src, 0, 0);
+    var id = wx.getImageData(0, 0, w, h), d = id.data;
+    if (S.o.cutout && !S.hasAlpha) {
+      var fg = floodMask(d, w, h, S.bgColor, S.o.tol);
+      keepMainParts(fg, w, h);
+      for (var t = 0; t < S.o.trim; t++) erode(fg, w, h);
+      var a = new Uint8Array(w * h);
+      for (var i = 0; i < a.length; i++) a[i] = fg[i] ? 255 : 0;
+      if (S.o.soft > 0) blurAlpha(a, w, h, S.o.soft);
+      for (var j = 0; j < a.length; j++) d[j * 4 + 3] = Math.min(d[j * 4 + 3], a[j]);
+      wx.putImageData(id, 0, 0);
+    }
+    // crop to the product's bounding box
+    var minX = w, minY = h, maxX = -1, maxY = -1, thr = S.o.cutout || S.hasAlpha ? 12 : -1;
+    if (thr < 0) { minX = 0; minY = 0; maxX = w - 1; maxY = h - 1; }
+    else {
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > thr) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+      if (maxX < 0) { minX = 0; minY = 0; maxX = w - 1; maxY = h - 1; say('Nothing was left after the cutout. Try a lower tolerance.', 'error'); }
+    }
+    var pad = 2; minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad); maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+    var cw = maxX - minX + 1, ch = maxY - minY + 1, cut = mk(cw, ch);
+    cut.getContext('2d').drawImage(work, minX, minY, cw, ch, 0, 0, cw, ch);
+    S.cut = cut; S.cutVer++; S.spriteKey = '';
+    // average product colour → used for the darker "side wall" of the slab
+    var sm = mk(12, 12), sx = sm.getContext('2d'); sx.drawImage(cut, 0, 0, 12, 12);
+    var sd = sx.getImageData(0, 0, 12, 12).data, rr = 0, gg = 0, bb = 0, aa = 0;
+    for (var p = 0; p < sd.length; p += 4) { var al = sd[p + 3]; rr += sd[p] * al; gg += sd[p + 1] * al; bb += sd[p + 2] * al; aa += al; }
+    S.edgeRGB = aa ? [rr / aa, gg / aa, bb / aa] : [70, 70, 70];
+    $('sppEmptyMsg').style.display = 'none';
+  }
+  function floodMask(d, w, h, bg, tol) {
+    var n = w * h, seen = new Uint8Array(n), stack = new Int32Array(n), sp = 0, t2 = tol * tol;
+    function near(i) {
+      var k = i * 4, dr = d[k] - bg.r, dg = d[k + 1] - bg.g, db = d[k + 2] - bg.b;
+      return d[k + 3] < 20 || (dr * dr + dg * dg + db * db) < t2;
+    }
+    function push(i) { if (!seen[i] && near(i)) { seen[i] = 1; stack[sp++] = i; } }
+    var x, y;
+    for (x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+    for (y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+    while (sp) {
+      var i = stack[--sp], px = i % w;
+      if (px > 0) push(i - 1);
+      if (px < w - 1) push(i + 1);
+      if (i >= w) push(i - w);
+      if (i < n - w) push(i + w);
+    }
+    var fg = new Uint8Array(n);
+    for (var q = 0; q < n; q++) fg[q] = seen[q] ? 0 : 1;
+    return fg;
+  }
+  // drop specks and stray shadows: keep only sizeable pieces of foreground
+  function keepMainParts(fg, w, h) {
+    var n = w * h, lab = new Int32Array(n), sizes = [0], cur = 0, stack = new Int32Array(n);
+    for (var s = 0; s < n; s++) {
+      if (!fg[s] || lab[s]) continue;
+      cur++; var sp = 0, cnt = 0; stack[sp++] = s; lab[s] = cur;
+      while (sp) {
+        var i = stack[--sp]; cnt++; var px = i % w;
+        if (px > 0 && fg[i - 1] && !lab[i - 1]) { lab[i - 1] = cur; stack[sp++] = i - 1; }
+        if (px < w - 1 && fg[i + 1] && !lab[i + 1]) { lab[i + 1] = cur; stack[sp++] = i + 1; }
+        if (i >= w && fg[i - w] && !lab[i - w]) { lab[i - w] = cur; stack[sp++] = i - w; }
+        if (i < n - w && fg[i + w] && !lab[i + w]) { lab[i + w] = cur; stack[sp++] = i + w; }
+      }
+      sizes[cur] = cnt;
+    }
+    var big = 0; for (var k = 1; k <= cur; k++) if (sizes[k] > big) big = sizes[k];
+    for (var q = 0; q < n; q++) if (fg[q] && sizes[lab[q]] < big * 0.02) fg[q] = 0;
+  }
+  function erode(fg, w, h) {
+    var out = new Uint8Array(fg.length);
+    for (var y = 1; y < h - 1; y++) for (var x = 1; x < w - 1; x++) {
+      var i = y * w + x;
+      out[i] = (fg[i] && fg[i - 1] && fg[i + 1] && fg[i - w] && fg[i + w]) ? 1 : 0;
+    }
+    fg.set(out);
+  }
+  function blurAlpha(a, w, h, r) {
+    var tmp = new Uint8Array(a.length), k = 2 * r + 1, x, y, j, s;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      s = 0; for (j = -r; j <= r; j++) s += a[y * w + clamp(x + j, 0, w - 1)];
+      tmp[y * w + x] = s / k;
+    }
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      s = 0; for (j = -r; j <= r; j++) s += tmp[clamp(y + j, 0, h - 1) * w + x];
+      a[y * w + x] = s / k;
+    }
+  }
+
+  /* ───────────────────────── sprites (pre-scaled copies for fast frames) ───────────────────────── */
+  // Texture for the can/bottle spin: every column is stretched to full height using its own top and
+  // bottom colours, so nothing transparent can slide into view. The fixed product outline is applied on top.
+  function buildWrapTex(front, dw, dh) {
+    var x = front.getContext('2d'), src = x.getImageData(0, 0, dw, dh), d = src.data;
+    var top = new Int32Array(dw).fill(-1), bot = new Int32Array(dw).fill(-1), i, y;
+    for (i = 0; i < dw; i++) {
+      for (y = 0; y < dh; y++) if (d[(y * dw + i) * 4 + 3] > 60) { top[i] = y; break; }
+      for (y = dh - 1; y >= 0; y--) if (d[(y * dw + i) * 4 + 3] > 60) { bot[i] = y; break; }
+    }
+    for (i = 0; i < dw; i++) if (top[i] < 0) { // empty column: borrow from nearest column that has content
+      var r = 1; while (r < dw && (i - r < 0 || top[i - r] < 0) && (i + r >= dw || top[i + r] < 0)) r++;
+      var j = (i - r >= 0 && top[i - r] >= 0) ? i - r : Math.min(dw - 1, i + r);
+      top[i] = top[j]; bot[i] = bot[j];
+    }
+    var out = x.createImageData(dw, dh), o = out.data;
+    for (i = 0; i < dw; i++) {
+      var t = Math.max(0, top[i]), b = Math.max(t, bot[i]);
+      for (y = 0; y < dh; y++) {
+        var sy = y < t ? t : (y > b ? b : y), k = (sy * dw + i) * 4, m = (y * dw + i) * 4;
+        o[m] = d[k]; o[m + 1] = d[k + 1]; o[m + 2] = d[k + 2]; o[m + 3] = 255;
+      }
+    }
+    var c = mk(dw, dh); c.getContext('2d').putImageData(out, 0, 0); return c;
+  }
+
+  function getSprites(dw, dh) {
+    dw = Math.max(2, Math.round(dw)); dh = Math.max(2, Math.round(dh));
+    var key = dw + 'x' + dh + ':' + S.cutVer;
+    if (S.sprites && S.spriteKey === key) return S.sprites;
+    var front = mk(dw, dh), fx = front.getContext('2d');
+    fx.imageSmoothingQuality = 'high'; fx.drawImage(S.cut, 0, 0, dw, dh);
+    function tinted(col, alpha, mode) {
+      var c = mk(dw, dh), x = c.getContext('2d');
+      x.drawImage(front, 0, 0);
+      x.globalCompositeOperation = mode; x.fillStyle = col; x.globalAlpha = alpha; x.fillRect(0, 0, dw, dh);
+      return c;
+    }
+    var e = S.edgeRGB, edgeCol = 'rgb(' + Math.round(e[0] * .55) + ',' + Math.round(e[1] * .55) + ',' + Math.round(e[2] * .55) + ')';
+    var plain = mk(dw, dh), px = plain.getContext('2d');
+    px.drawImage(front, 0, 0); px.globalCompositeOperation = 'source-in';
+    var pg = px.createLinearGradient(0, 0, 0, dh);
+    pg.addColorStop(0, 'rgb(' + Math.round(e[0] * .92) + ',' + Math.round(e[1] * .92) + ',' + Math.round(e[2] * .92) + ')');
+    pg.addColorStop(1, 'rgb(' + Math.round(e[0] * .68) + ',' + Math.round(e[1] * .68) + ',' + Math.round(e[2] * .68) + ')');
+    px.fillStyle = pg; px.fillRect(0, 0, dw, dh);
+    S.sprites = {
+      w: dw, h: dh, front: front, plain: plain,
+      edge: tinted(edgeCol, 1, 'source-in'),
+      shade: tinted('#000', 1, 'source-in'),
+      back: tinted('#000', 0.38, 'source-atop'),
+      wrapTex: null
+    };
+    S.sprites.wrapTex = buildWrapTex(front, dw, dh);
+    S.spriteKey = key;
+    return S.sprites;
+  }
+
+  /* ───────────────────────── frame drawing ───────────────────────── */
+  function layerCanvas(name, W, H) {
+    var c = S.layers[name];
+    if (!c || c.width !== W || c.height !== H) { c = S.layers[name] = mk(W, H); }
+    else c.getContext('2d').clearRect(0, 0, W, H);
+    return c;
+  }
+  function motionState(tn) {
+    var o = S.o, TAU = Math.PI * 2, st = { theta: 0, dy: 0, rz: 0 };
+    if (o.motion === 'turntable' || o.motion === 'wrap') st.theta = o.dir * TAU * tn;
+    else if (o.motion === 'sway') st.theta = o.dir * (o.amp * Math.PI / 180) * Math.sin(TAU * tn);
+    else if (o.motion === 'hover') { st.theta = o.dir * 0.26 * Math.sin(TAU * tn); st.dy = -Math.sin(TAU * tn * 2) * 0.018; st.rz = Math.sin(TAU * tn + 1.1) * 0.03; }
+    return st;
+  }
+  function backdropColor() {
+    var o = S.o;
+    if (o.bgMode === 'matched') return S.bgColor;
+    if (o.bgMode === 'filled') return hexToRgb(o.fillA);
+    return null;
+  }
+  function drawBackground(ctx, W, H, flatten) {
+    var o = S.o;
+    if (o.bgMode === 'empty') { if (flatten) { ctx.fillStyle = flatten; ctx.fillRect(0, 0, W, H); } return; }
+    if (o.bgMode === 'matched') {
+      var c = S.bgColor, g = ctx.createRadialGradient(W / 2, H * 0.42, 0, W / 2, H * 0.5, Math.max(W, H) * 0.78);
+      g.addColorStop(0, rgbStr(mix(c, { r: 255, g: 255, b: 255 }, 0.14)));
+      g.addColorStop(1, rgbStr(mix(c, { r: 0, g: 0, b: 0 }, 0.13)));
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); return;
+    }
+    if (o.fillGrad) {
+      var lg = ctx.createLinearGradient(0, 0, W * 0.25, H);
+      lg.addColorStop(0, o.fillA); lg.addColorStop(1, o.fillB); ctx.fillStyle = lg;
+    } else ctx.fillStyle = o.fillA;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Layout: where the product sits, and where the words go
+  function layout(W, H) {
+    var o = S.o, portrait = W < H * 1.05, pos = o.txtPos;
+    var hasText = !!(o.head || o.sub || o.badge);
+    if (portrait && pos === 'left') pos = 'bottom';
+    if (portrait && pos === 'right') pos = 'top';
+    var L = { pos: pos, hasText: hasText, cx: W / 2, cy: H / 2, boxW: W * 0.7, boxH: H * 0.7 };
+    var k = o.size / 100;
+    if (!hasText) { L.cx = W / 2; L.cy = H * 0.44; L.boxW = W * 0.72; L.boxH = H * 0.66; }
+    else if (pos === 'bottom') { L.cy = H * 0.37; L.boxW = W * 0.7; L.boxH = H * 0.54; }
+    else if (pos === 'top') { L.cy = H * 0.62; L.boxW = W * 0.7; L.boxH = H * 0.54; }
+    else if (pos === 'left') { L.cx = W * 0.7; L.cy = H * 0.44; L.boxW = W * 0.44; L.boxH = H * 0.62; }
+    else { L.cx = W * 0.3; L.cy = H * 0.44; L.boxW = W * 0.44; L.boxH = H * 0.62; }
+    L.boxW *= k; L.boxH *= k;
+    return L;
+  }
+
+  function draw(ctx, W, H, tn, opt) {
+    opt = opt || {};
+    ctx.clearRect(0, 0, W, H);
+    drawBackground(ctx, W, H, opt.flatten);
+    var o = S.o;
+    if (S.cut) drawProduct(ctx, W, H, tn);
+    drawText(ctx, W, H, opt.textT == null ? textProgress(tn, opt.tAbs) : opt.textT);
+    if (opt.watermark) stampMark(ctx, W, H);
+  }
+
+  function drawProduct(ctx, W, H, tn) {
+    var o = S.o, L = layout(W, H), st = motionState(tn);
+    var cw = S.cut.width, ch = S.cut.height, fit = Math.min(L.boxW / cw, L.boxH / ch);
+    var dw = cw * fit, dh = ch * fit, cx = L.cx, cy = L.cy;
+    if (o.reflect) cy -= dh * 0.05;
+    var floorY = cy + dh / 2;
+    var spr = getSprites(dw, dh), pl = layerCanvas('product', W, H), pc = pl.getContext('2d');
+    var thickPx = o.motion === 'wrap' ? 0 : dw * (o.thick / 100);
+    pc.save();
+    if (o.motion === 'hover') { pc.translate(cx, cy + st.dy * dh); pc.rotate(st.rz); pc.translate(-cx, -cy); }
+    var projW;
+    if (o.motion === 'wrap') { drawWrap(pc, spr, cx, cy, spr.w, spr.h, st.theta); projW = spr.w; }
+    else { drawSlab(pc, spr, cx, cy, spr.w, spr.h, st.theta, thickPx); projW = Math.abs(Math.cos(st.theta)) * spr.w + Math.abs(Math.sin(st.theta)) * thickPx; }
+    pc.restore();
+
+    // floor shadow
+    if (o.shadow) {
+      var lift = o.motion === 'hover' ? (-st.dy * dh) : 0, sh = clamp(1 - lift / (dh * 0.2), 0.7, 1.05);
+      var rx = Math.max(dw * 0.18, projW * 0.55) * sh, ry = Math.max(6, rx * 0.16), sy = floorY + ry * 0.35;
+      ctx.save(); ctx.translate(cx, sy); ctx.scale(1, ry / rx);
+      var g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, 'rgba(0,0,0,' + (0.42 * sh) + ')'); g.addColorStop(0.6, 'rgba(0,0,0,' + (0.16 * sh) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    // mirror-floor reflection
+    if (o.reflect) {
+      var rf = layerCanvas('reflect', W, H), rx2 = rf.getContext('2d');
+      rx2.save(); rx2.translate(0, floorY * 2 + 2); rx2.scale(1, -1); rx2.drawImage(pl, 0, 0); rx2.restore();
+      rx2.globalCompositeOperation = 'destination-in';
+      var fg = rx2.createLinearGradient(0, floorY, 0, floorY + dh * 0.34);
+      fg.addColorStop(0, 'rgba(0,0,0,0.30)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+      rx2.fillStyle = fg; rx2.fillRect(0, floorY, W, dh * 0.4);
+      rx2.globalCompositeOperation = 'destination-out'; rx2.fillStyle = '#000'; rx2.fillRect(0, 0, W, floorY);
+      rx2.globalCompositeOperation = 'source-over';
+      ctx.drawImage(rf, 0, 0);
+    }
+    ctx.drawImage(pl, 0, 0);
+  }
+
+  // A thick flat cut-out turning on its vertical axis: stacked layers give it real edge depth.
+  function drawSlab(pc, spr, cx, cy, dw, dh, theta, T) {
+    var cs = Math.cos(theta), sn = Math.sin(theta);
+    var N = T < 1.5 ? 1 : clamp(Math.round(T / 1.4), 3, 22), layers = [], k, z;
+    for (k = 0; k < N; k++) { z = N === 1 ? 0 : (-T / 2 + T * k / (N - 1)); layers.push({ k: k, z: z, zc: z * cs }); }
+    layers.sort(function (a, b) { return a.zc - b.zc; });
+    var shadeA = (1 - Math.abs(cs)) * 0.5, step = N > 1 ? T / (N - 1) : 0, minS = (step * 1.4 + 0.8) / dw;
+    var backImg = S.o.back === 'mirror' ? spr.back : spr.plain;
+    layers.forEach(function (L) {
+      var isFront = L.k === N - 1, isBack = L.k === 0, img = spr.edge, dark = 0;
+      if (N === 1) { img = cs >= 0 ? spr.front : backImg; dark = shadeA; }
+      else if (isFront && cs > 0) { img = spr.front; dark = shadeA; }
+      else if (isBack && cs < 0) { img = backImg; dark = shadeA; }
+      pc.save();
+      pc.translate(cx + L.z * sn, cy);
+      pc.scale(Math.abs(cs) < minS ? (cs < 0 ? -minS : minS) : cs, 1);
+      pc.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+      if (dark > 0.01) { pc.globalAlpha = dark; pc.drawImage(spr.shade, -dw / 2, -dh / 2, dw, dh); }
+      pc.restore();
+    });
+  }
+
+  // Wraps the photo around a cylinder, one pixel column at a time
+  function drawWrap(pc, spr, cx, cy, dw, dh, theta) {
+    var cols = Math.max(2, Math.round(dw)), R = dw / 2, x0 = cx - R, y0 = cy - dh / 2, i, tw = spr.w;
+    pc.save();
+    for (i = 0; i < cols; i++) {
+      var x = ((i + 0.5) / cols) * 2 - 1, a = Math.asin(clamp(x, -1, 1)) + theta;
+      var sx = clamp(Math.floor((Math.sin(a) + 1) / 2 * tw), 0, tw - 1);
+      pc.drawImage(spr.wrapTex, sx, 0, 1, spr.h, x0 + i * (dw / cols), y0, dw / cols + 0.7, dh);
+    }
+    // keep the product's real outline fixed while the print turns inside it
+    pc.globalCompositeOperation = 'destination-in';
+    pc.drawImage(spr.front, x0, y0, dw, dh);
+    // cylinder lighting: darker rim, soft highlight, only over product pixels
+    pc.globalCompositeOperation = 'source-atop';
+    var g = pc.createLinearGradient(x0, 0, x0 + dw, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(0.18, 'rgba(0,0,0,0.08)'); g.addColorStop(0.36, 'rgba(255,255,255,0.14)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(0.82, 'rgba(0,0,0,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    pc.fillStyle = g; pc.fillRect(x0, y0, dw, dh); pc.restore();
+  }
+
+  /* ───────────────────────── text ───────────────────────── */
+  function textProgress(tn, tAbs) {
+    if (S.o.txtAnim === 'none') return 1;
+    var t = tAbs != null ? tAbs : tn * S.o.secs;
+    var p = clamp(t / 0.9, 0, 1);
+    return 1 - Math.pow(1 - p, 3);
+  }
+  function textColor() {
+    var o = S.o;
+    if (!o.txtAuto) return o.txtCol;
+    var b = backdropColor();
+    if (!b) return '#111827';
+    return lum(b) > 0.6 ? '#0f172a' : '#ffffff';
+  }
+  function wrapLines(ctx, text, maxW, maxLines) {
+    var words = String(text).split(/\s+/), lines = [], line = '';
+    words.forEach(function (w) {
+      var test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test;
+    });
+    if (line) lines.push(line);
+    if (lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…'; }
+    return lines;
+  }
+  function drawText(ctx, W, H, prog) {
+    var o = S.o; if (!(o.head || o.sub || o.badge)) return;
+    var L = layout(W, H), pos = L.pos, family = FONTS[o.font] || FONTS.clean, col = textColor();
+    var sideways = pos === 'left' || pos === 'right';
+    var unit = Math.min(W, H) * (sideways ? 0.085 : 0.1) * (o.txtSize / 100);
+    var headPx = unit, subPx = unit * 0.46, badgePx = unit * 0.3, weight = o.font === 'bold' ? '400' : '800';
+    var maxW = sideways ? W * 0.4 : W * 0.86, align = sideways ? 'left' : 'center';
+    var x = sideways ? (pos === 'left' ? W * 0.07 : W * 0.53) : W / 2;
+    ctx.save();
+    ctx.globalAlpha = prog; ctx.textBaseline = 'alphabetic'; ctx.textAlign = align;
+    var rise = (1 - prog) * H * 0.03, slide = o.txtAnim === 'rise' ? rise : 0;
+
+    ctx.font = weight + ' ' + headPx + 'px ' + family;
+    var headLines = o.head ? wrapLines(ctx, o.head, maxW, 2) : [];
+    ctx.font = '500 ' + subPx + 'px ' + family;
+    var subLines = o.sub ? wrapLines(ctx, o.sub, maxW, 2) : [];
+    var badgeH = o.badge ? badgePx * 2 : 0, gap = unit * 0.22;
+    var blockH = (badgeH ? badgeH + gap : 0) + headLines.length * headPx * 1.05 + (subLines.length ? gap + subLines.length * subPx * 1.25 : 0);
+    var top;
+    if (pos === 'bottom') top = H - blockH - H * 0.06;
+    else if (pos === 'top') top = H * 0.06;
+    else top = (H - blockH) / 2;
+    var y = top + slide;
+
+    if (o.badge) {
+      ctx.font = '800 ' + badgePx + 'px ' + FONTS.clean;
+      var txt = String(o.badge).toUpperCase(), tw = ctx.measureText(txt).width + badgePx * 1.6, bh = badgePx * 1.9;
+      var bx = align === 'center' ? x - tw / 2 : x;
+      ctx.fillStyle = o.accent; rr(ctx, bx, y, tw, bh, bh / 2); ctx.fill();
+      ctx.fillStyle = lum(hexToRgb(o.accent)) > 0.6 ? '#0b1220' : '#ffffff';
+      ctx.textAlign = 'center'; ctx.fillText(txt, bx + tw / 2, y + bh * 0.68);
+      ctx.textAlign = align; y += badgeH + gap;
+    }
+    ctx.fillStyle = col;
+    if (o.bgMode !== 'empty') { ctx.shadowColor = 'rgba(0,0,0,0.18)'; ctx.shadowBlur = unit * 0.12; ctx.shadowOffsetY = unit * 0.03; }
+    ctx.font = weight + ' ' + headPx + 'px ' + family;
+    headLines.forEach(function (ln) { y += headPx * 0.92; ctx.fillText(ln, x, y); y += headPx * 0.13; });
+    ctx.shadowColor = 'transparent';
+    if (subLines.length) {
+      y += gap * 0.6; ctx.globalAlpha = prog * 0.82; ctx.font = '500 ' + subPx + 'px ' + family;
+      subLines.forEach(function (ln) { y += subPx * 1.05; ctx.fillText(ln, x, y); y += subPx * 0.2; });
+    }
+    ctx.restore();
+  }
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function stampMark(ctx, W, H) {
+    var t = 'Made Using SARVARC Workspace', fs = Math.max(11, Math.round(Math.min(W, H) * 0.022)), m = Math.max(8, Math.round(Math.min(W, H) * 0.018));
+    ctx.save(); ctx.font = '600 ' + fs + 'px ' + FONTS.clean; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    var tw = ctx.measureText(t).width, px = fs * 0.5, py = fs * 0.35;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; rr(ctx, W - m - tw - px * 2, H - m - fs - py * 2, tw + px * 2, fs + py * 2, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(15,23,42,0.85)'; ctx.fillText(t, W - m - px, H - m - py); ctx.restore();
+  }
+
+  /* ───────────────────────── preview loop ───────────────────────── */
+  function tick(ts) {
+    if (!S.open) return;
+    // While a video records, the recorder owns the drawing runtime. Drawing the small preview in between made
+    // it rebuild the 3D sprites at two sizes every frame, which starved the recording.
+    if (S.recording) { S.raf = requestAnimationFrame(tick); return; }
+    var c = $('sppCanvas'), ctx = c.getContext('2d');
+    if (S.playing) {
+      S.tNorm = (((ts - S.t0) / 1000) / S.o.secs) % 1; if (S.tNorm < 0) S.tNorm += 1;
+      $('sppScrub').value = Math.round(S.tNorm * 1000);
+    }
+    try { draw(ctx, c.width, c.height, S.tNorm, { tAbs: S.tNorm * S.o.secs }); } catch (e) { console.error(e); }
+    $('sppEmptyMsg').style.display = S.cut ? 'none' : '';
+    S.raf = requestAnimationFrame(tick);
+  }
+
+  /* ───────────────────────── output ───────────────────────── */
+  function renderStill(withMark) {
+    var d = EXPORT[S.o.ratio], c = mk(d[0], d[1]);
+    draw(c.getContext('2d'), c.width, c.height, S.tNorm, { textT: 1, watermark: withMark });
+    return c;
+  }
+  window.sppGate = function (fn) {
+    if (!S.cut) { say('Add a product photo first', 'info'); return Promise.resolve(); }
+    var gate = window.sarvarcGateExport;
+    var run = typeof gate === 'function' ? gate : function (f) { return f(); };
+    return Promise.resolve().then(function () { return run(fn); }).catch(function (e) {
+      console.error('Product Presenter export failed', e);
+      say('Export could not start. Check your connection and try again.', 'error');
+    });
+  };
+  window.sppDownloadPng = async function () {
+    try {
+      var c = renderStill(!!window.sarvarcApplyFreeWatermark);
+      var blob = await new Promise(function (r) { c.toBlob(r, 'image/png'); });
+      if (!blob) blob = await (await fetch(c.toDataURL('image/png'))).blob();   // toBlob can return null on big canvases
+      save(blob, 'product-presenter.png');
+      say('PNG saved', 'success');
+    } catch (e) { console.error('Product Presenter PNG failed', e); say('PNG export failed. Please try again.', 'error'); }
+  };
+  function save(blob, name) {
+    if (typeof pdfedDownloadBlob === 'function') { pdfedDownloadBlob(blob, name); return; }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  window.sppPlaceOnPage = async function () {
+    if (!S.cut) { say('Add a product photo first', 'info'); return; }
+    var c = renderStill(false), url = c.toDataURL('image/png');
+    try { if (typeof sarvarcAssetSave === 'function') sarvarcAssetSave('image', url, 'Product presenter.png'); } catch (e) {}
+    if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
+      sppClose();
+      if (typeof pdfedOpenImageAsPage === 'function') { await pdfedOpenImageAsPage(url, { name: 'Product presenter', type: 'image/png' }); say('Placed as a new page', 'success'); }
+      return;
+    }
+    var idx = pdfed.active, pg = pdfed.pages[idx], pcv = document.getElementById('pdfedPageCanvas');
+    var pw = (pcv && pcv.width) || 800, ph = (pcv && pcv.height) || 1100;
+    var k = Math.min(pw * 0.8 / c.width, ph * 0.8 / c.height), w = Math.round(c.width * k), h = Math.round(c.height * k);
+    pdfedAnnotState.placedImgSeq++;
+    (pg.placedImages = pg.placedImages || []).push({
+      id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: url,
+      x: Math.round((pw - w) / 2), y: Math.round((ph - h) / 2), w: w, h: h, locked: false, zIndex: pdfedNextZ(pg), kind: 'image'
+    });
+    if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
+    if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
+    sppClose();
+    say('Product placed on your page. Drag it, resize it, or add more text.', 'success');
+  };
+
+  window.sppExportVideo = async function () {
+    if (S.recording) return;
+    if (!S.cut) { say('Add a product photo first', 'info'); return; }
+    if (!window.MediaRecorder) { say('Video export is not supported in this browser', 'error'); return; }
+    var btns = ['sppPlaceBtn', 'sppPlaceLiveBtn', 'sppPngBtn', 'sppVidBtn'];
+    var wasPlaying = S.playing, rec = null;
+    S.recording = true;
+    btns.forEach(function (id) { var el = $(id); if (el) el.disabled = true; });
+    $('sppProg').classList.add('on');
+    try {
+      var d = EXPORT[S.o.ratio], cv = mk(d[0], d[1]), ctx = cv.getContext('2d'), fps = 30;
+      var mime = typeof pdfedClipPickMime === 'function' ? pdfedClipPickMime() : ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].filter(function (m) { return MediaRecorder.isTypeSupported(m); })[0] || '';
+      var loops = +$('sppLoops').value || 1, totalMs = S.o.secs * loops * 1000;
+      var stream = cv.captureStream(0), track = stream.getVideoTracks()[0], manual = !!(track && typeof track.requestFrame === 'function');
+      if (!manual) stream = cv.captureStream(fps);
+      try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8000000 } : undefined); }
+      catch (e1) { rec = new MediaRecorder(stream); }                 // let the browser pick its own format
+      var chunks = [];
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      var done = new Promise(function (res) { rec.onstop = res; rec.onerror = res; });
+      var mark = !!window.sarvarcApplyFreeWatermark;
+      // First frame is drawn BEFORE recording starts, so the video never opens on an empty frame.
+      draw(ctx, cv.width, cv.height, 0, { tAbs: 0, flatten: '#ffffff', watermark: mark });
+      if (manual) track.requestFrame();
+      rec.start(500);
+      var start = performance.now();
+      await new Promise(function (resolve, reject) {
+        (function step() {
+          try {
+            var el = performance.now() - start, sec = el / 1000, tn = (sec / S.o.secs) % 1;
+            draw(ctx, cv.width, cv.height, tn, { tAbs: sec, flatten: '#ffffff', watermark: mark });
+            if (manual) track.requestFrame();
+            var pct = clamp(el / totalMs, 0, 1);
+            $('sppProgBar').style.width = (pct * 100).toFixed(0) + '%';
+            $('sppProgTxt').textContent = 'Recording ' + Math.min(loops * S.o.secs, sec).toFixed(1) + 's of ' + (loops * S.o.secs).toFixed(1) + 's. Keep this tab open.';
+            if (el >= totalMs) { resolve(); return; }
+            setTimeout(step, 1000 / fps);
+          } catch (err) { reject(err); }
+        })();
+      });
+      await new Promise(function (r) { setTimeout(r, 150); });
+      if (rec.state !== 'inactive') rec.stop();
+      await done;
+      var type = (rec.mimeType || mime || 'video/webm'), ext = /mp4/.test(type) ? 'mp4' : 'webm';
+      var blob = new Blob(chunks, { type: type });
+      if (!blob.size) throw new Error('The recorder produced an empty file');
+      save(blob, 'product-presenter.' + ext);
+      say('Video saved as .' + ext, 'success');
+    } catch (err) {
+      console.error('Product Presenter video failed', err);
+      try { if (rec && rec.state !== 'inactive') rec.stop(); } catch (e2) {}
+      say('Video export failed. Keep this tab in front while it records, then try again.', 'error');
+    } finally {
+      // Always runs, so the buttons and the close button can never stay stuck after a failed export.
+      S.recording = false; S.playing = wasPlaying;
+      if (S.playing) S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
+      btns.forEach(function (id) { var el = $(id); if (el) el.disabled = false; });
+      $('sppProg').classList.remove('on'); $('sppProgBar').style.width = '0';
+    }
+  };
+
+
+  /* ───────────────────────── LIVE CLIPS ─────────────────────────
+     A live clip is a placed image item that carries a `clip` spec (the cut-out
+     product + every motion/background/text option). On the page it is drawn as a
+     running <canvas>; for exports it is re-rendered frame by frame from the same spec.
+     Each clip renders through its own private runtime (own sprites/layers), swapped
+     into S for the duration of one draw, so it never disturbs the open Presenter. */
+  var RT = new WeakMap();
+  function clipRt(clip) {
+    var rt = RT.get(clip);
+    if (rt) return rt;
+    rt = { ready: false, cut: null, sprites: null, spriteKey: '', layers: {}, cutVer: 1,
+           edgeRGB: (clip.edge || [70, 70, 70]).slice(), bgColor: clip.bg || { r: 240, g: 242, b: 246 },
+           o: Object.assign({}, clip.o), promise: null };
+    rt.promise = getCut(clip.cut).then(function (c) { if (c) { rt.cut = c; rt.ready = true; } return rt; });
+    RT.set(clip, rt);
+    return rt;
+  }
+  // Decoded cut-outs are cached by data URL (small LRU): a clip that gets cloned by undo/redo, duplicate or
+  // page copy is ready instantly instead of decoding its PNG again and flashing blank.
+  var CUTS = new Map();
+  function getCut(url) {
+    var p = CUTS.get(url);
+    if (p) { CUTS.delete(url); CUTS.set(url, p); return p; }
+    p = new Promise(function (res) {
+      var im = new Image();
+      im.onload = function () { var c = mk(im.naturalWidth, im.naturalHeight); c.getContext('2d').drawImage(im, 0, 0); res(c); };
+      im.onerror = function () { res(null); };
+      im.src = url;
+    });
+    p.then(function (c) { if (!c) CUTS.delete(url); });
+    CUTS.set(url, p);
+    if (CUTS.size > 8) CUTS.delete(CUTS.keys().next().value);
+    return p;
+  }
+  function withRt(rt, fn) {
+    var keep = { cut: S.cut, sprites: S.sprites, spriteKey: S.spriteKey, layers: S.layers, cutVer: S.cutVer, edgeRGB: S.edgeRGB, bgColor: S.bgColor, o: S.o };
+    S.cut = rt.cut; S.sprites = rt.sprites; S.spriteKey = rt.spriteKey; S.layers = rt.layers; S.cutVer = rt.cutVer;
+    S.edgeRGB = rt.edgeRGB; S.bgColor = rt.bgColor; S.o = rt.o;
+    try { return fn(); }
+    finally {
+      rt.sprites = S.sprites; rt.spriteKey = S.spriteKey; rt.layers = S.layers;
+      Object.keys(keep).forEach(function (k) { S[k] = keep[k]; });
+    }
+  }
+  window.sppLiveReady = function (clip) { return clipRt(clip).promise; };
+  window.sppLiveAspect = function (clip) { var d = EXPORT[(clip.o && clip.o.ratio)] || EXPORT['16:9']; return d[0] / d[1]; };
+  // Draws the clip at time tSec (seconds since it first appeared) onto ctx. Returns false until its cut-out has decoded.
+  window.sppLiveFrame = function (clip, ctx, W, H, tSec) {
+    var rt = clipRt(clip); if (!rt.ready || !rt.cut) return false;
+    withRt(rt, function () { draw(ctx, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
+    return true;
+  };
+
+  /* Live clips on the page.
+     ONE persistent canvas per clip: when the editor re-renders (select, lock, drag, zoom, reorder) the
+     same running canvas is moved into the new DOM instead of being rebuilt, so the picture never
+     blanks and the clock (rotation phase, text intro) never restarts. Resolution follows the size the
+     clip is really shown at, the frame rate adapts to how heavy the clip is, and clips that are
+     scrolled off screen or on another page stop drawing. */
+  var LIVE = new Set(), liveRaf = 0, ENT = new WeakMap(), liveIO = null;
+  function liveSize(clip, longEdge) {
+    var p = PREVIEW[(clip.o && clip.o.ratio)] || PREVIEW['16:9'], k = longEdge / Math.max(p[0], p[1]);
+    return [Math.max(2, Math.round(p[0] * k)), Math.max(2, Math.round(p[1] * k))];
+  }
+  function liveKick() { if (!liveRaf) liveRaf = requestAnimationFrame(liveTick); }
+  function liveWatch(e) {
+    if (!('IntersectionObserver' in window)) return;
+    if (!liveIO) liveIO = new IntersectionObserver(function (list) {
+      list.forEach(function (r) { var en = r.target._sppLive; if (en) en.vis = r.isIntersecting; });
+    }, { rootMargin: '80px' });
+    e.c._sppLive = e; liveIO.observe(e.c);
+  }
+  // Draws one frame. Until the cut-out has decoded, the still poster is shown so the clip is never blank.
+  function liveDraw(e, now) {
+    var ctx = e.c.getContext('2d'), ok = false, t0 = performance.now();
+    try { ok = window.sppLiveFrame(e.clip, ctx, e.c.width, e.c.height, (now - e.t0) / 1000); }
+    catch (err) { console.error('Live clip frame failed', err); }
+    if (!ok && e.posterUrl) {
+      if (!e.poster) { e.poster = new Image(); e.poster.onload = function () { e.posterReady = true; }; e.poster.src = e.posterUrl; }
+      if (e.posterReady) { ctx.clearRect(0, 0, e.c.width, e.c.height); ctx.drawImage(e.poster, 0, 0, e.c.width, e.c.height); }
+    }
+    return performance.now() - t0;
+  }
+  // Keeps the canvas about as sharp as it is shown (zoom / resize / retina), with hysteresis so it never thrashes.
+  function liveFit(e, now) {
+    if (now - e.fitAt < 400) return; e.fitAt = now;
+    var r = e.c.getBoundingClientRect(); if (!r.width || !r.height) return;
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var want = Math.max(400, Math.min(1280, Math.round(Math.max(r.width, r.height) * dpr / 80) * 80));
+    if (Math.abs(want - e.res) < 160) return;
+    var d = liveSize(e.clip, want); e.c.width = d[0]; e.c.height = d[1]; e.res = want;   // redrawn in this same tick, so no blank frame
+  }
+  function liveTick() {
+    liveRaf = 0;
+    var now = performance.now();
+    LIVE.forEach(function (e) {
+      if (!e.c.isConnected) {
+        // Detached for a moment while the editor re-renders is normal. Gone for good (page changed, item deleted): forget it.
+        if (!e.gone) e.gone = now;
+        else if (now - e.gone > 1500) { LIVE.delete(e); if (ENT.get(e.clip) === e) ENT.delete(e.clip); if (liveIO) liveIO.unobserve(e.c); }
+        return;
+      }
+      e.gone = 0;
+      if (document.hidden || !e.vis || !e.c.offsetParent) return;   // tab hidden, scrolled away, or editor not on screen
+      if (now - e.last < e.gap) return; e.last = now;
+      liveFit(e, now);
+      var cost = liveDraw(e, now);
+      e.cost = e.cost * 0.8 + cost * 0.2;
+      e.gap = e.cost > 11 ? 33 : (e.cost < 7 ? 15 : e.gap);          // full speed when light, ~30 fps when heavy
+    });
+    if (LIVE.size) liveKick();
+  }
+  // Seconds the clip has been running on the page canvas (null if it is not mounted there). The thumbnail strip uses it to play in step.
+  window.sppLiveTime = function (clip) {
+    var e = ENT.get(clip);
+    return (e && e.c && e.c.isConnected) ? (performance.now() - e.t0) / 1000 : null;
+  };
+  window.sppLiveCanvas = function (clip) {
+    var e = ENT.get(clip);
+    return (e && e.c) ? e.c : document.createElement('canvas');
+  };
+  window.sppLiveMount = function (canvas, clip, posterUrl) {
+    var e = ENT.get(clip), keepT0 = 0;
+    if (e && e.c === canvas) { e.gone = 0; if (posterUrl) e.posterUrl = posterUrl; liveKick(); return; }
+    if (e) { keepT0 = e.t0; LIVE.delete(e); }
+    var now = performance.now(), d = liveSize(clip, 640);
+    canvas.width = d[0]; canvas.height = d[1];
+    e = { c: canvas, clip: clip, t0: keepT0 || now, last: 0, gap: 15, cost: 0, res: 640, fitAt: now, vis: true, gone: 0,
+          posterUrl: posterUrl || '', poster: null, posterReady: false };
+    ENT.set(clip, e); LIVE.add(e); liveWatch(e);
+    liveDraw(e, now);
+    liveKick();
+  };
+
+  function snapshotClip() {
+    var cut = S.cut, k = Math.min(1, 900 / Math.max(cut.width, cut.height)), c = cut;
+    if (k < 1) { c = mk(cut.width * k, cut.height * k); var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cut, 0, 0, c.width, c.height); }
+    return {
+      v: 1, cut: c.toDataURL('image/png'), edge: S.edgeRGB.slice(),
+      bg: { r: S.bgColor.r, g: S.bgColor.g, b: S.bgColor.b }, o: JSON.parse(JSON.stringify(S.o))
+    };
+  }
+
+  window.sppPlaceLiveOnPage = async function () {
+    if (!S.cut) { say('Add a product photo first', 'info'); return; }
+    if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
+      say('Open or create a page first, then place the live clip on it.', 'info'); return;
+    }
+    var clip = snapshotClip();
+    // Still poster: used anywhere a page is flattened to a picture (thumbnails, previews).
+    var d = EXPORT[S.o.ratio], k = 800 / Math.max(d[0], d[1]), poster = mk(d[0] * k, d[1] * k);
+    draw(poster.getContext('2d'), poster.width, poster.height, S.tNorm, { textT: 1 });
+    var url = poster.toDataURL('image/png');
+    var idx = pdfed.active, pg = pdfed.pages[idx], pcv = document.getElementById('pdfedPageCanvas');
+    var pw = (pcv && pcv.width) || 800, ph = (pcv && pcv.height) || 1100;
+    var f = Math.min(pw * 0.8 / poster.width, ph * 0.8 / poster.height), w = Math.round(poster.width * f), h = Math.round(poster.height * f);
+    pdfedAnnotState.placedImgSeq++;
+    (pg.placedImages = pg.placedImages || []).push({
+      id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: url, clip: clip,
+      x: Math.round((pw - w) / 2), y: Math.round((ph - h) / 2), w: w, h: h, locked: false, zIndex: pdfedNextZ(pg), kind: 'image'
+    });
+    if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
+    if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
+    sppClose();
+    say('Live clip placed. It keeps playing on the page and in the slideshow preview. Download this document as an MP4 presentation (Export, Slideshow Clip).', 'success');
+  };
+
+  ['sppPlaceOnPage', 'sppPlaceLiveOnPage'].forEach(function (name) {
+    var f = window[name];
+    window[name] = async function () {
+      try { return await f.apply(this, arguments); }
+      catch (e) { console.error('Product Presenter ' + name + ' failed', e); say('Could not place it on the page. Please try again.', 'error'); }
+    };
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', dropSetup); else dropSetup();
+})();
+</script>
+
 </body>
 </html>
