@@ -87009,15 +87009,33 @@ html.spp-open #sayla-panel{z-index:100004}
                 <select id="sppFont" onchange="sppSet('font',this.value)" style="width:auto;flex:1">
                   <option value="clean">Clean sans</option><option value="serif">Elegant serif</option><option value="bold">Bold impact</option><option value="mono">Mono</option>
                 </select></div>
+              <div class="spp-row"><label>Editor font</label><button type="button" class="spp-btn" id="sppFontBtn" onclick="sppPickFont(this)" title="Pick any font from the editor's font library" style="width:auto;flex:1;justify-content:space-between;overflow:hidden;white-space:nowrap">Choose from editor fonts</button></div>
               <div class="spp-row"><label>Size</label><input type="range" id="sppTxtSize" min="60" max="150" value="100" oninput="sppSet('txtSize',+this.value)"><span class="spp-val" id="sppTxtSizeV">100</span></div>
               <div class="spp-row"><label>Auto text colour</label><input type="checkbox" id="sppTxtAuto" checked onchange="sppSet('txtAuto',this.checked)"></div>
               <div class="spp-row" id="sppTxtColRow" style="display:none"><label>Text colour</label><input type="color" id="sppTxtCol" value="#ffffff" oninput="sppSet('txtCol',this.value)"></div>
               <div class="spp-row"><label>Badge colour</label><input type="color" id="sppAccent" value="#00c2ff" oninput="sppSet('accent',this.value)"></div>
-              <div class="spp-row"><label>Entrance</label>
+              <div class="spp-row"><label>Text motion</label>
                 <select id="sppTxtAnim" onchange="sppSet('txtAnim',this.value)" style="width:auto;flex:1">
-                  <option value="rise">Fade and rise</option><option value="fade">Fade</option><option value="none">None</option>
+                  <option value="match">Match photo motion</option><optgroup label="Classic"><option value="rise">Fade and rise</option><option value="fade">Fade</option><option value="none">None</option></optgroup><optgroup label="Motion"><option value="mask">Line reveal</option><option value="track">Tracking in</option><option value="focus">Blur focus</option><option value="cascade">Waterfall</option><option value="flip">Flip wave</option><option value="assemble">Assemble</option><option value="warp">Warp</option><option value="snap">Snap to dust</option><option value="glitch">Glitch</option><option value="decode">Decode</option><option value="type">Typewriter</option><option value="pop">Word pop</option><option value="shine">Shine sweep</option><option value="iris">Iris</option><option value="beat">Beat</option></optgroup><optgroup label="Engage"><option value="caret">Typing cursor</option><option value="marker">Highlighter</option><option value="pointer">Pointer clicks</option></optgroup>
+                </select></div>
+              <div class="spp-row"><label>Text movement</label>
+                <select id="sppTxtLive" onchange="sppSet('txtLive',this.value)" style="width:auto;flex:1" title="Keeps the words gently alive while they are on screen. Works together with the motion and exit.">
+                  <option value="none">Still</option><option value="zigzag">Zigzag</option><option value="wave">Wave</option><option value="float">Float</option><option value="orbit">Orbit</option><option value="swing">Swing</option><option value="jelly">Jelly</option><option value="blink">Neon blink</option><option value="shimmer">Shimmer</option>
+                </select></div>
+              <div class="spp-row"><label>Text exit</label>
+                <select id="sppTxtOut" onchange="sppSet('txtOut',this.value)" style="width:auto;flex:1" title="How the words leave before the loop restarts">
+                  <option value="auto">Mirror the motion</option><option value="fade">Fade out</option><option value="rise">Rise away</option><option value="stay">Stay on screen</option>
                 </select></div>
             </div></details>
+          </div></details>
+
+          <details class="spp-grp"><summary><i></i>Engage</summary><div class="spp-in">
+            <div class="spp-row"><label>Audience prompt</label>
+              <select id="sppEng" onchange="sppSet('eng',this.value)" style="width:auto;flex:1" title="A moving cue that makes viewers feel part of the clip">
+                <option value="none">None</option><option value="tap">Tap button</option><option value="swipe">Swipe up</option><option value="like">Double-tap like</option><option value="hearts">Live reactions</option><option value="comment">Live comment</option>
+              </select></div>
+            <input type="text" id="sppEngText" placeholder="Prompt text, e.g. Tap to shop" oninput="sppSet('engText',this.value)">
+            <div class="spp-note warn" style="color:inherit;opacity:.7">Appears after the headline lands, and leaves with it. Uses your badge colour.</div>
           </div></details>
 
           <details class="spp-grp"><summary><i></i>Format</summary><div class="spp-in">
@@ -87112,7 +87130,7 @@ html.spp-open #sayla-panel{z-index:100004}
       motion: 'turntable', secs: 6, dir: 1, amp: 35, thick: 5, size: 100, back: 'plain', shadow: true, reflect: true,
       bgMode: 'matched', fillA: '#0b1220', fillB: '#1f4e8c', fillGrad: true,
       head: '', sub: '', badge: '', txtPos: 'bottom', font: 'clean', txtSize: 100, txtAuto: true, txtCol: '#ffffff',
-      accent: '#00c2ff', txtAnim: 'rise', ratio: '16:9',
+      accent: '#00c2ff', txtAnim: 'rise', txtOut: 'auto', eng: 'none', engText: '', txtLive: 'none', fontName: '', ratio: '16:9',
       fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center', gal: 'slideshow', cutStyle: 'hype', fxCol: 'white'
     }
   };
@@ -87173,6 +87191,7 @@ html.spp-open #sayla-panel{z-index:100004}
     else if (rebuildCutout) scheduleCut(180);
     if (k === 'fillGrad') $('sppFillBRow').style.display = v ? '' : 'none';
     if (k === 'txtAuto') $('sppTxtColRow').style.display = v ? 'none' : '';
+    if (k === 'font') { S.o.fontName = ''; syncFontBtn(); }
     if (k === 'secs') S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
     if (k === 'thick' || k === 'size') S.spriteKey = '';
   };
@@ -87589,7 +87608,8 @@ html.spp-open #sayla-panel{z-index:100004}
     if (o.fit === 'gallery') { if (S.gal.length) { galDraw(ctx, W, H, tn, opt.textT === 1 ? 99 : (opt.tAbs != null ? opt.tAbs : tn * o.secs)); if (GALFULL[o.gal]) drawScrim(ctx, W, H, tp); } }
     else if (o.fit === 'fill' && S.cut) { drawFill(ctx, W, H, tn); drawScrim(ctx, W, H, tp); }
     else { drawBackground(ctx, W, H, opt.flatten); if (S.cut) drawProduct(ctx, W, H, tn); }
-    drawText(ctx, W, H, tp);
+    S._tbox = null; drawText(ctx, W, H, tp, opt.textT === 1 ? 99 : (opt.tAbs != null ? opt.tAbs : tn * o.secs));
+    try { drawEngage(ctx, W, H, tn, opt); } catch (e) { console.error('Showcase engage failed', e); }
     if (opt.watermark) stampMark(ctx, W, H);
   }
 
@@ -88053,11 +88073,16 @@ html.spp-open #sayla-panel{z-index:100004}
   }
 
   /* ───────────────────────── text ───────────────────────── */
+  // Exit timing. Old clips saved before exits existed have no txtOut, so they keep their text on screen exactly as before.
+  function outOn(o) { var m = o.txtOut; return m === 'auto' ? o.txtAnim !== 'none' : (m === 'fade' || m === 'rise'); }
+  function outQ(o, lt) { if (!outOn(o)) return 0; var d = Math.min(0.9, o.secs * 0.22); return clamp((lt - (o.secs - d)) / d, 0, 1); }
+  function smoothQ(q) { return q * q * (3 - 2 * q); }
   function textProgress(tn, tAbs) {
-    if (S.o.txtAnim === 'none') return 1;
-    var t = tAbs != null ? tAbs : tn * S.o.secs;
-    var p = clamp(t / 0.9, 0, 1);
-    return 1 - Math.pow(1 - p, 3);
+    var o = S.o, t = tAbs != null ? tAbs : tn * o.secs;
+    if (outOn(o)) t = t % o.secs;                       // with an exit, every loop plays in and out again
+    var p = 1;
+    if (o.txtAnim !== 'none') { var pp = clamp(t / 0.9, 0, 1); p = 1 - Math.pow(1 - pp, 3); }
+    return p * (1 - smoothQ(outQ(o, t)));
   }
   function textColor(pos) {
     var o = S.o;
@@ -88078,18 +88103,271 @@ html.spp-open #sayla-panel{z-index:100004}
     if (lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…'; }
     return lines;
   }
-  function drawText(ctx, W, H, prog) {
+  /* ── Text motion engine: per-letter / per-word / per-line animation. Each motion echoes a photo motion of the same name. ── */
+  var FXS = null, FK = {};
+  var EO = function (p) { return 1 - Math.pow(1 - p, 3); };
+  var BNC = function (p) { var n = 7.5625, d = 2.75; if (p < 1 / d) return n * p * p; if (p < 2 / d) return n * (p -= 1.5 / d) * p + 0.75; if (p < 2.5 / d) return n * (p -= 2.25 / d) * p + 0.9375; return n * (p -= 2.625 / d) * p + 0.984375; };
+  var SPR = function (p) { return p >= 1 ? 1 : 1 - Math.exp(-6 * p) * Math.cos(p * 11); };
+  function rn(i, k) { var x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); }
+  var SCR = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&@';
+  // u: unit (l line, w word, c letter), dur: seconds per unit, st: stagger step, ord 'c': start from the middle
+  var MOT = {
+    mask:    { u: 'l', dur: 0.85, st: 0.14, f: function (p, e, g) { return { dy: (1 - e) * g.u * 1.2, clip: 1 }; } },
+    track:   { u: 'c', dur: 1.2, st: 0.025, ord: 'c', f: function (p, e, g) { return { a: e, dx: g.cx * (1 - e) * 0.6, bl: (1 - e) * 8 }; } },
+    focus:   { u: 'l', dur: 1.1, st: 0.2, f: function (p, e) { return { a: e, sx: 1.08 - 0.08 * e, sy: 1.08 - 0.08 * e, bl: (1 - e) * 14 }; } },
+    cascade: { u: 'c', dur: 0.75, st: 0.045, f: function (p, e, g) { return { a: Math.min(1, p * 4), dy: -(1 - BNC(p)) * g.u * 2.2 }; } },
+    flip:    { u: 'c', dur: 0.7, st: 0.05, ord: 'c', f: function (p, e) { return { a: p > 0 ? 1 : 0, sy: Math.max(0.001, Math.sin(e * Math.PI / 2)) }; } },
+    assemble:{ u: 'c', dur: 1.0, st: 0.03, f: function (p, e, g) { return { a: Math.min(1, p * 3), dx: (g.r - 0.5) * g.u * 10 * (1 - e), dy: (rn(g.i, 2) - 0.5) * g.u * 8 * (1 - e), rot: (g.r - 0.5) * 4 * (1 - e) }; } },
+    warp:    { u: 'c', dur: 0.9, st: 0.02, ord: 'c', f: function (p, e, g) { return { a: e, dx: g.cx * (1 - e) * 2.2, sx: 1 + (1 - e) * 3.5, sy: 1 - (1 - e) * 0.3, bl: (1 - e) * 5 }; } },
+    snap:    { u: 'c', dur: 1.1, st: 0.04, f: function (p, e, g) { return { a: e, dx: (1 - e) * g.u * (2 + g.r * 5), dy: -(1 - e) * g.u * rn(g.i, 3) * 3, rot: (1 - e) * (g.r - 0.5) * 2.5, bl: (1 - e) * 9 }; } },
+    glitch:  { u: 'c', dur: 0.9, st: 0.02, f: function (p, e, g) {
+      if (p <= 0) return { a: 0 }; if (p >= 1) return {};
+      var s = Math.floor(g.t * 26 + g.i * 3);
+      return { a: rn(s, g.i + 5) > (1 - p) * 0.55 ? 1 : 0.15, dx: (rn(s, g.i) - 0.5) * g.u * 0.9 * (1 - p), dy: (rn(s, g.i + 7) - 0.5) * g.u * 0.3 * (1 - p), gh: 1 - p }; } },
+    decode:  { u: 'c', dur: 0.7, st: 0.04, f: function (p, e, g) { return { a: p > 0 ? 1 : 0, txt: p > 0 && p < 1 ? SCR.charAt(Math.floor(rn(Math.floor(g.t * 30), g.i) * SCR.length)) : null }; } },
+    type:    { u: 'c', dur: 0.05, st: 0.05, f: function (p) { return { a: p > 0 ? 1 : 0 }; } },
+    pop:     { u: 'w', dur: 0.65, st: 0.1, f: function (p, e, g) { var k = Math.max(0.001, SPR(p)); return { a: Math.min(1, p * 5), sx: k, sy: k, dy: (1 - e) * g.u * 0.4 }; } },
+    shine:   { u: 'l', dur: 0.8, st: 0.12, sweep: 1, f: function (p, e, g) { return { a: e, dy: (1 - e) * g.u * 0.3 }; } },
+    iris:    { u: 'l', dur: 0.01, st: 0, f: function () { return {}; } },
+    beat:    { u: 'l', dur: 1.0, st: 0.12, f: function (p, e) { var k = 1 + 0.16 * Math.max(0, Math.sin(p * Math.PI * 5)) * (1 - p); return { a: Math.min(1, p * 6), sx: k, sy: k }; } },
+    _cls:    { u: 'c', dur: 0.01, st: 0, f: function () { return {}; } },
+    // Engage motions: they behave like live interaction
+    caret:   { u: 'c', dur: 0.05, st: 0.06, cap: 1.7, caret: 1, f: function (p) { return { a: p > 0 ? 1 : 0 }; } },
+    marker:  { u: 'w', dur: 0.55, st: 0.2, cap: 1.5, f: function (p, e) { return { a: Math.min(1, p * 8) }; },
+               pre: function (c, g) { c.save(); c.globalAlpha = g.al * 0.8; c.fillStyle = g.hi; c.fillRect(-g.w / 2 - g.px * 0.08, g.yl - g.px * 0.42, (g.w + g.px * 0.16) * g.e, g.px * 0.46); c.restore(); } },
+    pointer: { u: 'w', dur: 0.5, st: 0.3, cap: 2.0, off: 0.45, fin: fxPointer, f: function (p, e) { var k = Math.max(0.001, SPR(p)); return { a: Math.min(1, p * 6), sx: k, sy: k }; } }
+  };
+  // "Match photo motion": the text borrows the personality of whatever the photo is doing
+  var MFILL = { still: 'mask', zoomin: 'focus', zoomout: 'track', pan: 'mask', drift: 'focus', kenburns: 'mask', beat: 'beat', shine: 'shine', whip: 'warp', assemble: 'assemble', shutter: 'mask', iris: 'iris', cinema: 'track', warp: 'warp', snap: 'snap', flip: 'flip', ripple: 'focus', pixel: 'decode', glitch: 'glitch', waterfall: 'cascade' };
+  var MPROD = { pop: 'pop', bounce: 'pop', glitch: 'glitch', warp: 'warp', snap: 'snap', dust: 'snap', shatter: 'snap', flip: 'flip', ripple: 'focus', levitate: 'focus', pixel: 'decode', waterfall: 'cascade', assemble: 'assemble', pulse: 'beat', glint: 'shine', hero: 'track', echo: 'track', blinds: 'mask', scan: 'mask', slice: 'mask' };
+  var MGAL = { cuts: 'glitch', panels: 'mask', polaroid: 'pop', bento: 'pop', focus: 'focus', aura: 'focus', slideshow: 'focus', fastcuts: 'beat', collage: 'pop', spotlight: 'track', coverflow: 'track', brand: 'mask', film: 'mask' };
+  function fxMotion(o) {
+    var a = o.txtAnim;
+    if (a === 'match') return (o.fit === 'gallery' ? MGAL[o.gal] : o.fit === 'fill' ? MFILL[o.fmotion] : MPROD[o.motion]) || 'mask';
+    return Object.prototype.hasOwnProperty.call(MOT, a) ? a : null;
+  }
+  function fxUnits(ln, u) {
+    var r = [], m, re, i;
+    if (u === 'l') { if (ln) r.push([0, ln.length]); }
+    else if (u === 'w') { re = /\S+/g; while ((m = re.exec(ln))) r.push([m.index, m.index + m[0].length]); }
+    else for (i = 0; i < ln.length; i++) if (ln.charAt(i) !== ' ') r.push([i, i + 1]);
+    return r;
+  }
+  function fxPut(ctx, ln, x, y, align, px, a0) {
+    var F = FXS; if (!F) { ctx.fillText(ln, x, y); return; }
+    var M = F.m, col = ctx.fillStyle, lw = ctx.measureText(ln).width, sx = align === 'center' ? x - lw / 2 : x, lc = sx + lw / 2;
+    ctx.textAlign = 'left';
+    fxUnits(ln, M.u).forEach(function (r) {
+      var gi = F.idx++, ord = M.ord === 'c' ? Math.abs(gi - (F.n - 1) / 2) * 2 : gi, step = Math.min(M.st, (M.cap || 0.9) / F.n);
+      var p = clamp((F.t - (M.off || 0) - ord * step) / M.dur, 0, 1), e = EO(p);
+      var pre = ctx.measureText(ln.slice(0, r[0])).width, w = ctx.measureText(ln.slice(r[0], r[1])).width, cx = sx + pre + w / 2, cy = y - px * 0.32;
+      if (M.fin) F.pts.push({ x: cx, y: y - px * 0.28, t0: (M.off || 0) + ord * step, px: px });
+      var T = M.f(p, e, { u: px, cx: cx - lc, i: gi, n: F.n, r: rn(gi, 1), t: F.t }), al = (T.a == null ? 1 : T.a) * a0 * F.fo;
+      if (al <= 0.002) { if (F.amb) F.aidx += fxCount(ln.slice(r[0], r[1])); return; }
+      ctx.save(); ctx.globalAlpha = al;
+      if (T.clip) { ctx.beginPath(); ctx.rect(sx - px * 0.4, y - px * (F.amb ? 1.4 : 1.05), lw + px * 0.8, px * (F.amb ? 2.0 : 1.45)); ctx.clip(); }
+      ctx.translate(cx + (T.dx || 0), cy + (T.dy || 0)); if (T.rot) ctx.rotate(T.rot);
+      ctx.scale(T.sx || 1, T.sy == null ? 1 : T.sy);
+      if (T.bl > 0.4 && F.filt) ctx.filter = 'blur(' + T.bl.toFixed(1) + 'px)';
+      ctx.textAlign = 'center';
+      if (M.sweep && !F.out && !F.amb) {
+        var sp = EO(clamp((F.t - 0.9) / 0.9, 0, 1));
+        if (sp > 0 && sp < 1) { var bc = F.x0 + (lw > 0 ? 0 : 0), bw = px * 1.6, mid = (sp * 1.6 - 0.3) * (F.n && lw ? lw : 1) + sx - (cx + (T.dx || 0)), g2 = ctx.createLinearGradient(mid - bw, 0, mid + bw, 0); g2.addColorStop(0, col); g2.addColorStop(0.5, F.hi); g2.addColorStop(1, col); ctx.fillStyle = g2; }
+      }
+      if (M.pre) M.pre(ctx, { w: w, e: e, p: p, yl: y - cy, px: px, hi: F.hi, al: al });
+      var s = T.txt || ln.slice(r[0], r[1]);
+      if (T.gh) { ctx.fillStyle = '#00e5ff'; ctx.globalAlpha = al * 0.7 * T.gh; ctx.fillText(s, -px * 0.36 * T.gh, y - cy); ctx.fillStyle = '#ff2bd6'; ctx.fillText(s, px * 0.36 * T.gh, y - cy); ctx.fillStyle = col; ctx.globalAlpha = al; }
+      if (F.amb) fxLetters(ctx, F, ln, r, T, w, y, cy, px); else ctx.fillText(s, 0, y - cy);
+      ctx.restore();
+      if (M.caret && p > 0) {
+        var np = F.idx < F.n ? clamp((F.t - (M.off || 0) - F.idx * step) / M.dur, 0, 1) : 0;
+        if (np <= 0 && (F.still || F.t < F.FULL || Math.floor(F.t * 2.4) % 2 === 0)) {
+          ctx.save(); ctx.globalAlpha = F.fo * F.bo; ctx.fillStyle = F.hi; ctx.fillRect(sx + pre + w + px * 0.05, y - px * 0.86, Math.max(2, px * 0.07), px * 1.0); ctx.restore();
+        }
+      }
+    });
+    ctx.textAlign = align;
+  }
+  /* ── Editor fonts: the same picker and Google Fonts loader the PDF editor uses ── */
+  function fontFam(o) {
+    if (o.fontName) { fontKick(o.fontName); return '"' + o.fontName + '",' + (FONTS[o.font] || FONTS.clean); }
+    return FONTS[o.font] || FONTS.clean;
+  }
+  function fontKick(n) {
+    if (FK[n]) return FK[n];
+    try { if (typeof sarvarcLoadFont === 'function') sarvarcLoadFont(n); } catch (e) {}
+    FK[n] = new Promise(function (res) {
+      var key = 'family=' + encodeURIComponent(n).replace(/%20/g, '+');
+      var lk = [].slice.call(document.querySelectorAll('link[rel=stylesheet]')).filter(function (l) { return (l.href || '').indexOf(key) > -1; })[0];
+      var go = function () { Promise.all(['700', '400'].map(function (w) { return document.fonts.load(w + ' 40px "' + n + '"'); })).then(function () { res(); }, function () { res(); }); };
+      if (!lk || lk.sheet) go(); else { lk.addEventListener('load', go); lk.addEventListener('error', function () { res(); }); }
+      setTimeout(res, 5000);
+    });
+    return FK[n];
+  }
+  function syncFontBtn() {
+    var b = $('sppFontBtn'); if (!b) return;
+    b.textContent = S.o.fontName || 'Choose from editor fonts';
+    b.style.fontFamily = S.o.fontName ? '"' + S.o.fontName + '",sans-serif' : '';
+  }
+  window.sppPickFont = function (btn) {
+    if (typeof sarvarcOpenFontPicker !== 'function') { say('Editor fonts are not available here', 'info'); return; }
+    sarvarcOpenFontPicker(btn, S.o.fontName || 'Inter', function (name) { S.o.fontName = name; syncFontBtn(); fontKick(name); });
+    try { if (typeof sarvarcFontPickerEl !== 'undefined' && sarvarcFontPickerEl) sarvarcFontPickerEl.style.zIndex = 100020; } catch (e) {}
+  };
+  var TRI = function (x) { return 2 / Math.PI * Math.asin(Math.sin(x)); };
+  // Text movement: gentle, loop-safe motion applied per letter while the words are on screen.
+  // th = phase over a whole number of cycles per loop, so the clip repeats without a jump. w = how much movement is on (eases in and out).
+  var TXLIVE = {
+    zigzag:  { per: 1.4, f: function (g) { var z = 0.65 * TRI(g.th + g.i * 2.4) + 0.35 * Math.sin(g.th + g.i * 2.4); return { dy: -z * g.px * 0.17 * g.w, dx: z * g.px * 0.035 * g.w, rot: z * 0.07 * g.w }; } },
+    wave:    { per: 2.2, f: function (g) { var z = Math.sin(g.th - g.i * 0.5); return { dy: -z * g.px * 0.13 * g.w, rot: Math.cos(g.th - g.i * 0.5) * 0.045 * g.w, sy: 1 + 0.035 * z * g.w }; } },
+    float:   { per: 3.0, f: function (g) { var a = g.th + g.r * 6.2832; return { dy: -Math.sin(a) * g.px * 0.09 * g.w, dx: Math.cos(a + 1.3) * g.px * 0.04 * g.w, rot: Math.sin(a + 2) * 0.04 * g.w }; } },
+    orbit:   { per: 3.2, f: function (g) { var a = g.th + g.i * 0.55; return { dx: Math.cos(a) * g.px * 0.1 * g.w, dy: Math.sin(a) * g.px * 0.1 * g.w }; } },
+    swing:   { per: 2.4, f: function (g) { return { rot: Math.sin(g.th - g.i * 0.35) * 0.17 * g.w, piv: g.px * 0.55 }; } },
+    jelly:   { per: 1.8, f: function (g) { var z = Math.sin(g.th - g.i * 0.5); return { sx: 1 + 0.12 * z * g.w, sy: 1 - 0.12 * z * g.w, dy: z * g.px * 0.03 * g.w }; } },
+    blink:   { per: 2.6, f: function (g) { var v = Math.max(0, Math.sin(g.th + g.r * 6.2832)), a = 1 - 0.7 * Math.pow(v, 10) * g.w; return { a: a, gl: g.w * (0.55 + 0.45 * a) }; } },
+    shimmer: { per: 3.4, f: function (g) { var bp = (((g.th / 6.2832) % 1 + 1) % 1) * (g.n + 6) - 3, b = Math.max(0, 1 - Math.abs(g.i - bp) / 2.6) * g.w; return { mixk: b, dy: -b * g.px * 0.05, sx: 1 + 0.05 * b, sy: 1 + 0.05 * b }; } }
+  };
+  function fxCount(t) { return String(t).replace(/\s/g, '').length; }
+  // Draws one unit letter by letter with the unit's own entrance transform already applied, adding the movement per letter.
+  function fxLetters(ctx, F, ln, r, T, w, y, cy, px) {
+    var A = F.amb, seg = ln.slice(r[0], r[1]), chars = T.txt ? [T.txt] : seg.split(''), col = ctx.fillStyle, hex = typeof col === 'string' && col.charAt(0) === '#', yl = y - cy, k, ch, off, g, L, pv;
+    for (k = 0; k < chars.length; k++) {
+      ch = chars[k]; if (ch === ' ') continue;
+      off = T.txt ? 0 : ctx.measureText(seg.slice(0, k)).width + ctx.measureText(ch).width / 2 - w / 2;
+      g = { th: A.th, i: F.aidx++, n: F.an, r: rn(F.aidx, 21), px: px, w: A.w };
+      L = A.f(g); pv = L.piv || 0;
+      ctx.save();
+      if (L.a != null) ctx.globalAlpha *= L.a;
+      if (L.gl) { ctx.shadowColor = F.hi; ctx.shadowBlur = px * 0.32 * L.gl; }
+      if (L.mixk > 0 && hex) ctx.fillStyle = rgbStr(mix(hexToRgb(col), hexToRgb(F.hi), L.mixk));
+      ctx.translate(off + (L.dx || 0), yl - pv + (L.dy || 0));
+      if (L.rot) ctx.rotate(L.rot);
+      if (L.sx || L.sy) ctx.scale(L.sx || 1, L.sy || 1);
+      ctx.fillText(ch, 0, pv);
+      ctx.restore();
+    }
+  }
+  function fxArrow(ctx, x, y, sc, al) {
+    ctx.save(); ctx.globalAlpha = al; ctx.translate(x, y); ctx.scale(sc, sc);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 1.15); ctx.lineTo(0.28, 0.9); ctx.lineTo(0.46, 1.32); ctx.lineTo(0.62, 1.25); ctx.lineTo(0.45, 0.85); ctx.lineTo(0.8, 0.85); ctx.closePath();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = sc * 0.3; ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.lineJoin = 'round'; ctx.lineWidth = 0.09; ctx.strokeStyle = '#0b1220'; ctx.stroke(); ctx.restore();
+  }
+  // Pointer clicks: a cursor hops word to word, clicking each one into place. Played backwards on the exit.
+  function fxPointer(ctx, F) {
+    var P = F.pts; if (!P.length) return;
+    var t = F.t, px = P[0].px, k = -1, i, tx, ty, al = 1, hop = 0.22;
+    for (i = 0; i < P.length; i++) if (t >= P[i].t0) k = i;
+    if (k < 0) { var p0 = P[0], ee = EO(clamp(t / Math.max(0.01, p0.t0), 0, 1)); tx = p0.x + px * 3.4 * (1 - ee); ty = p0.y + px * 2.6 * (1 - ee); al = clamp(t / 0.18, 0, 1); }
+    else {
+      var cur = P[k], nxt = P[k + 1]; tx = cur.x; ty = cur.y;
+      if (nxt) { var q = clamp((t - (nxt.t0 - hop)) / hop, 0, 1); if (q > 0) { var e2 = EO(q); tx = cur.x + (nxt.x - cur.x) * e2; ty = cur.y + (nxt.y - cur.y) * e2 - Math.sin(q * Math.PI) * px * 0.35; } }
+    }
+    for (i = 0; i < P.length; i++) {
+      var rt = t - P[i].t0;
+      if (rt >= 0 && rt < 0.5) { var rq = rt / 0.5; ctx.save(); ctx.globalAlpha = (1 - rq) * 0.75 * F.fo * F.bo; ctx.strokeStyle = F.hi; ctx.lineWidth = Math.max(1.5, px * 0.05 * (1 - rq)); ctx.beginPath(); ctx.arc(P[i].x, P[i].y, px * (0.15 + 1.1 * EO(rq)), 0, 7); ctx.stroke(); ctx.restore(); }
+    }
+    fxArrow(ctx, tx, ty, px * 0.8, al * F.fo * F.bo);
+  }
+  function heartPath(ctx, x, y, s) {
+    ctx.beginPath(); ctx.moveTo(x, y + s * 0.38); ctx.bezierCurveTo(x + s * 0.62, y - s * 0.02, x + s * 0.46, y - s * 0.6, x, y - s * 0.2);
+    ctx.bezierCurveTo(x - s * 0.46, y - s * 0.6, x - s * 0.62, y - s * 0.02, x, y + s * 0.38); ctx.closePath();
+  }
+  /* ── Engage: moving cues that make the audience feel part of the clip (tap, swipe, like, reactions, live comment) ── */
+  function drawEngage(ctx, W, H, tn, opt) {
+    var o = S.o, m = o.eng; if (!m || m === 'none') return;
+    var still = !!(opt && opt.textT === 1), secs = o.secs;
+    var lt = still ? secs * 0.5 : (((opt && opt.tAbs != null) ? opt.tAbs : tn * secs) % secs);
+    var s0 = Math.min(1.5, secs * 0.3), d = Math.min(0.9, secs * 0.22), s1 = secs - d;
+    var vis = still ? 1 : smoothQ(clamp((lt - s0) / 0.45, 0, 1)) * (1 - smoothQ(clamp((lt - (s1 - 0.3)) / 0.3, 0, 1)));
+    if (vis <= 0.003) return;
+    var e = still ? { tap: 0.8, like: 1.3, hearts: 2.4, comment: 4.2, swipe: 0.6 }[m] : lt - s0;
+    var u = Math.min(W, H), acc = o.accent, onAcc = lum(hexToRgb(acc)) > 0.6 ? '#0b1220' : '#ffffff', fam = fontFam(o);
+    var B = S._tbox, cx = W / 2, gap = u * 0.035, label, fs, cyc;
+    function anchor(hh) { if (!B) return H * 0.86; cx = B.cx; var c = B.pos === 'bottom' ? B.top - gap - hh / 2 : B.bot + gap + hh / 2; return clamp(c, hh, H - hh); }
+    ctx.save(); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
+    if (m === 'tap') {
+      label = o.engText || 'Tap to shop'; fs = u * 0.036; ctx.font = '700 ' + fs + 'px ' + fam;
+      var pw = ctx.measureText(label).width + fs * 2.8, phh = fs * 2.4; cyc = anchor(phh);
+      var P = 2.2, ph = (e % P) / P, pressed = 0, tapX = cx + pw * 0.18, tapY = cyc + phh * 0.1, ax, ay, aa = clamp(ph / 0.12, 0, 1);
+      if (ph < 0.38) { var q = EO(ph / 0.38); ax = tapX + (1 - q) * pw * 0.55; ay = tapY + (1 - q) * phh * 1.7; }
+      else if (ph < 0.52) { ax = tapX; ay = tapY; pressed = Math.sin((ph - 0.38) / 0.14 * Math.PI); }
+      else { var q2 = EO((ph - 0.52) / 0.48); ax = tapX + q2 * pw * 0.4; ay = tapY + q2 * phh * 1.4; aa = 1 - q2; }
+      for (var k = 0; k < 2; k++) { var hp = (((e / 1.4 + k * 0.5) % 1) + 1) % 1, ex = hp * u * 0.05; ctx.globalAlpha = vis * (1 - hp) * 0.5; ctx.strokeStyle = acc; ctx.lineWidth = Math.max(1.5, u * 0.004); rr(ctx, cx - pw / 2 - ex, cyc - phh / 2 - ex, pw + ex * 2, phh + ex * 2, phh / 2 + ex); ctx.stroke(); }
+      ctx.save(); ctx.globalAlpha = vis; ctx.translate(cx, cyc); ctx.scale(1 - 0.06 * pressed, 1 - 0.06 * pressed);
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = u * 0.02; ctx.shadowOffsetY = u * 0.006; ctx.fillStyle = acc; rr(ctx, -pw / 2, -phh / 2, pw, phh, phh / 2); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.fillStyle = onAcc; ctx.fillText(label, 0, fs * 0.34); ctx.restore();
+      var rp = (ph - 0.38) / 0.37; if (rp > 0 && rp < 1) { ctx.globalAlpha = vis * (1 - rp) * 0.7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, u * 0.004); ctx.beginPath(); ctx.arc(tapX, tapY, u * 0.055 * EO(rp), 0, 7); ctx.stroke(); }
+      fxArrow(ctx, ax, ay, u * 0.03, vis * aa);
+    } else if (m === 'swipe') {
+      label = o.engText || 'Swipe up'; fs = u * 0.032; var cw = u * 0.052; ctx.font = '700 ' + fs + 'px ' + fam; cyc = anchor(fs * 2 + cw * 2.6);
+      ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = u * 0.012; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, u * 0.008); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (var c = 0; c < 3; c++) {
+        var cp = (((e * 1.3 - c * 0.2) % 1) + 1) % 1, cy2 = cyc - fs * 0.4 - cw * 0.3 - c * cw * 0.72;
+        ctx.globalAlpha = vis * Math.sin(Math.PI * cp) * 0.95;
+        ctx.beginPath(); ctx.moveTo(cx - cw / 2, cy2 + cw * 0.22); ctx.lineTo(cx, cy2 - cw * 0.22); ctx.lineTo(cx + cw / 2, cy2 + cw * 0.22); ctx.stroke();
+      }
+      ctx.globalAlpha = vis; ctx.fillStyle = '#ffffff'; ctx.fillText(label, cx, cyc + fs * 0.5);
+    } else if (m === 'like') {
+      label = o.engText || 'Double-tap to love it'; fs = u * 0.03; ctx.font = '700 ' + fs + 'px ' + fam;
+      var lw = ctx.measureText(label).width + fs * 3.4, lh = fs * 2.3; cyc = anchor(lh);
+      ctx.globalAlpha = vis * 0.9; ctx.fillStyle = 'rgba(8,12,24,0.55)'; rr(ctx, cx - lw / 2, cyc - lh / 2, lw, lh, lh / 2); ctx.fill();
+      ctx.fillStyle = '#ff4d6d'; heartPath(ctx, cx - lw / 2 + fs * 1.15, cyc + fs * 0.05, fs * 0.95); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.fillText(label, cx - lw / 2 + fs * 2.05, cyc + fs * 0.34); ctx.textAlign = 'center';
+      var LP = 2.8, lph = (e % LP) / LP, hq = (lph - 0.3) / 0.55, hx = W / 2, hy = H * 0.44;
+      var rg = (lph - 0.25) / 0.2; if (rg > 0 && rg < 1) { ctx.globalAlpha = vis * (1 - rg) * 0.7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, u * 0.005); ctx.beginPath(); ctx.arc(hx, hy, u * (0.05 + 0.1 * EO(rg)), 0, 7); ctx.stroke(); }
+      if (hq > 0 && hq < 1) {
+        var hs = hq < 0.25 ? EO(hq / 0.25) * 1.25 : 1.25 - 0.25 * EO(clamp((hq - 0.25) / 0.2, 0, 1)), ha = hq < 0.6 ? 1 : 1 - (hq - 0.6) / 0.4;
+        ctx.globalAlpha = vis * ha; ctx.shadowColor = 'rgba(255,77,109,0.6)'; ctx.shadowBlur = u * 0.05; ctx.fillStyle = '#ff4d6d'; heartPath(ctx, hx, hy, u * 0.26 * hs); ctx.fill(); ctx.shadowColor = 'transparent';
+        for (var b = 0; b < 8; b++) { var an = b * Math.PI / 4 + 0.3, dd = u * 0.3 * EO(hq), bs = u * 0.034 * (1 - hq * 0.6); ctx.globalAlpha = vis * ha * 0.9; ctx.fillStyle = b % 2 ? '#ff8fab' : acc; heartPath(ctx, hx + Math.cos(an) * dd, hy + Math.sin(an) * dd, bs); ctx.fill(); }
+      }
+    } else if (m === 'hearts') {
+      var N = 16, RP = 3.4, pal = [acc, '#ff4d6d', '#ffd166', '#ffffff', '#ff8fab'];
+      for (var i = 0; i < N; i++) {
+        var hp2 = (((e / RP + i / N) % 1) + 1) % 1, r1 = rn(i, 11), r2 = rn(i, 12);
+        var hx2 = W * 0.88 - r1 * W * 0.1 + Math.sin(hp2 * Math.PI * 2 * (1 + r2) + i) * u * 0.03 * (0.5 + hp2), hy2 = H * 0.86 - hp2 * H * 0.58;
+        var sz = u * (0.03 + 0.03 * r2) * (0.6 + 0.4 * Math.min(1, hp2 * 3));
+        ctx.globalAlpha = vis * Math.min(1, hp2 * 6) * (1 - Math.pow(hp2, 3)) * 0.95; ctx.fillStyle = pal[i % pal.length];
+        if (i % 4 === 3) { ctx.beginPath(); ctx.arc(hx2, hy2, sz * 0.32, 0, 7); ctx.fill(); } else { heartPath(ctx, hx2, hy2, sz); ctx.fill(); }
+      }
+      if (o.engText) {
+        fs = u * 0.032; ctx.font = '700 ' + fs + 'px ' + fam; var cw2 = ctx.measureText(o.engText).width + fs * 2.4, ch2 = fs * 2.2; cyc = anchor(ch2);
+        ctx.globalAlpha = vis * 0.9; ctx.fillStyle = 'rgba(8,12,24,0.55)'; rr(ctx, cx - cw2 / 2, cyc - ch2 / 2, cw2, ch2, ch2 / 2); ctx.fill();
+        ctx.globalAlpha = vis; ctx.fillStyle = '#ffffff'; ctx.fillText(o.engText, cx, cyc + fs * 0.34);
+      }
+    } else if (m === 'comment') {
+      var txt = o.engText || 'Need this right now!'; fs = u * 0.03; ctx.font = '600 ' + fs + 'px ' + fam;
+      var bh = fs * 2.5, full = Math.min(W * 0.8, ctx.measureText(txt).width + fs * 2.4), dotsW = fs * 3.4;
+      var nch = clamp(Math.floor((e - 1.5) * 22), 0, txt.length), shown = txt.slice(0, nch);
+      var cwid = e < 1.5 ? dotsW : Math.max(dotsW, Math.min(full, ctx.measureText(shown).width + fs * 2.4));
+      var yb = B ? (B.pos === 'bottom' ? B.top - gap - bh : B.bot + gap) : H * 0.78, x0 = W * 0.06, sIn = EO(clamp(e / 0.5, 0, 1));
+      yb = clamp(yb, bh * 0.2, H - bh * 1.2) + (1 - sIn) * bh * 1.2;
+      ctx.globalAlpha = vis; ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(x0 + bh / 2, yb + bh / 2, bh / 2, 0, 7); ctx.fill();
+      ctx.fillStyle = onAcc; ctx.beginPath(); ctx.arc(x0 + bh / 2, yb + bh * 0.4, bh * 0.15, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x0 + bh / 2, yb + bh * 0.86, bh * 0.27, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
+      var bx = x0 + bh * 1.2;
+      ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = u * 0.015; ctx.shadowOffsetY = u * 0.004; ctx.fillStyle = 'rgba(255,255,255,0.95)'; rr(ctx, bx, yb, cwid, bh, bh * 0.5); ctx.fill(); ctx.shadowColor = 'transparent';
+      if (e < 1.5) { for (var dt = 0; dt < 3; dt++) { var bob = Math.sin(e * 9 - dt * 0.9) * bh * 0.09; ctx.fillStyle = 'rgba(15,23,42,0.6)'; ctx.beginPath(); ctx.arc(bx + dotsW / 2 + (dt - 1) * fs * 0.8, yb + bh / 2 + bob, fs * 0.22, 0, 7); ctx.fill(); } }
+      else { ctx.fillStyle = '#0f172a'; ctx.textAlign = 'left'; ctx.fillText(shown, bx + fs * 1.2, yb + bh / 2 + fs * 0.34); }
+    }
+    ctx.restore();
+  }
+  function drawText(ctx, W, H, prog, tt) {
     var o = S.o; if (!(o.head || o.sub || o.badge)) return;
-    var L = layout(W, H), pos = L.pos, family = FONTS[o.font] || FONTS.clean, col = textColor(pos);
+    var still = tt == null || tt >= 99, lt = still ? 99 : (outOn(o) ? tt % o.secs : tt), q = still ? 0 : outQ(o, lt), sq = smoothQ(q);
+    var riseOut = o.txtOut === 'rise' || (o.txtOut === 'auto' && o.txtAnim === 'rise');
+    var pin = still ? prog : (o.txtAnim === 'none' ? 1 : 1 - Math.pow(1 - clamp(lt / 0.9, 0, 1), 3));
+    var L = layout(W, H), pos = L.pos, family = fontFam(o), col = textColor(pos);
     var sideways = pos === 'left' || pos === 'right';
     var unit = Math.min(W, H) * (sideways ? 0.085 : 0.1) * (o.txtSize / 100);
-    var headPx = unit, subPx = unit * 0.46, badgePx = unit * 0.3, weight = o.font === 'bold' ? '400' : '800';
+    var headPx = unit, subPx = unit * 0.46, badgePx = unit * 0.3, weight = o.fontName ? '700' : (o.font === 'bold' ? '400' : '800');
     var maxW = sideways ? W * 0.4 : W * 0.86, align = sideways ? 'left' : 'center';
     var x = sideways ? (pos === 'left' ? W * 0.07 : W * 0.53) : W / 2;
     if (!sideways && (o.fit === 'fill' || o.fit === 'gallery') && o.txtAlign === 'left') { align = 'left'; x = W * 0.07; maxW = W * 0.8; }
     ctx.save();
     ctx.globalAlpha = prog; ctx.textBaseline = 'alphabetic'; ctx.textAlign = align;
-    var rise = (1 - prog) * H * 0.03, slide = o.txtAnim === 'rise' ? rise : 0;
+    var slide = (o.txtAnim === 'rise' ? (1 - pin) * H * 0.03 : 0) - (riseOut ? sq * H * 0.03 : 0);
 
     ctx.font = weight + ' ' + headPx + 'px ' + family;
     var headLines = o.head ? wrapLines(ctx, o.head, maxW, 2) : [];
@@ -88101,10 +88379,27 @@ html.spp-open #sayla-panel{z-index:100004}
     if (pos === 'bottom') top = H - blockH - H * 0.06;
     else if (pos === 'top') top = H * 0.06;
     else top = (H - blockH) / 2;
+    S._tbox = { top: top, bot: top + blockH, cx: align === 'center' ? x : x + maxW / 2, pos: pos };
+    var amb = null, lv = o.txtLive;
+    if (lv && lv !== 'none' && TXLIVE[lv]) {
+      var LX = TXLIVE[lv], cyc = Math.max(1, Math.round(o.secs / LX.per)), alt = still ? o.secs * 0.3 : lt;
+      amb = { f: LX.f, th: 6.2832 * cyc * (alt / o.secs), w: still ? ((lv === 'blink' || lv === 'shimmer') ? 0 : 0.8) : smoothQ(clamp((lt - 0.5) / 0.9, 0, 1)) * (1 - sq) };
+    }
+    var fm = fxMotion(o) || (amb ? '_cls' : null); FXS = null;
+    if (fm) {
+      var fu = 0; headLines.concat(subLines).forEach(function (l) { fu += fxUnits(l, MOT[fm].u).length; });
+      var Mx = MOT[fm], nn = Math.max(1, fu), isCls = fm === '_cls', mirror = q > 0 && o.txtOut === 'auto' && !isCls, lc = 0;
+      headLines.concat(subLines).forEach(function (l) { lc += fxCount(l); });
+      var FULL = (nn - 1) * Math.min(Mx.st, (Mx.cap || 0.9) / nn) + Mx.dur + (Mx.off || 0);
+      FXS = { m: Mx, t: mirror ? FULL * (1 - q) : lt, n: nn, idx: 0, x0: align === 'center' ? x - maxW / 2 : x, hi: o.accent, filt: 'filter' in ctx,
+              fo: isCls ? prog : ((q > 0 && !mirror) ? 1 - sq : 1), bo: 1 - sq, amb: amb, aidx: 0, an: Math.max(1, lc), cls: isCls, out: q > 0, pts: [], still: still, FULL: FULL };
+      if (!isCls) slide = riseOut ? -sq * H * 0.03 : 0; ctx.globalAlpha = 1;
+      if (fm === 'iris') { var ip = mirror ? 1 - q : clamp(lt, 0, 1); if (mirror) FXS.t = 99; ctx.beginPath(); ctx.arc(FXS.x0 + maxW / 2, top + blockH / 2, EO(ip) * (Math.hypot(maxW, blockH) * 0.6 + headPx), 0, 7); ctx.clip(); }
+    }
     var y = top + slide;
 
     if (o.badge) {
-      ctx.font = '800 ' + badgePx + 'px ' + FONTS.clean;
+      ctx.globalAlpha = FXS && !FXS.cls ? clamp(FXS.t / 0.5, 0, 1) * FXS.bo : prog; ctx.font = '800 ' + badgePx + 'px ' + FONTS.clean;
       var txt = String(o.badge).toUpperCase(), tw = ctx.measureText(txt).width + badgePx * 1.6, bh = badgePx * 1.9;
       var bx = align === 'center' ? x - tw / 2 : x;
       ctx.fillStyle = o.accent; rr(ctx, bx, y, tw, bh, bh / 2); ctx.fill();
@@ -88115,12 +88410,13 @@ html.spp-open #sayla-panel{z-index:100004}
     ctx.fillStyle = col;
     if (o.bgMode !== 'empty' || o.fit === 'fill') { ctx.shadowColor = o.fit === 'fill' ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.18)'; ctx.shadowBlur = unit * 0.12; ctx.shadowOffsetY = unit * 0.03; }
     ctx.font = weight + ' ' + headPx + 'px ' + family;
-    headLines.forEach(function (ln) { y += headPx * 0.92; ctx.fillText(ln, x, y); y += headPx * 0.13; });
+    headLines.forEach(function (ln) { y += headPx * 0.92; fxPut(ctx, ln, x, y, align, headPx, 1); y += headPx * 0.13; });
     ctx.shadowColor = 'transparent';
     if (subLines.length) {
       y += gap * 0.6; ctx.globalAlpha = prog * 0.82; ctx.font = '500 ' + subPx + 'px ' + family;
-      subLines.forEach(function (ln) { y += subPx * 1.05; ctx.fillText(ln, x, y); y += subPx * 0.2; });
+      subLines.forEach(function (ln) { y += subPx * 1.05; fxPut(ctx, ln, x, y, align, subPx, 0.82); y += subPx * 0.2; });
     }
+    if (FXS && FXS.m.fin) FXS.m.fin(ctx, FXS);
     ctx.restore();
   }
   function rr(ctx, x, y, w, h, r) {
@@ -88780,6 +89076,7 @@ html.spp-open #sayla-panel{z-index:100004}
     btns.forEach(function (id) { var el = $(id); if (el) el.disabled = true; });
     $('sppProg').classList.add('on');
     try {
+      try { if (S.o.fontName) await fontKick(S.o.fontName); } catch (e) {}
       var d = EXPORT[S.o.ratio], cv = mk(d[0], d[1]), ctx = cv.getContext('2d'), fps = 30;
       var mime = typeof pdfedClipPickMime === 'function' ? pdfedClipPickMime() : ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].filter(function (m) { return MediaRecorder.isTypeSupported(m); })[0] || '';
       var loops = +$('sppLoops').value || 1, totalMs = S.o.secs * loops * 1000;
@@ -89184,7 +89481,7 @@ html.spp-open #sayla-panel{z-index:100004}
      ['sppAmp', 'amp', 'sppAmpV'], ['sppThick', 'thick', 'sppThickV'], ['sppSize', 'size', 'sppSizeV'], ['sppTxtSize', 'txtSize', 'sppTxtSizeV']]
       .forEach(function (r) { val(r[0], o[r[1]]); lab(r[2], o[r[1]]); });
     val('sppBack', o.back); val('sppFillA', o.fillA); val('sppFillB', o.fillB); val('sppHead', o.head); val('sppSubl', o.sub); val('sppBadge', o.badge);
-    val('sppTxtPos', o.txtPos); val('sppFont', o.font); val('sppTxtCol', o.txtCol); val('sppAccent', o.accent); val('sppTxtAnim', o.txtAnim); val('sppScrim', o.scrim); lab('sppScrimV', o.scrim);
+    val('sppTxtPos', o.txtPos); val('sppFont', o.font); val('sppTxtCol', o.txtCol); val('sppAccent', o.accent); val('sppTxtAnim', o.txtAnim); val('sppTxtOut', o.txtOut); val('sppEng', o.eng); val('sppTxtLive', o.txtLive); val('sppEngText', o.engText); syncFontBtn(); if (o.fontName) fontKick(o.fontName); val('sppScrim', o.scrim); lab('sppScrimV', o.scrim);
     if ($('sppCutBox')) $('sppCutBox').style.opacity = o.cutout ? 1 : .35;
     if ($('sppFillBRow')) $('sppFillBRow').style.display = o.fillGrad ? '' : 'none';
     if ($('sppTxtColRow')) $('sppTxtColRow').style.display = o.txtAuto ? 'none' : '';
@@ -89275,7 +89572,7 @@ html.spp-open #sayla-panel{z-index:100004}
     txtPos: { t: 'enum', v: ['bottom', 'top', 'left', 'right'] }, txtAlign: { t: 'enum', v: ['center', 'left'] },
     scrim: { t: 'num', min: 0, max: 100 }, font: { t: 'enum', v: ['clean', 'serif', 'bold', 'mono'] },
     txtSize: { t: 'num', min: 60, max: 150 }, txtAuto: { t: 'bool' }, txtCol: { t: 'color' }, accent: { t: 'color' },
-    txtAnim: { t: 'enum', v: ['rise', 'fade', 'none'] },
+    txtAnim: { t: 'enum', v: ['match', 'rise', 'fade', 'none', 'mask', 'track', 'focus', 'cascade', 'flip', 'assemble', 'warp', 'snap', 'glitch', 'decode', 'type', 'pop', 'shine', 'iris', 'beat', 'caret', 'marker', 'pointer'] }, fontName: { t: 'text', max: 60 }, txtOut: { t: 'enum', v: ['auto', 'fade', 'rise', 'stay'] }, txtLive: { t: 'enum', v: ['none', 'zigzag', 'wave', 'float', 'orbit', 'swing', 'jelly', 'blink', 'shimmer'] }, eng: { t: 'enum', v: ['none', 'tap', 'swipe', 'like', 'hearts', 'comment'] }, engText: { t: 'text', max: 60 },
     ratio: { t: 'enum', v: ['page', '16:9', '1:1', '4:5', '9:16'], alias: SP_ALIAS.ratio }
   };
   var SP_DEFAULTS = JSON.parse(JSON.stringify(S.o));
