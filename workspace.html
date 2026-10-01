@@ -86817,6 +86817,154 @@ html.spp-open #sayla-panel{z-index:100004}
 .spp-th button{position:absolute;border:0;background:rgba(0,0,0,.62);color:#fff;font:700 12px/1 inherit;width:18px;height:18px;border-radius:5px;cursor:pointer;padding:0}
 .spp-th button:hover{background:var(--sp-cy);color:#02121c}
 .spp-th .x{top:3px;right:3px}.spp-th .l{bottom:3px;left:3px}.spp-th .r{bottom:3px;right:3px}
+.spp-reels{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.spp-reel{text-align:left;padding:9px 10px;border-radius:11px;border:1.5px solid var(--sp-line2);background:var(--sp-fill);color:var(--sp-ink);font-family:inherit;cursor:pointer;transition:border-color .2s,background .2s}
+.spp-reel b{display:block;font-size:11.5px;font-weight:700}.spp-reel small{display:block;font-size:10px;line-height:1.35;color:var(--sp-ink2);margin-top:2px}
+.spp-reel:hover{border-color:var(--sp-cy);background:var(--sp-cyfill)}.spp-reel.on{border-color:var(--sp-cy);background:var(--sp-cyfill)}.spp-reel.on b{color:var(--sp-acc)}
+</style>
+<style id="sppPremium">
+/* ═══ Showcase · premium calm layer ═══
+   Same controls, same ids. Quieter surfaces, hairlines instead of boxes, grouped chips,
+   softer motion, one accent. Everything derives from the app theme, so light/dark both work. */
+.spp-overlay{
+  --sp-ease:cubic-bezier(.2,.7,.2,1);
+  --sp-line:color-mix(in srgb,var(--text) 8%,transparent);
+  --sp-line2:color-mix(in srgb,var(--text) 15%,transparent);
+  --sp-fill:color-mix(in srgb,var(--text) 3.5%,transparent);
+  --sp-fill2:color-mix(in srgb,var(--text) 7%,transparent);
+  --sp-cyfill:color-mix(in srgb,var(--blue,#00c2ff) 11%,transparent);
+  --sp-track:color-mix(in srgb,var(--text) 14%,transparent);
+  background:radial-gradient(120% 90% at 50% 0%,rgba(14,20,38,.62),rgba(3,6,14,.80));
+  backdrop-filter:blur(18px) saturate(1.05);-webkit-backdrop-filter:blur(18px) saturate(1.05);
+  transition:opacity .4s var(--sp-ease),visibility .4s}
+[data-theme="light"] .spp-overlay{background:radial-gradient(120% 90% at 50% 0%,rgba(30,38,60,.34),rgba(10,15,30,.50))}
+.spp-overlay .spp-modal{border-radius:24px;border:1px solid var(--sp-line2);
+  box-shadow:0 1px 0 color-mix(in srgb,#fff 6%,transparent) inset,0 50px 140px rgba(0,0,0,.42),0 8px 24px rgba(0,0,0,.18);
+  transform:translateY(14px) scale(.99);transition:transform .5s var(--sp-ease)}
+.spp-overlay.open .spp-modal{transform:none}
+
+/* header */
+.spp-overlay .spp-head{padding:16px 24px;border-bottom:1px solid var(--sp-line);gap:14px}
+.spp-overlay .spp-head .spp-ico{width:34px;height:34px;border-radius:11px;
+  background:linear-gradient(145deg,var(--sp-cyfill),color-mix(in srgb,var(--sp-acc) 4%,transparent));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sp-acc) 22%,transparent)}
+.spp-overlay .spp-head b{font-size:15.5px;font-weight:650;letter-spacing:.01em}
+.spp-overlay .spp-head .spp-x{border:none;background:var(--sp-fill);border-radius:50%;width:32px;height:32px;font-size:18px;color:var(--sp-ink2);transition:background .3s,color .3s,transform .3s var(--sp-ease)}
+.spp-overlay .spp-head .spp-x:hover{background:var(--sp-fill2);color:var(--sp-ink);transform:rotate(90deg)}
+
+/* stage: calm neutral backdrop instead of a busy checkerboard */
+.spp-overlay .spp-body{grid-template-columns:minmax(0,1fr) 352px}
+.spp-overlay .spp-stage{padding:22px 24px 20px;gap:16px}
+.spp-overlay .spp-canvas-wrap{border-radius:20px;border:1px solid var(--sp-line);
+  background:radial-gradient(90% 80% at 50% 38%,color-mix(in srgb,var(--text) 6%,var(--bg2)),color-mix(in srgb,var(--text) 11%,var(--bg2)));
+  background-image:none}
+.spp-overlay .spp-canvas-wrap canvas{border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,.32),0 4px 14px rgba(0,0,0,.14)}
+.spp-overlay .spp-cmp{border-radius:20px;border:1px solid var(--sp-line);background:var(--sp-fill)}
+.spp-overlay .spp-tag{font-size:9.5px;font-weight:650;letter-spacing:.12em;padding:5px 10px;
+  background:color-mix(in srgb,var(--bg2) 82%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--sp-line);color:var(--sp-ink2)}
+.spp-overlay .spp-empty{font-weight:500;letter-spacing:.02em;opacity:.75}
+
+/* transport as one quiet pill bar */
+.spp-overlay .spp-transport{gap:14px;padding:8px 10px;border:1px solid var(--sp-line);border-radius:999px;background:var(--sp-fill)}
+.spp-overlay .spp-transport button{min-width:68px;padding:7px 16px;border:none;background:var(--sp-fill2);font-weight:600;letter-spacing:.02em;transition:background .3s,color .3s}
+.spp-overlay .spp-transport button:hover{background:var(--sp-cyfill);color:var(--sp-acc)}
+.spp-overlay .spp-transport #sppCmpBtn.on{background:var(--sp-cyfill);color:var(--sp-acc)}
+
+/* sliders and switches: thinner, quieter */
+.spp-overlay input[type=range]{height:3px}
+.spp-overlay .spp-modal input[type=range]::-webkit-slider-thumb{width:14px;height:14px;border:none;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);transition:box-shadow .25s,transform .25s var(--sp-ease)}
+.spp-overlay .spp-modal input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.12)}
+.spp-overlay .spp-modal input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.spp-overlay .spp-modal input[type=checkbox]{box-shadow:none;background:var(--sp-track);transition:background .3s var(--sp-ease)}
+.spp-overlay .spp-modal input[type=checkbox]:checked{box-shadow:none}
+
+/* side panel: flat sections divided by hairlines, not stacked boxes */
+.spp-overlay .spp-side{background:color-mix(in srgb,var(--text) 2%,var(--bg2));border-left:1px solid var(--sp-line)}
+.spp-overlay .spp-scroll{padding:6px 20px 18px;scrollbar-width:thin;scrollbar-color:var(--sp-line2) transparent}
+.spp-overlay .spp-scroll::-webkit-scrollbar{width:6px}
+.spp-overlay .spp-scroll::-webkit-scrollbar-thumb{background:var(--sp-line2);border-radius:6px}
+.spp-overlay .spp-scroll>.spp-grp{background:none;border:none;border-radius:0;border-bottom:1px solid var(--sp-line);margin:0}
+.spp-overlay .spp-scroll>.spp-grp:last-child{border-bottom:none}
+.spp-overlay .spp-grp[open]{border-color:var(--sp-line)}
+.spp-overlay .spp-scroll>.spp-grp>summary{padding:16px 2px;font-size:12px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;color:var(--sp-ink2);transition:color .3s}
+.spp-overlay .spp-scroll>.spp-grp[open]>summary{color:var(--sp-ink);border-bottom:none}
+.spp-overlay .spp-scroll>.spp-grp>summary:hover{color:var(--sp-ink)}
+.spp-overlay .spp-scroll>.spp-grp>summary>i{width:22px;font-size:10px;letter-spacing:.06em;color:var(--sp-acc);opacity:.85}
+.spp-overlay .spp-grp>summary::after{opacity:.45;transition:transform .35s var(--sp-ease),opacity .3s}
+.spp-overlay .spp-grp>summary:hover::after{opacity:.8}
+.spp-overlay .spp-scroll>.spp-grp>.spp-in{padding:2px 2px 18px}
+.spp-overlay .spp-in{animation:sppIn .35s var(--sp-ease)}
+.spp-overlay .spp-grp .spp-grp{border-top:1px solid var(--sp-line);margin:10px 0 0}
+.spp-overlay .spp-grp .spp-grp>summary{padding:12px 0 10px;font-size:11.5px;font-weight:600;letter-spacing:.02em;text-transform:none;opacity:.8}
+.spp-overlay .spp-row{margin:13px 0;font-size:12.5px}
+.spp-overlay .spp-row label{color:var(--sp-ink2);font-weight:500}
+.spp-overlay .spp-row .spp-val{font-weight:600;font-size:11px;color:var(--sp-ink2);width:32px}
+
+/* category labels + chip grids (the big motion walls) */
+.spp-overlay .spp-seg.spp-chips{display:grid;gap:6px;background:none;border:none;padding:0;border-radius:0}
+.spp-overlay .spp-seg.spp-c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.spp-overlay .spp-seg.spp-c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.spp-overlay .spp-cat{grid-column:1/-1;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--sp-ink2);opacity:.65;margin:14px 0 2px;display:flex;align-items:center;gap:10px}
+.spp-overlay .spp-cat:first-child{margin-top:4px}
+.spp-overlay .spp-cat::after{content:"";flex:1;height:1px;background:var(--sp-line)}
+.spp-overlay .spp-chips button,#sppMotionSeg button,#sppFMotionSeg button{padding:8px 6px;font-size:11.5px;font-weight:550;text-align:center;border-radius:10px;
+  background:var(--sp-fill);border:1px solid transparent;color:var(--sp-ink2);overflow:hidden;text-overflow:ellipsis;
+  transition:background .3s var(--sp-ease),color .3s,border-color .3s,transform .3s var(--sp-ease)}
+.spp-overlay .spp-chips button:hover{background:var(--sp-fill2);color:var(--sp-ink);border-color:var(--sp-line);transform:translateY(-1px)}
+.spp-overlay .spp-chips button.on{background:var(--sp-cyfill);border-color:color-mix(in srgb,var(--sp-acc) 55%,transparent);color:var(--sp-acc);font-weight:650}
+
+/* small segmented controls (format, direction, background, align) */
+.spp-overlay .spp-seg:not(.spp-chips){background:var(--sp-fill);border:1px solid var(--sp-line);padding:3px;border-radius:12px;gap:2px}
+.spp-overlay .spp-seg:not(.spp-chips) button{border:none;border-radius:9px;padding:7px 10px;font-weight:550;transition:background .3s var(--sp-ease),color .3s,box-shadow .3s}
+.spp-overlay .spp-seg:not(.spp-chips) button:hover{border:none;background:var(--sp-fill2);color:var(--sp-ink)}
+.spp-overlay .spp-seg:not(.spp-chips) button.on{background:var(--bg2);color:var(--sp-acc);box-shadow:0 1px 3px rgba(0,0,0,.14),0 0 0 1px var(--sp-line)}
+
+/* motion finder */
+.spp-overlay .spp-find{margin:0 0 4px}
+.spp-overlay .spp-side .spp-find input[type=text]{margin:0;border-radius:11px;background:var(--sp-fill);border:1px solid var(--sp-line);padding:9px 12px 9px 34px;font-size:12px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:12px 50%}
+
+/* inputs, selects */
+.spp-overlay .spp-side input[type=text],.spp-overlay .spp-side select{border:1px solid var(--sp-line2);border-radius:11px;background-color:var(--bg2);padding:10px 12px}
+.spp-overlay .spp-side input[type=text]{margin:0 0 8px}
+.spp-overlay .spp-side input:hover,.spp-overlay .spp-side select:hover{border-color:var(--sp-line2);background-color:color-mix(in srgb,var(--text) 2%,var(--bg2))}
+.spp-overlay .spp-side input:focus,.spp-overlay .spp-side select:focus{border-color:color-mix(in srgb,var(--sp-cy) 70%,transparent);box-shadow:0 0 0 4px var(--sp-cyfill)}
+.spp-overlay .spp-side input[type=color]{border:1px solid var(--sp-line2);border-radius:9px;width:36px;height:28px}
+
+/* upload, reels, thumbs */
+.spp-overlay .spp-drop{border:1px dashed color-mix(in srgb,var(--sp-cy) 55%,transparent);border-radius:16px;padding:22px 14px;background:var(--sp-cyfill);color:var(--sp-ink2);font-weight:500;transition:background .3s,border-color .3s,transform .3s var(--sp-ease)}
+.spp-overlay .spp-drop:hover,.spp-overlay .spp-drop.over{background:color-mix(in srgb,var(--blue,#00c2ff) 18%,transparent);border-color:var(--sp-cy)}
+.spp-overlay .spp-link{border:1px solid var(--sp-line2);border-radius:11px;background:transparent;color:var(--sp-ink2);font-weight:550;transition:background .3s,color .3s,border-color .3s}
+.spp-overlay .spp-link:hover{background:var(--sp-fill2);color:var(--sp-ink);border-color:var(--sp-line2)}
+.spp-overlay .spp-reels{gap:8px}
+.spp-overlay .spp-reel{border:1px solid var(--sp-line);border-radius:13px;background:var(--sp-fill);padding:11px 12px;transition:background .3s var(--sp-ease),border-color .3s,transform .3s var(--sp-ease)}
+.spp-overlay .spp-reel:hover{background:var(--sp-fill2);border-color:var(--sp-line2);transform:translateY(-1px)}
+.spp-overlay .spp-reel.on{background:var(--sp-cyfill);border-color:color-mix(in srgb,var(--sp-acc) 55%,transparent)}
+.spp-overlay .spp-reel b{font-weight:650}
+.spp-overlay .spp-reel small{opacity:.8}
+.spp-overlay .spp-th{border-radius:10px;border:1px solid var(--sp-line)}
+.spp-overlay .spp-swatches{gap:10px}
+.spp-overlay .spp-swatches i{width:24px;height:24px;border:1px solid var(--sp-line2);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.spp-overlay .spp-note{font-size:11.5px;line-height:1.55;color:var(--sp-ink2)}
+.spp-overlay .spp-note.warn{color:var(--sp-ink2)}
+
+/* footer actions */
+.spp-overlay .spp-foot{padding:16px 20px 18px;border-top:1px solid var(--sp-line);background:var(--bg2)}
+.spp-overlay .spp-btn{border:1px solid var(--sp-line2);border-radius:12px;font-weight:600;letter-spacing:.01em;background:transparent;transition:background .3s var(--sp-ease),border-color .3s,transform .25s var(--sp-ease),box-shadow .3s}
+.spp-overlay .spp-btn:hover{background:var(--sp-fill2);border-color:var(--sp-line2)}
+.spp-overlay .spp-btn.primary{border:none;padding:12px;font-size:13px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--blue,#00c2ff) 100%,#fff 10%),var(--blue,#00c2ff));
+  box-shadow:0 8px 22px color-mix(in srgb,var(--blue,#00c2ff) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.28)}
+.spp-overlay .spp-btn.primary:hover{filter:none;transform:translateY(-1px);box-shadow:0 12px 28px color-mix(in srgb,var(--blue,#00c2ff) 32%,transparent),inset 0 1px 0 rgba(255,255,255,.28)}
+.spp-overlay .spp-prog div{height:3px}
+
+/* keyboard focus stays visible, but gentle */
+.spp-overlay :focus-visible{outline:2px solid color-mix(in srgb,var(--sp-cy) 70%,transparent);outline-offset:2px}
+
+@media (max-width:860px){.spp-overlay .spp-body{grid-template-columns:1fr}.spp-overlay .spp-stage{padding:16px}.spp-overlay .spp-side{border-left:none;border-top:1px solid var(--sp-line)}}
+@media (prefers-reduced-motion:reduce){.spp-overlay *,.spp-overlay{transition:none!important;animation:none!important}}
+
 </style>
 
 <div class="spp-overlay" id="sppOverlay" onmousedown="if(event.target===this)sppClose()">
@@ -86842,31 +86990,20 @@ html.spp-open #sayla-panel{z-index:100004}
 
       <div class="spp-side">
         <div class="spp-scroll">
-          <details class="spp-grp" open><summary><i></i>Photo</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc" open><summary><i></i>Photo</summary><div class="spp-in">
             <div class="spp-seg" id="sppFitSeg" style="margin-bottom:12px"><button class="on" data-v="product" onclick="sppSetSeg('fit','product',this)" title="Cut the product out and show it on a background">Product cutout</button><button data-v="fill" onclick="sppSetSeg('fit','fill',this)" title="Your photo fills the whole frame, edge to edge, with your text written on it">Fill to edges</button><button data-v="gallery" onclick="sppSetSeg('fit','gallery',this)" title="Several photos as a slideshow, collage, spotlight or coverflow">Multi-photo</button></div>
             <div class="spp-drop spp-solo" id="sppDrop" onclick="document.getElementById('sppFile').click()">Drop a photo, or click to upload</div>
             <input type="file" id="sppFile" accept="image/*" style="display:none" onchange="sppPickFile(this.files[0]);this.value=''">
             <button class="spp-link spp-solo" onclick="sppUseFromPage()">Use selected image from page</button>
             <div class="spp-galonly">
+              <div class="spp-row" style="margin-bottom:6px"><label>Reel presets <span style="opacity:.6;font-weight:500">(one tap, full edit)</span></label></div>
+              <div class="spp-reels" id="sppReelGrid"></div>
+              <div class="spp-note" id="sppReelLen" style="display:block;margin:6px 0 10px;font-weight:600"></div>
               <div class="spp-drop" id="sppGalDrop" onclick="document.getElementById('sppGalFile').click()">Drop several photos, or click to add (up to 12)</div>
               <input type="file" id="sppGalFile" accept="image/*" multiple style="display:none" onchange="sppPickMany(this.files);this.value=''">
               <div class="spp-thumbs" id="sppGalThumbs"></div>
               <div class="spp-row"><label>Layout</label></div>
-              <div class="spp-seg" id="sppGalSeg">
-                <button class="on" data-v="slideshow" onclick="sppSetSeg('gal','slideshow',this)" title="Full-frame photos that fade into each other">Slideshow</button>
-                <button data-v="collage" onclick="sppSetSeg('gal','collage',this)" title="All photos in a grid that pops in">Collage</button>
-                <button data-v="spotlight" onclick="sppSetSeg('gal','spotlight',this)" title="One big photo with a thumbnail row">Spotlight</button>
-                <button data-v="coverflow" onclick="sppSetSeg('gal','coverflow',this)" title="Photos glide past like a showroom carousel">Coverflow</button>
-                <button data-v="cuts" onclick="sppSetSeg('gal','cuts',this)" title="Full-screen reel: every photo cuts in with a different cinematic effect (flip, warp, pixel, ripple, glitch and more)">Director's cut</button>
-                <button data-v="panels" onclick="sppSetSeg('gal','panels',this)" title="Full-screen photos wipe into each other through sliding vertical panels, an editorial look">Panel wipe</button>
-                <button data-v="polaroid" onclick="sppSetSeg('gal','polaroid',this)" title="Photos are tossed onto the table as polaroids, each landing with a bounce, then swept away">Polaroid toss</button>
-                <button data-v="bento" onclick="sppSetSeg('gal','bento',this)" title="A modern bento grid where each photo takes its turn in focus">Bento</button>
-                <button data-v="film" onclick="sppSetSeg('gal','film',this)" title="Photos roll past on a cinematic film strip with sprocket holes">Film roll</button>
-                <button data-v="focus" onclick="sppSetSeg('gal','focus',this)" title="Smart focus: finds the subject in every photo and pushes the camera into it automatically, fills odd-shaped photos with a soft blur, and locks on with a brand-colour reticle. No cropping needed.">&#10022; Smart focus</button>
-                <button data-v="brand" onclick="sppSetSeg('gal','brand',this)" title="Brand sweep: your accent colour wipes between photos, every photo gets a subtle brand grade, and chapter ticks with a counter make it feel like a finished product reel.">&#10022; Brand sweep</button>
-                <button data-v="aura" onclick="sppSetSeg('gal','aura',this)" title="Aura: the backdrop is created from your photos' own colours and melts from one photo to the next. No backdrop to pick.">&#10022; Aura</button>
-                <button data-v="fastcuts" onclick="sppSetSeg('gal','fastcuts',this)" title="Fast cuts for ads: quick-fire editing with flashes, punch-ins and whip pans. Even 2 or 3 photos cut like a full ad, because each photo comes back from a new camera distance.">&#9889; Fast cuts</button>
-              </div>
+              <div class="spp-seg spp-chips spp-c2" id="sppGalSeg"><div class="spp-cat">Classic</div><button class="on" data-v="slideshow" onclick="sppSetSeg('gal','slideshow',this)" title="Full-frame photos that fade into each other">Slideshow</button><button data-v="collage" onclick="sppSetSeg('gal','collage',this)" title="All photos in a grid that pops in">Collage</button><button data-v="spotlight" onclick="sppSetSeg('gal','spotlight',this)" title="One big photo with a thumbnail row">Spotlight</button><button data-v="coverflow" onclick="sppSetSeg('gal','coverflow',this)" title="Photos glide past like a showroom carousel">Coverflow</button><button data-v="bento" onclick="sppSetSeg('gal','bento',this)" title="A modern bento grid where each photo takes its turn in focus">Bento</button><button data-v="film" onclick="sppSetSeg('gal','film',this)" title="Photos roll past on a cinematic film strip with sprocket holes">Film roll</button><button data-v="polaroid" onclick="sppSetSeg('gal','polaroid',this)" title="Photos are tossed onto the table as polaroids, each landing with a bounce, then swept away">Polaroid toss</button><div class="spp-cat">Cinematic</div><button data-v="cuts" onclick="sppSetSeg('gal','cuts',this)" title="Full-screen reel: every photo cuts in with a different cinematic effect (flip, warp, pixel, ripple, glitch and more)">Director's cut</button><button data-v="panels" onclick="sppSetSeg('gal','panels',this)" title="Full-screen photos wipe into each other through sliding vertical panels, an editorial look">Panel wipe</button><div class="spp-cat">Smart</div><button data-v="focus" onclick="sppSetSeg('gal','focus',this)" title="Smart focus: finds the subject in every photo and pushes the camera into it automatically, fills odd-shaped photos with a soft blur, and locks on with a brand-colour reticle. No cropping needed.">&#10022; Smart focus</button><button data-v="brand" onclick="sppSetSeg('gal','brand',this)" title="Brand sweep: your accent colour wipes between photos, every photo gets a subtle brand grade, and chapter ticks with a counter make it feel like a finished product reel.">&#10022; Brand sweep</button><button data-v="aura" onclick="sppSetSeg('gal','aura',this)" title="Aura: the backdrop is created from your photos' own colours and melts from one photo to the next. No backdrop to pick.">&#10022; Aura</button><div class="spp-cat">Ads</div><button data-v="fastcuts" onclick="sppSetSeg('gal','fastcuts',this)" title="Fast cuts for ads: quick-fire editing with flashes, punch-ins and whip pans. Even 2 or 3 photos cut like a full ad, because each photo comes back from a new camera distance.">&#9889; Fast cuts</button></div>
               <div id="sppFxColRow" style="display:none">
                 <div class="spp-row"><label>Effect colour (lines, flashes, ticks)</label></div>
                 <div class="spp-seg" id="sppFxColSeg">
@@ -86878,17 +87015,7 @@ html.spp-open #sayla-panel{z-index:100004}
               </div>
               <div id="sppCutStyleRow" style="display:none">
                 <div class="spp-row"><label>Fast-cut style</label></div>
-                <div class="spp-seg" id="sppCutStyleSeg">
-                  <button class="on" data-v="hype" onclick="sppSetSeg('cutStyle','hype',this)" title="Steady fast cuts with punch-in and flash. Uses rapid flashes: see the flashing-light notice.">Hype</button>
-                  <button data-v="accel" onclick="sppSetSeg('cutStyle','accel',this)" title="Speeds up, then lands on a hero shot">Build-up</button>
-                  <button data-v="flash" onclick="sppSetSeg('cutStyle','flash',this)" title="Strobe flash on every cut. Uses rapid flashes: see the flashing-light notice.">Strobe</button>
-                  <button data-v="whip" onclick="sppSetSeg('cutStyle','whip',this)" title="Fast whip pans with motion smear">Whip pan</button>
-                  <button data-v="beat" onclick="sppSetSeg('cutStyle','beat',this)" title="Cuts on a long-short-short rhythm. Uses quick flashes: see the flashing-light notice.">Beat cut</button>
-                  <button data-v="crash" onclick="sppSetSeg('cutStyle','crash',this)" title="Snap zoom toward the subject with a hit">Crash zoom</button>
-                  <button data-v="slam" onclick="sppSetSeg('cutStyle','slam',this)" title="Photos slam onto a pile">Slam stack</button>
-                  <button data-v="glitch" onclick="sppSetSeg('cutStyle','glitch',this)" title="Digital tear on every cut. Uses rapid screen tears: see the flashing-light notice.">Glitch</button>
-                  <button data-v="pop" onclick="sppSetSeg('cutStyle','pop',this)" title="Four photos pop into a grid, then the hero shot">Pop grid</button>
-                </div>
+                <div class="spp-seg spp-chips spp-c2" id="sppCutStyleSeg"><div class="spp-cat">Smooth</div><button data-v="accel" onclick="sppSetSeg('cutStyle','accel',this)" title="Speeds up, then lands on a hero shot">Build-up</button><button data-v="whip" onclick="sppSetSeg('cutStyle','whip',this)" title="Fast whip pans with motion smear">Whip pan</button><button data-v="crash" onclick="sppSetSeg('cutStyle','crash',this)" title="Snap zoom toward the subject with a hit">Crash zoom</button><button data-v="zthru" onclick="sppSetSeg('cutStyle','zthru',this)" title="Zoom-through: the shot punches into the lens while the next one pulls out behind it">Zoom through</button><button data-v="spin" onclick="sppSetSeg('cutStyle','spin',this)" title="Spin cut: a rotating whip with motion ghosts into the next shot">Spin cut</button><button data-v="slam" onclick="sppSetSeg('cutStyle','slam',this)" title="Photos slam onto a pile">Slam stack</button><button data-v="pop" onclick="sppSetSeg('cutStyle','pop',this)" title="Four photos pop into a grid, then the hero shot">Pop grid</button><div class="spp-cat">Rapid flash · use with care</div><button class="on" data-v="hype" onclick="sppSetSeg('cutStyle','hype',this)" title="Steady fast cuts with punch-in and flash. Uses rapid flashes: see the flashing-light notice.">Hype</button><button data-v="flash" onclick="sppSetSeg('cutStyle','flash',this)" title="Strobe flash on every cut. Uses rapid flashes: see the flashing-light notice.">Strobe</button><button data-v="beat" onclick="sppSetSeg('cutStyle','beat',this)" title="Cuts on a long-short-short rhythm. Uses quick flashes: see the flashing-light notice.">Beat cut</button><button data-v="glitch" onclick="sppSetSeg('cutStyle','glitch',this)" title="Digital tear on every cut. Uses rapid screen tears: see the flashing-light notice.">Glitch</button></div>
                 <div class="spp-note" id="sppCutStyleNote">Hard cuts every half second. Each shot punches in with a tiny camera shake and a white flash.</div>
                 <div class="spp-note" id="sppCutWarn" style="display:none;margin-top:6px;padding:7px 9px;border-radius:8px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.45);color:inherit">&#9888; <b>Flashing-light notice:</b> this style uses rapid flashes or screen tears. It can bother people who are sensitive to flashing lights, and can trigger seizures in people with photosensitive epilepsy. Check it before sharing widely, and consider Build-up, Whip pan or Slam stack for a gentler look.</div>
               </div>
@@ -86906,63 +87033,10 @@ html.spp-open #sayla-panel{z-index:100004}
             <div class="spp-note" id="sppCutNote">Works best on a plain, single-colour background. If the cutout eats into the product, lower the tolerance.</div>
           </div></details>
 
-          <details class="spp-grp" open><summary><i></i>Motion</summary><div class="spp-in">
-            <div class="spp-seg spp-fillonly" id="sppFMotionSeg">
-              <button data-v="still" onclick="sppSetSeg('fmotion','still',this)">Still</button>
-              <button class="on" data-v="zoomin" onclick="sppSetSeg('fmotion','zoomin',this)" title="Slow push in, then ease back">Push in</button>
-              <button data-v="zoomout" onclick="sppSetSeg('fmotion','zoomout',this)" title="Starts close, slowly pulls out">Pull out</button>
-              <button data-v="pan" onclick="sppSetSeg('fmotion','pan',this)">Pan</button>
-              <button data-v="drift" onclick="sppSetSeg('fmotion','drift',this)">Drift</button>
-              <button data-v="kenburns" onclick="sppSetSeg('fmotion','kenburns',this)" title="Slow diagonal push, the classic cinematic move">Ken Burns</button>
-              <button data-v="beat" onclick="sppSetSeg('fmotion','beat',this)" title="Quick rhythmic zoom punches, like a reel synced to music">Beat</button>
-              <button data-v="shine" onclick="sppSetSeg('fmotion','shine',this)" title="A light sweep glides across the photo">Shine</button>
-              <button data-v="whip" onclick="sppSetSeg('fmotion','whip',this)" title="Whips in fast from a tight zoom and slides to a stop, then a slow push. Replays each loop">Whip</button>
-              <button data-v="assemble" onclick="sppSetSeg('fmotion','assemble',this)" title="The photo arrives as pieces flying in from every direction, locks together with a soft flash, then pushes in">Assemble</button>
-              <button data-v="shutter" onclick="sppSetSeg('fmotion','shutter',this)" title="Strips slide in from alternating sides and close into the full photo">Shutter</button>
-              <button data-v="iris" onclick="sppSetSeg('fmotion','iris',this)" title="The photo opens from the centre like a camera iris">Iris</button>
-              <button data-v="cinema" onclick="sppSetSeg('fmotion','cinema',this)" title="Letterbox bars, a slow dolly push, vignette and a soft light streak, fading from and to black">Cinema</button>
-              <button data-v="warp" onclick="sppSetSeg('fmotion','warp',this)" title="The photo shoots out of the distance at light speed with white streaks, then gets pulled back in">Warp</button>
-              <button data-v="snap" onclick="sppSetSeg('fmotion','snap',this)" title="The photo crumbles to dust that blows away, then swirls back and rebuilds">Snap to dust</button>
-              <button data-v="flip" onclick="sppSetSeg('fmotion','flip',this)" title="Tiles flip over in a wave from the centre to reveal the photo">Flip wave</button>
-              <button data-v="ripple" onclick="sppSetSeg('fmotion','ripple',this)" title="The photo forms out of a water ripple and settles into focus">Ripple</button>
-              <button data-v="pixel" onclick="sppSetSeg('fmotion','pixel',this)" title="Giant blocks sharpen step by step into the photo, like a retro game loading">Pixel resolve</button>
-              <button data-v="glitch" onclick="sppSetSeg('fmotion','glitch',this)" title="Digital glitch: the photo tears into shifting bands and snaps clean">Glitch</button>
-              <button data-v="waterfall" onclick="sppSetSeg('fmotion','waterfall',this)" title="Thin columns of the photo drop in and bounce into place">Waterfall</button>
-            </div>
-            <div class="spp-seg spp-prod" id="sppMotionSeg">
-              <button class="on" data-v="turntable" onclick="sppSetSeg('motion','turntable',this)">Turntable</button>
-              <button data-v="sway" onclick="sppSetSeg('motion','sway',this)">Sway</button>
-              <button data-v="wrap" onclick="sppSetSeg('motion','wrap',this)">Spin</button>
-              <button data-v="hover" onclick="sppSetSeg('motion','hover',this)">Tilt</button>
-              <button data-v="glint" onclick="sppSetSeg('motion','glint',this)">Glint</button>
-              <button data-v="carousel" onclick="sppSetSeg('motion','carousel',this)">Carousel</button>
-              <button data-v="slice" onclick="sppSetSeg('motion','slice',this)">Slice</button>
-              <button data-v="bounce" onclick="sppSetSeg('motion','bounce',this)">Bounce</button>
-              <button data-v="echo" onclick="sppSetSeg('motion','echo',this)">Echo</button>
-              <button data-v="pulse" onclick="sppSetSeg('motion','pulse',this)">Pulse</button>
-              <button data-v="levitate" onclick="sppSetSeg('motion','levitate',this)">Levitate</button>
-              <button data-v="pop" onclick="sppSetSeg('motion','pop',this)">Pop</button>
-              <button data-v="orbit" onclick="sppSetSeg('motion','orbit',this)">Orbit</button>
-              <button data-v="swing" onclick="sppSetSeg('motion','swing',this)">Swing</button>
-              <button data-v="roll" onclick="sppSetSeg('motion','roll',this)">Roll in</button>
-              <button data-v="acrobat" onclick="sppSetSeg('motion','acrobat',this)">Acrobat</button>
-              <button data-v="breakdance" onclick="sppSetSeg('motion','breakdance',this)">Breakdance</button>
-              <button data-v="spinin" onclick="sppSetSeg('motion','spinin',this)">Spin in</button>
-              <button data-v="tumble" onclick="sppSetSeg('motion','tumble',this)">Tumble</button>
-              <button data-v="hero" onclick="sppSetSeg('motion','hero',this)">Hero rise</button>
-              <button data-v="assemble" onclick="sppSetSeg('motion','assemble',this)">Assemble</button>
-              <button data-v="shatter" onclick="sppSetSeg('motion','shatter',this)">Shatter in</button>
-              <button data-v="dust" onclick="sppSetSeg('motion','dust',this)">Materialize</button>
-              <button data-v="blinds" onclick="sppSetSeg('motion','blinds',this)">Shutters</button>
-              <button data-v="scan" onclick="sppSetSeg('motion','scan',this)">Scan reveal</button>
-              <button data-v="warp" onclick="sppSetSeg('motion','warp',this)">Warp</button>
-              <button data-v="snap" onclick="sppSetSeg('motion','snap',this)">Snap to dust</button>
-              <button data-v="flip" onclick="sppSetSeg('motion','flip',this)">Flip wave</button>
-              <button data-v="ripple" onclick="sppSetSeg('motion','ripple',this)">Ripple</button>
-              <button data-v="pixel" onclick="sppSetSeg('motion','pixel',this)">Pixel resolve</button>
-              <button data-v="glitch" onclick="sppSetSeg('motion','glitch',this)">Glitch</button>
-              <button data-v="waterfall" onclick="sppSetSeg('motion','waterfall',this)">Waterfall</button>
-            </div>
+          <details class="spp-grp" name="sppacc"><summary><i></i>Motion</summary><div class="spp-in">
+            <div class="spp-find spp-solo"><input type="text" id="sppMotionFind" placeholder="Find a motion…" autocomplete="off" aria-label="Find a motion"></div>
+            <div class="spp-seg spp-chips spp-c3 spp-fillonly" id="sppFMotionSeg"><div class="spp-cat">Camera</div><button data-v="still" onclick="sppSetSeg('fmotion','still',this)">Still</button><button class="on" data-v="zoomin" onclick="sppSetSeg('fmotion','zoomin',this)" title="Slow push in, then ease back">Push in</button><button data-v="zoomout" onclick="sppSetSeg('fmotion','zoomout',this)" title="Starts close, slowly pulls out">Pull out</button><button data-v="pan" onclick="sppSetSeg('fmotion','pan',this)">Pan</button><button data-v="drift" onclick="sppSetSeg('fmotion','drift',this)">Drift</button><button data-v="kenburns" onclick="sppSetSeg('fmotion','kenburns',this)" title="Slow diagonal push, the classic cinematic move">Ken Burns</button><button data-v="cinema" onclick="sppSetSeg('fmotion','cinema',this)" title="Letterbox bars, a slow dolly push, vignette and a soft light streak, fading from and to black">Cinema</button><div class="spp-cat">Rhythm &amp; light</div><button data-v="beat" onclick="sppSetSeg('fmotion','beat',this)" title="Quick rhythmic zoom punches, like a reel synced to music">Beat</button><button data-v="shine" onclick="sppSetSeg('fmotion','shine',this)" title="A light sweep glides across the photo">Shine</button><button data-v="whip" onclick="sppSetSeg('fmotion','whip',this)" title="Whips in fast from a tight zoom and slides to a stop, then a slow push. Replays each loop">Whip</button><div class="spp-cat">Reveals</div><button data-v="assemble" onclick="sppSetSeg('fmotion','assemble',this)" title="The photo arrives as pieces flying in from every direction, locks together with a soft flash, then pushes in">Assemble</button><button data-v="shutter" onclick="sppSetSeg('fmotion','shutter',this)" title="Strips slide in from alternating sides and close into the full photo">Shutter</button><button data-v="iris" onclick="sppSetSeg('fmotion','iris',this)" title="The photo opens from the centre like a camera iris">Iris</button><button data-v="flip" onclick="sppSetSeg('fmotion','flip',this)" title="Tiles flip over in a wave from the centre to reveal the photo">Flip wave</button><button data-v="ripple" onclick="sppSetSeg('fmotion','ripple',this)" title="The photo forms out of a water ripple and settles into focus">Ripple</button><button data-v="pixel" onclick="sppSetSeg('fmotion','pixel',this)" title="Giant blocks sharpen step by step into the photo, like a retro game loading">Pixel resolve</button><button data-v="waterfall" onclick="sppSetSeg('fmotion','waterfall',this)" title="Thin columns of the photo drop in and bounce into place">Waterfall</button><div class="spp-cat">Dramatic</div><button data-v="warp" onclick="sppSetSeg('fmotion','warp',this)" title="The photo shoots out of the distance at light speed with white streaks, then gets pulled back in">Warp</button><button data-v="snap" onclick="sppSetSeg('fmotion','snap',this)" title="The photo crumbles to dust that blows away, then swirls back and rebuilds">Snap to dust</button><button data-v="glitch" onclick="sppSetSeg('fmotion','glitch',this)" title="Digital glitch: the photo tears into shifting bands and snaps clean">Glitch</button></div>
+            <div class="spp-seg spp-chips spp-c3 spp-prod" id="sppMotionSeg"><div class="spp-cat">Showroom</div><button class="on" data-v="turntable" onclick="sppSetSeg('motion','turntable',this)">Turntable</button><button data-v="sway" onclick="sppSetSeg('motion','sway',this)">Sway</button><button data-v="wrap" onclick="sppSetSeg('motion','wrap',this)">Spin</button><button data-v="hover" onclick="sppSetSeg('motion','hover',this)">Tilt</button><button data-v="glint" onclick="sppSetSeg('motion','glint',this)">Glint</button><button data-v="carousel" onclick="sppSetSeg('motion','carousel',this)">Carousel</button><button data-v="levitate" onclick="sppSetSeg('motion','levitate',this)">Levitate</button><button data-v="orbit" onclick="sppSetSeg('motion','orbit',this)">Orbit</button><div class="spp-cat">Playful</div><button data-v="bounce" onclick="sppSetSeg('motion','bounce',this)">Bounce</button><button data-v="echo" onclick="sppSetSeg('motion','echo',this)">Echo</button><button data-v="pulse" onclick="sppSetSeg('motion','pulse',this)">Pulse</button><button data-v="pop" onclick="sppSetSeg('motion','pop',this)">Pop</button><button data-v="swing" onclick="sppSetSeg('motion','swing',this)">Swing</button><button data-v="roll" onclick="sppSetSeg('motion','roll',this)">Roll in</button><button data-v="acrobat" onclick="sppSetSeg('motion','acrobat',this)">Acrobat</button><button data-v="breakdance" onclick="sppSetSeg('motion','breakdance',this)">Breakdance</button><button data-v="spinin" onclick="sppSetSeg('motion','spinin',this)">Spin in</button><button data-v="tumble" onclick="sppSetSeg('motion','tumble',this)">Tumble</button><button data-v="slice" onclick="sppSetSeg('motion','slice',this)">Slice</button><div class="spp-cat">Entrances</div><button data-v="hero" onclick="sppSetSeg('motion','hero',this)">Hero rise</button><button data-v="assemble" onclick="sppSetSeg('motion','assemble',this)">Assemble</button><button data-v="shatter" onclick="sppSetSeg('motion','shatter',this)">Shatter in</button><button data-v="dust" onclick="sppSetSeg('motion','dust',this)">Materialize</button><button data-v="blinds" onclick="sppSetSeg('motion','blinds',this)">Shutters</button><button data-v="scan" onclick="sppSetSeg('motion','scan',this)">Scan reveal</button><button data-v="flip" onclick="sppSetSeg('motion','flip',this)">Flip wave</button><button data-v="ripple" onclick="sppSetSeg('motion','ripple',this)">Ripple</button><button data-v="pixel" onclick="sppSetSeg('motion','pixel',this)">Pixel resolve</button><button data-v="waterfall" onclick="sppSetSeg('motion','waterfall',this)">Waterfall</button><div class="spp-cat">Dramatic</div><button data-v="warp" onclick="sppSetSeg('motion','warp',this)">Warp</button><button data-v="snap" onclick="sppSetSeg('motion','snap',this)">Snap to dust</button><button data-v="glitch" onclick="sppSetSeg('motion','glitch',this)">Glitch</button></div>
             <div class="spp-note" id="sppMotionNote">Full 360 turn. Uses your one photo for the front and a shaded mirror for the back.</div>
             <div class="spp-row"><label>Seconds per loop</label><input type="range" id="sppSecs" min="2" max="30" step="0.5" value="6" oninput="sppSet('secs',+this.value)"><span class="spp-val" id="sppSecsV">6</span></div>
             <div class="spp-row spp-prod"><label>Direction</label>
@@ -86978,7 +87052,7 @@ html.spp-open #sayla-panel{z-index:100004}
             </div></details>
           </div></details>
 
-          <details class="spp-grp spp-prod"><summary><i></i>Background</summary><div class="spp-in">
+          <details class="spp-grp spp-prod" name="sppacc"><summary><i></i>Background</summary><div class="spp-in">
             <div class="spp-seg" id="sppBgSeg">
               <button data-v="empty" onclick="sppSetSeg('bgMode','empty',this)">Empty</button>
               <button class="on" data-v="matched" onclick="sppSetSeg('bgMode','matched',this)">Matched</button>
@@ -86993,7 +87067,7 @@ html.spp-open #sayla-panel{z-index:100004}
             </div>
           </div></details>
 
-          <details class="spp-grp"><summary><i></i>Text</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc"><summary><i></i>Text</summary><div class="spp-in">
             <input type="text" id="sppHead" placeholder="Headline" oninput="sppSet('head',this.value)">
             <input type="text" id="sppSubl" placeholder="Subline" oninput="sppSet('sub',this.value)">
             <input type="text" id="sppBadge" placeholder="Badge, e.g. NEW" oninput="sppSet('badge',this.value)">
@@ -87029,7 +87103,7 @@ html.spp-open #sayla-panel{z-index:100004}
             </div></details>
           </div></details>
 
-          <details class="spp-grp"><summary><i></i>Engage</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc"><summary><i></i>Engage</summary><div class="spp-in">
             <div class="spp-row"><label>Audience prompt</label>
               <select id="sppEng" onchange="sppSet('eng',this.value)" style="width:auto;flex:1" title="A moving cue that makes viewers feel part of the clip">
                 <option value="none">None</option><option value="tap">Tap button</option><option value="swipe">Swipe up</option><option value="like">Double-tap like</option><option value="hearts">Live reactions</option><option value="comment">Live comment</option>
@@ -87038,7 +87112,7 @@ html.spp-open #sayla-panel{z-index:100004}
             <div class="spp-note warn" style="color:inherit;opacity:.7">Appears after the headline lands, and leaves with it. Uses your badge colour.</div>
           </div></details>
 
-          <details class="spp-grp"><summary><i></i>Format</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc"><summary><i></i>Format</summary><div class="spp-in">
             <div class="spp-seg" id="sppRatioSeg">
               <button data-v="page" onclick="sppSetSeg('ratio','page',this)" title="Matches your open editor page exactly, so it fills it edge to edge">Page</button>
               <button class="on" data-v="16:9" onclick="sppSetSeg('ratio','16:9',this)">16:9</button>
@@ -87068,6 +87142,27 @@ html.spp-open #sayla-panel{z-index:100004}
   </div>
 </div>
 
+<script id="sppPremiumJs">
+(function(){
+  /* Showcase: motion finder. Filters chips by name and hides category labels with nothing left. */
+  function run(q){
+    q = (q||'').trim().toLowerCase();
+    ['sppFMotionSeg','sppMotionSeg'].forEach(function(id){
+      var seg = document.getElementById(id); if(!seg) return;
+      var kids = [].slice.call(seg.children), label = null, shown = 0;
+      function flush(){ if(label) label.style.display = (!q || shown) ? '' : 'none'; }
+      kids.forEach(function(el){
+        if(el.classList.contains('spp-cat')){ flush(); label = el; shown = 0; return; }
+        var hit = !q || el.textContent.toLowerCase().indexOf(q) > -1 || (el.getAttribute('data-v')||'').indexOf(q) > -1;
+        el.style.display = hit ? '' : 'none'; if(hit) shown++;
+      });
+      flush();
+    });
+  }
+  document.addEventListener('input', function(e){ if(e.target && e.target.id === 'sppMotionFind') run(e.target.value); });
+})();
+
+</script>
 <script id="sppScript">
 (function () {
   'use strict';
@@ -88838,7 +88933,7 @@ html.spp-open #sayla-panel{z-index:100004}
      Quick-fire editing for ads and reels. The pace comes from the style, not from the photo count: with few photos the same
      photo returns from a new camera distance. Zoom is held back so the subject is never cut, and photos whose shape does
      not match the frame are shown whole on a soft blur instead of being cropped. Lines and flashes are white unless you pick another Effect colour. */
-  var FAST_STYLES = { hype: 0.5, accel: 0.6, flash: 0.5, whip: 0.6, beat: 0.45, crash: 0.6, slam: 0.55, glitch: 0.5, pop: 0.7 };
+  var FAST_STYLES = { hype: 0.5, accel: 0.6, flash: 0.5, whip: 0.6, beat: 0.45, crash: 0.6, slam: 0.55, glitch: 0.5, pop: 0.7, zthru: 0.6, spin: 0.55 };
   var FAST_NOTES = {
     hype: 'Hard cuts every half second. Each shot punches in with a tiny camera shake and a white flash.',
     accel: 'Starts slow and keeps getting faster, then lands on a long hero shot with a lock-on and a tension bar.',
@@ -88848,7 +88943,9 @@ html.spp-open #sayla-panel{z-index:100004}
     crash: 'Crash zoom: each shot snaps in fast toward the subject, lands with a hit, and every other shot pulls back instead.',
     slam: 'Slam stack: photos slam down onto a pile, one on top of the other, each landing with a thud.',
     glitch: 'Digital glitch: the picture tears into shifting bands on every cut, then snaps clean.',
-    pop: 'Pop grid: four photos pop into a grid one after another, then it hard-cuts to the hero shot.'
+    pop: 'Pop grid: four photos pop into a grid one after another, then it hard-cuts to the hero shot.',
+    zthru: 'Zoom-through: each shot punches into the lens and dissolves while the next one settles in from behind. A smooth, expensive-looking cut.',
+    spin: 'Spin cut: the frame rotates and scales out with motion ghosts while the next shot spins in. Dynamic without strobing.'
   };
   var FAST_FLASHY = { hype: 1, flash: 1, beat: 1, glitch: 1 };   // styles with rapid flashes or tears: they carry a visible notice
   var FAST_VAR = [1, 1.15, 1.3, 1.08];
@@ -88946,6 +89043,13 @@ html.spp-open #sayla-panel{z-index:100004}
       at(ni, 0, (1 - q) * W, 1);
       return;
     }
+    if ((st === 'zthru' || st === 'spin') && f > (st === 'zthru' ? 0.7 : 0.76)) {
+      q = ease((f - (st === 'zthru' ? 0.7 : 0.76)) / (st === 'zthru' ? 0.3 : 0.24)); ni = (i + 1) % plan.length;
+      var tf = function (idx, sf, sc, ang, al) { ctx.save(); ctx.globalAlpha = al; ctx.translate(W / 2, H / 2); ctx.rotate(ang); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2); galFastDraw(ctx, W, H, plan[idx], sf, idx, st); ctx.restore(); };
+      if (st === 'zthru') { tf(ni, 0, 0.72 + 0.28 * q, 0, 1); tf(i, f, 1 + 1.5 * q, 0, 1 - q); }
+      else { tf(ni, 0, 1.75 - 0.75 * q, (1 - q) * 0.4, 1); for (m = 3; m >= 1; m--) tf(i, f, 1 + 0.75 * q, -q * 0.4 - m * 0.05 * Math.sin(Math.PI * q), 0.18); tf(i, f, 1 + 0.75 * q, -q * 0.4, 1 - q); }
+      return;
+    }
     if (st === 'glitch') {
       if (!fastTmpC || fastTmpC.width !== W || fastTmpC.height !== H) fastTmpC = mk(W, H);
       var tx = fastTmpC.getContext('2d'), N = 12, j, y0, hh, g = Math.pow(clamp(1 - f / 0.3, 0, 1), 2) + 0.6 * clamp(1 - Math.abs(f - 0.63) / 0.04, 0, 1);
@@ -88994,6 +89098,51 @@ html.spp-open #sayla-panel{z-index:100004}
       }
       return r;
     };
+  })();
+
+  /* ───────────────────────── build 285: REEL PRESETS + 30 s CAP ─────────────────────────
+     One tap sets layout, cut style, pace, format, fonts, text motion and audience prompt for a finished reel. Your own text is never overwritten.
+     Total length is capped at 30 seconds (seconds per loop x loops in video). */
+  var REEL_MAX = 30;
+  var REELS = [
+    { id: 'launch', n: 'Product launch', d: 'Crash zooms, brand colour, shop prompt · 15s', o: { gal: 'fastcuts', cutStyle: 'crash', fxCol: 'brand', secs: 15, ratio: '9:16', fillA: '#0b1220', fillB: '#1f4e8c', accent: '#00c2ff', font: 'bold', txtPos: 'bottom', txtSize: 105, txtAnim: 'mask', txtLive: 'none', txtOut: 'auto', scrim: 55, eng: 'tap' }, t: ['NEW DROP', 'Now live', 'NEW', 'Shop now'] },
+    { id: 'beat', n: 'Beat drop', d: 'Long-short-short rhythm cuts · 15s', o: { gal: 'fastcuts', cutStyle: 'beat', fxCol: 'auto', secs: 15, ratio: '9:16', fillA: '#111111', fillB: '#3a3a3a', accent: '#ff7a59', font: 'bold', txtPos: 'bottom', txtSize: 110, txtAnim: 'beat', txtLive: 'none', txtOut: 'auto', scrim: 55, eng: 'like' }, t: ['DROP', 'Only this week', 'HOT', ''] },
+    { id: 'whip', n: 'Whip story', d: 'Fast whip pans with motion smear · 12s', o: { gal: 'fastcuts', cutStyle: 'whip', fxCol: 'white', secs: 12, ratio: '9:16', fillA: '#0b1220', fillB: '#1f4e8c', accent: '#34d399', font: 'clean', txtPos: 'bottom', txtSize: 100, txtAnim: 'track', txtLive: 'none', txtOut: 'auto', scrim: 50, eng: 'swipe' }, t: ['Swipe the story', '', '', 'Swipe up'] },
+    { id: 'zthru', n: 'Zoom-through', d: 'Smooth punch-through transitions · 18s', o: { gal: 'fastcuts', cutStyle: 'zthru', fxCol: 'white', secs: 18, ratio: '9:16', fillA: '#0b1220', fillB: '#1f4e8c', accent: '#00c2ff', font: 'clean', txtPos: 'bottom', txtSize: 100, txtAnim: 'focus', txtLive: 'none', txtOut: 'auto', scrim: 50, eng: 'none' }, t: ['Made to be noticed', '', '', ''] },
+    { id: 'spin', n: 'Spin cut', d: 'Rotating whip with ghosts, 1:1 · 15s', o: { gal: 'fastcuts', cutStyle: 'spin', fxCol: 'brand', secs: 15, ratio: '1:1', fillA: '#7c3aed', fillB: '#c084fc', accent: '#c084fc', font: 'bold', txtPos: 'bottom', txtSize: 100, txtAnim: 'pop', txtLive: 'none', txtOut: 'auto', scrim: 50, eng: 'none' }, t: ['Fresh arrivals', '', 'NEW', ''] },
+    { id: 'luxury', n: 'Luxury edit', d: 'Brand sweep, serif type, gold accent', o: { gal: 'brand', fxCol: 'brand', ratio: '4:5', fillA: '#111111', fillB: '#3a3a3a', accent: '#d4af37', font: 'serif', txtPos: 'bottom', txtSize: 100, txtAnim: 'focus', txtLive: 'none', txtOut: 'auto', scrim: 55, eng: 'none' }, auto: [12, 24], t: ['The Collection', 'Crafted with care', '', ''] },
+    { id: 'corp', n: 'Corporate recap', d: 'Colour-matched aura, clean type, 16:9', o: { gal: 'aura', fxCol: 'brand', ratio: '16:9', fillA: '#0b1220', fillB: '#1f4e8c', accent: '#0073E6', font: 'clean', txtPos: 'bottom', txtSize: 95, txtAnim: 'mask', txtLive: 'none', txtOut: 'auto', scrim: 45, eng: 'none' }, auto: [15, 30], t: ['Quarterly highlights', '', '', ''] },
+    { id: 'show', n: 'Showreel 30s', d: "Director's cut, mixed cinematic effects", o: { gal: 'cuts', fxCol: 'white', secs: 30, ratio: '16:9', fillA: '#0b0b0d', fillB: '#1f1f23', accent: '#00c2ff', font: 'clean', txtPos: 'bottom', txtSize: 100, txtAnim: 'mask', txtLive: 'none', txtOut: 'auto', scrim: 50, eng: 'none' }, t: ['Showreel', '', '', ''] }
+  ];
+  function capLoops() {
+    var lp = $('sppLoops'); if (!lp) return;
+    var mx = Math.max(1, Math.floor(REEL_MAX / Math.max(0.5, S.o.secs) + 1e-6));
+    [].forEach.call(lp.options, function (op) { op.disabled = +op.value > mx; });
+    if (+lp.value > mx) lp.value = String(mx);
+    var el = $('sppReelLen'); if (el) { var tot = Math.round(S.o.secs * (+lp.value || 1) * 10) / 10; el.textContent = 'Reel length: ' + tot + 's of ' + REEL_MAX + 's max'; }
+  }
+  window.sppReel = function (id) {
+    var r = REELS.filter(function (x) { return x.id === id; })[0]; if (!r) return;
+    var o = S.o, n = S.gal.length;
+    Object.keys(r.o).forEach(function (k) { o[k] = r.o[k]; });
+    if (r.auto) o.secs = clamp(Math.round(Math.max(n, 3) * 3), r.auto[0], r.auto[1]);
+    o.secs = clamp(o.secs, 2, REEL_MAX); o.fit = 'gallery';
+    if (!o.head && r.t[0]) o.head = r.t[0]; if (!o.sub && r.t[1]) o.sub = r.t[1]; if (!o.badge && r.t[2]) o.badge = r.t[2]; if (!o.engText && r.t[3]) o.engText = r.t[3];
+    S._userRatio = true; var lp = $('sppLoops'); if (lp) lp.value = '1';
+    syncUi(); capLoops();
+    [].forEach.call($('sppReelGrid').children, function (b) { b.classList.toggle('on', b.getAttribute('data-id') === id); });
+    if (n < 2) say('Preset applied. Add 2 or more photos to see the full reel.', 'info');
+    if (typeof sppSaveSoon === 'function') sppSaveSoon();
+  };
+  (function () {
+    var g = $('sppReelGrid'); if (!g) return;
+    REELS.forEach(function (r) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'spp-reel'; b.setAttribute('data-id', r.id);
+      b.innerHTML = '<b></b><small></small>'; b.firstChild.textContent = r.n; b.lastChild.textContent = r.d; b.onclick = function () { window.sppReel(r.id); }; g.appendChild(b);
+    });
+    var lp = $('sppLoops'); if (lp) lp.addEventListener('change', capLoops);
+    var f = window.sppSet; window.sppSet = function (k) { var r = f.apply(this, arguments); if (k === 'secs') { capLoops(); var gg = $('sppReelGrid'); if (gg) [].forEach.call(gg.children, function (b) { b.classList.remove('on'); }); } return r; };
+    capLoops();
   })();
 
   /* ───────────────────────── preview loop ───────────────────────── */
@@ -89079,7 +89228,7 @@ html.spp-open #sayla-panel{z-index:100004}
       try { if (S.o.fontName) await fontKick(S.o.fontName); } catch (e) {}
       var d = EXPORT[S.o.ratio], cv = mk(d[0], d[1]), ctx = cv.getContext('2d'), fps = 30;
       var mime = typeof pdfedClipPickMime === 'function' ? pdfedClipPickMime() : ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].filter(function (m) { return MediaRecorder.isTypeSupported(m); })[0] || '';
-      var loops = +$('sppLoops').value || 1, totalMs = S.o.secs * loops * 1000;
+      capLoops(); var loops = Math.max(1, Math.min(+$('sppLoops').value || 1, Math.floor(REEL_MAX / S.o.secs + 1e-6))), totalMs = S.o.secs * loops * 1000;
       var stream = cv.captureStream(0), track = stream.getVideoTracks()[0], manual = !!(track && typeof track.requestFrame === 'function');
       if (!manual) stream = cv.captureStream(fps);
       try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8000000 } : undefined); }
@@ -89560,7 +89709,7 @@ html.spp-open #sayla-panel{z-index:100004}
     dir: { clockwise: 1, cw: 1, counter: -1, counterclockwise: -1, ccw: -1, anticlockwise: -1 }
   };
   var SP_SPEC = {
-    fit: { t: 'enum', v: ['product', 'fill', 'gallery'], alias: SP_ALIAS.fit }, gal: { t: 'enum', v: ['slideshow', 'collage', 'spotlight', 'coverflow', 'cuts', 'panels', 'polaroid', 'bento', 'film', 'focus', 'brand', 'aura', 'fastcuts'] }, cutStyle: { t: 'enum', v: ['hype', 'accel', 'flash', 'whip', 'beat', 'crash', 'slam', 'glitch', 'pop'] }, fxCol: { t: 'enum', v: ['white', 'auto', 'brand', 'off'], alias: { none: 'off', clean: 'off', neutral: 'white', photo: 'auto', accent: 'brand' } },
+    fit: { t: 'enum', v: ['product', 'fill', 'gallery'], alias: SP_ALIAS.fit }, gal: { t: 'enum', v: ['slideshow', 'collage', 'spotlight', 'coverflow', 'cuts', 'panels', 'polaroid', 'bento', 'film', 'focus', 'brand', 'aura', 'fastcuts'] }, cutStyle: { t: 'enum', v: ['hype', 'accel', 'flash', 'whip', 'beat', 'crash', 'slam', 'glitch', 'pop', 'zthru', 'spin'] }, fxCol: { t: 'enum', v: ['white', 'auto', 'brand', 'off'], alias: { none: 'off', clean: 'off', neutral: 'white', photo: 'auto', accent: 'brand' } },
     cutout: { t: 'bool' }, tol: { t: 'num', min: 6, max: 120 }, trim: { t: 'num', min: 0, max: 4 }, soft: { t: 'num', min: 0, max: 4 },
     motion: { t: 'enum', v: ['turntable', 'sway', 'wrap', 'hover', 'glint', 'carousel', 'slice', 'bounce', 'echo', 'pulse', 'levitate', 'pop', 'orbit', 'swing', 'roll', 'acrobat', 'breakdance', 'spinin', 'tumble', 'hero', 'assemble', 'shatter', 'dust', 'blinds', 'scan', 'warp', 'snap', 'flip', 'ripple', 'pixel', 'glitch', 'waterfall'] },
     fmotion: { t: 'enum', v: ['still', 'zoomin', 'zoomout', 'pan', 'drift', 'kenburns', 'beat', 'shine', 'whip', 'assemble', 'shutter', 'iris', 'cinema', 'warp', 'snap', 'flip', 'ripple', 'pixel', 'glitch', 'waterfall'] },
