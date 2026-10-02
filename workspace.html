@@ -24829,7 +24829,10 @@ function pdfedThumbLiveTick() {
   pdfedThumbLive.set.forEach(e => {
     if (!e.canvas.isConnected) { pdfedThumbLive.set.delete(e); return; }   // strip was rebuilt
     if (document.hidden || !e.vis) return;
-    if (now - e.last < 66) return;                                           // ~15 fps is plenty at thumbnail size
+    if (typeof sppLiveIsBusy === 'function' && sppLiveIsBusy()) return;      // person is editing: leave the thumbnail alone
+    if (typeof sppLiveAllPaused === 'function' && sppLiveAllPaused()) return;                  // universal pause: every thumbnail rests
+    if (e.clip && typeof sppLiveIsPaused === 'function' && sppLiveIsPaused(e.clip)) return;   // clip paused on the canvas: thumbnail rests too
+    if (now - e.last < 125) return;                                          // ~8 fps is plenty at thumbnail size
     e.last = now;
     // Use the same clock as the clip on the canvas when it is open there, so both play in step.
     let t = null;
@@ -29966,7 +29969,20 @@ async function pdfedRefreshThumb(idx) {
     }
   } catch(e) { console.warn(e); }
   card.classList.remove('refreshing');
-  try { if (pdfedPageHasLive(pg)) pdfedThumbLiveAttach(card, img, pg); else pdfedThumbLiveDetach(card); } catch (e) { console.warn(e); }
+  try {
+    if (pdfedPageHasLive(pg)) {
+      // LAG FIX: rebuilding the live thumbnail re-composes the whole page (huge on custom-size pages).
+      // Drop the stale overlay now, rebuild once the person has stopped editing for a moment.
+      pdfedThumbLiveDetach(card);
+      clearTimeout(card._liveAttachT);
+      const tryAttach = () => {
+        if (!card.isConnected) return;
+        if (typeof sppLiveIsBusy === 'function' && sppLiveIsBusy()) { card._liveAttachT = setTimeout(tryAttach, 500); return; }
+        pdfedThumbLiveAttach(card, img, pg);
+      };
+      card._liveAttachT = setTimeout(tryAttach, 900);
+    } else { clearTimeout(card._liveAttachT); pdfedThumbLiveDetach(card); }
+  } catch (e) { console.warn(e); }
   // Only drop the header "Live" tag once nothing else is mid-refresh.
   if (!Object.keys(_pdfedThumbRefreshTimers).some(k => _pdfedThumbRefreshTimers[k])) {
     const liveTag = document.getElementById('pdfedStripLive');
@@ -35302,24 +35318,37 @@ async function pdfedBuildLivePage(pg, cw, ch) {
   can.width = Math.max(2, Math.round(L.w * f)); can.height = Math.max(2, Math.round(L.h * f));
   can._ow = L.w; can._oh = L.h;
   const g = can.getContext('2d'), k = can.width / L.w, tmp = {};
+  // LAG FIX (big custom-size pages): the layers come out at the full page size (can be thousands of px).
+  // Drawing a huge canvas down to a thumbnail on every frame is very heavy, so shrink each layer ONCE here
+  // and let the per-frame update only touch thumbnail-sized pictures. Full-size copies are then released.
+  const small = L.layers.map(function (src) {
+    const c = document.createElement('canvas'); c.width = can.width; c.height = can.height;
+    const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(src, 0, 0, c.width, c.height);
+    src.width = 1; src.height = 1;   // free the big bitmap right away
+    return c;
+  });
+  L.layers = small;
   await Promise.all(L.clips.map(function (it) { return sppLiveReady(it.clip); }));
   function update(tSec) {
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, can.width, can.height);
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    g.setTransform(k, 0, 0, k, 0, 0);
     g.drawImage(L.layers[0], 0, 0);
+    g.setTransform(k, 0, 0, k, 0, 0);
     L.clips.forEach(function (it, j) {
       const ar = (it.w > 0 && it.h > 0) ? it.w / it.h : sppLiveAspect(it.clip), tw = Math.max(64, Math.min(1920, Math.round(it.w * k))), th = Math.max(36, Math.round(tw / ar));
       let oc = tmp[j];
       if (!oc || oc.width !== tw || oc.height !== th) { oc = tmp[j] = document.createElement('canvas'); oc.width = tw; oc.height = th; }
-      const ox = oc.getContext('2d'); ox.clearRect(0, 0, tw, th);
-      sppLiveFrame(it.clip, ox, tw, th, tSec);
+      const mc = (typeof sppLiveMountedCanvas === 'function') ? sppLiveMountedCanvas(it.clip) : null;
+      let src = oc;
+      if (mc) { src = mc; }   // already drawn on the page canvas this frame: just copy it
+      else { const ox = oc.getContext('2d'); ox.clearRect(0, 0, tw, th); sppLiveFrame(it.clip, ox, tw, th, tSec); }
       g.save();
       g.globalAlpha = pdfedGetOpacity(it);
       if (it.rotation) { const cx = it.x + it.w / 2, cy = it.y + it.h / 2; g.translate(cx, cy); g.rotate(it.rotation * Math.PI / 180); g.translate(-cx, -cy); }
-      g.drawImage(oc, it.x, it.y, it.w, it.h);
+      g.drawImage(src, it.x, it.y, it.w, it.h);
       g.restore();
-      g.drawImage(L.layers[j + 1], 0, 0);
+      g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(L.layers[j + 1], 0, 0); g.restore();
     });
   }
   update(0);
@@ -45023,10 +45052,26 @@ function pdfedRenderPlacedImages(idx) {
       rotInner.appendChild(lcv);
       sppLiveMount(lcv, item.clip, item.dataUrl);
       el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); if (typeof sppEditLive === 'function') sppEditLive(idx, item); });
-      const ltag = document.createElement('div');
-      ltag.textContent = 'LIVE';
-      ltag.title = 'Live clip. Double-click to edit it in Showcase. Downloads as an MP4 presentation only.';
-      ltag.style.cssText = 'position:absolute;left:6px;top:6px;padding:1px 6px;border-radius:8px;font:800 9px/14px system-ui,sans-serif;letter-spacing:.6px;color:#fff;background:#e11d48;pointer-events:none;';
+      const ltag = document.createElement('button');
+      ltag.type = 'button';
+      const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style="display:block"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
+      const ICON_PLAY = '<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" style="display:block"><path d="M7 4l13 8-13 8z"/></svg>';
+      const paintLtag = () => {
+        const on = (typeof sppLiveIsPaused === 'function') && sppLiveIsPaused(item.clip);
+        ltag.innerHTML = (on ? ICON_PLAY : ICON_PAUSE) + '<span>' + (on ? 'PAUSED' : 'LIVE') + '</span>';
+        ltag.title = on ? 'Clip is paused so editing stays smooth. Click to play it again.' : 'Live clip. Click to pause it (smoother editing). Double-click the clip to edit it in Showcase.';
+        ltag.style.background = on ? '#f59e0b' : '#e11d48';
+      };
+      ltag.style.cssText = 'position:absolute;left:6px;top:6px;z-index:5;display:flex;align-items:center;gap:4px;padding:1px 7px;border:0;border-radius:8px;font:800 9px/14px system-ui,sans-serif;letter-spacing:.6px;color:#fff;cursor:pointer;pointer-events:auto;';
+      paintLtag();
+      const onPauseChange = () => { if (!ltag.isConnected) { document.removeEventListener('sppLivePauseChange', onPauseChange); return; } paintLtag(); };
+      document.addEventListener('sppLivePauseChange', onPauseChange);
+      ['pointerdown', 'mousedown', 'touchstart', 'dblclick'].forEach(n => ltag.addEventListener(n, (ev) => ev.stopPropagation()));
+      ltag.addEventListener('click', (ev) => {
+        ev.stopPropagation(); ev.preventDefault();
+        if (typeof sppLiveSetPaused === 'function') sppLiveSetPaused(item.clip, !sppLiveIsPaused(item.clip));
+        paintLtag();
+      });
       rotInner.appendChild(ltag);
     } else {
       rotInner.appendChild(img);
@@ -89215,7 +89260,96 @@ html.spp-open #sayla-panel{z-index:100004}
     say('Placed on your page. Drag it, resize it, or add more text.', 'success');
   };
 
+  /* ───────────────────────── build 287: SMOOTH, EXACT VIDEO EXPORT ─────────────────────────
+     The old exporter recorded the canvas LIVE: every frame was drawn the moment the clock said so, so any frame
+     that took longer than ~33 ms (big 1080 x 1920 frames, 3D motions, cut effects) was simply skipped. That was
+     the lag, and it also meant quick motions (whips, flashes, shatter, glitch) vanished between the frames.
+     Now every frame is rendered OFFLINE at an exact time and encoded straight into an MP4 (WebCodecs + the
+     bundled mp4 muxer), the same way the slideshow clip export already works. Speed of the computer only
+     changes how long the export takes, never how it looks. Every loop replays exactly like the preview does.
+     The old live recorder stays as the fallback for browsers without WebCodecs. */
+  var __sppYield = function () { return new Promise(function (r) { var mc = new MessageChannel(); mc.port1.onmessage = function () { r(); }; mc.port2.postMessage(0); }); };
+  var __sppPaint = function () { return new Promise(function (r) { var d = false, f = function () { if (!d) { d = true; r(); } }; requestAnimationFrame(f); setTimeout(f, 50); }); };
+  async function exportVideoOffline() {
+    var btns = ['sppPlaceBtn', 'sppPlaceLiveBtn', 'sppPngBtn', 'sppVidBtn'];
+    var wasPlaying = S.playing, enc = null, saved = false;
+    S.recording = true;
+    btns.forEach(function (id) { var el = $(id); if (el) el.disabled = true; });
+    $('sppProg').classList.add('on'); $('sppProgBar').style.width = '0';
+    $('sppProgTxt').textContent = 'Preparing your video…';
+    try {
+      try { if (S.o.fontName) await fontKick(S.o.fontName); } catch (e) {}
+      var d = EXPORT[S.o.ratio], cw = d[0] - d[0] % 2, ch = d[1] - d[1] % 2, cv = mk(cw, ch), ctx = cv.getContext('2d');
+      capLoops();
+      var secs = S.o.secs, loops = Math.max(1, Math.min(+$('sppLoops').value || 1, Math.floor(REEL_MAX / secs + 1e-6)));
+      // Prefer 60 fps (matches how smooth the preview is), fall back to 30 fps if this computer cannot encode it at this size.
+      var chosen = null, fpsTry = [60, 30], codecs = ['avc1.64002A', 'avc1.640033', 'avc1.4D002A', 'avc1.42002A'];
+      for (var a = 0; a < fpsTry.length && !chosen; a++) {
+        var f0 = fpsTry[a], br = Math.round(Math.max(5e6, Math.min(20e6, cw * ch * f0 * 0.1)));
+        for (var b = 0; b < codecs.length; b++) {
+          var sup = null;
+          try { sup = await VideoEncoder.isConfigSupported({ codec: codecs[b], width: cw, height: ch, bitrate: br, framerate: f0 }); } catch (e) { sup = null; }
+          if (sup && sup.supported) { chosen = { fps: f0, codec: codecs[b], bitrate: br }; break; }
+        }
+      }
+      if (!chosen) throw new Error('no H.264 encoder here');
+      var fps = chosen.fps, perLoop = Math.max(2, Math.round(secs * fps)), total = perLoop * loops;
+      var mark = !!window.sarvarcApplyFreeWatermark, encErr = null;
+      var muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: cw, height: ch, frameRate: fps }, fastStart: 'in-memory' });
+      enc = new VideoEncoder({ output: function (chunk, meta) { muxer.addVideoChunk(chunk, meta); }, error: function (e) { encErr = e; } });
+      enc.configure({ codec: chosen.codec, width: cw, height: ch, bitrate: chosen.bitrate, framerate: fps });
+      var lastUi = 0, i, tn, vf, guard, nowMs;
+      for (i = 0; i < total; i++) {
+        if (encErr) throw encErr;
+        tn = (i % perLoop) / perLoop;                       // every loop is identical to the preview: same time, same text intro, same cuts
+        draw(ctx, cw, ch, tn, { tAbs: tn * secs, flatten: '#ffffff', watermark: mark });
+        vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        enc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
+        vf.close();
+        guard = 0;
+        while (enc.encodeQueueSize > 6 && guard++ < 600) { await new Promise(function (r) { enc.addEventListener('dequeue', r, { once: true }); setTimeout(r, 30); }); }
+        nowMs = performance.now();
+        if (nowMs - lastUi > 150) {
+          lastUi = nowMs;
+          $('sppProgBar').style.width = (i / total * 100).toFixed(0) + '%';
+          $('sppProgTxt').textContent = 'Rendering ' + (i / fps).toFixed(1) + 's of ' + (total / fps).toFixed(1) + 's, frame by frame at ' + fps + ' fps. Keep this tab open.';
+          if (document.hidden) await __sppYield(); else await __sppPaint();
+        } else if (i % 3 === 0) { await __sppYield(); }
+      }
+      $('sppProgBar').style.width = '100%'; $('sppProgTxt').textContent = 'Finishing your MP4…';
+      await enc.flush();
+      if (encErr) throw encErr;
+      try { enc.close(); } catch (e) {}
+      enc = null;
+      muxer.finalize();
+      var blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+      if (!blob.size) throw new Error('The encoder produced an empty file');
+      save(blob, 'showcase.mp4');
+      say('Video saved as .mp4 (' + fps + ' fps)', 'success');
+      saved = true;
+    } catch (err) {
+      console.warn('[Showcase] offline MP4 render failed, using the live recorder instead', err);
+      try { if (enc && enc.state !== 'closed') enc.close(); } catch (e2) {}
+    } finally {
+      S.recording = false; S.playing = wasPlaying;
+      if (S.playing) S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
+      btns.forEach(function (id) { var el = $(id); if (el) el.disabled = false; });
+      $('sppProg').classList.remove('on'); $('sppProgBar').style.width = '0';
+    }
+    return saved;
+  }
   window.sppExportVideo = async function () {
+    if (S.recording) return;
+    if (!hasArt()) { say('Add a photo first', 'info'); return; }
+    if (typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+      if (await exportVideoOffline()) return;
+    }
+    return exportVideoRealtime();
+  };
+
+  // Fallback for browsers without WebCodecs. Now runs on a virtual clock: every frame advances time by exactly 1/fps, so a
+  // slow moment makes the video play a little slower instead of skipping the motion that happened in between.
+  async function exportVideoRealtime() {
     if (S.recording) return;
     if (!hasArt()) { say('Add a photo first', 'info'); return; }
     if (!window.MediaRecorder) { say('Video export is not supported in this browser', 'error'); return; }
@@ -89241,18 +89375,18 @@ html.spp-open #sayla-panel{z-index:100004}
       draw(ctx, cv.width, cv.height, 0, { tAbs: 0, flatten: '#ffffff', watermark: mark });
       if (manual) track.requestFrame();
       rec.start(500);
-      var start = performance.now();
+      var start = performance.now(), nF = 0, perLoopF = Math.max(2, Math.round(S.o.secs * fps)), nTotal = perLoopF * loops;
       await new Promise(function (resolve, reject) {
         (function step() {
           try {
-            var el = performance.now() - start, sec = el / 1000, tn = (sec / S.o.secs) % 1;
-            draw(ctx, cv.width, cv.height, tn, { tAbs: sec, flatten: '#ffffff', watermark: mark });
+            var tn = (nF % perLoopF) / perLoopF;
+            draw(ctx, cv.width, cv.height, tn, { tAbs: tn * S.o.secs, flatten: '#ffffff', watermark: mark });
             if (manual) track.requestFrame();
-            var pct = clamp(el / totalMs, 0, 1);
-            $('sppProgBar').style.width = (pct * 100).toFixed(0) + '%';
-            $('sppProgTxt').textContent = 'Recording ' + Math.min(loops * S.o.secs, sec).toFixed(1) + 's of ' + (loops * S.o.secs).toFixed(1) + 's. Keep this tab open.';
-            if (el >= totalMs) { resolve(); return; }
-            setTimeout(step, 1000 / fps);
+            nF++;
+            $('sppProgBar').style.width = (clamp(nF / nTotal, 0, 1) * 100).toFixed(0) + '%';
+            $('sppProgTxt').textContent = 'Recording ' + (nF / fps).toFixed(1) + 's of ' + (nTotal / fps).toFixed(1) + 's. Keep this tab open.';
+            if (nF >= nTotal) { resolve(); return; }
+            setTimeout(step, Math.max(0, start + nF * 1000 / fps - performance.now()));
           } catch (err) { reject(err); }
         })();
       });
@@ -89342,6 +89476,80 @@ html.spp-open #sayla-panel{z-index:100004}
      clip is really shown at, the frame rate adapts to how heavy the clip is, and clips that are
      scrolled off screen or on another page stop drawing. */
   var LIVE = new Set(), liveRaf = 0, ENT = new WeakMap(), liveIO = null;
+  // LAG FIX: while the person is dragging / resizing / typing, live clips hold their current frame so the
+  // main thread is free for the edit. They resume a moment after the pointer or keys go quiet.
+  var liveBusy = false, liveBusyUntil = 0;
+  window.sppLiveIsBusy = function () { return liveBusy || performance.now() < liveBusyUntil; };
+  (function () {
+    var hold = function (ms) { liveBusyUntil = performance.now() + ms; };
+    document.addEventListener('pointerdown', function () { liveBusy = true; }, true);
+    ['pointerup', 'pointercancel', 'mouseup', 'touchend', 'touchcancel'].forEach(function (n) {
+      document.addEventListener(n, function () { liveBusy = false; hold(350); }, true);
+    });
+    window.addEventListener('blur', function () { liveBusy = false; });
+    document.addEventListener('keydown', function () { hold(700); }, true);
+    document.addEventListener('wheel', function () { hold(300); }, { capture: true, passive: true });
+  })();
+  // Main-page canvas of a clip, if it is on screen and has drawn real frames (the thumbnail strip copies it instead of re-rendering the clip).
+  // PAUSE: a paused clip stops drawing completely (holds its last frame, clock frozen) so the browser can rest.
+  window.sppLiveIsPaused = function (clip) { var e = ENT.get(clip); return !!(e && e.paused); };
+  window.sppLiveSetPaused = function (clip, on) {
+    var e = ENT.get(clip); if (!e) return false;
+    on = !!on; if (on === !!e.paused) return on;
+    var now = performance.now();
+    if (on) { e.paused = true; e.pausedAt = now; }
+    else { e.t0 += now - e.pausedAt; e.paused = false; e.pausedAt = 0; e.last = 0; liveKick(); }
+    return on;
+  };
+  // UNIVERSAL PAUSE: one switch that rests every live clip (every page, the thumbnail strip, new clips as they land).
+  var allPaused = false;
+  window.sppLiveAllPaused = function () { return allPaused; };
+  window.sppLivePauseAll = function (on) {
+    on = !!on; if (on === allPaused) return allPaused;
+    allPaused = on;
+    var now = performance.now();
+    LIVE.forEach(function (e) {
+      if (on && !e.paused) { e.paused = true; e.pausedAt = now; }
+      else if (!on && e.paused) { e.t0 += now - e.pausedAt; e.paused = false; e.pausedAt = 0; e.last = 0; }
+    });
+    if (!on) liveKick();
+    try { document.dispatchEvent(new CustomEvent('sppLivePauseChange')); } catch (err) {}
+    return allPaused;
+  };
+
+  /* UNIVERSAL PAUSE BUTTON: floats at the bottom of the screen while any live clip is on the canvas. */
+  (function () {
+    var b = null;
+    function build() {
+      b = document.createElement('button');
+      b.type = 'button'; b.id = 'sppPauseAllBtn';
+      b.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:800;display:none;align-items:center;gap:7px;padding:8px 15px;border:0;border-radius:999px;font:700 12px/1 system-ui,sans-serif;letter-spacing:.2px;color:#fff;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.35);';
+      ['pointerdown', 'mousedown', 'touchstart'].forEach(function (n) { b.addEventListener(n, function (ev) { ev.stopPropagation(); }); });
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); window.sppLivePauseAll(!window.sppLiveAllPaused()); paint(); });
+      document.body.appendChild(b);
+    }
+    function paint() {
+      if (!b) return;
+      var on = window.sppLiveAllPaused();
+      var pause = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
+      var play = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>';
+      b.innerHTML = (on ? play : pause) + '<span>' + (on ? 'Play all clips' : 'Pause all clips') + '</span>';
+      b.title = on ? 'All live clips are paused so editing stays smooth. Click to play them again.' : 'Pause every live clip so the browser can rest and editing stays smooth.';
+      b.style.background = on ? '#f59e0b' : 'rgba(17,24,39,.92)';
+    }
+    function sync() {
+      var any = false;
+      LIVE.forEach(function (e) { if (e.c && e.c.isConnected && e.c.offsetParent) any = true; });
+      if (!any && !window.sppLiveAllPaused()) { if (b) b.style.display = 'none'; return; }
+      if (!b) build();
+      paint(); b.style.display = 'flex';
+    }
+    document.addEventListener('sppLivePauseChange', paint);
+    setInterval(function () { if (!document.hidden) sync(); }, 800);
+  })();
+  window.sppLiveMountedCanvas = function (clip) {
+    var e = ENT.get(clip); return (e && e.c && e.c.isConnected && e.c.width > 1 && e.drew) ? e.c : null;
+  };
   function liveSize(clip, longEdge, boxAspect) {
     var p = (clip.dims && clip.dims.p) || PREVIEW[(clip.o && clip.o.ratio)] || PREVIEW['16:9'];
     // The picture is laid out for the shape of the box it is shown in (so Fill page / any resize re-composes
@@ -89363,8 +89571,9 @@ html.spp-open #sayla-panel{z-index:100004}
   // Draws one frame. Until the cut-out has decoded, the still poster is shown so the clip is never blank.
   function liveDraw(e, now) {
     var ctx = e.c.getContext('2d'), ok = false, t0 = performance.now();
-    try { ok = window.sppLiveFrame(e.clip, ctx, e.c.width, e.c.height, (now - e.t0) / 1000); }
+    try { ok = window.sppLiveFrame(e.clip, ctx, e.c.width, e.c.height, ((e.paused ? e.pausedAt : now) - e.t0) / 1000); }
     catch (err) { console.error('Live clip frame failed', err); }
+    if (ok) e.drew = true;
     if (!ok && e.posterUrl) {
       if (!e.poster) { e.poster = new Image(); e.poster.onload = function () { e.posterReady = true; }; e.poster.src = e.posterUrl; }
       if (e.posterReady) { ctx.clearRect(0, 0, e.c.width, e.c.height); ctx.drawImage(e.poster, 0, 0, e.c.width, e.c.height); }
@@ -89393,18 +89602,20 @@ html.spp-open #sayla-panel{z-index:100004}
       }
       e.gone = 0;
       if (document.hidden || !e.vis || !e.c.offsetParent) return;   // tab hidden, scrolled away, or editor not on screen
+      if (e.paused) return;                                        // paused by the person: no drawing at all
+      if (window.sppLiveIsBusy()) return;                          // person is editing: keep the last frame, stay off the main thread
       if (now - e.last < e.gap) return; e.last = now;
       liveFit(e, now);
       var cost = liveDraw(e, now);
       e.cost = e.cost * 0.8 + cost * 0.2;
-      e.gap = e.cost > 11 ? 33 : (e.cost < 7 ? 15 : e.gap);          // full speed when light, ~30 fps when heavy
+      e.gap = e.cost > 22 ? 66 : (e.cost > 11 ? 40 : (e.cost < 7 ? 15 : e.gap));   // full speed when light, ~25 fps medium, ~15 fps heavy
     });
     if (LIVE.size) liveKick();
   }
   // Seconds the clip has been running on the page canvas (null if it is not mounted there). The thumbnail strip uses it to play in step.
   window.sppLiveTime = function (clip) {
     var e = ENT.get(clip);
-    return (e && e.c && e.c.isConnected) ? (performance.now() - e.t0) / 1000 : null;
+    return (e && e.c && e.c.isConnected) ? ((e.paused ? e.pausedAt : performance.now()) - e.t0) / 1000 : null;
   };
   window.sppLiveCanvas = function (clip) {
     var e = ENT.get(clip);
@@ -89413,11 +89624,14 @@ html.spp-open #sayla-panel{z-index:100004}
   window.sppLiveMount = function (canvas, clip, posterUrl) {
     var e = ENT.get(clip), keepT0 = 0;
     if (e && e.c === canvas) { e.gone = 0; if (posterUrl) e.posterUrl = posterUrl; liveKick(); return; }
-    if (e) { keepT0 = e.t0; LIVE.delete(e); }
+    var keepPaused = false, keepPausedAt = 0;
+    if (e) { keepT0 = e.t0; keepPaused = !!e.paused; keepPausedAt = e.pausedAt || 0; LIVE.delete(e); }
     var now = performance.now(), d = liveSize(clip, 640, boxAspectOf(canvas));
     canvas.width = d[0]; canvas.height = d[1];
     e = { c: canvas, clip: clip, t0: keepT0 || now, last: 0, gap: 15, cost: 0, res: 640, fitAt: now, vis: true, gone: 0,
           posterUrl: posterUrl || '', poster: null, posterReady: false };
+    if (keepPaused) { e.paused = true; e.pausedAt = keepPausedAt; }
+    else if (allPaused) { e.paused = true; e.pausedAt = now; }
     ENT.set(clip, e); LIVE.add(e); liveWatch(e);
     liveDraw(e, now);
     liveKick();
