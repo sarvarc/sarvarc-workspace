@@ -8302,6 +8302,8 @@ html[data-sarvarc-touch-mode="1"] .da-fill-handle::after {
 .dg-ribbon-toggle-btn svg { transition: transform 0.2s ease; }
 .dg-ribbon-toggle-btn.active svg { transform: rotate(180deg); }
 .dg-ribbon-toggle-btn.active { color: var(--pdfed-accent) !important; border-color: var(--border2) !important; }
+.dg-ribbon-bar { min-width:0; max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+.dg-ribbon-bar::after { content:''; flex:0 0 14px; }   /* breathing room so the last button can scroll fully into view */
 .dg-ribbon-bar::-webkit-scrollbar { height:3px; }
 .dg-ribbon-bar::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
 .dg-rbn-group { display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
@@ -12234,6 +12236,8 @@ button.dg-show-chip.active { background:var(--blue); }
                     <div class="pdfed-export-menu-desc">3D chart spins, notes underneath</div>
                   </span>
                 </div>
+
+                <div class="pdfed-export-menu-item" onclick="dgCloseAllDropdowns();dgSendToShowcase()"><span class="pdfed-export-menu-icon" style="background:rgba(0,194,255,0.15);color:var(--blue)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="10 8.5 16 12 10 15.5 10 8.5"/></svg></span><span class="pdfed-export-menu-body"><div class="pdfed-export-menu-title">Live Chart Video (MP4)</div><div class="pdfed-export-menu-desc">Animate it in Showcase, saves as MP4</div></span></div>
               </div>
               <div class="dg-rbn-group-label" style="margin-top:2px">Export</div>
             </div>
@@ -12246,6 +12250,7 @@ button.dg-show-chip.active { background:var(--blue); }
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
                   Push
                 </button>
+                <button class="dg-rbn-btn dg-rbn-btn-push" id="dgShowcaseBtn" onclick="dgSendToShowcase()" title="Make this chart live: add motion in Showcase and save it as an MP4 for presentations"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="10 8.5 16 12 10 15.5 10 8.5"/></svg> Showcase</button>
               </div>
               <div class="dg-rbn-group-label">Insert</div>
             </div>
@@ -12485,6 +12490,7 @@ button.dg-show-chip.active { background:var(--blue); }
               <div class="dg-multi-gallery-title">Charts from your data<span id="dgMultiGalleryCount"></span></div>
               <div class="dg-multi-gallery-actions">
                 <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgCloseMultiGallery()">Dismiss</button>
+                <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11.5px" onclick="dgSendAllToShowcase()" title="Play all these charts as one live reel in Showcase (saves as MP4)">Showcase all</button>
                 <button type="button" class="btn-primary" style="padding:6px 14px;font-size:11.5px" onclick="dgOpenMultiPushChoice()">Push all to Workspace</button>
               </div>
             </div>
@@ -12521,6 +12527,7 @@ button.dg-show-chip.active { background:var(--blue); }
                 <div id="dgFlowPreview" style="flex:1;min-height:300px;padding:16px;border-radius:10px;border:1px solid var(--border);background:#ffffff;overflow:auto;display:flex;align-items:center;justify-content:center;"></div>
                 <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
                   <button type="button" class="btn-secondary" style="padding:7px 14px;font-size:11.5px" onclick="dgDownloadPNG()" title="Download this diagram as a PNG">Download PNG</button>
+                  <button type="button" class="btn-secondary" style="padding:7px 14px;font-size:11.5px" onclick="dgSendToShowcase()" title="Make this diagram live in Showcase and save it as an MP4">Showcase</button>
                   <button type="button" class="btn-primary dg-rbn-btn-push" style="padding:7px 16px;font-size:11.5px" onclick="dgOpenPushChoiceModal()" title="Insert this diagram into Workspace">Push to Workspace</button>
                 </div>
               </div>
@@ -45205,6 +45212,14 @@ function pdfedRenderPlacedImages(idx) {
         editBtn.onclick = (ev) => { ev.stopPropagation(); if (typeof sppEditLive === 'function') sppEditLive(idx, item); };
         badgeRow.appendChild(editBtn);
       }
+      if (!item.clip && item.dataUrl) {   // every image has its own Showcase; its work is saved on the image itself
+        const scBtn = document.createElement('button');
+        scBtn.title = item.showcase ? 'Open this image\'s Showcase (your saved work is waiting)' : 'Showcase: add motion to this image (your work is saved with it)';
+        scBtn.className = 'pdfed-badge-btn is-premium' + (item.showcase ? ' sp-has-work' : '');
+        scBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><polygon points="10 9 16 12 10 15 10 9" fill="currentColor"/></svg>';
+        scBtn.onclick = (ev) => { ev.stopPropagation(); if (typeof sppEditImage === 'function') sppEditImage(idx, item); };
+        badgeRow.appendChild(scBtn);
+      }
       badgeRow.appendChild(fillBtn); badgeRow.appendChild(rshBtn); badgeRow.appendChild(opBtn);
       badgeRow.appendChild(fwdBtn); badgeRow.appendChild(bwdBtn); badgeRow.appendChild(arrBtn);
       badgeRow.appendChild(delBtn);
@@ -73635,7 +73650,7 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
     const stackRad = Math.min(opts.barRadius != null ? opts.barRadius : 8, barW / 2);
     let cursorY = area.y + area.h;
     rows.forEach((r, i) => {
-      const segH = (Math.abs(r.value) / total) * area.h;
+      const segH = (Math.abs(r.value) / total) * area.h * dgAK(i, rows.length);
       cursorY -= segH;
       ctx.fillStyle = r.color;
       // Only round the outer corners of the stack (top segment's top edge,
@@ -73668,8 +73683,9 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
   rows.forEach((r, i) => {
     const x = startX + i * (barW + gap);
     const valY = scale.toY(r.value);
-    const y = Math.min(zeroY, valY);
-    const h = Math.max(1, Math.abs(zeroY - valY));
+    const bk = dgAK(i, n);   // motion: 1 when still
+    const h = Math.max(1, Math.abs(zeroY - valY) * bk);
+    const y = valY <= zeroY ? zeroY - h : zeroY;
     ctx.fillStyle = r.color;
     const rad = Math.min(opts.barRadius != null ? opts.barRadius : 8, barW / 2, h / 2);
     dgRoundRectPath(ctx, x, y, barW, h, rad);
@@ -73693,6 +73709,7 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
     // an unhelpful "$..." — at that width it's better to leave the label off (the Insights
     // panel / hover tooltip still carries the exact value) than to render noise on every bar.
     if (opts.values && barW >= 18) {
+      ctx.globalAlpha = Math.min(1, bk * bk);
       ctx.fillStyle = '#101820';
       ctx.font = '700 12px Inter, sans-serif';
       // Positive bars get their label above the bar, negative bars below,
@@ -73700,6 +73717,7 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
       const labelY = r.value >= 0 ? y - 8 : y + h + 14;
       ctx.textAlign = 'center';
       ctx.fillText(dgFormatValueLabelFit(ctx, r.value, opts, barW + gap - 4), x + barW / 2, labelY);
+      ctx.globalAlpha = 1;
     }
   });
 
@@ -73739,18 +73757,21 @@ function dgDrawGroupedBars(ctx, categories, series, area, opts) {
       const v = sr.values[ci] || 0;
       const x = clusterX + si * (barW + barGap);
       const valY = scale.toY(v);
-      const y = Math.min(zeroY, valY);
-      const h = Math.max(1, Math.abs(zeroY - valY));
+      const gk = dgAK(ci * series.length + si, categories.length * series.length);
+      const h = Math.max(1, Math.abs(zeroY - valY) * gk);
+      const y = valY <= zeroY ? zeroY - h : zeroY;
       ctx.fillStyle = sr.color;
       const rad = Math.min(opts.barRadius != null ? opts.barRadius : 8, barW / 2, h / 2);
       dgRoundRectPath(ctx, x, y, barW, h, rad);
       ctx.fill();
       if (opts.values && barW > 16) {
+        ctx.globalAlpha = Math.min(1, gk * gk);
         ctx.fillStyle = '#101820';
         ctx.font = '700 10.5px Inter, sans-serif';
         ctx.textAlign = 'center';
         const labelY = v >= 0 ? y - 6 : y + h + 13;
         ctx.fillText(dgFormatValueLabelFit(ctx, v, opts, barW + barGap + 4), x + barW / 2, labelY);
+        ctx.globalAlpha = 1;
       }
     });
 
@@ -76358,6 +76379,210 @@ window.dgOpenMultiPushChoice = dgOpenMultiPushChoice;
 window.dgCloseMultiPushChoice = dgCloseMultiPushChoice;
 window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
 
+// ═══ Chart motion (used by Showcase "live" charts) ═══
+// DG_ANIM is null for every normal draw, so the editor, PNG and PDF exports are untouched. While Showcase renders
+// a live frame it is { p: build progress 0..1, w: idle "wave" phase in turns, or null while still building }.
+var DG_ANIM = null;
+// Per-item progress with a stagger (item 0 first, item n-1 last) and a soft overshoot. After the build, bars keep a
+// gentle travelling ripple so the chart stays alive, like keys on a harmonium.
+function dgAK(i, n, span) {
+  const a = DG_ANIM; if (!a) return 1;
+  span = span || 0.5;
+  const st = n > 1 ? (1 - span) / (n - 1) : 0;
+  let k = Math.max(0, Math.min(1, (a.p - i * st) / span));
+  k = 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2);
+  if (a.w != null && a.p >= 1) k *= 1 + 0.05 * Math.sin(a.w * 6.2832 - i * 0.75);
+  return Math.max(0, k);
+}
+function dgAMake(fn, mode) {
+  return function (ctx) {
+    const a = DG_ANIM; if (!a) return fn.apply(this, arguments);
+    let box = null;
+    for (let i = 1; i < arguments.length; i++) { const v = arguments[i]; if (v && typeof v === 'object' && !Array.isArray(v) && (('w' in v && 'h' in v) || 'r' in v)) { box = v; break; } }
+    const e = 1 - Math.pow(1 - Math.min(1, a.p), 3);
+    ctx.save();
+    try {
+      if (box && (mode === 'x' || mode === 'y')) {            // line / area / waterfall / pareto / funnel: the chart draws itself in
+        ctx.beginPath();
+        if (mode === 'x') ctx.rect(-1e5, -1e5, 1e5 + box.x + box.w * e + 16, 2e5);
+        else ctx.rect(-1e5, -1e5, 2e5, 1e5 + box.y + box.h * e + 6);
+        ctx.clip();
+      } else if (box && mode === 'pie') {                      // pie / donut: clockwise sweep, then a soft breathing pulse
+        const R = box.r + 24;
+        ctx.beginPath(); ctx.moveTo(box.x, box.y); ctx.arc(box.x, box.y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, e) + 0.0001); ctx.closePath(); ctx.clip();
+        const s = 0.9 + 0.1 * e + (a.w != null ? 0.018 * Math.sin(a.w * 6.2832) : 0);
+        ctx.translate(box.x, box.y); ctx.scale(s, s); ctx.translate(-box.x, -box.y);
+      } else if (box && mode === 'radar') {                    // radar: blooms out from the centre with a small twist
+        const cx = box.x + box.w / 2, cy = box.y + box.h / 2, s = 0.15 + 0.85 * e + (a.w != null ? 0.02 * Math.sin(a.w * 6.2832) : 0);
+        ctx.globalAlpha = Math.min(1, e * 1.6);
+        ctx.translate(cx, cy); ctx.rotate((1 - e) * 0.6); ctx.scale(s, s); ctx.translate(-cx, -cy);
+      } else ctx.globalAlpha = e;
+      return fn.apply(this, arguments);
+    } finally { ctx.restore(); }
+  };
+}
+dgDrawLine = dgAMake(dgDrawLine, 'x');
+dgDrawWaterfall = dgAMake(dgDrawWaterfall, 'x');
+dgDrawPareto = dgAMake(dgDrawPareto, 'x');
+dgDrawDivergingStackedBars = dgAMake(dgDrawDivergingStackedBars, 'x');
+dgDrawTornadoBars = dgAMake(dgDrawTornadoBars, 'x');
+dgDrawFunnel = dgAMake(dgDrawFunnel, 'y');
+dgDrawPie = dgAMake(dgDrawPie, 'pie');
+dgDrawRadar = dgAMake(dgDrawRadar, 'radar');
+
+// A live frame source for Showcase: (ctx, W, H, seconds, still) paints one frame of the chart or diagram.
+const DG_MOTION_TYPES = ['bar', 'stacked', 'grouped', 'line', 'area', 'pie', 'donut', 'waterfall', 'pareto', 'funnel', 'radar', 'hstacked', 'tornado'];
+const DG_BUILD_SECS = 3.4;
+function dgScStage(ctx, W, H, img, bg, dx, dy, zoom) {
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const k = Math.min(W * 0.92 / img.width, H * 0.9 / img.height) * (zoom || 1), w = img.width * k, h = img.height * k;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, (W - w) / 2 + (dx || 0), (H - h) / 2 + (dy || 0), w, h);
+}
+function dgScCornerColor(c) {
+  try {
+    const s = document.createElement('canvas'); s.width = 1; s.height = 1;
+    const sc = s.getContext('2d'); sc.drawImage(c, 0, 0, Math.min(4, c.width), Math.min(4, c.height), 0, 0, 1, 1);
+    const d = sc.getImageData(0, 0, 1, 1).data; if (d[3] > 200) return 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+  } catch (e) {}
+  return '#ffffff';
+}
+function dgScLiveChart() {
+  const type = dgState.type;
+  if (dgActiveMode === 'flow' || dgIs3DType(type) || DG_MOTION_TYPES.indexOf(type) < 0) return null;
+  const buf = document.createElement('canvas'); let bg = null;
+  return function (ctx, W, H, sec, still) {
+    DG_ANIM = still ? { p: 1, w: null } : { p: Math.min(1, sec / DG_BUILD_SECS), w: sec > DG_BUILD_SECS ? (sec - DG_BUILD_SECS) / 2.6 : null };
+    try {
+      const sc = Math.max(0.6, Math.min(3.2, W * 0.92 / 1200));
+      dgDrawChart(buf, sc);
+      if (dgState.texts && dgState.texts.length) { const x = buf.getContext('2d'); x.save(); x.setTransform(sc, 0, 0, sc, 0, 0); dgDrawTextsOnCtx(x); x.restore(); }
+    } finally { DG_ANIM = null; }
+    if (!bg) bg = dgScCornerColor(buf);
+    dgScStage(ctx, W, H, buf, bg);
+  };
+}
+// Diagrams are pictures, so they build with a soft diagonal reveal and a small pop, then float gently.
+function dgScLiveFlow(img) {
+  const bg = dgScCornerColor(img), tmp = document.createElement('canvas');
+  return function (ctx, W, H, sec, still) {
+    const p = still ? 1 : Math.min(1, sec / DG_BUILD_SECS), e = 1 - Math.pow(1 - p, 3), idle = !still && sec > DG_BUILD_SECS ? sec - DG_BUILD_SECS : 0;
+    tmp.width = W; tmp.height = H;
+    const t = tmp.getContext('2d');
+    dgScStage(t, W, H, img, bg, 0, Math.sin(idle * 1.6) * H * 0.006, (0.94 + 0.06 * e) * (1 + 0.006 * Math.sin(idle * 1.1)));
+    if (p < 1) {
+      const edge = e * 1.4 - 0.2, g = t.createLinearGradient(0, 0, W, H);
+      g.addColorStop(Math.max(0, Math.min(1, edge - 0.2)), 'rgba(0,0,0,1)'); g.addColorStop(Math.max(0, Math.min(1, edge)), 'rgba(0,0,0,0)');
+      t.globalCompositeOperation = 'destination-in'; t.fillStyle = g; t.fillRect(0, 0, W, H);
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(tmp, 0, 0);
+    } else ctx.drawImage(tmp, 0, 0);
+  };
+}
+
+// ═══ Charts & Diagrams → Showcase ═══
+// Sends the chart or diagram on screen (or a whole multi-chart set) into Showcase, so it can be made "live"
+// with motion and saved as an MP4 for presentations. Everything stays on this device.
+// Lives inside this module so it can reach the chart internals; Showcase itself is reached through window.sppSayla.
+const DGSC_W = 1920, DGSC_H = 1080, DGSC_MAX_REEL = 12, DGSC_NOTE_KEY = 'sarvarcDgShowcaseNoteOff';
+let dgScOpened = false, dgScBusy = false;
+
+function dgScSay(msg, type) { try { toast(msg, type || 'info'); } catch (e) {} }
+function dgScWait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+// Puts a chart (any size or shape) on a calm 16:9 stage with a little breathing room around it, so the slow
+// camera push in Showcase never trims an axis label or a legend.
+function dgScFrame(src) {
+  const out = document.createElement('canvas'); out.width = DGSC_W; out.height = DGSC_H;
+  const x = out.getContext('2d'); let bg = '#ffffff';
+  try {   // match the stage colour to the chart's own background so the edges disappear
+    const s = document.createElement('canvas'); s.width = 1; s.height = 1;
+    const sc = s.getContext('2d'); sc.drawImage(src, 0, 0, Math.min(4, src.width), Math.min(4, src.height), 0, 0, 1, 1);
+    const d = sc.getImageData(0, 0, 1, 1).data;
+    if (d[3] > 200) bg = 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+  } catch (e) {}
+  x.fillStyle = bg; x.fillRect(0, 0, DGSC_W, DGSC_H);
+  const k = Math.min(DGSC_W * 0.92 / src.width, DGSC_H * 0.9 / src.height);
+  const w = Math.round(src.width * k), h = Math.round(src.height * k);
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+  x.drawImage(src, Math.round((DGSC_W - w) / 2), Math.round((DGSC_H - h) / 2), w, h);
+  return out;
+}
+
+// The gentle MP4 note, shown inside Showcase's header (dismissible, remembered on this device).
+function dgScNoteOff() { try { return localStorage.getItem(DGSC_NOTE_KEY) === '1'; } catch (e) { return false; } }
+function dgScBuildNote() {
+  const have = document.getElementById('dgScNote'); if (have) return have;
+  const head = document.querySelector('#sppOverlay .spp-head'); if (!head) return null;
+  const n = document.createElement('div'); n.id = 'dgScNote'; n.className = 'dg-sc-note'; n.setAttribute('role', 'note');
+  n.innerHTML = '<span>Good to know: Showcase saves your live chart as an MP4 video, ready for PowerPoint, Keynote, Zoom and Teams.</span>' +
+                '<button type="button" aria-label="Got it" title="Got it">&times;</button>';
+  n.querySelector('button').onclick = function () { n.classList.remove('show'); try { localStorage.setItem(DGSC_NOTE_KEY, '1'); } catch (e) {} };
+  head.insertBefore(n, head.querySelector('.spp-x') || null);
+  return n;
+}
+function dgScShowNote() { const n = dgScBuildNote(); if (n && !dgScNoteOff()) n.classList.add('show'); }
+
+async function dgScOpen() {
+  if (!window.sppSayla || typeof window.sppSayla.load !== 'function') throw new Error('Showcase is still loading. Try again in a moment.');
+  window.sppSayla.open();
+  // First open: give Showcase a beat to restore any saved session, so it can't land on top of the chart.
+  if (!dgScOpened) { dgScOpened = true; await dgScWait(450); }
+}
+
+async function dgScHandoff(urls, name, live) {
+  const S = window.sppSayla;
+  await dgScOpen();
+  const cfg = { ratio: '16:9', head: '', sub: '', badge: '' };
+  if (urls.length === 1) {
+    S.configure(Object.assign({ fit: 'fill', fmotion: 'zoomin', secs: 8 }, cfg));
+    await S.load({ dataUrl: urls[0], name: name });
+    if (S.setLive) S.setLive(live || null);   // bars rise, lines draw, pies sweep: redrawn every frame, MP4 included
+  } else {
+    S.configure(cfg);
+    await S.loadMany(urls, 'replace');
+    S.configure({ gal: 'slideshow' });
+  }
+  dgScShowNote();
+}
+
+// One chart or diagram → Showcase
+async function dgSendToShowcase() {
+  if (dgScBusy) return; dgScBusy = true;
+  try {
+    try { dgCloseAllDropdowns(); } catch (e) {}
+    const flow = dgActiveMode === 'flow';
+    let src = null;
+    try { if (!flow && !dgIs3DType(dgState.type)) src = dgGetExportCanvasHD(); } catch (e) { src = null; }   // crisp 4K render for ordinary 2D charts
+    if (!src) src = dgGetExportCanvas();                                                                    // diagrams and 3D charts use their own canvas
+    if (!src) { dgScSay((flow ? 'Write or pick a diagram' : 'Build a chart') + ' first, then send it to Showcase.', 'error'); return; }
+    const titleEl = document.getElementById(flow ? 'dgFlowTitleInput' : 'dgTitleInput');
+    const framed = dgScFrame(src);
+    let live = null;
+    try { live = flow ? dgScLiveFlow(framed) : dgScLiveChart(); } catch (e) { live = null; }
+    await dgScHandoff([framed.toDataURL('image/png')], ((titleEl && titleEl.value) || '').trim() || (flow ? 'Diagram' : 'Chart'), live);
+    dgScSay('Your ' + (flow ? 'diagram' : 'chart') + (live ? ' is moving in Showcase. Video saves it as an MP4.' : ' is in Showcase. Pick a motion, then Video saves it as an MP4.'), 'success');
+  } catch (e) {
+    console.error('[Showcase bridge]', e); dgScSay('Could not send this to Showcase: ' + ((e && e.message) || 'unknown error'), 'error');
+  } finally { dgScBusy = false; }
+}
+
+// A whole multi-chart set → Showcase, as one reel (one chart after another)
+async function dgSendAllToShowcase() {
+  if (dgScBusy) return; dgScBusy = true;
+  try {
+    const specs = Array.isArray(dgMultiCharts) ? dgMultiCharts : [];
+    if (!specs.length) { dgScSay('No chart set to send yet.', 'info'); return; }
+    const use = specs.slice(0, DGSC_MAX_REEL), urls = use.map(function (sp) { return dgScFrame(dgRenderSpecFullCanvas(sp)).toDataURL('image/png'); });
+    await dgScHandoff(urls, 'Charts');
+    dgScSay('All ' + use.length + ' charts are in Showcase as one reel' + (specs.length > DGSC_MAX_REEL ? ' (Showcase holds ' + DGSC_MAX_REEL + ' at a time, so the first ' + DGSC_MAX_REEL + ' were sent)' : '') + '. Video saves it as an MP4.', 'success');
+  } catch (e) {
+    console.error('[Showcase bridge]', e); dgScSay('Could not send these to Showcase: ' + ((e && e.message) || 'unknown error'), 'error');
+  } finally { dgScBusy = false; }
+}
+window.dgSendToShowcase = dgSendToShowcase;
+window.dgSendAllToShowcase = dgSendAllToShowcase;
+
 })();
 </script>
 <script>
@@ -76384,15 +76609,19 @@ window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
     if (!s) return;
 
     const current = ribbon.scrollLeft;
+    // Someone else moved the bar (touch slide, scrollbar drag, trackpad swipe): let go, don't pull it back.
+    if (s.expect != null && Math.abs(current - s.expect) > 2) { s.raf = null; s.target = current; s.expect = null; return; }
+    s.target = Math.min(Math.max(0, ribbon.scrollWidth - ribbon.clientWidth), Math.max(0, s.target));
     const diff = s.target - current;
 
     if (Math.abs(diff) < SNAP_THRESHOLD) {
       ribbon.scrollLeft = s.target;
-      s.raf = null;
+      s.raf = null; s.expect = null;
       return;
     }
 
     ribbon.scrollLeft = current + diff * EASE;
+    s.expect = ribbon.scrollLeft;
     s.raf = requestAnimationFrame(() => step(ribbon));
   }
 
@@ -76425,12 +76654,24 @@ window.dgConfirmMultiPushChoice = dgConfirmMultiPushChoice;
     // Clamp the target to the real scrollable range so momentum can't
     // "overshoot" into rubber-banding against the bar's own edges.
     const maxScroll = ribbon.scrollWidth - ribbon.clientWidth;
+    if (!s.raf) s.target = ribbon.scrollLeft;   // start from where the bar really is, not where the last wheel left it
     s.target = Math.min(maxScroll, Math.max(0, s.target + e.deltaY));
 
     if (!s.raf) {
       s.raf = requestAnimationFrame(() => step(ribbon));
     }
   }, { passive: false });
+
+  // Grabbing the bar (touch, pen, mouse on the scrollbar) hands control back to the browser at once.
+  function release(e) {
+    const ribbon = e.target && e.target.closest ? e.target.closest(RIBBON_SELECTOR) : null;
+    const s = ribbon && state.get(ribbon);
+    if (!s) return;
+    if (s.raf) { cancelAnimationFrame(s.raf); s.raf = null; }
+    s.expect = null; s.target = ribbon.scrollLeft;
+  }
+  document.addEventListener('touchstart', release, { passive: true });
+  document.addEventListener('pointerdown', release, { passive: true });
 })();
 </script>
 
@@ -87333,7 +87574,9 @@ html.spp-open #sayla-panel{z-index:100004}
   };
   window.sppClose = function () {
     if (S.recording) { say('Video is still recording. Wait for it to finish.', 'info'); return; }
+    try { if (S._pre) { if (S.editTarget && S.editTarget.draft) boundSaveNow(); } } catch (e) {}
     $('sppOverlay').classList.remove('open'); S.open = false; document.documentElement.classList.remove('spp-open'); cancelAnimationFrame(S.raf); S.editTarget = null;
+    try { boundRestore(); } catch (e) {}
     try { if (window.sppFlush) window.sppFlush(); } catch (e) {}
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open && !(e.target && e.target.closest && e.target.closest('#sayla-panel'))) sppClose(); });
@@ -87517,6 +87760,7 @@ html.spp-open #sayla-panel{z-index:100004}
         } catch (e) { c = null; }
       }
       if (!c) { say('That photo is too large for this browser. Try a smaller one.', 'error'); if (cb) cb(new Error('that photo is too large for this browser')); return; }
+      S.live = null;   // a new picture ends any live chart source
       S.srcNat = [im.naturalWidth, im.naturalHeight];
       S.srcCanvas = c; S.procCanvas = shrink(c, PROC_MAX); S.srcName = name || 'Product';
       drawOrig(); updateDimTags();
@@ -87779,7 +88023,18 @@ html.spp-open #sayla-panel{z-index:100004}
     ctx.clearRect(0, 0, W, H);
     var o = S.o, tp = opt.textT == null ? textProgress(tn, opt.tAbs) : opt.textT;
     if (o.fit === 'gallery') { if (S.gal.length) { galDraw(ctx, W, H, tn, opt.textT === 1 ? 99 : (opt.tAbs != null ? opt.tAbs : tn * o.secs)); if (GALFULL[o.gal]) drawScrim(ctx, W, H, tp); } }
-    else if (o.fit === 'fill' && S.cut) { drawFill(ctx, W, H, tn); drawScrim(ctx, W, H, tp); }
+    else if (o.fit === 'fill' && S.cut) {
+      if (S.live) {   // live chart / diagram: repainted every frame, then run through the chosen camera motion on top
+        var keepCut = S.cut, lc = S._liveCv || (S._liveCv = document.createElement('canvas'));
+        try {
+          if (lc.width !== W || lc.height !== H) { lc.width = W; lc.height = H; }
+          S.live(lc.getContext('2d'), W, H, opt.textT === 1 ? 0 : (opt.tAbs != null ? opt.tAbs : tn * o.secs), opt.textT === 1);
+          S.cut = lc; drawFill(ctx, W, H, tn);
+        } catch (e) { S.cut = keepCut; console.error('Live chart frame failed', e); drawFill(ctx, W, H, tn); }
+        finally { S.cut = keepCut; }
+      } else drawFill(ctx, W, H, tn);
+      drawScrim(ctx, W, H, tp);
+    }
     else { drawBackground(ctx, W, H, opt.flatten); if (S.cut) drawProduct(ctx, W, H, tn); }
     S._tbox = null; drawText(ctx, W, H, tp, opt.textT === 1 ? 99 : (opt.tAbs != null ? opt.tAbs : tn * o.secs));
     try { drawEngage(ctx, W, H, tn, opt); } catch (e) { console.error('Showcase engage failed', e); }
@@ -89488,8 +89743,8 @@ html.spp-open #sayla-panel{z-index:100004}
     return p;
   }
   function withRt(rt, fn) {
-    var keep = { cut: S.cut, gal: S.gal, sprites: S.sprites, spriteKey: S.spriteKey, layers: S.layers, cutVer: S.cutVer, edgeRGB: S.edgeRGB, bgColor: S.bgColor, o: S.o };
-    S.cut = rt.cut; S.gal = rt.gal || S.gal; S.sprites = rt.sprites; S.spriteKey = rt.spriteKey; S.layers = rt.layers; S.cutVer = rt.cutVer;
+    var keep = { live: S.live, cut: S.cut, gal: S.gal, sprites: S.sprites, spriteKey: S.spriteKey, layers: S.layers, cutVer: S.cutVer, edgeRGB: S.edgeRGB, bgColor: S.bgColor, o: S.o };
+    S.live = null; S.cut = rt.cut; S.gal = rt.gal || S.gal; S.sprites = rt.sprites; S.spriteKey = rt.spriteKey; S.layers = rt.layers; S.cutVer = rt.cutVer;
     S.edgeRGB = rt.edgeRGB; S.bgColor = rt.bgColor; S.o = rt.o;
     try { return fn(); }
     finally {
@@ -89757,6 +90012,54 @@ html.spp-open #sayla-panel{z-index:100004}
     } catch (e) { console.error('Edit live clip failed', e); S.editTarget = null; say('Could not open this live clip for editing.', 'error'); }
   };
 
+  /* ───── Per-image Showcase ─────
+     Every image on a page has its own Showcase. Opening it loads THAT image with ITS saved settings; every change
+     is saved back onto the image (so it travels with the document and reopens exactly as left). The main Showcase
+     session is put aside while this runs and put back on close, so images never mix with each other or with it. */
+  var BOUND_KEYS = ['srcNat', 'srcCanvas', 'procCanvas', 'srcName', '_srcUrl', 'cut', 'cutVer', 'spriteKey', 'edgeRGB', 'bgColor', 'hasAlpha', 'gal', 'live', '_userRatio'];
+  function boundItem() {
+    var t = S.editTarget; if (!t || !t.draft || typeof pdfed === 'undefined' || !pdfed.pages[t.idx]) return null;
+    return (pdfed.pages[t.idx].placedImages || []).filter(function (it) { return it.id === t.id; })[0] || null;
+  }
+  function boundSaveNow() {
+    clearTimeout(S._bTimer); S._bTimer = 0;
+    var it = boundItem(); if (!it || it.clip) return;
+    var lp = $('sppLoops');
+    it.showcase = { v: 1, savedAt: Date.now(), o: JSON.parse(JSON.stringify(S.o)), loops: lp ? lp.value : '1' };   // a fresh object each time
+    if (typeof pdfedPersist === 'function') pdfedPersist();
+  }
+  function boundRestore() {
+    var pre = S._pre; if (!pre) return; S._pre = null;
+    clearTimeout(S.cutTimer); clearTimeout(S._bTimer); S._bTimer = 0;
+    Object.keys(pre.o).forEach(function (k) { S.o[k] = pre.o[k]; });
+    BOUND_KEYS.forEach(function (k) { S[k] = pre[k]; });
+    var lp = $('sppLoops'); if (lp) lp.value = pre.loops;
+    S.spriteKey = '';
+    try { syncUi(); sizePreview(); updateDimTags(); drawOrig(); galThumbs(); } catch (e) {}
+  }
+  window.sppEditImage = async function (idx, item) {
+    if (!item || !item.dataUrl) return;
+    if (item.clip) return window.sppEditLive(idx, item);
+    if (S.open || S.recording) return;
+    try {
+      try { await window.sppFlush(); } catch (e) {}   // keep any unsaved main session safe first
+      var pre = { o: JSON.parse(JSON.stringify(S.o)), loops: ($('sppLoops') || {}).value || '1' };
+      BOUND_KEYS.forEach(function (k) { pre[k] = S[k]; }); S._pre = pre;
+      S.editTarget = { idx: idx, id: item.id, draft: true };
+      var d = item.showcase;
+      Object.keys(SP_DEFAULTS).forEach(function (k) { S.o[k] = SP_DEFAULTS[k]; });
+      if (d && d.o) Object.keys(d.o).forEach(function (k) { if (k in S.o) S.o[k] = d.o[k]; });
+      S._userRatio = !!d; S.gal = []; S.live = null;
+      var lp = $('sppLoops'); if (lp) lp.value = (d && d.loops) || '1';
+      window.sppOpen();
+      syncUi();
+      loadDataUrl(item.dataUrl, 'Image', true, function () { syncUi(); capLoops(); });
+      say(d ? 'Opened this image\'s Showcase with your saved work.' : 'This image has its own Showcase. Changes save with it automatically.', 'info');
+    } catch (e) {
+      console.error('Image Showcase failed', e); S.editTarget = null; boundRestore(); say('Could not open this image in Showcase.', 'error');
+    }
+  };
+
   window.sppPlaceLiveOnPage = async function () {
     if (!hasArt()) { say('Add a photo first', 'info'); return; }
     if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) {
@@ -89768,7 +90071,7 @@ html.spp-open #sayla-panel{z-index:100004}
     var d = EXPORT[S.o.ratio], k = 800 / Math.max(d[0], d[1]), poster = mk(d[0] * k, d[1] * k);
     draw(poster.getContext('2d'), poster.width, poster.height, S.tNorm, { textT: 1 });
     var url = poster.toDataURL('image/png');
-    var tgt = S.editTarget, tItem = null; S.editTarget = null;
+    var tgt = S.editTarget, tItem = null; S.editTarget = null; clearTimeout(S._bTimer); S._bTimer = 0;
     if (tgt && pdfed.pages[tgt.idx]) tItem = (pdfed.pages[tgt.idx].placedImages || []).filter(function (it) { return it.id === tgt.id; })[0] || null;
     var idx = tItem ? tgt.idx : pdfed.active, pg = pdfed.pages[idx], pcv = document.getElementById('pdfedPageCanvas');
     var pw = (pcv && pcv.width) || 800, ph = (pcv && pcv.height) || 1100;
@@ -89777,7 +90080,7 @@ html.spp-open #sayla-panel{z-index:100004}
     if (tItem) {   // update the clip that is already on the page: same spot, same width, same rotation and layer
       var cx = tItem.x + tItem.w / 2, cy = tItem.y + tItem.h / 2, nw = tItem.w, nh = Math.round(nw * poster.height / poster.width);
       if (S.o.ratio === 'page') { nw = pw; nh = ph; cx = pw / 2; cy = ph / 2; }
-      tItem.clip = clip; tItem.dataUrl = url; tItem.w = nw; tItem.h = nh; tItem.x = Math.round(cx - nw / 2); tItem.y = Math.round(cy - nh / 2);
+      delete tItem.showcase; tItem.clip = clip; tItem.dataUrl = url; tItem.w = nw; tItem.h = nh; tItem.x = Math.round(cx - nw / 2); tItem.y = Math.round(cy - nh / 2);
       if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
       if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
       sppClose();
@@ -89850,6 +90153,7 @@ html.spp-open #sayla-panel{z-index:100004}
   }
   window.sppSaveSoon = function () {
     if (P.restoring) return;
+    if (S.editTarget && S.editTarget.draft) { clearTimeout(S._bTimer); S._bTimer = setTimeout(boundSaveNow, 600); return; }
     P.dirty = true;
     clearTimeout(P.timer);
     P.timer = setTimeout(function () {
@@ -89959,8 +90263,9 @@ html.spp-open #sayla-panel{z-index:100004}
       if (!(await isSignedIn())) return;
       var ui = mode !== 'boot';
       var local = await idbKvGet(PKEY);
-      if (ui && !P.hydrated && local) applyState(local);
-      if (ui) P.hydrated = true;
+      var bound = !!(S.editTarget && S.editTarget.draft);
+      if (ui && !P.hydrated && local && !bound) applyState(local);
+      if (ui && !bound) P.hydrated = true;
       if (!(await driveOn())) return;
       var meta = await findRemote();
       if (meta) P.fileId = meta.id;
@@ -89971,7 +90276,7 @@ html.spp-open #sayla-panel{z-index:100004}
         var st = await res.json();
         if (st && st.v === 1 && st.o) {
           await idbKvSet(PKEY, st);
-          if (ui) { applyState(st); say('Showcase restored from your account', 'success'); }
+          if (ui && !(S.editTarget && S.editTarget.draft)) { applyState(st); say('Showcase restored from your account', 'success'); }
         }
       } else if (local && lT > rT + 500) {
         await pushToDrive(local);       // local is newer (e.g. an earlier upload never landed): catch Drive up
@@ -90218,6 +90523,7 @@ html.spp-open #sayla-panel{z-index:100004}
     isOpen: function () { return !!S.open; },
     open: function () { if (!S.open) window.sppOpen(); },
     close: function () { if (S.open) window.sppClose(); },
+    setLive: function (f) { S.live = (typeof f === 'function') ? f : null; },
     context: spContext, snapshot: spSnap, restore: spRestore, configure: spConfigure, load: spLoad, flushCut: spFlushCut,
     reset: function () { var keep = { fit: S.o.fit }; spRestore({ o: SP_DEFAULTS, loops: '1' }); return keep; },
     setPlayback: function (mode) {
@@ -90240,6 +90546,18 @@ html.spp-open #sayla-panel{z-index:100004}
 
 })();
 </script>
+
+<style id="dgShowcaseBridgeCss">
+/* Charts → Showcase: the gentle "saves as MP4" note in Showcase's header */
+.dg-sc-note{display:none;align-items:center;gap:6px;flex:0 1 auto;min-width:0;margin-left:auto;margin-right:6px;padding:5px 5px 5px 12px;border-radius:999px;font-size:11.5px;line-height:1.3;font-weight:600;color:var(--sp-ink2,var(--text2));background:var(--sp-cyfill,rgba(0,194,255,.14));border:1px solid var(--sp-line,rgba(128,128,128,.25))}
+.dg-sc-note.show{display:inline-flex}
+.pdfed-badge-btn.sp-has-work{position:relative}
+.pdfed-badge-btn.sp-has-work::after{content:'';position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:#00C2FF;box-shadow:0 0 0 1.5px var(--surface,#fff)}
+.dg-sc-note span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dg-sc-note button{flex:0 0 auto;width:20px;height:20px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:15px;line-height:1;cursor:pointer;opacity:.7}
+.dg-sc-note button:hover{opacity:1;background:var(--sp-fill2,rgba(128,128,128,.18))}
+@media (max-width:760px){.dg-sc-note{display:none !important}}
+</style>
 
 </body>
 </html>
