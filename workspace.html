@@ -10733,6 +10733,11 @@ button.dg-show-chip.active { background:var(--blue); }
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Gallery
                 </button>
+                <button class="pdfed-rbn-btn" id="pdfedInsertClipBtn" onclick="pdfedTriggerClipInsert()" title="Upload a video clip onto the page (max 30 MB, first 30 seconds, max 3 per page)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><polygon points="10 9 16 12 10 15 10 9" fill="currentColor"/></svg>
+                  Clip
+                </button>
+                <input type="file" id="pdfedClipInsertInput" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" style="display:none" onchange="pdfedLoadInsertClip(event)">
                 <button class="pdfed-rbn-btn" id="pdfedInsertStockBtn" onclick="pdfedOpenStockPhotoSearch()" title="Search free stock photos to insert">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   Stock Photos
@@ -35386,7 +35391,7 @@ const pdfedClip = {
 // How long each exported slide stays on screen, in ms. A slide with a live clip normally gets as long as the
 // clip's own length (so the whole motion story plays, not just its opening seconds), never shorter than the
 // seconds-per-slide the person chose, and capped so one clip cannot make the video endless.
-const PDFED_CLIP_MAX_LIVE_MS = 20000;
+const PDFED_CLIP_MAX_LIVE_MS = 30000;
 function pdfedClipSlideDurations(indices, secs) {
   const base = secs * 1000;
   return indices.map(function (pi) {
@@ -35773,6 +35778,11 @@ async function pdfedRunClipExportInner() {
     catch (e) { console.warn('[Workspace] live clip page failed, using still', e); }
     if (pdfedClip.cancelled) return;
   }
+  const vidByPage = {}; let hasVid = false;
+  for (let i = 0; i < images.length; i++) {
+    const its = ((pdfed.pages[indices[i]] || {}).placedImages || []).filter(function (it) { return it && it.clip && it.clip.vid; });
+    if (its.length) { vidByPage[i] = its; hasVid = true; }
+  }
   let liveWarned = false;
   const liveUpdate = function (i, sec) { if (liveCtl[i]) { try { liveCtl[i].update(sec); } catch (e) { if (!liveWarned) { liveWarned = true; console.warn('[Workspace] live page frame failed during export', e); } } } };
 
@@ -35804,6 +35814,20 @@ async function pdfedRunClipExportInner() {
     catch (e1) { try { pdfedClipDrawFrame(ctx, cw, ch, images, idx, null, 1, zoomT, avgColors); } catch (e2) {} }
     return idx;
   }
+  // Uploaded clips: before each output frame, put every clip that frame shows at its exact time (same slide / crossfade logic as renderAt).
+  async function liveSeekAt(vt) {
+    const last = images.length - 1, jobs = [];
+    const add = function (pi, sec) { (vidByPage[pi] || []).forEach(function (it) { jobs.push(sppLiveSeek(it.clip, sec)); }); };
+    if (vt >= totalMs) { add(last, durs[last] / 1000); }
+    else {
+      let idx = 0; while (idx < last && vt >= starts[idx + 1]) idx++;
+      const slideMs = durs[idx], localMs = vt - starts[idx]; add(idx, localMs / 1000);
+      const gapFx = idx > 0 ? pdfedAnimGet(pdfed.pages[indices[idx - 1]]) : null;
+      const tMs = gapFx ? Math.min(gapFx.ms, slideMs * 0.5) : Math.min(600, slideMs * 0.3);
+      if (idx > 0 && localMs < tMs && !(gapFx && gapFx.type === 'none')) add(idx - 1, (durs[idx - 1] + localMs) / 1000);
+    }
+    if (jobs.length) { try { await Promise.all(jobs); } catch (e) { console.warn('[Workspace] clip seek failed', e); } }
+  }
   const yieldNow = function () { return new Promise(function (r) { const mc = new MessageChannel(); mc.port1.onmessage = function () { r(); }; mc.port2.postMessage(0); }); };
   const paintNow = function () { return new Promise(function (r) { let d = false; const f = function () { if (!d) { d = true; r(); } }; requestAnimationFrame(f); setTimeout(f, 60); }); };
 
@@ -35814,12 +35838,12 @@ async function pdfedRunClipExportInner() {
   // care if the tab is in the background. This is the smooth, presentable one.
   const canWC = (typeof VideoEncoder !== 'undefined') && (typeof VideoFrame !== 'undefined') && (typeof Mp4Muxer !== 'undefined');
   let smoothFailed = false;
-  if (canWC) for (const fpsList of [[60, 30], [30]]) {   // if the 60 fps pass fails part-way, try again at 30 fps before falling back
+  if (canWC) for (const fpsList of (hasVid ? [[30]] : [[60, 30], [30]])) {   // if the 60 fps pass fails part-way, try again at 30 fps before falling back
     let enc = null, encErr = null, triedFps = 0;
     try {
       let chosen = null;
       for (const fps of fpsList) {
-        const bitrate = Math.round(Math.max(4e6, Math.min(16e6, cw * ch * fps * 0.09)));
+        const bitrate = Math.round(Math.max(4e6, Math.min(16e6, cw * ch * fps * (hasVid ? 0.16 : 0.09))));
         for (const codec of ['avc1.64002A', 'avc1.640033', 'avc1.4D002A', 'avc1.42002A']) {
           let sup = null;
           try { sup = await VideoEncoder.isConfigSupported({ codec: codec, width: cw, height: ch, bitrate: bitrate, framerate: fps }); } catch (e) { sup = null; }
@@ -35836,6 +35860,7 @@ async function pdfedRunClipExportInner() {
       for (let i = 0; i < totalFrames; i++) {
         if (pdfedClip.cancelled) { try { enc.close(); } catch (e) {} return; }
         if (encErr) throw encErr;
+        if (hasVid) await liveSeekAt(i * 1000 / fps);
         const idx = renderAt(i * 1000 / fps);
         const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
         enc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
@@ -45490,7 +45515,7 @@ function pdfedRenderPlacedImages(idx) {
         editBtn.className = 'pdfed-badge-btn is-premium';
         editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
         editBtn.onclick = (ev) => { ev.stopPropagation(); if (typeof sppEditLive === 'function') sppEditLive(idx, item); };
-        badgeRow.appendChild(editBtn);
+        if (!item.clip.vid) badgeRow.appendChild(editBtn);
         const lookBtn = document.createElement('button');
         lookBtn.title = 'Shape and filter for this live clip';
         lookBtn.className = 'pdfed-badge-btn is-premium pdfed-live-look-btn' + (item.clip.look ? ' sp-has-work' : '');
@@ -90013,7 +90038,14 @@ html.spp-open #sayla-panel{z-index:100004}
     rt = { ready: false, cut: null, gal: null, sprites: null, spriteKey: '', layers: {}, cutVer: 1,
            edgeRGB: (clip.edge || [70, 70, 70]).slice(), bgColor: clip.bg || { r: 240, g: 242, b: 246 },
            o: Object.assign({}, clip.o), promise: null };
-    if (clip.gal && clip.gal.length) {   // multi-photo clip: decode every photo once, then play exactly like the preview
+    if (clip.vid && clip.vid.id) {   // uploaded video clip: the ORIGINAL file plays, nothing is re-sampled
+      rt.clip = clip;
+      rt.promise = vidGetBlob(clip.vid.id).then(function (blob) {
+        if (!blob) return rt;   // file not found on this device: the poster picture shows instead of a hole
+        rt.url = vidUrl(clip.vid.id, blob);
+        return makeVideo(rt.url).then(function (v) { if (v) { v.loop = true; rt.video = v; rt.ready = true; } return rt; });
+      });
+    } else if (clip.gal && clip.gal.length) {   // multi-photo clip: decode every photo once, then play exactly like the preview
       rt.promise = Promise.all(clip.gal.map(getCut)).then(function (list) {
         list = list.filter(Boolean); if (list.length) { rt.gal = list; rt.ready = true; } return rt;
       });
@@ -90052,7 +90084,7 @@ html.spp-open #sayla-panel{z-index:100004}
     }
   }
   window.sppLiveReady = function (clip) { return clipRt(clip).promise; };
-  window.sppLiveIsReady = function (clip) { var rt = clipRt(clip); return !!(rt.ready && (rt.cut || (rt.gal && rt.gal.length))); };
+  window.sppLiveIsReady = function (clip) { var rt = clipRt(clip); return !!(rt.ready && (rt.cut || rt.video || (rt.gal && rt.gal.length))); };
   window.sppLiveAspect = function (clip) { var d = (clip.dims && clip.dims.e) || EXPORT[(clip.o && clip.o.ratio)] || EXPORT['16:9']; return d[0] / d[1]; };
   // Draws the clip at time tSec (seconds since it first appeared) onto ctx. Returns false until its cut-out has decoded.
   /* LIVE LOOK: a live clip can carry clip.look = { shape, fx } (an Image Reshaper outline and/or a Design filter).
@@ -90104,16 +90136,106 @@ html.spp-open #sayla-panel{z-index:100004}
     ctx.drawImage(B, 0, 0);
     lookReset(ctx);
   }
+  /* ───── UPLOADED VIDEO CLIPS: original file, played natively ─────
+     Page, preview and thumbnails draw the playing <video> (full smoothness, full sharpness). Export uses a second,
+     paused copy that is SEEKED to the exact time of every output frame, so the MP4 is frame-exact and never depends
+     on how fast this computer is. */
+  var VIDX = { blobs: new Map(), loading: new Map(), urls: new Map(), active: new Set() };
+  // Clip files live in their OWN small database as real Blobs (never as giant text), so autosave, undo, sessions and
+  // Drive sync never have to copy them around.
+  var VIDDB = null;
+  function vidDb() {
+    if (VIDDB) return VIDDB;
+    VIDDB = new Promise(function (res, rej) {
+      var r = indexedDB.open('sarvarcClipVideos', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('v'); };
+      r.onsuccess = function () { res(r.result); }; r.onerror = function () { VIDDB = null; rej(r.error); };
+    });
+    return VIDDB;
+  }
+  async function vidPut(id, blob) {
+    var db = await vidDb();
+    return new Promise(function (res, rej) { var tx = db.transaction('v', 'readwrite'); tx.objectStore('v').put(blob, id); tx.oncomplete = function () { res(true); }; tx.onerror = function () { rej(tx.error); }; tx.onabort = function () { rej(tx.error); }; });
+  }
+  async function vidGet(id) {
+    var db = await vidDb();
+    return new Promise(function (res, rej) { var q = db.transaction('v', 'readonly').objectStore('v').get(id); q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); }; });
+  }
+  function vidGetBlob(id) {
+    if (VIDX.blobs.has(id)) return Promise.resolve(VIDX.blobs.get(id));
+    if (VIDX.loading.has(id)) return VIDX.loading.get(id);
+    var p = (async function () {
+      try { var b = await vidGet(id); if (!(b instanceof Blob)) return null; VIDX.blobs.set(id, b); return b; }
+      catch (e) { console.warn('[Workspace] could not load a stored clip', e); return null; }
+    })();
+    VIDX.loading.set(id, p); p.then(function () { VIDX.loading.delete(id); });
+    return p;
+  }
+  function vidUrl(id, blob) { var u = VIDX.urls.get(id); if (!u) { u = URL.createObjectURL(blob); VIDX.urls.set(id, u); } return u; }
+  function makeVideo(url) {
+    return new Promise(function (res) {
+      var v = document.createElement('video'), done = false;
+      v.muted = true; v.defaultMuted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+      function fin(ok) { if (done) return; done = true; res(ok ? v : null); }
+      v.onloadeddata = function () { fin(true); }; v.onerror = function () { fin(false); };
+      setTimeout(function () { fin(v.readyState >= 2); }, 15000);
+      v.src = url; v.load();
+    });
+  }
+  // Exports wait on this: puts the paused export copy of the clip at exactly tSec (seconds into the clip).
+  window.sppLiveSeek = async function (clip, tSec) {
+    var rt = clipRt(clip); await rt.promise; if (!rt.video || !rt.url) return;
+    var xv = rt.xvideo; if (!xv) { xv = await makeVideo(rt.url); if (!xv) return; rt.xvideo = xv; }
+    rt.xAt = performance.now(); rt.lastDraw = rt.xAt; VIDX.active.add(rt);
+    try { rt.video.pause(); xv.pause(); } catch (e) {}
+    var dur = xv.duration || rt.o.secs || 1, loopLen = Math.min(rt.o.secs || dur, dur);
+    var t = loopLen > 0 ? ((tSec % loopLen) + loopLen) % loopLen : 0; t = Math.min(t, Math.max(0, dur - 0.04));
+    if (xv.readyState >= 2 && Math.abs(xv.currentTime - t) < 0.002) return;
+    await new Promise(function (res) {
+      var done = false; function fin() { if (!done) { done = true; xv.removeEventListener('seeked', fin); res(); } }
+      xv.addEventListener('seeked', fin); setTimeout(fin, 3000); xv.currentTime = t;
+    });
+  };
+  // Housekeeping: a clip nobody is drawing any more stops playing; the export copy is released once the export is over.
+  setInterval(function () {
+    var now = performance.now();
+    VIDX.active.forEach(function (rt) {
+      if (now - (rt.lastDraw || 0) > 700) { try { rt.video && rt.video.pause(); } catch (e) {} }
+      if (rt.xvideo && now - (rt.xAt || 0) > 6000) { try { rt.xvideo.removeAttribute('src'); rt.xvideo.load(); } catch (e) {} rt.xvideo = null; }
+      if (now - (rt.lastDraw || 0) > 1500 && !rt.xvideo) VIDX.active.delete(rt);
+    });
+  }, 500);
+  // Returns false when a frame is not available yet, so the poster picture shows instead of a blank.
+  function paintClip(rt, ctx, W, H, tSec) {
+    if (!rt.video) { withRt(rt, function () { draw(ctx, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); }); return true; }
+    var now = performance.now(), xv = (rt.xvideo && rt.xAt && now - rt.xAt < 1500) ? rt.xvideo : null, v = xv || rt.video;
+    if (!v || v.readyState < 2 || !v.videoWidth) return false;
+    if (xv) { try { rt.video.pause(); } catch (e) {} }
+    else {
+      if (!VIDX.active.has(rt)) {
+        var playing = 0; VIDX.active.forEach(function (o) { if (o !== rt && now - (o.lastDraw || 0) < 1200) playing++; });
+        if (playing >= 3) return false;   // browser safety: at most 3 clips decode at the same time, the others show their still picture
+      }
+      rt.lastDraw = now; VIDX.active.add(rt);
+      var ent = ENT.get(rt.clip), held = allPaused || (ent && ent.paused);
+      if (!held && v.paused) { var pp = v.play(); if (pp && pp.catch) pp.catch(function () {}); }
+      var cap = rt.o.secs;   // plays only the first part when the file is longer than the 30 s limit
+      if (cap && v.duration && cap < v.duration - 0.05 && v.currentTime >= cap) v.currentTime = 0;
+    }
+    var vw = v.videoWidth, vh = v.videoHeight, sc = Math.max(W / vw, H / vh), sw = W / sc, sh = H / sc;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, W, H); ctx.drawImage(v, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, W, H);
+    return true;
+  }
   window.sppLiveFrame = function (clip, ctx, W, H, tSec, noLook) {
-    var rt = clipRt(clip); if (!rt.ready || !(rt.cut || (rt.gal && rt.gal.length))) return false;
+    var rt = clipRt(clip); if (!rt.ready || !(rt.cut || rt.video || (rt.gal && rt.gal.length))) return false;
     var look = noLook ? null : clip.look;
     if (!look || (!look.shape && !look.fx)) {
-      withRt(rt, function () { draw(ctx, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
-      return true;
+      return paintClip(rt, ctx, W, H, tSec) !== false;
     }
     var A = lookLayer(clip, 'a', W, H), ax = A.getContext('2d');
     lookReset(ax); ax.clearRect(0, 0, W, H);
-    withRt(rt, function () { draw(ax, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
+    if (paintClip(rt, ax, W, H, tSec) === false) return false;
     try { lookCompose(clip, ctx, A, W, H, look); }
     catch (err) { console.warn('[Workspace] live look failed, showing the plain clip', err); lookReset(ctx); ctx.clearRect(0, 0, W, H); ctx.drawImage(A, 0, 0); }
     return true;
@@ -90163,6 +90285,7 @@ html.spp-open #sayla-panel{z-index:100004}
 
   /* 2 · Pause one clip (the single place that freezes / unfreezes a clock) */
   function setEntPaused(e, on, now) {
+    try { var vr = RT.get(e.clip); if (vr && vr.video) { if (on) vr.video.pause(); else { var pr = vr.video.play(); if (pr && pr.catch) pr.catch(function () {}); } } } catch (x) {}
     if (on && !e.paused) { e.paused = true; e.pausedAt = now; }
     else if (!on && e.paused) { e.t0 += now - e.pausedAt; e.paused = false; e.pausedAt = 0; e.last = 0; }
   }
@@ -90302,7 +90425,8 @@ html.spp-open #sayla-panel{z-index:100004}
       liveFit(e, now);
       var cost = liveDraw(e, now);
       e.cost = e.cost * 0.8 + cost * 0.2;
-      e.gap = e.cost > 22 ? 66 : (e.cost > 11 ? 40 : (e.cost < 7 ? 15 : e.gap));   // full speed when light, ~25 fps medium, ~15 fps heavy
+      e.gap = e.cost > 22 ? 66 : (e.cost > 11 ? 40 : (e.cost < 7 ? 15 : e.gap));
+      if (e.clip && e.clip.vid && e.gap < 30) e.gap = 30;   // a video only has ~30 new pictures a second: drawing more is wasted work   // full speed when light, ~25 fps medium, ~15 fps heavy
     });
     if (awake) liveKick();   // every clip paused: the loop stops until something resumes
   }
@@ -90362,6 +90486,7 @@ html.spp-open #sayla-panel{z-index:100004}
   // Re-opens a live clip that is already on the page inside Showcase, exactly as it was made (photos + every setting).
   window.sppEditLive = async function (idx, item) {
     var clip = item && item.clip; if (!clip) return;
+    if (clip.vid) { toast('This is an uploaded clip. Use the sparkle button to add a shape or filter.', 'info'); return; }
     try {
       window.sppOpen(); S.editTarget = { idx: idx, id: item.id };
       Object.keys(clip.o || {}).forEach(function (k) { if (k in S.o) S.o[k] = clip.o[k]; });
@@ -90461,6 +90586,64 @@ html.spp-open #sayla-panel{z-index:100004}
     if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
     sppClose();
     say((multi ? 'Live reel placed (' + clip.gal.length + ' photos). ' : 'Live clip placed. ') + 'It keeps playing on the page and in the slideshow preview. Download this document as an MP4 presentation (Export, Slideshow Clip).', 'success');
+  };
+
+  /* ───── UPLOAD A VIDEO CLIP ─────
+     The ORIGINAL video is kept (nothing is re-sampled), so the page, the slideshow preview and the MP4 export all
+     show it at full quality and full smoothness. Size control: file up to 30 MB, and only the first 30 seconds play
+     (same as the export limit). The file is stored on this device next to the document, and the clip on the page
+     only carries a small reference to it, so autosave, undo and duplicate stay fast. */
+  var CLIP_UP = { maxBytes: 30 * 1024 * 1024, maxSecs: 30, maxPerPage: 3, maxTotalBytes: 90 * 1024 * 1024 };
+  // Browser safety: how many uploaded clips this document already holds (all pages) and how heavy they are together.
+  function clipUsage(pageIdx) {
+    var n = 0, bytes = 0, seen = {};
+    (pdfed.pages || []).forEach(function (pg, i) { ((pg && pg.placedImages) || []).forEach(function (it) { if (it && it.clip && it.clip.vid) { if (i === pageIdx) n++; if (!seen[it.clip.vid.id]) { seen[it.clip.vid.id] = 1; bytes += it.clip.vid.bytes || 0; } } }); });
+    return { onPage: n, bytes: bytes };
+  }
+  window.pdfedTriggerClipInsert = function () { var i = document.getElementById('pdfedClipInsertInput'); if (i) i.click(); };
+  window.pdfedLoadInsertClip = async function (e) {
+    var file = e.target.files && e.target.files[0]; e.target.value = ''; if (!file) return;
+    if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages[pdfed.active]) { toast('Open or create a page first, then add the clip to it', 'info'); return; }
+    if (!/^video\//.test(file.type) && !/\.(mp4|webm|mov|m4v)$/i.test(file.name)) { toast('Please pick a video file (MP4, WebM or MOV)', 'error'); return; }
+    if (file.size > CLIP_UP.maxBytes) { toast('That clip is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is 30 MB, so please trim or compress it first', 'error'); return; }
+    var use = clipUsage(pdfed.active);
+    if (use.onPage >= CLIP_UP.maxPerPage) { toast('This page already has ' + CLIP_UP.maxPerPage + ' video clips. Please remove one or use another page, so the browser stays smooth', 'error'); return; }
+    if (use.bytes + file.size > CLIP_UP.maxTotalBytes) { toast('This document already holds ' + (use.bytes / 1048576).toFixed(0) + ' MB of clips. The total limit is 90 MB, so please remove one first', 'error'); return; }
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        var q = await navigator.storage.estimate();
+        if (q && q.quota && (q.quota - (q.usage || 0)) < file.size * 2.5) { toast('This browser is almost out of storage space for this clip. Free some space and try again', 'error'); return; }
+      }
+    } catch (qe) {}
+    var url = URL.createObjectURL(file);
+    try {
+      toast('Reading your clip, one moment', 'info');
+      var v = await makeVideo(url); if (!v) throw new Error('decode');
+      var dur = v.duration, vw = v.videoWidth, vh = v.videoHeight;
+      if (!isFinite(dur) || dur <= 0 || !vw || !vh) throw new Error('decode');
+      // Poster: a still picture of the clip, used for thumbnails and anywhere a page is flattened.
+      await new Promise(function (res) { var d = false, f = function () { if (!d) { d = true; res(); } }; v.addEventListener('seeked', f); setTimeout(f, 3000); v.currentTime = Math.min(0.3, dur / 3); });
+      var pk = Math.min(1, 800 / Math.max(vw, vh)), pc = document.createElement('canvas'); pc.width = Math.max(2, Math.round(vw * pk)); pc.height = Math.max(2, Math.round(vh * pk));
+      pc.getContext('2d').drawImage(v, 0, 0, pc.width, pc.height);
+      var poster = pc.toDataURL('image/jpeg', 0.86);
+      var id = 'vid_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), stored = true;
+      VIDX.blobs.set(id, file);
+      try { await vidPut(id, file); } catch (se) { stored = false; console.warn('[Workspace] could not store the clip file', se); }
+      var clip = { v: 1, cut: '', vid: { id: id, name: file.name, w: vw, h: vh, dur: dur, bytes: file.size }, edge: [70, 70, 70], bg: { r: 240, g: 242, b: 246 },
+        o: { secs: Math.min(dur, CLIP_UP.maxSecs), ratio: '16:9' }, dims: { p: [vw, vh], e: [vw, vh] } };
+      var idx = pdfed.active, pg = pdfed.pages[idx], pcv = document.getElementById('pdfedPageCanvas');
+      var pw = (pcv && pcv.width) || 800, ph = (pcv && pcv.height) || 1100, ar = vw / vh;
+      var w = Math.round(Math.min(pw * 0.8, ph * 0.8 * ar)), h = Math.round(w / ar);
+      pdfedAnnotState.placedImgSeq++;
+      (pg.placedImages = pg.placedImages || []).push({ id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: poster, clip: clip,
+        x: Math.round((pw - w) / 2), y: Math.round((ph - h) / 2), w: w, h: h, locked: false, zIndex: pdfedNextZ(pg), kind: 'image' });
+      if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
+      if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
+      toast((dur > CLIP_UP.maxSecs ? 'Clip added. Only the first 30 seconds are used (limit). ' : 'Clip added. ') + (stored ? 'It plays at full quality and exports in the MP4 slideshow.' : 'It plays now, but this browser could not keep the file, so it may not survive a reload.'), stored ? 'success' : 'info');
+    } catch (err) {
+      console.error('Clip upload failed', err);
+      toast('Could not read that video. Try an MP4 (H.264) or WebM file.', 'error');
+    } finally { URL.revokeObjectURL(url); }
   };
 
   ['sppPlaceOnPage', 'sppPlaceLiveOnPage'].forEach(function (name) {
