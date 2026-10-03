@@ -17308,6 +17308,7 @@ function reshapeModalImg() {
 function openReshape() {
   if (state.currentEditIndex === null) { toast('Open an image in the editor first', 'error'); return; }
   reshape.idx = state.currentEditIndex;
+  reshape.liveClip = false;
   reshape.placedRef = null;
   reshape.shapeId = 'circle';
   reshape.bevel = false;
@@ -17327,6 +17328,8 @@ function openReshape() {
 function openReshapeForPlaced(pageIdx, item, e) {
   if (e) e.stopPropagation();
   if (!item) { toast('Image not found', 'error'); return; }
+  if (item.clip && typeof sppLiveFrame === 'function') { pdfedLiveOpenReshape(pageIdx, item); return; }   // live clip: shape it LIVE, never bake
+  reshape.liveClip = false;
   reshape.idx = null;
   reshape.placedRef = { pageIdx, item };
   reshape.shapeId = 'circle';
@@ -17442,6 +17445,7 @@ function rshBuildBevelGradient(ctx, style) {
 function applyReshapeConfirm() {
   if (reshape.idx === null && !reshape.placedRef) return;
   const shape = rshAllShapes().find(s => s.id === reshape.shapeId) || RSH_SHAPES[0];
+  if (reshape.liveClip && reshape.placedRef && reshape.placedRef.item && reshape.placedRef.item.clip) { pdfedLiveApplyModalShape(shape); return; }
   const srcImg = new Image();
   srcImg.onload = () => {
     const w = srcImg.naturalWidth, h = srcImg.naturalHeight;
@@ -18929,8 +18933,15 @@ function pdfedDesignApplyFade() {
   const pageIdx = pdfed.active;
   const preset = pdfedDesignState.preset, strength = pdfedDesignState.strength;
   const presetMeta = PDFED_DESIGN_PRESETS.find(p => p.id === preset) || PDFED_DESIGN_PRESETS[0];
+  // Live clips take the filter LIVE (drawn on every frame, they keep playing); only still images are baked.
+  const liveSel = items.filter(it => it.clip), stillItems = items.filter(it => !it.clip);
+  if (liveSel.length) {
+    pdfedLiveApplyFilter(liveSel, preset, strength, 'Filter on live clip');
+    toast(presetMeta.name + ' applied to ' + (liveSel.length > 1 ? liveSel.length + ' live clips' : 'the live clip') + ', it keeps playing', 'success');
+    if (!stillItems.length) return;
+  }
 
-  Promise.all(items.map(item => new Promise((resolve, reject) => {
+  Promise.all(stillItems.map(item => new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const w = img.naturalWidth, h = img.naturalHeight;
@@ -19518,6 +19529,22 @@ async function pdfedSaylaReshapeImage(p) {
   const changes = []; const notes = []; let focusNote = '';
   for (let ti = 0; ti < targets.length; ti++) {
     const t = targets[ti];
+    if (t.kind === 'placed' && t.item.clip) {
+      // LIVE CLIP: the shape is stored on the clip and drawn on every frame, so it keeps playing inside the shape.
+      await sppLiveReady(t.item.clip);
+      let lfx = 50, lfy = 50;
+      if (focusMode === 'manual') { lfx = hasFx ? Number(p.focus_x) : 50; lfy = hasFy ? Number(p.focus_y) : 50; }
+      else if ((focusMode === 'auto' || focusMode === 'face') && zoomPct > 100) {
+        try { const lf = rshSaylaFocus(await rshSaylaLoadImg(pdfedLiveBaseFrameUrl(t.item)), focusMode); lfx = lf.x; lfy = lf.y; focusNote = 'kept ' + lf.how + ' in view'; } catch (e) {}
+      }
+      const lspec = pdfedLiveBuildShape(shape, { inset: p.shape_inset_pct, rot: p.shape_rotate_deg, flipH: p.shape_flip_h === true, flipV: p.shape_flip_v === true,
+        zoom: zoomPct, fx: lfx, fy: lfy, bevel: bevel, bevelStyle: bevelStyle, border: borderColor, borderW: borderWidth, shadow: shadow, keep: keep });
+      const lprev = pdfedLiveClone(t.item.clip.look) || {};
+      const lbox = keep ? pdfedLiveKeepBox(t.item, lspec) : null;
+      changes.push({ t: t, live: true, prevLook: lprev, nextLook: Object.assign({}, lprev, { shape: lspec }),
+        prevBox: { x: t.item.x, y: t.item.y, w: t.item.w, h: t.item.h }, nextBox: lbox || { x: t.item.x, y: t.item.y, w: t.item.w, h: t.item.h } });
+      continue;
+    }
     const src = t.kind === 'placed' ? t.item.dataUrl : state.extractedImages[t.idx].dataUrl;
     const img = await rshSaylaLoadImg(src);
     let fx = 50, fy = 50;
@@ -19545,7 +19572,8 @@ async function pdfedSaylaReshapeImage(p) {
   }
   const applyAll = function (which) {
     changes.forEach(function (c) {
-      if (c.t.kind === 'placed') Object.assign(c.t.item, c[which]);
+      if (c.live) { if (c[which + 'Box']) Object.assign(c.t.item, c[which + 'Box']); pdfedLiveLookSet(c.t.item, c[which + 'Look']); }
+      else if (c.t.kind === 'placed') Object.assign(c.t.item, c[which]);
       else { const im = state.extractedImages[c.t.idx]; if (im) Object.assign(im, c[which]); }
     });
     if (pageIdx >= 0) { pdfedMarkModified(pageIdx); pdfedRenderPlacedImages(pageIdx); }
@@ -19566,6 +19594,7 @@ async function pdfedSaylaReshapeImage(p) {
   if (focusNote) bits.push(focusNote);
   if (bevel) bits.push(bevelStyle + ' bevel rim'); else if (borderColor) bits.push('a ' + borderColor + ' border');
   if (shadow) bits.push('soft shadow');
+  if (changes.some(function(c){ return c.live; })) bits.push('applied live to the clip, so it keeps playing and exports exactly like this');
   if (built && built._notes && built._notes.length) notes.push('Note: ' + built._notes.join('; ') + '.');
   return bits.join(', ') + '.' + (notes.length ? ' ' + notes.join(' ') : '');
 }
@@ -19637,6 +19666,214 @@ function pdfedSaylaGalleryContext() {
   } catch (e) { return undefined; }
 }
 
+// ─── LIVE CLIP LOOK (build 291) ─────────────────────────────────────────
+// A live clip keeps moving, so a baked reshape or filter (which only repaints its still poster) cannot work on it.
+// The shape and the filter are stored on the clip spec instead, as clip.look = { shape, fx }, and sppLiveFrame applies them on
+// EVERY frame: page canvas, thumbnails, slideshow preview and MP4 export all draw through it, so what you see is what exports.
+//   look.shape = { id, name, d, inset, rot, flipH, flipV, zoom, fx, fy, bevel, bevelStyle, border, borderW, shadow, bb? }
+//   look.fx    = { preset, strength }       (same presets and strength as the Design panel)
+// Nothing is baked, so a look can be changed or removed at any time. Undo/redo, duplicate, page copy and save all carry it
+// because it lives inside the clip object.
+function pdfedLiveClone(o) { return o ? JSON.parse(JSON.stringify(o)) : null; }
+function pdfedLiveFindPage(item) {
+  if (typeof pdfed === 'undefined' || !pdfed.pages) return -1;
+  for (let i = 0; i < pdfed.pages.length; i++) { const l = pdfed.pages[i] && pdfed.pages[i].placedImages; if (l && l.indexOf(item) !== -1) return i; }
+  return -1;
+}
+function pdfedLiveShapeBBox(d, o) {
+  const inset = rshNum(o.inset, 30, 100, 100) / 100;
+  const M = new DOMMatrix().translate(500, 500).rotate(o.rot || 0).scale((o.flipH ? -1 : 1) * inset, (o.flipV ? -1 : 1) * inset).translate(-500, -500);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  rshPathSamples(d, 240).forEach(function (p) {
+    const q = M.transformPoint(new DOMPoint(p.x, p.y));
+    x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+  });
+  return [x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0)];
+}
+// shape = { id, name, d }.  o = { inset, rot, flipH, flipV, zoom, fx, fy, bevel, bevelStyle, border, borderW, shadow, keep }
+function pdfedLiveBuildShape(shape, o) {
+  o = o || {};
+  const spec = {
+    id: shape.id, name: shape.name, d: shape.d,
+    inset: Math.round(rshNum(o.inset, 30, 100, 100)), rot: rshNum(o.rot, -360, 360, 0), flipH: o.flipH === true, flipV: o.flipV === true,
+    zoom: Math.round(rshNum(o.zoom, 100, 400, 100)), fx: rshNum(o.fx, 0, 100, 50), fy: rshNum(o.fy, 0, 100, 50),
+    bevel: o.bevel === true, bevelStyle: ['gold', 'silver', 'graphite'].indexOf(o.bevelStyle) !== -1 ? o.bevelStyle : 'gold',
+    border: /^#[0-9a-fA-F]{6}$/.test(o.border || '') ? o.border : '', borderW: 0, shadow: o.shadow === true
+  };
+  if (spec.border) spec.borderW = Math.round(rshNum(o.borderW, 0, 100, 16));
+  if (o.keep === true) spec.bb = pdfedLiveShapeBBox(spec.d, spec);
+  return spec;
+}
+// With keep-proportions the clip's frame takes the shape's own proportions (a circle becomes a real circle), centred where it was.
+function pdfedLiveKeepBox(item, spec) {
+  if (!spec.bb) return null;
+  const A = spec.bb[2] / spec.bb[3]; if (!(A > 0.02 && A < 50)) return null;
+  let nw = item.h * A, nh = item.h; if (nw > item.w) { nw = item.w; nh = item.w / A; }
+  nw = Math.max(12, Math.round(nw)); nh = Math.max(12, Math.round(nh));
+  return { x: Math.round(item.x + (item.w - nw) / 2), y: Math.round(item.y + (item.h - nh) / 2), w: nw, h: nh };
+}
+function pdfedLiveFrameCanvas(item, noLook, tSec) {
+  const ar = (item.w > 0 && item.h > 0) ? item.w / item.h : sppLiveAspect(item.clip), long = 800;
+  const w = ar >= 1 ? long : Math.max(2, Math.round(long * ar)), h = ar >= 1 ? Math.max(2, Math.round(long / ar)) : long;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const secs = (item.clip.o && item.clip.o.secs) || 4;
+  const ok = sppLiveFrame(item.clip, c.getContext('2d'), w, h, tSec == null ? Math.min(secs * 0.5, 2.5) : tSec, noLook === true);
+  return ok ? c : null;
+}
+// The clip's own frame WITHOUT any look: what the Reshape window shows to cut from.
+function pdfedLiveBaseFrameUrl(item) { const c = pdfedLiveFrameCanvas(item, true); return c ? c.toDataURL('image/png') : ''; }
+// The still poster is what flattened views fall back on, so it is repainted with the look on.
+async function pdfedLiveRepaintPoster(item) {
+  try {
+    await sppLiveReady(item.clip);
+    const c = pdfedLiveFrameCanvas(item, false);
+    if (c) item.dataUrl = c.toDataURL('image/png');
+  } catch (e) { console.warn('[Workspace] could not repaint the live clip poster', e); }
+}
+function pdfedLiveLookSet(item, look) {
+  if (!item || !item.clip) return;
+  if (look && (look.shape || look.fx)) item.clip.look = look; else delete item.clip.look;
+  const pi = pdfedLiveFindPage(item);
+  if (pi >= 0) { pdfedMarkModified(pi); pdfedRenderPlacedImages(pi); }
+  if (typeof sppLiveRedraw === 'function') sppLiveRedraw(item.clip);
+  pdfedLiveRepaintPoster(item);
+}
+// entries: [{ item, prevLook, nextLook, prevBox?, nextBox? }]
+function pdfedLivePush(label, entries) {
+  const run = function (which) {
+    entries.forEach(function (e) { const b = e[which + 'Box']; if (b) Object.assign(e.item, b); pdfedLiveLookSet(e.item, e[which + 'Look']); });
+  };
+  pushAppHistory({
+    label: label,
+    undo: function () { run('prev'); toast(label + ' undone', 'info'); },
+    redo: function () { run('next'); toast(label + ' reapplied', 'success'); }
+  });
+}
+function pdfedLiveApplyFilter(items, presetId, strength, label) {
+  const entries = [];
+  items.forEach(function (it) {
+    if (!it.clip) return;
+    const prev = pdfedLiveClone(it.clip.look) || {};
+    const next = Object.assign({}, prev, { fx: { preset: presetId, strength: strength } });
+    entries.push({ item: it, prevLook: prev, nextLook: next });
+    pdfedLiveLookSet(it, next);
+  });
+  if (entries.length) pdfedLivePush(label || 'Filter on live clip', entries);
+  return entries.length;
+}
+async function pdfedLiveOpenReshape(pageIdx, item) {
+  try { await sppLiveReady(item.clip); } catch (e) {}
+  const url = pdfedLiveBaseFrameUrl(item);
+  if (!url) { toast('This live clip is still loading, try again in a moment', 'info'); return; }
+  const cur = item.clip.look && item.clip.look.shape;
+  reshape.idx = null; reshape.placedRef = { pageIdx: pageIdx, item: item }; reshape.liveClip = true;
+  reshape.shapeId = cur ? cur.id : 'circle'; reshape.bevel = false; reshape.bevelStyle = 'gold'; reshape.srcDataUrl = url;
+  openReshapeStage(url);
+}
+function pdfedLiveApplyModalShape(shape) {
+  const item = reshape.placedRef.item, prev = pdfedLiveClone(item.clip.look) || {};
+  const spec = pdfedLiveBuildShape(shape, { bevel: reshape.bevel, bevelStyle: reshape.bevelStyle });
+  const next = Object.assign({}, prev, { shape: spec });
+  pdfedLiveLookSet(item, next);
+  pdfedLivePush('Reshape live clip', [{ item: item, prevLook: prev, nextLook: next }]);
+  swTrack('image_shaper_used', { module: 'pdf_editor', shape: shape.custom ? 'custom' : shape.id, bevel: !!reshape.bevel, live: true });
+  closeReshape();
+  toast('Shape applied to the live clip, ' + shape.name + '. It keeps playing.', 'success');
+}
+// Small popover on a live clip: shape, filter, strength, reset.
+let pdfedLiveLookCtx = null;
+function pdfedLiveCloseLookPopover() { const p = document.getElementById('pdfedLiveLookPop'); if (p) p.style.display = 'none'; pdfedLiveLookCtx = null; }
+function pdfedLiveOpenLookPopover(ev, idx, item) {
+  ev.stopPropagation();
+  if (!item || !item.clip) return;
+  let pop = document.getElementById('pdfedLiveLookPop');
+  if (!pop) {
+    pop = document.createElement('div'); pop.id = 'pdfedLiveLookPop';
+    pop.style.cssText = "position:fixed;z-index:9999;display:none;flex-direction:column;gap:8px;width:250px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;box-shadow:0 6px 20px rgba(0,0,0,0.3);font-family:'Inter',sans-serif;font-size:11px;color:var(--text)";
+    document.body.appendChild(pop);
+  }
+  const look0 = item.clip.look || {};
+  const fxNow = look0.fx || null, shNow = look0.shape || null;
+  const sel = '<select id="llFx" style="flex:1;min-width:0;background:var(--bg3,transparent);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 4px;font-size:11px"><option value="">None</option>' +
+    PDFED_DESIGN_PRESETS.map(function (p) { return '<option value="' + p.id + '"' + (fxNow && fxNow.preset === p.id ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') + '</select>';
+  const btn = 'style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer"';
+  pop.innerHTML =
+    '<div style="font-weight:700;color:var(--text2)">Live clip look <span style="font-weight:500">(it keeps playing)</span></div>' +
+    '<div style="display:flex;align-items:center;gap:6px"><span style="width:50px;color:var(--text2)">Shape</span><span id="llShapeName" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (shNow ? String(shNow.name || shNow.id).replace(/</g, '&lt;') : 'None') + '</span><button id="llShapeBtn" ' + btn + '>Choose</button>' + (shNow ? '<button id="llShapeX" ' + btn + '>Remove</button>' : '') + '</div>' +
+    '<div style="display:flex;align-items:center;gap:6px"><span style="width:50px;color:var(--text2)">Filter</span>' + sel + '</div>' +
+    '<div style="display:flex;align-items:center;gap:6px"><span style="width:50px;color:var(--text2)">Strength</span><input id="llStr" type="range" min="0" max="100" step="1" value="' + (fxNow ? fxNow.strength : 50) + '" style="flex:1" onmousedown="event.stopPropagation()"><span id="llStrV" style="width:26px;text-align:right">' + (fxNow ? fxNow.strength : 50) + '</span></div>' +
+    '<div style="display:flex;justify-content:flex-end"><button id="llReset" ' + btn + '>Reset look</button></div>';
+  pop.style.display = 'flex';
+  let left = ev.clientX - 200, top = ev.clientY + 14;
+  if (left + 262 > window.innerWidth - 8) left = window.innerWidth - 270;
+  if (left < 8) left = 8;
+  if (top + 190 > window.innerHeight - 8) top = Math.max(8, ev.clientY - 200);
+  pop.style.left = left + 'px'; pop.style.top = top + 'px';
+  pdfedLiveLookCtx = { item: item, pre: pdfedLiveClone(item.clip.look) || {} };
+  const $ = function (id) { return pop.querySelector('#' + id); };
+  const cur = function () { return pdfedLiveClone(item.clip.look) || {}; };
+  const commit = function (label, next) {
+    const prev = pdfedLiveLookCtx ? pdfedLiveLookCtx.pre : {};
+    pdfedLiveLookSet(item, next);
+    pdfedLivePush(label, [{ item: item, prevLook: prev, nextLook: pdfedLiveClone(next) || {} }]);
+    if (pdfedLiveLookCtx) pdfedLiveLookCtx.pre = pdfedLiveClone(next) || {};
+  };
+  $('llShapeBtn').onclick = function () { pdfedLiveCloseLookPopover(); pdfedLiveOpenReshape(pdfedLiveFindPage(item), item); };
+  if ($('llShapeX')) $('llShapeX').onclick = function () { const n = cur(); delete n.shape; commit('Remove live clip shape', n); pdfedLiveCloseLookPopover(); };
+  $('llFx').onchange = function () {
+    const n = cur(), v = this.value;
+    if (v) n.fx = { preset: v, strength: parseInt($('llStr').value, 10) || 0 }; else delete n.fx;
+    commit(v ? 'Filter on live clip' : 'Remove live clip filter', n);
+  };
+  $('llStr').oninput = function () {
+    $('llStrV').textContent = this.value;
+    const v = $('llFx').value; if (!v) return;
+    const n = cur(); n.fx = { preset: v, strength: parseInt(this.value, 10) || 0 };
+    item.clip.look = n; sppLiveRedraw(item.clip);          // live while dragging, no history entry yet
+  };
+  $('llStr').onchange = function () {
+    const v = $('llFx').value; if (!v) return;
+    const n = cur(); n.fx = { preset: v, strength: parseInt(this.value, 10) || 0 };
+    commit('Filter strength on live clip', n);
+  };
+  $('llReset').onclick = function () { commit('Reset live clip look', {}); pdfedLiveCloseLookPopover(); };
+}
+document.addEventListener('mousedown', function (e) {
+  const p = document.getElementById('pdfedLiveLookPop');
+  if (!p || p.style.display === 'none') return;
+  if (e.target.closest('#pdfedLiveLookPop') || e.target.closest('.pdfed-live-look-btn')) return;
+  pdfedLiveCloseLookPopover();
+});
+
+// Sayla: take the live look off a live clip.
+async function pdfedSaylaClearLiveLook(p) {
+  p = p || {};
+  const ap = pdfedSaylaActivePage(p), pg = ap.pg, imgs = (pg.placedImages || []).filter(function (it) { return it.clip; });
+  if (!imgs.length) throw new Error('there is no live clip on this page');
+  let items = [];
+  if (p.target === 'all') items = imgs;
+  else if (p.id || (p.which !== undefined && p.which !== null && p.which !== '')) { const it = pdfedSaylaFindImage(pg, p); if (it && it.clip) items = [it]; }
+  else {
+    const sel = (ap.idx === pdfed.active) ? pdfedDesignGetSelectedImageItems().filter(function (it) { return it.clip; }) : [];
+    items = sel.length ? sel : (imgs.length === 1 ? imgs : []);
+  }
+  if (!items.length) throw new Error(imgs.length > 1 ? 'there are several live clips on this page, say which one (or say all of them)' : 'that image is not a live clip');
+  const what = ['shape', 'filter', 'both'].indexOf(p.what) !== -1 ? p.what : 'both';
+  const entries = [];
+  items.forEach(function (it) {
+    const prev = pdfedLiveClone(it.clip.look) || {};
+    if (!prev.shape && !prev.fx) return;
+    const next = pdfedLiveClone(prev);
+    if (what !== 'filter') delete next.shape;
+    if (what !== 'shape') delete next.fx;
+    entries.push({ item: it, prevLook: prev, nextLook: next });
+    pdfedLiveLookSet(it, next);
+  });
+  if (!entries.length) return 'That live clip had no shape or filter on it.';
+  pdfedLivePush('Clear live clip look (Sayla)', entries);
+  return (what === 'both' ? 'Shape and filter' : (what === 'shape' ? 'Shape' : 'Filter')) + ' removed from ' + (entries.length > 1 ? entries.length + ' live clips' : 'the live clip') + '. It keeps playing.';
+}
+
 async function pdfedSaylaApplyImageDesign(p) {
   p = p || {};
   const preset = PDFED_DESIGN_PRESETS.find(pr => pr.id === p.preset);
@@ -19653,7 +19890,19 @@ async function pdfedSaylaApplyImageDesign(p) {
   }
   const pageIdx = pdfed.active;
 
-  const results = await Promise.all(items.map(item => new Promise((resolve, reject) => {
+  // Live clips get the filter LIVE (drawn on every frame, they keep playing); only still images are baked.
+  const liveItems = items.filter(it => it.clip), stillOnly = items.filter(it => !it.clip);
+  if (liveItems.length) {
+    pdfedLiveApplyFilter(liveItems, preset.id, strength, preset.name + ' (Sayla)');
+    if (!stillOnly.length) {
+      pdfedDesignState.preset = preset.id; pdfedDesignState.strength = strength;
+      if (typeof pdfedDesignRenderGrid === 'function') pdfedDesignRenderGrid();
+      swTrack('sayla_image_design_applied', { module: 'pdf_editor', preset: preset.id, strength: strength, count: items.length, live: true });
+      return preset.name + ' applied live to ' + (liveItems.length > 1 ? liveItems.length + ' live clips' : 'the live clip') + ', it keeps playing and exports the same way.';
+    }
+  }
+
+  const results = await Promise.all(stillOnly.map(item => new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const w = img.naturalWidth, h = img.naturalHeight;
@@ -45242,6 +45491,12 @@ function pdfedRenderPlacedImages(idx) {
         editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
         editBtn.onclick = (ev) => { ev.stopPropagation(); if (typeof sppEditLive === 'function') sppEditLive(idx, item); };
         badgeRow.appendChild(editBtn);
+        const lookBtn = document.createElement('button');
+        lookBtn.title = 'Shape and filter for this live clip';
+        lookBtn.className = 'pdfed-badge-btn is-premium pdfed-live-look-btn' + (item.clip.look ? ' sp-has-work' : '');
+        lookBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
+        lookBtn.onclick = (ev) => { ev.stopPropagation(); pdfedLiveOpenLookPopover(ev, idx, item); };
+        badgeRow.appendChild(lookBtn);
       }
       if (!item.clip && item.dataUrl) {   // every image has its own Showcase; its work is saved on the image itself
         const scBtn = document.createElement('button');
@@ -82219,6 +82474,8 @@ if (document.readyState === 'loading') {
               decor: (typeof pdfedSaylaIsDecor === 'function' && pdfedSaylaIsDecor(im)) || undefined,
               x: im.x, y: im.y, w: im.w, h: im.h,
               shapedAs: im.shapedAs || undefined,
+              liveClip: im.clip ? true : undefined,
+              look: (im.clip && im.clip.look) ? { shape: (im.clip.look.shape && (im.clip.look.shape.name || im.clip.look.shape.id)) || undefined, filter: (im.clip.look.fx && im.clip.look.fx.preset) || undefined, strength: (im.clip.look.fx && im.clip.look.fx.strength) } : undefined,
               locked: !!im.locked,
               opacityPct: Math.round((typeof pdfedGetOpacity === 'function' ? pdfedGetOpacity(im) : (im.opacity != null ? im.opacity : 1)) * 100)
             });
@@ -82287,6 +82544,7 @@ if (document.readyState === 'loading') {
           showcaseHands: !!window.sppSayla,
           // Build 275: presence of imageShaper is how the Worker knows this client has the full shape builder.
           imageShaper: (typeof pdfedSaylaShaperContext === 'function') ? pdfedSaylaShaperContext() : undefined,
+          liveClipLook: true,
           galleryImages: (typeof pdfedSaylaGalleryContext === 'function') ? pdfedSaylaGalleryContext() : undefined,
           // Build 242: real page size in canvas px, the page's own background
           // colour, and how far down the page existing content already reaches
@@ -82346,6 +82604,7 @@ if (document.readyState === 'loading') {
           activePageNumber: 0,
           noDocumentOpen: true,
           imageShaper: (typeof pdfedSaylaShaperContext === 'function') ? pdfedSaylaShaperContext() : undefined,
+          liveClipLook: true,
           galleryImages: (typeof pdfedSaylaGalleryContext === 'function') ? pdfedSaylaGalleryContext() : undefined
         };
       }
@@ -83468,6 +83727,15 @@ if (document.readyState === 'loading') {
         }
         const sh = pdfedSaylaFindReshapeShape(p.shape || p.shape_id || p.shapeId || p.name || '');
         return 'Reshape the image into a ' + (sh ? sh.name : (p.shape || 'new')) + ' shape' + (p.target === 'all' ? ' (every image)' : '') + '.';
+      }
+    },
+    // Build 291: take the live shape / filter off a live clip (applying one is pdfed_reshape_image / pdfed_apply_image_design).
+    pdfed_clear_live_look: {
+      risk: 'safe',
+      run: async function(p){ return await pdfedSaylaClearLiveLook(p || {}); },
+      label: function(p){
+        p = p || {};
+        return 'Remove the live ' + (p.what === 'shape' ? 'shape' : (p.what === 'filter' ? 'filter' : 'shape and filter')) + ' from the clip.';
       }
     },
     pdfed_create_custom_shape: {
@@ -89787,9 +90055,67 @@ html.spp-open #sayla-panel{z-index:100004}
   window.sppLiveIsReady = function (clip) { var rt = clipRt(clip); return !!(rt.ready && (rt.cut || (rt.gal && rt.gal.length))); };
   window.sppLiveAspect = function (clip) { var d = (clip.dims && clip.dims.e) || EXPORT[(clip.o && clip.o.ratio)] || EXPORT['16:9']; return d[0] / d[1]; };
   // Draws the clip at time tSec (seconds since it first appeared) onto ctx. Returns false until its cut-out has decoded.
-  window.sppLiveFrame = function (clip, ctx, W, H, tSec) {
+  /* LIVE LOOK: a live clip can carry clip.look = { shape, fx } (an Image Reshaper outline and/or a Design filter).
+     It is applied on EVERY frame here, so the page canvas, thumbnails, slideshow preview and MP4 export all show the same thing.
+     The clip is drawn on a private layer first, the filter runs on that layer, then the layer is cut into the shape. */
+  var LOOKC = new WeakMap();
+  function lookLayer(clip, key, W, H) {
+    var m = LOOKC.get(clip); if (!m) { m = {}; LOOKC.set(clip, m); }
+    var c = m[key]; if (!c) c = m[key] = document.createElement('canvas');
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    return c;
+  }
+  function lookReset(x) { x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.filter = 'none'; x.shadowColor = 'rgba(0,0,0,0)'; x.shadowBlur = 0; x.shadowOffsetX = 0; x.shadowOffsetY = 0; }
+  function lookClamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function lookCompose(clip, ctx, A, W, H, look) {
+    var fx = look.fx, sh = look.shape;
+    if (fx && fx.preset && typeof pdfedDesignApplyPresetToCtx === 'function') {
+      // grain and star specks use Math.random: a fixed seed per frame keeps them steady instead of flickering
+      var rnd = Math.random, seed = 1234567;
+      Math.random = function () { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+      try { pdfedDesignApplyPresetToCtx(A.getContext('2d'), W, H, fx.preset, fx.strength == null ? 50 : fx.strength); }
+      finally { Math.random = rnd; lookReset(A.getContext('2d')); }
+    }
+    lookReset(ctx); ctx.clearRect(0, 0, W, H);
+    if (!sh || !sh.d) { ctx.drawImage(A, 0, 0); return; }
+    var B = lookLayer(clip, 'b', W, H), bx = B.getContext('2d');
+    lookReset(bx); bx.clearRect(0, 0, W, H);
+    var inset = lookClamp(sh.inset == null ? 100 : sh.inset, 30, 100) / 100;
+    var shapeM = new DOMMatrix().translate(500, 500).rotate(sh.rot || 0).scale((sh.flipH ? -1 : 1) * inset, (sh.flipV ? -1 : 1) * inset).translate(-500, -500);
+    var pad = (sh.bevel || sh.shadow) ? Math.round(Math.min(W, H) * 0.05) : 0;
+    var iw = W - 2 * pad, ih = H - 2 * pad, bb = sh.bb, ux = bb ? bb[2] : 1000, uy = bb ? bb[3] : 1000;
+    var base = new DOMMatrix().translate(pad, pad).scale(iw / ux, ih / uy);
+    if (bb) base = base.translate(-bb[0], -bb[1]);
+    var path = new Path2D(); path.addPath(new Path2D(sh.d), base.multiply(shapeM));
+    var zoom = lookClamp(sh.zoom || 100, 100, 400) / 100, rw = W / zoom, rh = H / zoom;
+    var cx = (sh.fx == null ? 50 : sh.fx) / 100 * W, cy = (sh.fy == null ? 50 : sh.fy) / 100 * H;
+    var x0 = lookClamp(cx - rw / 2, 0, W - rw), y0 = lookClamp(cy - rh / 2, 0, H - rh);
+    bx.save(); bx.clip(path); bx.drawImage(A, x0, y0, rw, rh, pad, pad, iw, ih);
+    if (sh.border && sh.borderW > 0) { bx.lineJoin = 'round'; bx.strokeStyle = sh.border; bx.lineWidth = sh.borderW / 1000 * Math.min(iw, ih) * 2; bx.stroke(path); }
+    bx.restore();
+    if (sh.bevel && typeof rshBuildBevelGradient === 'function') {
+      var avg = (iw / ux + ih / uy) / 2, proxy = { createLinearGradient: function () { return bx.createLinearGradient(0, 0, W, H); } };
+      bx.save(); bx.lineJoin = 'round';
+      bx.strokeStyle = rshBuildBevelGradient(proxy, sh.bevelStyle || 'gold'); bx.lineWidth = 20 * avg; bx.stroke(path);
+      bx.strokeStyle = 'rgba(255,255,255,0.65)'; bx.lineWidth = 5 * avg; bx.stroke(path);
+      bx.restore();
+    }
+    if (sh.shadow) { var md = Math.min(W, H); ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = md * 0.045; ctx.shadowOffsetY = md * 0.02; }
+    ctx.drawImage(B, 0, 0);
+    lookReset(ctx);
+  }
+  window.sppLiveFrame = function (clip, ctx, W, H, tSec, noLook) {
     var rt = clipRt(clip); if (!rt.ready || !(rt.cut || (rt.gal && rt.gal.length))) return false;
-    withRt(rt, function () { draw(ctx, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
+    var look = noLook ? null : clip.look;
+    if (!look || (!look.shape && !look.fx)) {
+      withRt(rt, function () { draw(ctx, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
+      return true;
+    }
+    var A = lookLayer(clip, 'a', W, H), ax = A.getContext('2d');
+    lookReset(ax); ax.clearRect(0, 0, W, H);
+    withRt(rt, function () { draw(ax, W, H, (tSec / rt.o.secs) % 1, { tAbs: tSec }); });
+    try { lookCompose(clip, ctx, A, W, H, look); }
+    catch (err) { console.warn('[Workspace] live look failed, showing the plain clip', err); lookReset(ctx); ctx.clearRect(0, 0, W, H); ctx.drawImage(A, 0, 0); }
     return true;
   };
 
@@ -89989,6 +90315,13 @@ html.spp-open #sayla-panel{z-index:100004}
     var e = ENT.get(clip);
     return (e && e.c) ? e.c : document.createElement('canvas');
   };
+  // Repaint a clip right now (used after its look changes, also while it is paused).
+  window.sppLiveRedraw = function (clip) {
+    var e = ENT.get(clip); if (!e) return;
+    e.last = 0;
+    if (e.paused) { try { liveDraw(e, performance.now()); } catch (x) {} }
+    liveKick();
+  };
   window.sppLiveMount = function (canvas, clip, posterUrl) {
     var e = ENT.get(clip), keepT0 = 0;
     if (e && e.c === canvas) { e.gone = 0; if (posterUrl) e.posterUrl = posterUrl; liveKick(); return; }
@@ -90111,9 +90444,10 @@ html.spp-open #sayla-panel{z-index:100004}
     if (tItem) {   // update the clip that is already on the page: same spot, same width, same rotation and layer
       var cx = tItem.x + tItem.w / 2, cy = tItem.y + tItem.h / 2, nw = tItem.w, nh = Math.round(nw * poster.height / poster.width);
       if (S.o.ratio === 'page') { nw = pw; nh = ph; cx = pw / 2; cy = ph / 2; }
-      delete tItem.showcase; tItem.clip = clip; tItem.dataUrl = url; tItem.w = nw; tItem.h = nh; tItem.x = Math.round(cx - nw / 2); tItem.y = Math.round(cy - nh / 2);
+      delete tItem.showcase; if (tItem.clip && tItem.clip.look) clip.look = JSON.parse(JSON.stringify(tItem.clip.look)); tItem.clip = clip; tItem.dataUrl = url; tItem.w = nw; tItem.h = nh; tItem.x = Math.round(cx - nw / 2); tItem.y = Math.round(cy - nh / 2);
       if (typeof pdfedMarkModified === 'function') pdfedMarkModified(idx);
       if (typeof pdfedRenderPlacedImages === 'function') pdfedRenderPlacedImages(idx);
+      if (clip.look && typeof pdfedLiveRepaintPoster === 'function') pdfedLiveRepaintPoster(tItem);
       sppClose();
       say('Live clip updated on your page.', 'success');
       return;
