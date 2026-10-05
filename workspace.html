@@ -83195,7 +83195,51 @@ if (document.readyState === 'loading') {
     var keep = (p.filtered_only === true && typeof kadessaFilteredRowIdxs === 'function') ? kadessaFilteredRowIdxs(ds) : null;
     if (keep) all = keep.map(function(ri){ return all[ri]; });
     var cols = [xi].concat(yis);
-    var aoa = [cols.map(function(c){ return ds.headers[c]; })].concat(all.map(function(r){ return cols.map(function(c){ return r[c]; }); }));
+    var prof = kadessaProfileColumns(ds);
+    var aggMode = String(p.aggregate || 'auto').toLowerCase();
+    var xKind = prof[xi] && prof[xi].kind;
+    var xKeys = {}, repeated = false;
+    all.forEach(function(r){ var k = String(r[xi]).trim(); if (xKeys[k]) repeated = true; xKeys[k] = 1; });
+    var aoa;
+    if (aggMode !== 'none' && (repeated || aggMode === 'count')){
+      var groups = {}, order = [];
+      var bucketMonth = (xKind === 'date' && Object.keys(xKeys).length > 31);
+      all.forEach(function(r){
+        var k = String(r[xi]).trim();
+        if (bucketMonth){ var d = new Date(k); if (!isNaN(d)) k = d.toLocaleString('en-US', { month: 'short', year: 'numeric' }); }
+        if (!groups[k]){ groups[k] = { n: 0, t: yis.map(function(){ return { sum: 0, n: 0 }; }), ts: (new Date(String(r[xi]).trim())).getTime() }; order.push(k); }
+        var g = groups[k]; g.n++;
+        yis.forEach(function(c, j){ var v = daFilterNum(r[c]); if (!isNaN(v)){ g.t[j].sum += v; g.t[j].n++; } });
+      });
+      if (xKind === 'date') order.sort(function(a, b){ return (groups[a].ts || 0) - (groups[b].ts || 0); });
+      var how = yis.map(function(c){
+        if (aggMode === 'sum' || aggMode === 'average' || aggMode === 'count') return aggMode;
+        return (prof[c] && prof[c].combine) || 'sum';
+      });
+      var body = order.map(function(k){
+        var g = groups[k];
+        return [k].concat(yis.map(function(c, j){
+          if (how[j] === 'count') return g.n;
+          if (how[j] === 'average') return g.t[j].n ? Math.round((g.t[j].sum / g.t[j].n) * 100) / 100 : 0;
+          return Math.round(g.t[j].sum * 100) / 100;
+        }));
+      });
+      // Category charts read best biggest first. Dates keep their order.
+      if (xKind !== 'date' && yis.length === 1) body.sort(function(a, b){ return b[1] - a[1]; });
+      var hdrs = [ds.headers[xi]].concat(yis.map(function(c, j){
+        return how[j] === 'count' ? 'Number of rows' : (how[j] === 'average' ? 'Average ' : 'Total ') + ds.headers[c];
+      }));
+      aoa = [hdrs].concat(body);
+      p.__aggNote = 'Grouped ' + all.length + ' rows into ' + body.length + ' ' + (bucketMonth ? 'months' : 'groups') + ' (' + how.join(', ') + ').';
+    } else {
+      aoa = [cols.map(function(c){ return ds.headers[c]; })].concat(all.map(function(r){ return cols.map(function(c){ return r[c]; }); }));
+    }
+    // Money columns get their own symbol, counts stay plain, so Units Sold is never shown as dollars.
+    if (!p.number_format){
+      var money = yis.map(function(c){ return prof[c] && prof[c].currency; }).filter(Boolean);
+      if (money.length === yis.length && money.length){ p.number_format = 'currency'; if (!p.currency_symbol) p.currency_symbol = money[0]; }
+      else if (!money.length) p.number_format = 'plain';
+    }
     kdgEnsureSection(); kdgEnsureMode('chart');
     var t = document.getElementById('dgTitleInput'); if (t) t.value = '';
     dgOnUploadParsed(aoa, ds.name || 'Table data');
@@ -83205,7 +83249,7 @@ if (document.readyState === 'loading') {
       var r = kdgSetType(type);
       if (r && r.say) notes.push(r.say);
     }
-    var style = Object.assign({}, p); delete style.x_column; delete style.y_columns; delete style.chart_type; delete style.filtered_only;
+    var style = Object.assign({}, p); delete style.x_column; delete style.y_columns; delete style.chart_type; delete style.filtered_only; delete style.aggregate; delete style.__aggNote;
     kdgApplyStyle(style, notes);
     dgRender();
     // dgMaybeSuggestMultiChart may have opened its "how do you want this charted" popup, the person already told us.
@@ -83213,7 +83257,7 @@ if (document.readyState === 'loading') {
     if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
     var plotted = (dgState.rows || []).length;
     var capNote = (dgUploadParsed && dgUploadParsed.rows && dgUploadParsed.rows.length > 40) ? 'The table has ' + dgUploadParsed.rows.length + ' rows, so the chart shows the first 40 to stay readable.' : '';
-    var msg = [capNote].concat(notes).filter(Boolean).join(' ');
+    var msg = [p.__aggNote, capNote].concat(notes).filter(Boolean).join(' ');
     return msg ? { say: msg } : null;
   }
 
@@ -83266,10 +83310,62 @@ if (document.readyState === 'loading') {
     return snap;
   }
 
+
+  // ── Build 301: data-type awareness ──────────────────────────────────────
+  // Classifies every column of a table (date / category / id / measure / text) so Kadessa can pick a chart that fits.
+  var KDG_NONADD = /price|rate|score|rating|margin|percent|%|average|avg|age\b|discount|ratio|share/i;
+  function kdgCurrencyOf(h, vals){
+    var m = String(h || '').match(/[₹$€£¥]/); if (m) return m[0];
+    for (var i = 0; i < vals.length && i < 40; i++){ var q = String(vals[i]).match(/[₹$€£¥]/); if (q) return q[0]; }
+    return '';
+  }
+  function kdgIsDateStr(v){
+    var t = String(v).trim();
+    if (!t || /^\d+(\.\d+)?$/.test(t)) return false;
+    if (/^\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}/.test(t) || /^\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}$/.test(t)) return true;
+    if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[ -,]*(\d{1,2}[ ,-]*)?\d{2,4}$/i.test(t)) return true;
+    return false;
+  }
+  function kadessaProfileColumns(ds){
+    var rows = ds.rows || [];
+    return (ds.headers || []).map(function(h, ci){
+      var vals = [], nums = [], dates = 0, uniq = {};
+      for (var ri = 0; ri < rows.length; ri++){
+        var v = rows[ri][ci];
+        if (typeof v === 'string' && v.trim().charAt(0) === '=' && typeof daFormulaDisplayValue === 'function') v = daFormulaDisplayValue(ds, ri, ci).display;
+        if (v === '' || v === null || v === undefined) continue;
+        vals.push(v);
+        var n = daFilterNum(v);
+        if (!isNaN(n) && String(v).trim() !== '') nums.push(n);
+        if (kdgIsDateStr(v)) dates++;
+        uniq[String(v).trim()] = 1;
+      }
+      var cnt = vals.length, distinct = Object.keys(uniq).length;
+      var col = { header: h, colIdx: ci, distinct: distinct, filled: cnt };
+      if (!cnt){ col.kind = 'empty'; return col; }
+      if (dates / cnt > 0.7) col.kind = 'date';
+      else if (nums.length / cnt > 0.7){
+        col.kind = 'measure';
+        col.combine = KDG_NONADD.test(String(h)) ? 'average' : 'sum';
+        col.min = Math.min.apply(null, nums); col.max = Math.max.apply(null, nums);
+        var cur = kdgCurrencyOf(h, vals); if (cur) col.currency = cur;
+        var isInt = nums.every(function(x){ return Math.round(x) === x; });
+        if (!cur && isInt) col.looksLikeCount = true;
+        if (/(^|\W)(id|no|number|code|sku)(\W|$)/i.test(String(h)) && distinct === cnt){ col.kind = 'identifier'; delete col.combine; }
+      } else {
+        if (/(^|\W)(id|no|number|code|sku|email)(\W|$)/i.test(String(h)) || (distinct === cnt && cnt > 8)) col.kind = 'identifier';
+        else if (distinct <= Math.max(12, Math.round(cnt * 0.3))) col.kind = 'category';
+        else col.kind = 'text';
+      }
+      return col;
+    });
+  }
+
   function kadessaDgDecorate(c){
     try {
       if (!c || typeof c !== 'object') return c;
       c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
+      try { var dsT = (typeof daGetActive === 'function') ? daGetActive() : null; if (dsT && dsT.headers && dsT.headers.length) c.openTable = { name: dsT.name, rowCount: (dsT.rows || []).length, columns: kadessaProfileColumns(dsT).slice(0, 30) }; } catch (e) {}
       if (c.activePanel === 'Diagrams & Graphs') c.diagram = kdgSnapshot();
       if (c.activePanel === 'Data Arrangement' && typeof daSelection !== 'undefined' && typeof daGetActive === 'function'){
         var dsx = daGetActive(), sel = [];
