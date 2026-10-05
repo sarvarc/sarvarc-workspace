@@ -13482,9 +13482,9 @@ function kadessaFilteredViewForContext(ds) {
   }
 }
 
-// pipeline_filtered_report_to_pdf: page one is the report title plus the
-// three summaries as editable text, then the filtered rows only as a table
-// on the pages after it. Nothing outside the filter is sent.
+// pipeline_filtered_report_to_pdf: the filtered rows only, as a table, come
+// FIRST (with the report title above it), then the three summaries as
+// editable text on the page after the table. Nothing outside the filter is sent.
 async function kadessaFilteredReportToPdf(p) {
   p = p || {};
   const ds = daGetActive();
@@ -13501,7 +13501,7 @@ async function kadessaFilteredReportToPdf(p) {
     if (!String(x[1] == null ? '' : x[1]).trim()) throw new Error('the "' + x[0] + '" summary is empty. Write all three summaries from the filtered rows and call this again');
   });
   const title = String(p.title || '').trim() || 'What Is Hurting the Business';
-  const blocks = [{ type: 'heading', text: title }];
+  const blocks = [{ type: 'heading', text: 'Summary' }];
   parts.forEach(function(x) {
     blocks.push({ type: 'subheading', text: x[0] });
     String(x[1]).split(/\n+/).forEach(function(par) {
@@ -13512,17 +13512,19 @@ async function kadessaFilteredReportToPdf(p) {
 
   navigate('pdfeditor');
   const reportStart = pdfed.pages.length;
-  await pdfedKadessaInsertPage({ position: 'end', content: blocks, default_align: 'left' });
+  // 1) the filtered rows as a table, with the report title above it
   await daPushToWorkflow('new', {
     filteredOnly: true,
-    titleText: 'Rows behind this report: ' + idxs.length + ' of ' + (ds.rows || []).length
+    titleText: title + ' (' + idxs.length + ' of ' + (ds.rows || []).length + ' rows)'
   });
+  // 2) then the three summaries on a page right after the table
+  await pdfedKadessaInsertPage({ position: 'end', content: blocks, default_align: 'left' });
   try {
     await pdfedBuildStrip();
     await pdfedGoto(reportStart);
     setTimeout(pdfedZoomFit, 60);
   } catch (e) {}
-  toast('Report ready: ' + idxs.length + ' filtered row' + (idxs.length === 1 ? '' : 's') + ' plus 3 summaries, all editable', 'success');
+  toast('Report ready: ' + idxs.length + ' filtered row' + (idxs.length === 1 ? '' : 's') + ' in a table, then 3 summaries, all editable', 'success');
   return { rows: idxs.length, firstPage: reportStart + 1 };
 }
 
@@ -83046,6 +83048,8 @@ if (document.readyState === 'loading') {
         const op = String(p.operator || '').toLowerCase();
         const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
         const entry = { color: color, tag: p.tag || '' };
+        // Build 299: a rule match marks the WHOLE row unless scope is 'cell'.
+        const wholeRow = String(p.scope || 'row').toLowerCase() !== 'cell';
         const isNumericOp = ['>', '>=', '<', '<='].includes(op);
         let hits = 0;
         ds.rows.forEach(function(row, ri){
@@ -83076,14 +83080,14 @@ if (document.readyState === 'loading') {
           } else {
             throw new Error('"' + op + '" is not a comparison I understand');
           }
-          if (matched) { ds.cellHighlights[ri + '_' + colIdx] = entry; hits++; }
+          if (matched) { if (wholeRow) ds.rowHighlights[ri] = entry; else ds.cellHighlights[ri + '_' + colIdx] = entry; hits++; }
         });
         if (!hits) throw new Error('nothing in that column matched');
         daPersist();
         daRenderTable();
       },
       label: function(p){
-        return 'Highlight every cell in column ' + (p.colIdx + 1) + ' where the value ' + p.operator + ' ' + p.value + ', in ' + (p.color || 'yellow') + '.';
+        return 'Highlight ' + (String(p.scope || 'row').toLowerCase() === 'cell' ? 'every cell' : 'every whole row') + ' where column ' + (p.colIdx + 1) + ' ' + p.operator + ' ' + p.value + ', in ' + (p.color || 'yellow') + '.';
       }
     },
     // "Mark the top 5 values" / "flag the 3 lowest" -- also a whole-column
@@ -83101,6 +83105,7 @@ if (document.readyState === 'loading') {
         const which = (p.which === 'bottom') ? 'bottom' : 'top';
         const color = DA_HIGHLIGHT_COLOR_NAMES[String(p.color || 'yellow').toLowerCase()] || DA_HIGHLIGHT_COLOR_NAMES.yellow;
         const entry = { color: color, tag: p.tag || '' };
+        const wholeRow = String(p.scope || 'row').toLowerCase() !== 'cell';
         const scored = [];
         ds.rows.forEach(function(row, ri){
           let cell = row[colIdx];
@@ -83112,7 +83117,7 @@ if (document.readyState === 'loading') {
         });
         if (!scored.length) throw new Error('that column has no numeric values to rank');
         scored.sort(function(a, b){ return which === 'top' ? b.num - a.num : a.num - b.num; });
-        scored.slice(0, n).forEach(function(s){ ds.cellHighlights[s.ri + '_' + colIdx] = entry; });
+        scored.slice(0, n).forEach(function(s){ if (wholeRow) ds.rowHighlights[s.ri] = entry; else ds.cellHighlights[s.ri + '_' + colIdx] = entry; });
         daPersist();
         daRenderTable();
       },
@@ -84221,9 +84226,9 @@ if (document.readyState === 'loading') {
     // heading + body text on new pages, ready for pdfed_auto_refine_report.
     // Use this instead of pipeline_da_to_pdf for prose; that one draws a grid.
     // Build 299: "find what is hurting my business" filters the rows, then
-    // "make me a report" sends ONLY those filtered rows to the PDF Editor and
-    // writes three summaries (What's Happening / Why It Happened / How It Can
-    // Be Improved) on page one, above the table.
+    // "make me a report" sends ONLY those filtered rows to the PDF Editor as a
+    // table first, then writes three summaries (What's Happening / Why It
+    // Happened / How It Can Be Improved) on the page after the table.
     pipeline_filtered_report_to_pdf: { risk: 'safe', run: async function(p){ return await kadessaFilteredReportToPdf(p || {}); }, label: function(){ return 'Send only the filtered rows to the PDF Editor with three written summaries.'; } },
     pipeline_report_to_pdf: { risk: 'safe', run: async function(p){ return await kadessaInsertReportFromProse(p || {}); }, label: function(){ return 'Place this written report on new PDF pages as editable headings and paragraphs.'; } },
     pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
