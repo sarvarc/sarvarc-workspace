@@ -82523,7 +82523,7 @@ if (document.readyState === 'loading') {
   // - Make Forms: sends the form's structure (title, description, field
   //   labels/types/required flags) -- not any submitted response data.
   // -----------------------------------------------------------------
-  function getKadessaContext(){
+  function getKadessaContextBase(){
     try{
       // Showcase is an overlay, not a panel: while it is open she works in it.
       if (window.sppKadessa && window.sppKadessa.isOpen()){
@@ -82940,6 +82940,356 @@ if (document.readyState === 'loading') {
   // confirm modal (sarvarcModalConfirm) first and only runs if the user
   // taps through. Redaction has no entries here at all, on purpose --
   // it's the one module Kadessa doesn't get to touch yet.
+  // ═══════════════════════════════════════════════════════════════════════
+  // DIAGRAMS & GRAPHS HANDS (Kadessa v57). Every function here calls an existing, already-tested
+  // dg* function, so undo/redo, persistence, history and collab sync come for free.
+  // ═══════════════════════════════════════════════════════════════════════
+  var KDG_GROUPED = ['grouped', 'hstacked', 'tornado', '3d-grouped-bar'];
+
+  function kdgEnsureSection(){
+    if (typeof unifiedActiveSection === 'function' && typeof navigate === 'function' && unifiedActiveSection() !== 'diagrams') navigate('diagrams');
+  }
+  function kdgEnsureMode(mode){
+    if (typeof dgActiveMode !== 'undefined' && dgActiveMode !== mode) dgSetDgMode(mode);
+  }
+  function kdgTypeNeedsSeries(t){ return KDG_GROUPED.indexOf(t) !== -1; }
+  function kdgTypeLabel(t){
+    return ({ grouped: 'grouped bar', hstacked: 'horizontal stacked bar', tornado: 'tornado', '3d-grouped-bar': '3D grouped bar',
+      '3d-bar': '3D bar', '3d-histogram': '3D histogram', '3d-scatter': '3D scatter', '3d-boxplot': '3D box plot' })[t] || t;
+  }
+
+  // Safe type switch: refuses a switch the data cannot support instead of showing an empty canvas.
+  function kdgSetType(t){
+    if (!t) return null;
+    kdgEnsureSection(); kdgEnsureMode('chart');
+    if (kdgTypeNeedsSeries(t) && !(dgState.groupedSeries && dgState.groupedSeries.length > 1)) {
+      return { say: 'A ' + kdgTypeLabel(t) + ' chart needs two or more series (for example 2025 and 2026 per month), and this chart has one. Give me the second set of numbers and I will build it.' };
+    }
+    if (t === 'tornado' && dgState.groupedSeries && dgState.groupedSeries.length !== 2) {
+      return { say: 'A tornado chart compares exactly two series, and this chart has ' + dgState.groupedSeries.length + '. Tell me which two to compare.' };
+    }
+    dgSetType(t);
+    return null;
+  }
+
+  // Style settings shared by dg_build_chart, dg_style_chart and dg_build_map. Returns lines for things that do not apply.
+  function kdgApplyStyle(p, notes){
+    var el;
+    if (p.title !== undefined){ el = document.getElementById('dgTitleInput'); if (el) el.value = p.title; }
+    if (p.x_axis_title !== undefined){ el = document.getElementById('dgXAxisTitleInput'); if (el) el.value = p.x_axis_title; }
+    if (p.y_axis_title !== undefined){ el = document.getElementById('dgYAxisTitleInput'); if (el) el.value = p.y_axis_title; }
+    if (p.currency_symbol) dgState.currencySymbol = p.currency_symbol;
+    if (p.number_format){
+      el = document.getElementById('dgFormatSelect');
+      if (el) el.value = p.number_format; // 'plain' has no option, which selects "" = the plain default, same as the templates
+      dgState.formatUserSet = true;
+      if (typeof dgSyncFormatUI === 'function') dgSyncFormatUI();
+    }
+    var t = dgState.type;
+    function chip(inputId, chipId, on){
+      var cb = document.getElementById(inputId); if (!cb) return;
+      cb.checked = !!on;
+      var c = document.getElementById(chipId); if (c) c.classList.toggle('active', !!on);
+    }
+    if (p.show_legend !== undefined) chip('dgLegendToggle', 'dgLegendChip', p.show_legend);
+    if (p.show_values !== undefined) chip('dgValuesToggle', 'dgValuesChip', p.show_values);
+    if (p.trendline !== undefined){
+      if (p.trendline && DG_TREND_TYPES.indexOf(t) === -1) notes.push('a trendline does not apply to a ' + kdgTypeLabel(t) + ' chart');
+      else chip('dgTrendlineToggle', 'dgTrendChip', p.trendline);
+    }
+    if (p.growth_mode !== undefined){
+      if (p.growth_mode && DG_GROWTH_TYPES.indexOf(t) === -1) notes.push('growth mode only works on bar, line and area charts');
+      else chip('dgGrowthToggle', 'dgGrowthChip', p.growth_mode);
+    }
+    if (p.hologram !== undefined){
+      if (p.hologram && !dgIs3DType(t)) notes.push('the hologram look only applies to the 3D chart types');
+      else chip('dgHologramToggle', 'dgHologramChip', p.hologram);
+    }
+    if (p.palette){
+      el = document.getElementById('dgSchemeSelect'); if (el) el.value = p.palette;
+      dgSetPaletteScheme(p.palette);
+    }
+    if (p.bar_radius !== undefined){
+      if (DG_RADIUS_TYPES.indexOf(t) === -1) notes.push('rounded corners only apply to bar style charts');
+      else dgOnBarRadiusInput(p.bar_radius);
+    }
+    if (p.same_color){
+      el = document.getElementById('dgSameColorInput'); if (el) el.value = p.same_color;
+      dgState.sameColor = p.same_color;
+      el = document.getElementById('dgSameColorToggle'); if (el) el.checked = true;
+      dgToggleSameColor(true);
+    }
+  }
+
+  function kdgSay(notes, built){
+    if (!notes.length) return built ? { say: built } : null;
+    return { say: (built ? built + ' ' : '') + 'Heads up: ' + notes.join('; ') + '.' };
+  }
+
+  function kdgBuildChart(p){
+    kdgEnsureSection(); kdgEnsureMode('chart');
+    var type = p.chart_type || 'bar';
+    var grouped = kdgTypeNeedsSeries(type);
+    if (grouped && !(p.categories && p.categories.length && p.series && p.series.length)) throw new Error('a ' + kdgTypeLabel(type) + ' chart needs categories and series');
+    if (!grouped && !(p.rows && p.rows.length)) throw new Error('no data points to draw');
+    // palette first, so colours below come from it
+    if (p.palette){
+      var sel = document.getElementById('dgSchemeSelect'); if (sel) sel.value = p.palette;
+      dgState.paletteScheme = p.palette;
+      try { dgRenderPalette(); } catch (e) {}
+    }
+    var scheme = dgCurrentScheme();
+    dgState.sameColorMode = false;
+    var sameBox = document.getElementById('dgSameColorToggle'); if (sameBox) sameBox.checked = false;
+    if (grouped){
+      dgState.groupedCategories = p.categories.slice();
+      dgState.groupedSeries = p.series.map(function(s, i){ return { name: s.name, color: s.color || scheme[i % scheme.length], values: s.values.slice() }; });
+      dgState.rows = p.categories.map(function(c, i){ return { label: c, value: Number(p.series[0].values[i]) || 0, color: scheme[i % scheme.length] }; });
+    } else {
+      dgState.rows = p.rows.map(function(r, i){ return { label: r.label, value: r.value, color: r.color || scheme[i % scheme.length] }; });
+      dgState.groupedCategories = []; dgState.groupedSeries = [];
+    }
+    dgState.texts = []; // a rebuilt chart starts without the old chart's notes
+    dgSetType(type);
+    var notes = [];
+    var style = Object.assign({}, p);
+    delete style.palette; // already applied above
+    if (style.title === undefined) style.title = ''; // never keep the previous chart's title on a new chart
+    if (style.number_format === undefined){
+      dgState.formatUserSet = false;
+      var fs = document.getElementById('dgFormatSelect'); if (fs) fs.value = 'plain';
+      if (typeof dgSyncFormatUI === 'function') dgSyncFormatUI();
+    }
+    kdgApplyStyle(style, notes);
+    dgRenderRows();
+    dgRender();
+    return kdgSay(notes, null);
+  }
+
+  function kdgStyleChart(p){
+    kdgEnsureSection(); kdgEnsureMode('chart');
+    var notes = [];
+    kdgApplyStyle(p, notes);
+    dgRender();
+    return kdgSay(notes, null);
+  }
+
+  function kdgEditRows(p){
+    kdgEnsureSection(); kdgEnsureMode('chart');
+    if (dgUsesGroupedData()) return { say: 'This is a multi series chart. Send me the full set of numbers and I will rebuild it with the change.' };
+    var rows = dgState.rows, scheme = dgCurrentScheme(), missing = [];
+    function find(label){
+      var l = String(label || '').toLowerCase();
+      var i = rows.findIndex(function(r){ return String(r.label).toLowerCase() === l; });
+      if (i === -1) i = rows.findIndex(function(r){ return String(r.label).toLowerCase().indexOf(l) !== -1 && l; });
+      return i;
+    }
+    (p.ops || []).forEach(function(o){
+      if (o.op === 'add'){
+        var i = rows.length;
+        rows.push({ label: o.label, value: o.value !== undefined ? o.value : 0, color: o.color || (dgState.sameColorMode ? dgState.sameColor : scheme[i % scheme.length]) });
+      } else if (o.op === 'update'){
+        var k = find(o.label);
+        if (k === -1){ missing.push(o.label); return; }
+        if (o.new_label) rows[k].label = o.new_label;
+        if (o.value !== undefined) rows[k].value = o.value;
+        if (o.color && !dgState.sameColorMode) rows[k].color = o.color;
+      } else if (o.op === 'remove'){
+        var j = find(o.label);
+        if (j === -1){ missing.push(o.label); return; }
+        rows.splice(j, 1);
+      } else if (o.op === 'sort'){
+        var dir = o.order === 'asc' ? 1 : -1;
+        if (o.by === 'label') rows.sort(function(a, b){ return dir * String(a.label).localeCompare(String(b.label)); });
+        else rows.sort(function(a, b){ return dir * (a.value - b.value); });
+      } else if (o.op === 'top_n'){
+        rows.sort(function(a, b){ return b.value - a.value; });
+        rows.splice(o.n);
+      }
+    });
+    if (!rows.length) throw new Error('that would leave the chart with no data points');
+    dgRenderRows();
+    dgRefreshChart();
+    if (missing.length) return { say: 'I could not find ' + missing.map(function(m){ return '"' + m + '"'; }).join(', ') + ' on the chart. The labels are: ' + rows.slice(0, 12).map(function(r){ return r.label; }).join(', ') + '.' };
+    return null;
+  }
+
+  function kdgAddText(p){
+    kdgEnsureSection(); kdgEnsureMode('chart');
+    var fs = p.font_size || 20, txt = p.text || 'Text';
+    var pos = dgFindSmartTextPosition(Math.max(60, txt.length * fs * 0.6), fs * 1.4);
+    dgState.texts.push({ id: 'dgtxt_' + (++dgTextSeq), text: txt, x: pos.x, y: pos.y, fontSize: fs, color: p.color || '#101820', bold: p.bold !== false, align: 'left', fontFamily: 'Inter' });
+    dgRenderTextOverlay();
+    dgPersist();
+  }
+
+  async function kdgBuildDiagram(p){
+    if (!p.mermaid_code) throw new Error('no diagram code to draw');
+    kdgEnsureSection();
+    dgSetDgMode('flow');
+    var ta = document.getElementById('dgFlowInput'), ti = document.getElementById('dgFlowTitleInput');
+    if (!ta) throw new Error('the diagram box is not available');
+    ta.value = p.mermaid_code;
+    if (ti) ti.value = p.title || 'Diagram';
+    await dgFlowRender();
+    var err = document.getElementById('dgFlowError');
+    if (err && err.style.display !== 'none' && err.textContent){
+      return { say: 'The diagram came out with an error (' + err.textContent.replace(/^Syntax error:\s*/, '').slice(0, 140) + '). Say "fix it" and I will redraw it with simpler wording.' };
+    }
+    return null;
+  }
+
+  function kdgBuildMap(p){
+    if (!p.rows || !p.rows.length) throw new Error('no countries to shade');
+    kdgEnsureSection();
+    dgSetDgMode('map');
+    if (p.palette){
+      var sel = document.getElementById('dgSchemeSelect'); if (sel) sel.value = p.palette;
+      dgState.paletteScheme = p.palette;
+      try { dgRenderPalette(); } catch (e) {}
+    }
+    var scheme = dgCurrentScheme();
+    dgState.groupedCategories = []; dgState.groupedSeries = [];
+    dgState.rows = p.rows.map(function(r){ return { label: r.country, value: r.value, color: scheme[0] }; });
+    var notes = [];
+    var style = { title: p.title || '', number_format: p.number_format, currency_symbol: p.currency_symbol };
+    if (!style.number_format){ dgState.formatUserSet = false; delete style.number_format; }
+    if (!style.currency_symbol) delete style.currency_symbol;
+    kdgApplyStyle(style, notes);
+    dgRenderRows();
+    dgRender();
+    var countryHits = dgState.rows.filter(function(r){ return dgResolveCountry(r.label); }).length;
+    var stateGuess = null;
+    try { stateGuess = dgDetectStatesCountry(dgState.rows); } catch (e) {}
+    if (stateGuess && stateGuess.matched > countryHits){
+      try { dgAutoShowStateMap(stateGuess.country); } catch (e) {}
+      return { say: 'These look like ' + stateGuess.country + ' states, so I opened the ' + stateGuess.country + ' state map.' };
+    }
+    var unknown = dgState.rows.filter(function(r){ return !dgResolveCountry(r.label); }).map(function(r){ return r.label; });
+    if (unknown.length) return { say: 'I could not match ' + unknown.slice(0, 6).join(', ') + (unknown.length > 6 ? ' and ' + (unknown.length - 6) + ' more' : '') + ' to a country, so they are not shaded. English country names work best.' };
+    return null;
+  }
+
+
+  // Chart straight from the open Data Arrangement table, by column NAME, on the whole table (or only the filtered rows).
+  // One step: no "send to Diagrams" popup, no index guessing, no chain of calls that can stall halfway.
+  function kdgFindCol(headers, want){
+    var w = String(want == null ? '' : want).trim().toLowerCase();
+    if (!w) return -1;
+    var i = headers.findIndex(function(h){ return String(h).trim().toLowerCase() === w; });
+    if (i === -1) i = headers.findIndex(function(h){ var s = String(h).toLowerCase(); return s.indexOf(w) !== -1 || (s.length > 2 && w.indexOf(s) !== -1); });
+    if (i === -1 && /^\d+$/.test(w) && Number(w) < headers.length) i = Number(w);
+    return i;
+  }
+  function kdgChartFromTable(p){
+    var ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+    if (!ds || !ds.headers || !ds.headers.length) throw new Error('there is no table open to chart');
+    var xi = kdgFindCol(ds.headers, p.x_column);
+    var yis = (p.y_columns || []).map(function(n){ return kdgFindCol(ds.headers, n); });
+    if (xi === -1) throw new Error('I could not find a column called "' + p.x_column + '". The columns are: ' + ds.headers.slice(0, 15).join(', '));
+    var bad = (p.y_columns || []).filter(function(n, k){ return yis[k] === -1; });
+    if (bad.length) throw new Error('I could not find ' + bad.map(function(b){ return '"' + b + '"'; }).join(', ') + '. The columns are: ' + ds.headers.slice(0, 15).join(', '));
+    yis = yis.filter(function(v, k){ return v !== xi && yis.indexOf(v) === k; });
+    if (!yis.length) throw new Error('pick at least one value column that is different from the label column');
+    var all = daComputedRowsForExport(ds);
+    var keep = (p.filtered_only === true && typeof kadessaFilteredRowIdxs === 'function') ? kadessaFilteredRowIdxs(ds) : null;
+    if (keep) all = keep.map(function(ri){ return all[ri]; });
+    var cols = [xi].concat(yis);
+    var aoa = [cols.map(function(c){ return ds.headers[c]; })].concat(all.map(function(r){ return cols.map(function(c){ return r[c]; }); }));
+    kdgEnsureSection(); kdgEnsureMode('chart');
+    var t = document.getElementById('dgTitleInput'); if (t) t.value = '';
+    dgOnUploadParsed(aoa, ds.name || 'Table data');
+    // Several value columns become a grouped chart on their own. A single one honours the type asked for.
+    var type = p.chart_type, notes = [];
+    if (type){
+      var r = kdgSetType(type);
+      if (r && r.say) notes.push(r.say);
+    }
+    var style = Object.assign({}, p); delete style.x_column; delete style.y_columns; delete style.chart_type; delete style.filtered_only;
+    kdgApplyStyle(style, notes);
+    dgRender();
+    // dgMaybeSuggestMultiChart may have opened its "how do you want this charted" popup, the person already told us.
+    try { if (typeof dgDismissMultiSuggest === 'function') dgDismissMultiSuggest(); } catch (e) {}
+    if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
+    var plotted = (dgState.rows || []).length;
+    var capNote = (dgUploadParsed && dgUploadParsed.rows && dgUploadParsed.rows.length > 40) ? 'The table has ' + dgUploadParsed.rows.length + ' rows, so the chart shows the first 40 to stay readable.' : '';
+    var msg = [capNote].concat(notes).filter(Boolean).join(' ');
+    return msg ? { say: msg } : null;
+  }
+
+  function kdgRound(n){ return (typeof n === 'number' && isFinite(n)) ? Math.round(n * 100) / 100 : n; }
+
+  // What Kadessa can see about the Diagrams & Graphs panel, so she can describe, critique and edit it.
+  function kdgSnapshot(){
+    var val = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+    var chk = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
+    var snap = {
+      mode: (typeof dgActiveMode !== 'undefined') ? dgActiveMode : 'chart',
+      type: dgState.type,
+      title: val('dgTitleInput'), xAxisTitle: val('dgXAxisTitleInput'), yAxisTitle: val('dgYAxisTitleInput'),
+      numberFormat: val('dgFormatSelect') || 'plain', currencySymbol: dgState.currencySymbol,
+      palette: dgState.paletteScheme, barRadius: dgState.barRadius,
+      toggles: { legend: chk('dgLegendToggle'), values: chk('dgValuesToggle'), trendline: chk('dgTrendlineToggle'), growth: chk('dgGrowthToggle'), hologram: chk('dgHologramToggle') },
+      notesOnChart: (dgState.texts || []).slice(0, 8).map(function(t){ return t.text; }),
+      supportedChartTypes: ['bar', 'grouped', 'line', 'area', 'pie', 'donut', 'stacked', 'hstacked', 'tornado', 'waterfall', 'pareto', 'funnel', '3d-bar', '3d-grouped-bar', '3d-histogram', '3d-scatter', '3d-boxplot']
+    };
+    try {
+      if (snap.mode === 'flow'){
+        var code = val('dgFlowInput');
+        var err = document.getElementById('dgFlowError');
+        snap.flow = { title: val('dgFlowTitleInput'), code: code.slice(0, 3500), codeTruncated: code.length > 3500, error: (err && err.style.display !== 'none') ? err.textContent : '' };
+        return snap;
+      }
+      if (dgUsesGroupedData() && dgState.groupedSeries && dgState.groupedSeries.length){
+        snap.categories = dgState.groupedCategories.slice(0, 30);
+        snap.series = dgState.groupedSeries.slice(0, 8).map(function(s){
+          var tot = s.values.reduce(function(a, b){ return a + (Number(b) || 0); }, 0);
+          return { name: s.name, values: s.values.slice(0, 30), total: kdgRound(tot) };
+        });
+        return snap;
+      }
+      var rows = (dgState.rows || []).filter(function(r){ return typeof r.value === 'number' && isFinite(r.value); });
+      snap.rowCount = rows.length;
+      snap.rows = rows.slice(0, 40).map(function(r){ return { label: r.label, value: r.value }; });
+      if (rows.length){
+        var st = dgComputeStats(rows);
+        snap.stats = {
+          total: kdgRound(st.total), average: kdgRound(st.avg),
+          highest: { label: st.maxLabel, value: kdgRound(st.max) }, lowest: { label: st.minLabel, value: kdgRound(st.min) },
+          trend: st.trend, growthPercentFirstToLast: st.growthPct == null ? null : kdgRound(st.growthPct),
+          topItemShareOfTotal: st.topShare == null ? null : kdgRound(st.topShare),
+          itemsThatMakeUp80Percent: st.vitalFewCount,
+          outliers: (st.outliers || []).slice(0, 5).map(function(o){ return o && o.label !== undefined ? o.label : String(o); })
+        };
+      }
+    } catch (e) { snap.snapshotError = String(e && e.message || e).slice(0, 120); }
+    return snap;
+  }
+
+  function kadessaDgDecorate(c){
+    try {
+      if (!c || typeof c !== 'object') return c;
+      c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
+      if (c.activePanel === 'Diagrams & Graphs') c.diagram = kdgSnapshot();
+      if (c.activePanel === 'Data Arrangement' && typeof daSelection !== 'undefined' && typeof daGetActive === 'function'){
+        var dsx = daGetActive(), sel = [];
+        if (dsx && daSelection.cols && daSelection.cols.size){
+          Array.from(daSelection.cols).sort(function(a, b){ return a - b; }).forEach(function(ci){ if (dsx.headers[ci] !== undefined) sel.push(dsx.headers[ci]); });
+        }
+        if (dsx && daSelection.cellRanges && daSelection.cellRanges.length){
+          daSelection.cellRanges.forEach(function(rg){
+            var a = Math.min(rg.c1, rg.c2), b = Math.max(rg.c1, rg.c2);
+            for (var ci = a; ci <= b; ci++){ var nm = dsx.headers[ci]; if (nm !== undefined && sel.indexOf(nm) === -1) sel.push(nm); }
+          });
+        }
+        if (sel.length) c.selectedColumns = sel.slice(0, 10); // "these 2 columns" means these
+      }
+    } catch (e) { console.warn('[Kadessa] diagram snapshot failed', e); }
+    return c;
+  }
+
+  function getKadessaContext(){ return kadessaDgDecorate(getKadessaContextBase()); }
+
   const KADESSA_ACTIONS = {
     da_add_row:        { risk: 'safe',    run: function(){ daEnsureVisible(); daAddRow(); }, label: function(){ return 'Add a new row.'; } },
     da_add_column:     { risk: 'safe',    run: function(){ daEnsureVisible(); daAddColumn(); }, label: function(){ return 'Add a new column.'; } },
@@ -83327,7 +83677,7 @@ if (document.readyState === 'loading') {
       }
     },
 
-    dg_set_type:       { risk: 'safe',    run: function(p){ dgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
+    dg_set_type:       { risk: 'safe',    run: function(p){ return kdgSetType(p.chartType); }, label: function(p){ return 'Change chart type to ' + p.chartType + '.'; } },
     // One-shot version of "set X, set Y, set type" for building a whole new
     // chart from a request like "customer vs CAC" in a single turn, instead
     // of needing three separate actions (and three round-trips) to finish.
@@ -83338,7 +83688,7 @@ if (document.readyState === 'loading') {
       run: function(p){
         if (p.xColIdx !== undefined && p.xColIdx !== null && p.xColIdx !== '') dgQuickSetXAxis(String(p.xColIdx));
         if (p.yColIdx !== undefined && p.yColIdx !== null && p.yColIdx !== '') dgQuickSetYAxis(String(p.yColIdx));
-        if (p.chartType) dgSetType(p.chartType);
+        if (p.chartType) { var kr = kdgSetType(p.chartType); if (kr) return kr; }
       },
       label: function(p){
         const parts = [];
@@ -83352,6 +83702,18 @@ if (document.readyState === 'loading') {
     dg_add_row:        { risk: 'safe',    run: function(){ dgAddRow(); }, label: function(){ return 'Add a new data row to the chart.'; } },
     dg_set_x_axis:     { risk: 'safe',    run: function(p){ dgQuickSetXAxis(String(p.colIdx)); }, label: function(p){ return 'Set the X-axis column.'; } },
     dg_set_y_axis:     { risk: 'safe',    run: function(p){ dgQuickSetYAxis(String(p.colIdx)); }, label: function(p){ return 'Set the Y-axis column.'; } },
+    // ── Kadessa v57: Diagrams & Graphs hands ───────────────────────────
+    dg_build_chart:    { risk: 'safe', run: function(p){ return kdgBuildChart(p); }, label: function(p){ return 'Build a ' + kdgTypeLabel(p.chart_type) + ' chart.'; } },
+    dg_style_chart:    { risk: 'safe', run: function(p){ return kdgStyleChart(p); }, label: function(){ return 'Restyle the chart.'; } },
+    dg_edit_rows:      { risk: 'safe', run: function(p){ return kdgEditRows(p); }, label: function(){ return 'Edit the chart data.'; } },
+    dg_add_text:       { risk: 'safe', run: function(p){ return kdgAddText(p); }, label: function(p){ return 'Add a note to the chart.'; } },
+    dg_load_template:  { risk: 'safe', run: function(p){ kdgEnsureSection(); kdgEnsureMode('chart'); if (!DG_TEMPLATES[p.template]) throw new Error('unknown sample chart'); dgApplyTemplate(p.template); }, label: function(p){ return 'Load a sample chart.'; } },
+    dg_set_mode:       { risk: 'safe', run: function(p){ kdgEnsureSection(); dgSetDgMode(p.mode); }, label: function(p){ return 'Switch to ' + p.mode + ' mode.'; } },
+    dg_build_diagram:  { risk: 'safe', run: function(p){ return kdgBuildDiagram(p); }, label: function(){ return 'Draw the diagram.'; } },
+    dg_flow_template:  { risk: 'safe', run: function(p){ kdgEnsureSection(); dgSetDgMode('flow'); dgFlowInsertTemplate(p.template); }, label: function(){ return 'Load a diagram starter.'; } },
+    dg_build_map:      { risk: 'safe', run: function(p){ return kdgBuildMap(p); }, label: function(){ return 'Build the map.'; } },
+    dg_chart_from_table: { risk: 'safe', run: function(p){ return kdgChartFromTable(p); }, label: function(p){ return 'Chart ' + (p.y_columns || []).join(', ') + ' by ' + p.x_column + '.'; } },
+    dg_export:         { risk: 'safe', run: function(p){ kdgEnsureSection(); dgExportChart(p.format === 'jpeg' ? 'jpeg' : 'png'); }, label: function(p){ return 'Download the chart as ' + String(p.format || 'png').toUpperCase() + '.'; } },
 
     // Previously there was NO way for Kadessa to start a brand-new form at
     // all -- mf_add_field/_update_title/etc. all silently no-op via
