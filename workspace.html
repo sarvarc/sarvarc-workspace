@@ -49137,7 +49137,7 @@ function daFindAmount(v) {
   // decimal-amount pattern below. The `(?!\s*%)` guard on that pattern
   // closes that specific hole even in a row this fix doesn't otherwise
   // reach (a header whose name doesn't happen to hint "percent").
-  const m = /[$₹]\s?\d[\d,.\s]*|\d[\d,]*\.\d+(?!\s*%)/.exec(t);
+  const m = /\p{Sc}\s?\d[\d,.\s]*|\d[\d,]*\.\d+(?!\s*%)/u.exec(t);
   if (m) {
     const match = m[0].trim();
     const remainder = (t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length)).trim();
@@ -50541,7 +50541,7 @@ function daCleanNum(v) {
   // currency symbols / thousands commas / percent sign / whitespace while
   // keeping the decimal point and minus sign intact.
   let s = trimmed.replace(/^\(([^()]+)\)$/, '-$1');
-  s = s.replace(/[$€£₹,\s]/g, '');
+  s = s.replace(/[\p{Sc},\s]/gu, ''); // any currency symbol, not just $ € £ ₹
   s = s.replace(/%$/, '');
   // Strip a trailing magnitude suffix like "Cr"/"Lakh"/"K"/"Mn" once the
   // symbols/commas/spaces above are already gone (e.g. "₹420 Cr" is "420Cr"
@@ -53314,7 +53314,7 @@ function daCellLooksNumericForFormat(v) {
   if (!s) return false;
   // Strip common financial-statement dressing (currency symbols, thousands
   // separators, %, and accounting-style negative parentheses) before testing.
-  const cleaned = s.replace(/^\(|\)$/g, '').replace(/[₹$€£,%\s]/g, '');
+  const cleaned = s.replace(/^\(|\)$/g, '').replace(/[\p{Sc},%\s]/gu, '');
   return cleaned !== '' && !isNaN(Number(cleaned));
 }
 
@@ -82587,7 +82587,8 @@ if (document.readyState === 'loading') {
               }
               if (v === '' || v === null || v === undefined) return;
               nonEmpty++;
-              const n = parseFloat(v);
+              // Build 299: currency-aware (₹2,22,000.00, (4,500), 1.2Cr) so money columns count as numbers.
+              const n = daFilterNum(v);
               if (!isNaN(n) && String(v).trim() !== '') nums.push(n);
               const key = String(v).trim();
               textCounts[key] = (textCounts[key] || 0) + 1;
@@ -83059,9 +83060,10 @@ if (document.readyState === 'loading') {
           }
           let matched = false;
           if (isNumericOp) {
-            const num = parseFloat(cell);
+            const num = daFilterNum(cell);
             if (!isNaN(num)) {
-              const target = Number(p.value);
+              let target = daFilterNum(String(p.value));
+              if (isNaN(target)) target = Number(p.value);
               if (op === '>') matched = num > target;
               else if (op === '>=') matched = num >= target;
               else if (op === '<') matched = num < target;
@@ -83112,7 +83114,7 @@ if (document.readyState === 'loading') {
           if (typeof cell === 'string' && cell.trim().startsWith('=')) {
             cell = daFormulaDisplayValue(ds, ri, colIdx).display;
           }
-          const num = parseFloat(cell);
+          const num = daFilterNum(cell);
           if (!isNaN(num)) scored.push({ ri: ri, num: num });
         });
         if (!scored.length) throw new Error('that column has no numeric values to rank');
