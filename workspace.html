@@ -13414,6 +13414,118 @@ function kadessaFindProseDataset(name) {
   for (let i = list.length - 1; i >= 0; i--) if (kadessaIsProseDataset(list[i])) return list[i];
   return null;
 }
+// ── Build 299: filtered report ──────────────────────────────────────────
+// Row numbers (0-based) that the person's current Filter Rows view lets
+// through, or null when no filter is on. Same rule check the grid uses, so
+// what Kadessa sends to the editor is exactly what is on screen.
+function kadessaFilteredRowIdxs(ds) {
+  if (!ds || typeof daFilterActiveRules !== 'function') return null;
+  const rules = daFilterActiveRules(ds);
+  if (!rules.length) return null;
+  const matchAll = daFilterGetState(ds).match !== 'any';
+  const out = [];
+  (ds.rows || []).forEach(function(_r, ri) {
+    if (daFilterRowPasses(ds, ri, rules, matchAll)) out.push(ri);
+  });
+  return out;
+}
+
+// Extra context fields, only while a filter is on: how many rows the filter
+// kept, the first 40 of them, and per-column stats over ALL kept rows, so
+// Kadessa writes the three summaries from the filtered rows and not from the
+// whole table.
+function kadessaFilteredViewForContext(ds) {
+  try {
+    const idxs = kadessaFilteredRowIdxs(ds);
+    if (!idxs) return {};
+    const computed = daComputedRowsForExport(ds);
+    const headers = ds.headers || [];
+    const rows = idxs.map(function(ri) { return computed[ri] || []; });
+    const round2 = function(n) { return Math.round(n * 100) / 100; };
+    const stats = headers.map(function(h, ci) {
+      const nums = [], counts = {};
+      let nonEmpty = 0;
+      rows.forEach(function(r) {
+        const v = r[ci];
+        if (v === '' || v === null || v === undefined) return;
+        nonEmpty++;
+        const n = daFilterNum(v);
+        if (!isNaN(n)) nums.push(n);
+        const k = String(v).trim();
+        counts[k] = (counts[k] || 0) + 1;
+      });
+      const st = { colIdx: ci, header: h, nonEmptyCount: nonEmpty };
+      if (nums.length && nums.length >= nonEmpty * 0.6) {
+        const sum = nums.reduce(function(a, b) { return a + b; }, 0);
+        st.numericCount = nums.length;
+        st.sum = round2(sum);
+        st.avg = round2(sum / nums.length);
+        st.min = Math.min.apply(null, nums);
+        st.max = Math.max.apply(null, nums);
+      } else {
+        st.topValues = Object.keys(counts)
+          .sort(function(a, b) { return counts[b] - counts[a]; })
+          .slice(0, 5)
+          .map(function(k) { return { value: k, count: counts[k] }; });
+      }
+      return st;
+    });
+    const SHOW = 40;
+    return {
+      filteredRowCount: idxs.length,
+      filteredRows: rows.slice(0, SHOW),
+      filteredRowsTruncated: idxs.length > SHOW,
+      filteredColumnStats: stats
+    };
+  } catch (e) {
+    return {};
+  }
+}
+
+// pipeline_filtered_report_to_pdf: page one is the report title plus the
+// three summaries as editable text, then the filtered rows only as a table
+// on the pages after it. Nothing outside the filter is sent.
+async function kadessaFilteredReportToPdf(p) {
+  p = p || {};
+  const ds = daGetActive();
+  if (!ds) throw new Error('no table is open');
+  const idxs = kadessaFilteredRowIdxs(ds);
+  if (!idxs) throw new Error('no row filter is on right now. Filter the rows first with da_set_filter, then build the report');
+  if (!idxs.length) throw new Error('the filter matches no rows, so there is nothing to report on');
+  const parts = [
+    ["What's Happening", p.whats_happening],
+    ['Why It Happened', p.why_it_happened],
+    ['How It Can Be Improved', p.how_to_improve]
+  ];
+  parts.forEach(function(x) {
+    if (!String(x[1] == null ? '' : x[1]).trim()) throw new Error('the "' + x[0] + '" summary is empty. Write all three summaries from the filtered rows and call this again');
+  });
+  const title = String(p.title || '').trim() || 'What Is Hurting the Business';
+  const blocks = [{ type: 'heading', text: title }];
+  parts.forEach(function(x) {
+    blocks.push({ type: 'subheading', text: x[0] });
+    String(x[1]).split(/\n+/).forEach(function(par) {
+      par = par.trim();
+      if (par) blocks.push({ type: 'paragraph', text: par });
+    });
+  });
+
+  navigate('pdfeditor');
+  const reportStart = pdfed.pages.length;
+  await pdfedKadessaInsertPage({ position: 'end', content: blocks, default_align: 'left' });
+  await daPushToWorkflow('new', {
+    filteredOnly: true,
+    titleText: 'Rows behind this report: ' + idxs.length + ' of ' + (ds.rows || []).length
+  });
+  try {
+    await pdfedBuildStrip();
+    await pdfedGoto(reportStart);
+    setTimeout(pdfedZoomFit, 60);
+  } catch (e) {}
+  toast('Report ready: ' + idxs.length + ' filtered row' + (idxs.length === 1 ? '' : 's') + ' plus 3 summaries, all editable', 'success');
+  return { rows: idxs.length, firstPage: reportStart + 1 };
+}
+
 async function kadessaInsertReportFromProse(p) {
   p = p || {};
   const ds = kadessaFindProseDataset(p.dataset_name);
@@ -57176,7 +57288,8 @@ async function pdfedExecuteRefineReport(opts) {
   return Object.assign({}, summary, { summaryLine });
 }
 
-async function daPushToWorkflow(mode) {
+async function daPushToWorkflow(mode, opts) {
+  opts = opts || {};
   const ds = daGetActive();
   if (!ds) { toast('Upload a file first', 'info'); return; }
   if (!ds.headers || !ds.headers.length) { toast('Nothing to push yet', 'info'); return; }
@@ -57193,7 +57306,15 @@ async function daPushToWorkflow(mode) {
       truncatedCols = headers.length - DA_PUSH_MAX_COLS;
       headers = headers.slice(0, DA_PUSH_MAX_COLS);
     }
-    const allRows = daComputedRowsForExport(ds).map(r => r.slice(0, headers.length));
+    let computedRows = daComputedRowsForExport(ds);
+    // Kadessa filtered report: only the rows the person's row filter lets
+    // through go to the editor. Every other caller leaves filteredOnly off,
+    // so the normal Push button still sends the whole table.
+    if (opts.filteredOnly && typeof kadessaFilteredRowIdxs === 'function') {
+      const keepIdx = kadessaFilteredRowIdxs(ds);
+      if (keepIdx) computedRows = keepIdx.map(function(ri){ return computedRows[ri]; });
+    }
+    const allRows = computedRows.map(r => r.slice(0, headers.length));
 
     // Work out column widths & font size ONCE from the whole dataset, so
     // every page of a multi-page push lines up with the same column layout.
@@ -57307,7 +57428,7 @@ async function daPushToWorkflow(mode) {
       // never overwrites existing canvas content, and starts a brand-new
       // document automatically if the Workspace is empty. Each page is built
       // to exactly fit its own chunk's table.
-      const startIdx = await pdfedAppendTableFitPages(chunks, headers, layout, ds.title);
+      const startIdx = await pdfedAppendTableFitPages(chunks, headers, layout, opts.titleText || ds.title);
 
       navigate('pdfeditor');
       await pdfedBuildStrip();
@@ -82492,7 +82613,8 @@ if (document.readyState === 'loading') {
             match: daFilterGetState(ds).match,
             rules: activeFilterRules.map(function(r){ return { colIdx: r.col, operator: r.op, value: r.val, value2: r.val2 }; })
           } : null;
-          return {
+          const filteredView = kadessaFilteredViewForContext(ds);
+          return Object.assign({
             activePanel: 'Data Arrangement',
             datasetName: ds.name,
             headers: ds.headers || [],
@@ -82501,7 +82623,7 @@ if (document.readyState === 'loading') {
             emptyCellsInSample: emptyCells,
             columnStats: columnStats,
             activeFilter: activeFilter
-          };
+          }, filteredView);
         }
       }
 
@@ -84094,10 +84216,15 @@ if (document.readyState === 'loading') {
     // All marked 'safe' since they're additive (create/replace content the
     // person can already undo), never destructive on their own.
     pipeline_da_to_diagram: { risk: 'safe', run: function(){ daPushToDiagrams(null); }, label: function(){ return 'Send this table to Diagrams & Graphs.'; } },
-    pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
+    pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new', { filteredOnly: p.filtered_only === true }); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     // Build 259: a written Word/PDF report (Topic / Content dataset) becomes real
     // heading + body text on new pages, ready for pdfed_auto_refine_report.
     // Use this instead of pipeline_da_to_pdf for prose; that one draws a grid.
+    // Build 299: "find what is hurting my business" filters the rows, then
+    // "make me a report" sends ONLY those filtered rows to the PDF Editor and
+    // writes three summaries (What's Happening / Why It Happened / How It Can
+    // Be Improved) on page one, above the table.
+    pipeline_filtered_report_to_pdf: { risk: 'safe', run: async function(p){ return await kadessaFilteredReportToPdf(p || {}); }, label: function(){ return 'Send only the filtered rows to the PDF Editor with three written summaries.'; } },
     pipeline_report_to_pdf: { risk: 'safe', run: async function(p){ return await kadessaInsertReportFromProse(p || {}); }, label: function(){ return 'Place this written report on new PDF pages as editable headings and paragraphs.'; } },
     pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
     pipeline_form_to_pdf:   { risk: 'safe', run: function(){ mfPushToWorkspace(); }, label: function(){ return 'Push this form into the PDF Editor.'; } },
