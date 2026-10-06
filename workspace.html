@@ -51486,9 +51486,33 @@ function daCellFocus(el, ri, ci) {
 // daCellRangeMouseDown/daClearSelection above) or a plain (non-Shift)
 // arrow move, which starts fresh from wherever you land.
 function daHandleCellKeydown(e, ri, ci) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  // Spreadsheet-style Tab / Enter navigation:
+  //   Tab -> next cell (wraps to the first cell of the next row)
+  //   Shift+Tab -> previous cell (wraps to the last cell of the previous row)
+  //   Enter -> cell below, Shift+Enter -> cell above
+  if (e.key === 'Tab' || e.key === 'Enter') {
+    const dsN = daGetActive();
     e.preventDefault();
+    if (!dsN) return;
+    const nRows = dsN.rows.length, nCols = dsN.headers.length;
+    let r = ri, c = ci;
+    if (e.key === 'Tab') {
+      c += e.shiftKey ? -1 : 1;
+      if (c >= nCols) { c = 0; r++; }
+      if (c < 0) { c = nCols - 1; r--; }
+    } else {
+      r += e.shiftKey ? -1 : 1;
+    }
+    if (r < 0 || r >= nRows) {   // off the edge: just commit and stay put
+      if (e.target && typeof e.target.blur === 'function') e.target.blur();
+      return;
+    }
+    daShiftAnchor = null;
+    if (daHasSelection()) daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
     if (e.target && typeof e.target.blur === 'function') e.target.blur();
+    daRenderTable();
+    const tgt = document.getElementById(`daCell_${dsN.id}_${r}_${c}`);
+    if (tgt && typeof tgt.focus === 'function') tgt.focus();
     return;
   }
 
