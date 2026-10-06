@@ -77873,8 +77873,13 @@ if (document.readyState === 'loading') {
     });
     return sarvarcGisReadyPromise;
   }
-  async function sarvarcSilentDriveTokenRefresh(hintEmail) {
+  async function sarvarcSilentDriveTokenRefresh(hintEmail, opts) {
     if (!SARVARC_GOOGLE_CLIENT_ID) return null;
+    // Auto-triggered refreshes (page load, background Drive sync) used to
+    // open Google account-chooser popups the person never asked for,
+    // which blockers silently kill or which pile up as "extra Google
+    // boxes". Only run this when explicitly told it came from a click.
+    if (!opts || opts.userInitiated !== true) return null;
     try { await sarvarcLoadGis(); } catch (e) { return null; }
     return new Promise((resolve) => {
       try {
@@ -80738,38 +80743,24 @@ if (document.readyState === 'loading') {
       sarvarcAuthSetGoogleBusy(false);
       return;
     }
-    // On mobile (and in-app browsers), window.open() after an `await` is
-    // unreliable: the "was this a real tap" user-activation window that lets
-    // window.open() bypass popup blockers expires across an await on most
-    // mobile browsers (notably iOS Safari and in-app webviews). That means
-    // window.open() either returns null (fine, caught below) OR returns a
-    // dead/blank window object that never navigates and is never caught —
-    // the popup-watcher then polls a broken window forever and login just
-    // silently never completes. Rather than trying to detect that broken
-    // state after the fact, skip the popup path entirely on mobile and do a
-    // plain full-page redirect, which always works. Auto-resuming a pending
-    // export won't survive a full-page redirect, same tradeoff as the
-    // popup-blocked fallback already accepted below.
-    const sarvarcIsMobileForAuth = sm_isMobileViewport() ||
-      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-    if (sarvarcIsMobileForAuth) {
-      // No reset here — the page is about to navigate away entirely.
-      // No flag to set: when the page comes back with a session, the
-      // account-namespace listener (near the Supabase client setup) will
-      // detect the new uid, reload, and its sessionStorage flag carries
-      // the person into the Workspace after that reload.
-      window.location.href = data.url;
-      return;
-    }
-    const popup = window.open(data.url, 'sarvarcGoogleLogin', 'width=480,height=640');
-    if (!popup) {
-      // Popup blocked — fall back to the full-page redirect. Pending export
-      // won't auto-resume here, same as before.
-      window.location.href = data.url;
-      return;
-    }
-    sarvarcAuthWatchGooglePopup(popup);
+    // Always a full-page redirect now (no popup). The old popup flow had to
+    // watch the popup from this window, and Google's sign-in pages block
+    // that (Cross-Origin-Opener-Policy), so the watcher could give up while
+    // the person was still signing in, leaving this window stuck on the
+    // login screen while the popup logged in by itself. The popup's only
+    // benefit was keeping in-memory state alive, but a successful login
+    // reloads this page anyway (sarvarcQueueWorkspaceEntryAndReload), so
+    // that benefit never existed. On return, the account-namespace listener
+    // sees the new uid, reloads, and enters the Workspace.
+    window.location.href = data.url;
   }
+
+  // If the person comes back with the browser Back button from Google's
+  // page, the browser can restore this page frozen on "Connecting...".
+  // Hand the button back so they can try again.
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted && typeof sarvarcAuthSetGoogleBusy === 'function') sarvarcAuthSetGoogleBusy(false);
+  });
 
   // Polls the popup rather than relying solely on a 'storage' event, since
   // that keeps this working even if a browser ever changes cross-tab
@@ -81050,6 +81041,10 @@ if (document.readyState === 'loading') {
     if (sessionStorage.getItem('sarvarcPendingWorkspaceEntry') === '1') {
       sessionStorage.removeItem('sarvarcPendingWorkspaceEntry');
       sarvarcAuthEnterWorkspaceWithRetry();
+    } else if (window.__sarvarcSignedIn) {
+      // Already signed in but the login modal is still showing (flag lost) — close it and enter.
+      const ov = document.getElementById('sarvarcAuthOverlay');
+      if (ov && ov.classList.contains('open')) sarvarcAuthEnterWorkspaceWithRetry();
     }
   });
 
@@ -81139,6 +81134,23 @@ if (document.readyState === 'loading') {
     // leave the previous account's images/logos/signatures on screen until
     // the Assets panel happens to be closed and reopened.
     if (document.getElementById('sarvarcAssetsGrid') && typeof sarvarcAssetsRenderPanel === 'function') sarvarcAssetsRenderPanel();
+    // FALLBACK (login-screen-stays-open fix): normal path is reload + pending flag.
+    // If a session exists but the login modal is STILL open a couple of seconds
+    // later, the reload/flag got lost (swallowed reload, blocked sessionStorage,
+    // in-app browser...) — enter the Workspace directly instead of staying stuck.
+    if (session && session.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && !window.__sarvarcFallbackArmed) {
+      window.__sarvarcFallbackArmed = true;
+      setTimeout(function () {
+        try {
+          const ov = document.getElementById('sarvarcAuthOverlay');
+          if (ov && ov.classList.contains('open')) {
+            try { sessionStorage.removeItem('sarvarcPendingWorkspaceEntry'); } catch (e) {}
+            sarvarcAuthEnterWorkspaceWithRetry();
+          }
+        } catch (e) { console.error('[login fallback]', e); }
+        window.__sarvarcFallbackArmed = false;
+      }, 2500);
+    }
     if (event === 'PASSWORD_RECOVERY') {
       document.getElementById('sarvarcRecoveryOverlay').classList.add('open');
       setTimeout(() => document.getElementById('sarvarcRecoveryNewPw').focus(), 50);
