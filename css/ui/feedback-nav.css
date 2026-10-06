@@ -1,0 +1,173 @@
+
+/* Quick Feedback now lives inline in the sidebar nav list (see <aside>),
+   styled as a highlighted nav-item rather than a floating pill, so it no
+   longer overlaps "Privacy First" / "Support the Development" below it. */
+.qf-nav-item {
+  margin: 2px 0 10px;
+  background: linear-gradient(135deg, rgba(0,194,255,0.10), rgba(168,85,247,0.10));
+  border: 1px solid rgba(0,194,255,0.22);
+  color: var(--text);
+  font-weight: 700;
+}
+.qf-nav-item:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.16), rgba(168,85,247,0.16));
+  box-shadow: 0 8px 22px -10px rgba(0,194,255,0.45);
+}
+.qf-trigger-icon {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #06121F;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+}
+
+/* Modal shell */
+#qfModalOverlay .modal { max-width: 480px; padding: 0; overflow: hidden; }
+.qf-header {
+  position: relative; padding: 24px 28px 18px; overflow: hidden;
+  background: linear-gradient(175deg, var(--bg3), var(--bg2));
+  border-bottom: 1px solid var(--border);
+}
+.qf-header::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--purple), var(--cyan), transparent);
+}
+.qf-header-top { display: flex; align-items: center; gap: 12px; }
+.qf-header-badge {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, var(--cyan), var(--purple)); color: #06121F;
+  box-shadow: 0 6px 18px rgba(0,194,255,0.35), inset 0 0 0 1px rgba(255,255,255,0.18);
+}
+.qf-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cyan); margin: 0 0 2px 0; }
+.qf-header h2 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+
+.qf-progress-track { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; margin-top: 16px; }
+.qf-progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--cyan), var(--purple)); width: 20%; transition: width 0.35s cubic-bezier(.4,0,.2,1); }
+.qf-step-count { font-size: 10.5px; font-weight: 600; color: var(--text3); letter-spacing: 0.02em; margin-top: 8px; }
+
+.qf-close {
+  position: absolute; top: 14px; right: 14px; width: 28px; height: 28px;
+  border: none; background: rgba(255,255,255,0.04); color: var(--text3);
+  border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qf-close:hover { background: var(--surface2); color: var(--text); }
+
+.qf-body { padding: 24px 28px 6px; min-height: 200px; }
+.qf-step { display: none; animation: qfStepIn 0.28s cubic-bezier(.22,.9,.32,1); }
+.qf-step.active { display: block; }
+@keyframes qfStepIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+
+.qf-q-label { font-size: 14.5px; font-weight: 700; color: var(--text); margin-bottom: 14px; line-height: 1.4; }
+.qf-q-hint { display: block; font-size: 11px; font-weight: 500; color: var(--text3); margin-top: 3px; }
+
+.qf-options { display: flex; flex-direction: column; gap: 8px; }
+.qf-chip {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; cursor: pointer; width: 100%;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--text2);
+  transition: all 0.15s ease; text-align: left;
+}
+.qf-chip:hover { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+.qf-chip .qf-mark {
+  width: 16px; height: 16px; flex-shrink: 0; border-radius: 4px;
+  border: 1.5px solid var(--text3); display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+}
+.qf-chip.qf-radio-style .qf-mark { border-radius: 50%; }
+.qf-chip.sel { border-color: var(--blue); color: var(--text); background: linear-gradient(135deg, rgba(0,194,255,0.16), rgba(0,115,230,0.10)); box-shadow: 0 0 0 1px rgba(0,194,255,0.25); }
+.qf-chip.sel .qf-mark { border-color: var(--blue); background: var(--blue); color: #06121F; }
+.qf-chip .qf-mark svg { opacity: 0; transform: scale(0.5); transition: all 0.15s ease; }
+.qf-chip.sel .qf-mark svg { opacity: 1; transform: scale(1); }
+
+.qf-price-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: stretch; }
+@media (max-width: 420px) { .qf-price-grid { grid-template-columns: 1fr; } }
+.qf-price-chip {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 19px 14px 16px; cursor: pointer; transition: all 0.18s ease;
+  text-align: center;
+}
+.qf-price-chip:hover { background: var(--surface2); border-color: var(--border2); transform: translateY(-1px); }
+.qf-price-chip.sel {
+  border-color: var(--blue);
+  background: linear-gradient(160deg, rgba(0,194,255,0.14), rgba(0,115,230,0.06));
+  box-shadow: 0 0 0 1px rgba(0,194,255,0.3), 0 10px 26px -12px rgba(0,194,255,0.55);
+}
+.qf-price-currency { font-size: 12px; font-weight: 700; opacity: 0.6; position: relative; top: -6px; margin-right: 1px; }
+.qf-price-amount { font-family: 'Syne', sans-serif; font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: 0.2px; line-height: 1.2; }
+.qf-price-sub { font-size: 10px; color: var(--text3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1px; }
+.qf-price-chip .qf-mark {
+  position: absolute; top: 10px; right: 10px; order: initial;
+  width: 15px; height: 15px; flex-shrink: 0; border-radius: 50%;
+  border: 1.5px solid var(--text3); background: var(--bg2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+}
+.qf-price-chip.sel .qf-mark { border-color: var(--blue); background: var(--blue); }
+.qf-price-chip .qf-mark svg { opacity: 0; transform: scale(0.5); transition: all 0.15s ease; }
+.qf-price-chip.sel .qf-mark svg { opacity: 1; transform: scale(1); }
+
+/* "I would not pay" is a distinct opt-out, not a price tier — kept visually
+   separate (dashed border, muted, left-aligned row) so it doesn't compete
+   with the actual price cards above it. */
+.qf-price-chip-alt {
+  grid-column: 1/-1;
+  flex-direction: row; align-items: center; justify-content: space-between;
+  text-align: left; padding: 13px 16px; border-style: dashed;
+}
+.qf-price-chip-alt .qf-mark { position: static; order: 2; }
+.qf-price-chip-alt .qf-price-amount { order: 1; font-size: 13px; font-weight: 700; }
+.qf-price-chip-alt.sel { border-style: solid; }
+
+.qf-textarea {
+  width: 100%; min-height: 110px; resize: vertical;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-family: 'Inter', sans-serif; font-size: 12.5px; line-height: 1.5;
+  padding: 12px 13px; outline: none; transition: border-color 0.15s ease;
+}
+.qf-textarea::placeholder { color: var(--text3); }
+.qf-textarea:focus { border-color: var(--border2); }
+
+.qf-footer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 28px 24px; border-top: 1px solid var(--border);
+}
+.qf-back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid var(--border); color: var(--text2);
+  font-weight: 700; font-size: 12.5px; padding: 10px 16px; border-radius: 10px;
+  cursor: pointer; transition: all 0.15s ease;
+}
+.qf-back-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border2); }
+.qf-spacer { flex: 1; }
+.qf-skip-btn {
+  background: none; border: none; color: var(--text3); font-size: 11.5px; font-weight: 600;
+  cursor: pointer; padding: 0 4px; transition: color 0.15s ease;
+}
+.qf-skip-btn:hover { color: var(--text2); }
+.qf-next-btn, .qf-submit-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: linear-gradient(95deg, var(--cyan), var(--purple)); color: #06121F;
+  font-weight: 800; font-size: 12.5px; padding: 11px 20px; border-radius: 10px; border: none;
+  cursor: pointer; box-shadow: 0 8px 20px -6px rgba(0,194,255,0.55);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.qf-next-btn:hover, .qf-submit-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -6px rgba(0,194,255,0.7); }
+
+/* Success state */
+.qf-success { display: none; flex-direction: column; align-items: center; text-align: center; padding: 46px 28px 40px; }
+.qf-success.show { display: flex; }
+.qf-success-badge {
+  width: 52px; height: 52px; border-radius: 50%; margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--green), var(--cyan)); color: #06121F;
+  box-shadow: 0 10px 30px -8px rgba(16,185,129,0.55);
+  animation: qfPop 0.5s cubic-bezier(.22,1.1,.32,1);
+}
+@keyframes qfPop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+.qf-success h3 { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; margin: 0 0 6px; }
+.qf-success p { font-size: 12.5px; color: var(--text2); margin: 0; max-width: 320px; }

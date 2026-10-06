@@ -1,0 +1,1265 @@
+/* ─── DIAGRAMS & GRAPHS ─── */
+.dg-section { display:flex; flex-direction:column; gap:8px; padding:8px 24px 14px; position:relative; z-index:1; min-height:0; }
+.dg-body { display:flex; flex-direction:column; gap:8px; min-height:0; flex:1; position:relative; }
+.dg-panel {
+  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px; display:flex; flex-direction:column; gap:14px;
+}
+.dg-panel-title {
+  font-size:11px; font-weight:800; letter-spacing:0.4px; text-transform:uppercase;
+  color:var(--text3);
+}
+.dg-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dg-type-tile {
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:12px 6px; border-radius:10px; cursor:pointer;
+  background:var(--surface); border:1px solid var(--border); color:var(--text2);
+  font-size:11px; font-weight:700; transition:all 0.15s ease;
+}
+.dg-type-tile svg { color:var(--text3); transition:color 0.15s ease; }
+.dg-type-tile:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
+.dg-type-tile.active { background:var(--pdfed-accent-bg); border-color:var(--pdfed-accent); color:var(--pdfed-accent); }
+.dg-type-tile.active svg { color:var(--pdfed-accent); }
+.dg-field { display:flex; flex-direction:column; gap:6px; }
+.dg-field label { font-size:11px; font-weight:700; color:var(--text2); }
+.dg-field input[type="text"] {
+  padding:8px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border);
+  color:var(--text); font-size:12.5px; outline:none; width:100%;
+}
+.dg-field input[type="text"]:focus { border-color:var(--pdfed-accent); }
+.dg-toggle-row {
+  display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); font-weight:600;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 11px;
+  cursor:pointer; transition:border-color 0.15s ease, background 0.15s ease;
+}
+.dg-toggle-row:hover { border-color:var(--border2); background:var(--surface2); }
+.dg-toggle-row input[type="checkbox"] { accent-color: var(--pdfed-accent); width:15px; height:15px; cursor:pointer; }
+.dg-palette { display:flex; gap:9px; flex-wrap:wrap; }
+.dg-palette-swatch {
+  width:26px; height:26px; border-radius:9px; cursor:pointer; border:2px solid transparent;
+  transition:transform 0.15s cubic-bezier(.2,.8,.3,1.4), box-shadow 0.15s ease;
+  box-shadow:0 1px 3px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -6px 10px rgba(0,0,0,0.14);
+}
+.dg-palette-swatch:hover { transform:scale(1.16) translateY(-1px); box-shadow:0 6px 14px rgba(0,0,0,0.38), inset 0 0 0 1px rgba(255,255,255,0.18); }
+.dg-palette-swatch.active { border-color:var(--bg2); box-shadow:0 0 0 2px var(--pdfed-accent), 0 4px 14px var(--pdfed-accent-bg); }
+.dg-rows { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; }
+.dg-row {
+  display:flex; align-items:center; gap:6px; padding:6px; border-radius:8px;
+  background:var(--surface); border:1px solid var(--border);
+}
+.dg-row input[type="color"] {
+  width:22px; height:22px; border-radius:6px; border:none; padding:0; cursor:pointer; flex-shrink:0; background:none;
+}
+.dg-row input[type="text"], .dg-row input[type="number"] {
+  background:transparent; border:none; outline:none; color:var(--text); font-size:12px; min-width:0;
+}
+.dg-row input[type="text"] { flex:1.3; }
+.dg-row input[type="number"] { flex:1; text-align:right; }
+.dg-row-del {
+  flex-shrink:0; width:18px; height:18px; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  color:var(--text3); font-size:13px; line-height:1;
+}
+.dg-row-del:hover { background:rgba(239,68,68,0.2); color:#ef4444; }
+.dg-add-row-btn {
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:8px; border-radius:8px; font-size:11.5px; font-weight:700;
+  background:var(--surface); border:1px dashed var(--border2); color:var(--text2); cursor:pointer;
+}
+.dg-add-row-btn:hover { background:var(--surface2); color:var(--pdfed-accent); border-color:var(--pdfed-accent); }
+
+/* Compact floating info icon (replaces the old always-on title+description header bar,
+   so the ribbon + canvas get essentially all the vertical space). */
+.dg-info-btn {
+  position:absolute; top:2px; right:2px; z-index:6;
+  display:flex; align-items:center; justify-content:center; width:26px; height:26px;
+  background:var(--surface); border:1px solid var(--border); border-radius:50%; color:var(--text3);
+  cursor:pointer; transition:background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dg-info-btn:hover { background:var(--surface2); color:var(--pdfed-accent); border-color:var(--pdfed-accent); }
+.dg-info-popover {
+  display:none; position:absolute; top:32px; right:2px; z-index:20; width:280px;
+  background:var(--bg2); border:1px solid var(--border2); border-radius:12px; padding:14px 16px;
+  box-shadow:0 14px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.12);
+}
+.dg-info-popover.open { display:block; }
+.dg-info-popover h2 { font-family:'Inter',sans-serif; font-size:15px; font-weight:800; margin-bottom:6px; }
+.dg-info-popover p { color:var(--text2); font-size:12.5px; line-height:1.5; }
+
+.dg-rbn-btn-accent { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); }
+.dg-rbn-btn-accent:hover { background:var(--pdfed-accent-bg); filter:brightness(1.15); color:var(--pdfed-accent); }
+
+/* Push-to-Workspace is the one ribbon action that actually does something with the
+   finished chart (everything else is editing/formatting) — a solid filled accent
+   button, instead of the same flat tint as every other ribbon icon, keeps it reading
+   as the primary action rather than blending into the row. Built from the same
+   --pdfed-accent the rest of the (now Workspace-matched) ribbon uses, so the one bright
+   spot in the bar still belongs to the same colour family instead of a mismatched brand hue. */
+.dg-rbn-btn-push {
+  background:linear-gradient(135deg, var(--pdfed-accent), var(--purple, #7C5CFC)) !important;
+  color:#fff !important; padding:5px 9px !important; border-radius:6px !important;
+  box-shadow:0 2px 8px var(--pdfed-accent-bg);
+  align-self:center;
+}
+.dg-rbn-btn-push:hover { box-shadow:0 3px 12px var(--pdfed-accent-bg); transform:translateY(-1px); color:#fff !important; filter:brightness(1.08); }
+.dg-rbn-btn-push svg { flex-shrink:0; }
+/* Keep the Push group visually anchored inside the ribbon row, same height/alignment
+   as every other group — no special padding that could push it out of vertical rhythm. */
+#dgPushGroup { align-self:stretch; justify-content:center; }
+
+/* ── Diagrams & Graphs ribbon bar — restyled to match the Workspace (PDF editor)
+   ribbon exactly: same toolbar surface, border, and accent tokens (--pdfed-*), not the
+   standalone cyan brand color, so the two toolbars read as one consistent product. ── */
+.dg-ribbon-bar {
+  display:flex; align-items:center; gap:2px; height:52px; flex-shrink:0;
+  border:1px solid var(--pdfed-toolbar-border); border-radius:12px;
+  background:var(--pdfed-toolbar-bg); padding:0 8px; overflow-x:auto; overflow-y:hidden;
+  box-shadow:var(--shadow-nav);
+  /* OPENING (this rule governs the transition back to normal, i.e. the target
+     state when .dg-ribbon-collapsed is removed). 0s — no delay at all. Opening
+     the tool bar means the user wants a tool right now; it's there and
+     clickable the same frame as the click. */
+  transition: height 0s, opacity 0s, padding 0s, border-color 0s;
+}
+/* Collapsed: shrink the whole bar to a slim clickable strip instead of hiding it,
+   so it still reads as "there are tools here" for people who like the toolbar minimal. */
+.dg-ribbon-bar.dg-ribbon-collapsed {
+  height: 10px;
+  padding: 0;
+  opacity: 0.55;
+  cursor: pointer;
+  overflow: hidden;
+  border-style: dashed;
+  /* COLLAPSING (this rule governs the transition into this state, i.e. when
+     .dg-ribbon-collapsed is added) — the "premium" side, matching the PDF
+     editor ribbon: 0.75s, slow and deliberate, because closing is the motion
+     people actually watch. Opacity/padding/border settle quickly (0.3s) so
+     nothing looks squashed mid-collapse; height follows a steep ease-in
+     (almost all motion happens in the final third) so the bar holds, then
+     tucks itself down to the slim strip with a confident, unhurried close. */
+  transition: height 0.75s cubic-bezier(.7,0,.84,0),
+              opacity 0.3s ease-in,
+              padding 0.3s ease-in,
+              border-color 0.3s ease-in;
+}
+.dg-ribbon-bar.dg-ribbon-collapsed:hover { opacity: 0.9; }
+.dg-ribbon-bar.dg-ribbon-collapsed > * { visibility: hidden; }
+/* Peeking: hovering the collapsed strip floats the full toolbar over the
+   canvas below it instead of pushing the canvas down, so nothing reflows
+   just to glance at a tool. Leaving the area collapses it back to the strip. */
+.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 52px;
+  padding: 0 8px;
+  opacity: 1;
+  border-style: solid;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 40;
+  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.35);
+}
+.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek > * { visibility: visible; }
+.dg-ribbon-toggle-btn svg { transition: transform 0.2s ease; }
+.dg-ribbon-toggle-btn.active svg { transform: rotate(180deg); }
+.dg-ribbon-toggle-btn.active { color: var(--pdfed-accent) !important; border-color: var(--border2) !important; }
+.dg-ribbon-bar { min-width:0; max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+.dg-ribbon-bar::after { content:''; flex:0 0 14px; }   /* breathing room so the last button can scroll fully into view */
+.dg-ribbon-bar::-webkit-scrollbar { height:3px; }
+.dg-ribbon-bar::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+.dg-rbn-group { display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
+.dg-rbn-group:hover { background:rgba(255,255,255,0.025); }
+.dg-rbn-group-btns { display:flex; align-items:center; gap:3px; }
+.dg-rbn-group-label { font-size:8px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--text3); text-align:center; line-height:1; opacity:0.65; user-select:none; }
+.dg-rbn-group:hover .dg-rbn-group-label { opacity:0.9; color:var(--text2); }
+.dg-rbn-sep { width:1px; height:32px; background:var(--border); flex-shrink:0; margin:0 6px; align-self:center; }
+.dg-rbn-btn {
+  display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 9px; border-radius:6px;
+  border:none; background:transparent; color:var(--text2); font-family:'Inter',sans-serif; font-size:9.5px;
+  font-weight:600; letter-spacing:0.1px; line-height:1; cursor:pointer; transition:all 0.12s; white-space:nowrap; min-width:44px;
+}
+.dg-rbn-btn:hover { background:var(--pdfed-btn-hover); color:var(--text); }
+.dg-rbn-btn.active { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); }
+.dg-rbn-btn svg { flex-shrink:0; }
+.dg-rbn-dropdown-group { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
+.dg-rbn-dropdown-group:hover { background:rgba(255,255,255,0.025); }
+.dg-rbn-dropdown-group:hover .dg-rbn-group-label { opacity:0.9; color:var(--text2); }
+.dg-rbn-btn-row { display:flex; align-items:center; }
+.dg-rbn-caret {
+  display:flex; align-items:center; justify-content:center; width:16px; background:var(--pdfed-btn-bg);
+  border:none; border-left:1px solid var(--pdfed-toolbar-border); border-radius:0 6px 6px 0; cursor:pointer; color:var(--text2);
+  transition:background 0.15s, color 0.15s; flex-shrink:0;
+}
+.dg-rbn-caret:hover { background:var(--pdfed-btn-hover); color:var(--text); }
+.dg-rbn-caret svg { pointer-events:none; }
+.dg-rbn-main { border-radius:6px 0 0 6px !important; }
+.dg-rbn-inline-field { display:flex; flex-direction:column; gap:3px; padding:3px 8px; justify-content:flex-start; }
+.dg-rbn-inline-field > label { font-size:8px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text3); text-align:center; opacity:0.65; margin-top:2px; }
+.dg-rbn-inline-field:hover > label { opacity:0.9; color:var(--text2); }
+.dg-rbn-inline-field input[type="text"] {
+  width:132px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
+  font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none;
+}
+.dg-rbn-inline-field input[type="text"]:focus { border-color:var(--pdfed-accent); }
+.dg-rbn-inline-field select {
+  width:118px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
+  font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none; cursor:pointer;
+}
+
+/* ── Diagrams & Graphs ribbon — enterprise-grade compact pass ──────────────
+   Brings this ribbon in line with the Data Arrangement toolbar's finished
+   language: one slim row, icon-only action buttons with a tooltip instead
+   of a tiny caption baked under every icon, and quiet hairline dividers
+   instead of a boxed-and-captioned segment for every single button. This
+   sits after the base rules above and wins on source order, so nothing
+   upstream needs to be rewritten. */
+.dg-ribbon-bar { height:44px; padding:0 6px; gap:0; }
+.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek { height:44px; padding:0 6px; }
+
+.dg-rbn-group, .dg-rbn-dropdown-group {
+  flex-direction:row; align-items:center; padding:0 3px; gap:0; border-radius:7px; min-height:0;
+}
+.dg-rbn-group:hover, .dg-rbn-dropdown-group:hover { background:rgba(255,255,255,0.035); }
+[data-theme="light"] .dg-rbn-group:hover, [data-theme="light"] .dg-rbn-dropdown-group:hover { background:rgba(16,40,90,0.045); }
+
+/* The old caption ("CHART TYPE", "ANNOTATE", "STYLE"…) retires to
+   screen-reader-only text — a tooltip now carries the same information for
+   sighted users, so nothing is lost, but the row stops reading as a dozen
+   separately labelled boxes stacked two rows deep. */
+.dg-rbn-group-label {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+.dg-rbn-btn-row { height:30px; align-items:center; }
+
+/* Standalone action buttons (Add Text, Undo, Redo, Clear All) — icon-only
+   30px squares, the same module every other toolbar in the app uses. */
+.dg-rbn-group .dg-rbn-btn {
+  flex-direction:row; width:30px; height:30px; padding:0; margin:0;
+  border-radius:7px; font-size:0; line-height:0; letter-spacing:0; gap:0;
+}
+.dg-rbn-group .dg-rbn-btn svg { flex-shrink:0; opacity:0.82; }
+.dg-rbn-group .dg-rbn-btn:hover svg, .dg-rbn-group .dg-rbn-btn.active svg { opacity:1; }
+.dg-rbn-group-btns { gap:1px; }
+
+/* Dropdown triggers (Chart Type, Title, Axes, Templates, Format, Corners,
+   Colour, Upload, Data, History, Export) — icon + live value in one row,
+   no stacked caption underneath. */
+.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main {
+  flex-direction:row; height:30px; padding:0 9px; border-radius:7px 0 0 7px;
+  font-size:11.5px; font-weight:600; gap:6px; letter-spacing:0.1px; min-width:0;
+}
+.dg-rbn-dropdown-group .dg-rbn-caret { height:30px; width:16px; border-radius:0 7px 7px 0; }
+
+/* Push stays the one filled, labelled call-to-action in the row — every
+   other control is quiet by comparison, so the eye lands here last. */
+.dg-rbn-btn-push { flex-direction:row !important; width:auto !important; height:30px; padding:0 12px !important; gap:6px; font-size:11.5px !important; font-weight:700 !important; }
+
+/* Thinner, shorter, lower-contrast dividers — present enough to mark a
+   boundary, not heavy enough to chop the bar into fourteen little boxes. */
+.dg-rbn-sep { width:1px; height:20px; margin:0 4px; opacity:0.55; background:var(--border2); }
+
+/* Premium tooltip, matching the Data Arrangement toolbar's dark pill —
+   applies to any ribbon control carrying data-tip (the boot script below
+   promotes every title attribute in this bar to data-tip once, so there's
+   no native browser tooltip fighting this one). */
+.dg-ribbon-bar [data-tip], .dg-mode-tabs [data-tip] { position:relative; }
+.dg-ribbon-bar [data-tip]::after, .dg-mode-tabs [data-tip]::after {
+  content:attr(data-tip); position:absolute; top:calc(100% + 7px); left:50%;
+  transform:translate(-50%,-3px); white-space:pre; pointer-events:none;
+  padding:5px 9px; border-radius:6px; font-size:11px; font-weight:600; line-height:1.3;
+  letter-spacing:0.1px; color:#f4f7fb; background:#0f1520; max-width:220px;
+  text-align:center; white-space:normal;
+  border:1px solid rgba(255,255,255,0.08); box-shadow:0 6px 16px -4px rgba(0,0,0,0.45);
+  opacity:0; visibility:hidden; z-index:60;
+  transition:opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+}
+.dg-ribbon-bar [data-tip]:hover::after, .dg-ribbon-bar [data-tip]:focus-visible::after,
+.dg-mode-tabs [data-tip]:hover::after, .dg-mode-tabs [data-tip]:focus-visible::after {
+  opacity:1; visibility:visible; transform:translate(-50%,0);
+  transition:opacity 0.14s ease 0.28s, transform 0.14s ease 0.28s, visibility 0s linear 0.28s;
+}
+[data-theme="light"] .dg-ribbon-bar [data-tip]::after, [data-theme="light"] .dg-mode-tabs [data-tip]::after { background:#1b2740; color:#fff; border-color:rgba(255,255,255,0.06); }
+@media (hover:none) { .dg-ribbon-bar [data-tip]::after, .dg-mode-tabs [data-tip]::after { display:none; } }
+
+/* Mode switch (Data Charts / Flowchart / Map) + Tool Bar toggle — a proper
+   segmented control instead of three loose pill buttons, so it reads as
+   one control with a selected state rather than three separate buttons. */
+.dg-mode-tabs { align-items:center; padding:3px !important; background:var(--surface2); border:1px solid var(--border); border-radius:9px; gap:2px !important; }
+.dg-mode-tab { border-radius:6px !important; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+.dg-mode-tab:not(.active) { background:transparent !important; border-color:transparent !important; }
+.dg-mode-tab:not(.active):hover { background:var(--surface) !important; color:var(--text) !important; }
+.dg-ribbon-toggle-btn { height:28px; border-radius:7px !important; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+.dg-ribbon-toggle-btn:hover { background:var(--surface2) !important; color:var(--text) !important; }
+
+/* Fixed-position dropdown panels launched from the ribbon (Chart Type / Templates / Colour / Data) */
+.dg-dropdown-panel {
+  display:none; position:fixed; background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
+  padding:12px; z-index:9999; box-shadow:0 14px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.12);
+}
+.dg-dropdown-panel.open { display:block; animation:dgDropdownIn 0.18s cubic-bezier(.2,.8,.3,1); transform-origin:top left; }
+@keyframes dgDropdownIn {
+  from { opacity:0; transform:translateY(-6px) scale(0.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+.dg-type-dropdown { width:250px; max-height:min(70vh, 520px); overflow-y:auto; overscroll-behavior:contain; }
+.dg-columns-dropdown { width:320px; }
+.dg-axis-block { border:1px solid var(--border); border-radius:10px; padding:10px 11px; background:rgba(255,255,255,0.015); }
+.dg-axis-head { display:flex; align-items:center; gap:6px; margin-bottom:7px; }
+.dg-axis-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:5px; font-size:10px; font-weight:800; flex:none; }
+.dg-axis-badge.x { background:rgba(0,194,255,0.15); color:var(--blue); }
+.dg-axis-badge.y { background:rgba(34,197,94,0.15); color:#22C55E; }
+.dg-axis-title { font-size:11.5px; font-weight:800; color:var(--text); }
+.dg-axis-sub { font-size:10px; color:var(--text3); font-weight:500; }
+.dg-axis-swap-row { display:flex; align-items:center; justify-content:center; margin:2px 0; }
+.dg-axis-swap-btn {
+  display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:var(--text2);
+  background:var(--surface); border:1px solid var(--border); border-radius:99px; padding:4px 12px; cursor:pointer; transition:all 0.15s ease;
+}
+.dg-axis-swap-btn:hover { color:var(--blue); border-color:var(--blue); background:rgba(0,194,255,0.08); }
+.dg-axis-swap-btn svg { flex:none; }
+.dg-upload-preview-toggle {
+  display:flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; color:var(--text3);
+  cursor:pointer; margin-bottom:6px; user-select:none;
+}
+.dg-upload-preview-toggle:hover { color:var(--text2); }
+.dg-upload-preview-toggle svg { transition:transform 0.15s ease; }
+.dg-upload-preview-toggle.open svg { transform:rotate(90deg); }
+.dg-type-dropdown .dg-type-grid { grid-template-columns:1fr 1fr; }
+.dg-templates-dropdown { width:230px; }
+.dg-templates-dropdown .dg-template-grid { grid-template-columns:1fr; }
+.dg-title-dropdown, .dg-format-dropdown, .dg-radius-dropdown { width:220px; }
+.dg-title-panel-input {
+  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
+  font-size:12px; padding:7px 9px; font-family:'Inter',sans-serif; outline:none; box-sizing:border-box;
+}
+.dg-title-panel-input:focus { border-color:var(--blue); }
+.dg-format-panel-select {
+  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
+  font-size:12px; padding:7px 9px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; box-sizing:border-box;
+}
+.dg-colour-dropdown {
+  width:276px; max-height:74vh; overflow-y:auto; padding:18px;
+  border-radius:16px;
+  box-shadow:0 22px 48px rgba(0,0,0,0.45), 0 4px 14px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.03) inset;
+}
+.dg-colour-dropdown::-webkit-scrollbar { width:6px; }
+.dg-colour-dropdown::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+.dg-color-divider { height:1px; border:none; margin:14px 0; background:linear-gradient(90deg, transparent, var(--border2) 50%, transparent); }
+.dg-data-dropdown { width:320px; max-height:72vh; overflow-y:auto; }
+.dg-upload-dropdown { width:300px; max-height:74vh; overflow-y:auto; }
+.dg-history-dropdown { width:260px; max-height:60vh; overflow-y:auto; }
+.dg-history-badge { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; margin-left:4px; border-radius:99px; background:var(--blue); color:#fff; font-size:8px; font-weight:800; line-height:14px; }
+.dg-history-empty { font-size:10.5px; line-height:1.5; color:var(--text3); padding:6px 2px; }
+.dg-history-item { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; border:1px solid var(--border); margin-bottom:6px; background:var(--surface); }
+.dg-history-item:hover { border-color:var(--border2); }
+.dg-history-item-main { flex:1; min-width:0; cursor:pointer; }
+.dg-history-item-title { font-size:11px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dg-history-item-meta { font-size:9px; color:var(--text3); margin-top:2px; text-transform:capitalize; }
+.dg-history-item-del { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; border:none; background:transparent; color:var(--text3); cursor:pointer; transition:all 0.15s; }
+.dg-history-item-del:hover { background:rgba(239,68,68,0.12); color:#ef4444; }
+.dg-upload-zone { border:1.5px dashed rgba(0,194,255,0.28); border-radius:12px; padding:18px 12px; text-align:center; cursor:pointer; transition:all 0.2s; background:rgba(0,194,255,0.02); display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--text3); }
+.dg-upload-zone:hover, .dg-upload-zone.dragover { border-color:var(--blue); background:rgba(0,194,255,0.06); color:var(--blue); box-shadow:var(--glow-blue); }
+.dg-upload-zone.scanning { border-color:var(--blue); background:rgba(0,194,255,0.06); }
+.dg-upload-zone-text { font-size:11px; line-height:1.5; color:var(--text2); font-weight:600; }
+.dg-upload-file-name { font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:8px; word-break:break-all; }
+.dg-upload-field-label { display:block; font-size:10.5px; font-weight:700; color:var(--text2); margin-bottom:4px; }
+.dg-upload-select { width:100%; padding:9px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:12.5px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
+.dg-upload-select:focus { border-color:var(--blue); }
+.dg-upload-hint { font-size:10.5px; color:var(--text3); margin-top:8px; line-height:1.5; }
+.dg-upload-value-checks { display:flex; flex-direction:column; gap:2px; max-height:150px; overflow-y:auto; padding:6px 8px; border-radius:8px; background:var(--surface); border:1px solid var(--border); }
+.dg-upload-value-check { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); cursor:pointer; padding:6px 5px; border-radius:6px; }
+.dg-upload-value-check:hover { background:var(--surface2, rgba(0,194,255,0.06)); }
+.dg-upload-value-check input { cursor:pointer; margin:0; flex:none; width:15px; height:15px; }
+.dg-upload-value-swatch { width:10px; height:10px; border-radius:3px; flex:none; }
+.dg-upload-value-check-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dg-upload-value-flag { flex:none; font-size:10px; color:var(--text3); white-space:nowrap; }
+.dg-export-dropdown { width:250px; }
+.dg-export-dropdown .pdfed-export-menu-item { margin-bottom:2px; }
+.dg-export-dropdown .pdfed-export-menu-item:last-child { margin-bottom:0; }
+.rdx-export-dropdown { width:250px; }
+.rdx-export-dropdown .pdfed-export-menu-item { margin-bottom:2px; }
+.rdx-export-dropdown .pdfed-export-menu-item:last-child { margin-bottom:0; }
+.dg-main-row { display:flex; gap:14px; flex:1; min-height:0; align-items:stretch; transition:gap 0.28s cubic-bezier(0.16,1,0.3,1); }
+.dg-main-row.dg-insights-collapsed { gap:0; }
+.dg-preview-wrap {
+  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px; display:flex; flex-direction:column; gap:8px; min-height:0;
+  flex:1; min-width:0;
+}
+.dg-preview-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.dg-preview-toolbar-spacer { flex:1; }
+.dg-show-toggles {
+  display:flex; align-items:center; gap:2px; padding:3px;
+  background:var(--surface); border:1px solid var(--border); border-radius:9px;
+}
+.dg-columns-group { position:relative; display:flex; }
+/* Always-visible quick X/Y axis pickers — sit directly in the toolbar so switching which
+   column drives each axis is a single click, no need to open the Columns dropdown first.
+   They stay in sync with (and simply drive) the fuller X-Axis select / Y-Axis checklist
+   inside the Columns panel, which remains for multi-column Y comparisons and the raw
+   data preview. */
+.dg-quick-axis-group { display:flex; align-items:center; gap:4px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:9px; }
+.dg-quick-axis-chip { display:flex; align-items:center; gap:5px; padding:2px 8px 2px 4px; border-radius:6px; }
+.dg-quick-axis-badge { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:5px; font-size:9px; font-weight:800; flex:none; }
+.dg-quick-axis-badge.x { background:rgba(0,194,255,0.15); color:var(--blue); }
+.dg-quick-axis-badge.y { background:rgba(34,197,94,0.15); color:#22C55E; }
+.dg-quick-axis-select { max-width:128px; padding:3px 5px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text); font-size:11px; font-weight:600; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
+.dg-quick-axis-select:hover { border-color:var(--blue); }
+.dg-quick-axis-select:focus { border-color:var(--blue); }
+.dg-quick-axis-select:disabled { opacity:0.45; cursor:not-allowed; }
+.dg-quick-axis-group.dg-chip-disabled { opacity:0.4; pointer-events:none; }
+/* Same quick pickers, restyled to sit in the Map Explorer modal header (dark toolbar). */
+.dg-mapx-head .dg-quick-axis-group { background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.12); }
+.dg-show-chip {
+  display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px;
+  font-size:11.5px; font-weight:600; color:var(--text2); cursor:pointer; user-select:none;
+  transition:background 0.12s ease, color 0.12s ease; white-space:nowrap;
+}
+.dg-show-chip:hover { background:var(--surface2); color:var(--text); }
+.dg-show-chip.active { background:var(--blue); color:#fff; }
+.dg-hologram-chip.active { background:#00C2FF; box-shadow:0 0 10px rgba(0,229,255,0.7); }
+.dg-show-chip input { display:none; }
+button.dg-show-chip { border:none; background:none; font-family:inherit; }
+button.dg-show-chip.active { background:var(--blue); }
+/* Applied when a toggle/group doesn't apply to the currently-selected chart type (e.g.
+   Trend on a Pie chart, or Axes on a Donut chart) — reads as inert instead of silently
+   doing nothing when clicked. */
+.dg-show-chip.dg-chip-disabled,
+.dg-rbn-dropdown-group.dg-chip-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
+.dg-canvas-holder {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; min-height:0;
+  overflow:auto; position:relative; cursor:grab;
+}
+.dg-canvas-holder.dg-panning { cursor:grabbing; }
+.dg-canvas-holder.dg-panning * { cursor:grabbing !important; user-select:none; }
+/* ── Map Explorer: full interactive OpenStreetMap view (Leaflet), opened from the
+   "Explore Map" chip while Map mode is active — lets someone pan/zoom into real
+   geography instead of the flat offline choropleth shape. ── */
+.dg-mapx-modal { position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:9999; display:none; align-items:center; justify-content:center; }
+.dg-mapx-modal.open { display:flex; }
+.dg-mapx-panel { background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:16px; width:94vw; max-width:1180px; height:88vh; display:flex; flex-direction:column; gap:10px; }
+.dg-mapx-head { display:flex; align-items:center; gap:10px; }
+.dg-mapx-head h3 { font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; margin:0; }
+.dg-mapx-head-spacer { flex:1; }
+.dg-mapx-btn { padding:6px 12px; font-size:11.5px; font-weight:600; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:5px; }
+.dg-mapx-btn:hover { color:var(--text); border-color:var(--border2); }
+.dg-mapx-btn.active { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); border-color:var(--border2); }
+.dg-mapx-close { background:none; border:none; color:var(--text2); font-size:20px; cursor:pointer; line-height:1; padding:0 4px; }
+.dg-mapx-body { flex:1; min-height:0; border-radius:12px; overflow:hidden; border:1px solid var(--border); position:relative; }
+#dgLeafletMap { width:100%; height:100%; background:#0A0F1E; }
+.dg-mapx-note { font-size:11px; color:var(--text2); opacity:0.8; }
+.dg-mapx-beta-badge { display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#f59e0b; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.35); border-radius:4px; padding:2px 6px; margin-left:8px; vertical-align:middle; cursor:default; }
+.dg-mapx-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; font-size:12.5px; color:var(--text2); background:rgba(10,15,30,0.85); z-index:500; }
+/* Leaflet's default popup/marker chrome, restyled to match the app's dark surfaces */
+.dg-mapx-body .leaflet-popup-content-wrapper { background:var(--bg2); color:var(--text); border-radius:10px; }
+.dg-mapx-body .leaflet-popup-tip { background:var(--bg2); }
+.dg-mapx-body .leaflet-container { font-family:inherit; }
+.dg-mapx-popup-title { font-weight:700; font-size:12.5px; margin-bottom:3px; }
+.dg-mapx-popup-value { font-size:12px; color:var(--text2); }
+/* Marquee (drag-to-select) rectangle, Canva/Figma-style manual multi-select.
+   Positioned in the holder's own (scrollable) coordinate space — see
+   dgMarqueeStart/Move — so it tracks correctly regardless of chart zoom. */
+.dg-marquee-box {
+  position:absolute; z-index:5; pointer-events:none;
+  border:1.5px dashed var(--blue); background:rgba(0,194,255,0.10); border-radius:2px;
+}
+.dg-canvas-zoom-wrap { position:relative; transform-origin:center center; transition:transform 0.12s ease; flex-shrink:0; display:flex; }
+.dg-canvas-zoom-wrap canvas { display:block; }
+
+/* ── 3D Statistical charts: WebGL canvas lives in the same zoom-wrap slot as
+   the 2D <canvas>, toggled via display:none so only one is ever visible.
+   Sized to match the 2D canvas's default card (1200x675) so the surrounding
+   holder/zoom logic needs no special-casing. ── */
+#dgCanvas3D { display:none; border-radius:14px; cursor:grab; background:#ffffff; box-shadow:0 3px 16px rgba(16,24,40,0.12); }
+#dgCanvas3D.dg-panning-3d { cursor:grabbing; }
+.dg-type-grid-label {
+  grid-column:1 / -1; font-size:10px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;
+  color:var(--text3); padding:8px 2px 0; margin-top:2px; border-top:1px solid var(--border);
+}
+.dg-type-grid-label:first-child { border-top:none; margin-top:0; padding-top:0; }
+.dg-type-tile .dg-3d-badge {
+  font-size:8px; font-weight:800; letter-spacing:0.03em; color:#fff; background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border-radius:5px; padding:1px 5px; margin-top:-2px;
+}
+.dg-3d-rotate-hint {
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%); pointer-events:none;
+  font-size:10.5px; font-weight:600; color:var(--text3); background:var(--surface); border:1px solid var(--border);
+  padding:4px 10px; border-radius:20px; opacity:0.9; display:flex; align-items:center; gap:5px;
+}
+.dg-3d-tooltip {
+  position:absolute; z-index:15; pointer-events:none; transform:translate(-50%, -100%);
+  background:#101820; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.45;
+  box-shadow:0 8px 20px rgba(0,0,0,0.28); white-space:nowrap;
+}
+.dg-3d-tooltip .dg-3d-tt-title { font-weight:700; font-size:12px; }
+.dg-3d-tooltip .dg-3d-tt-sub { color:#9aa5b3; }
+.dg-3d-tooltip::after {
+  content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:#101820;
+}
+
+/* ── Manual text overlay: sits directly on top of dgCanvas, INSIDE the same
+   zoom wrap, so it scales/pans as one unit with the chart via the existing
+   CSS transform (dgApplyZoom) — the same proven pattern as the PDF editor's
+   placed-text layer. Because this is a pure DOM layer, dragging or editing
+   text never touches dgCanvas or calls dgDrawChart(), so the chart itself
+   ("its environment") is never cleared or redrawn while text is moved. ── */
+.dg-text-overlay { position:absolute; top:0; left:0; width:1200px; height:675px; pointer-events:none; }
+.dg-placed-text {
+  position:absolute; min-width:24px; min-height:20px; padding:2px 4px;
+  cursor:grab; pointer-events:auto; border:1.5px solid transparent; border-radius:4px;
+  outline:none; white-space:pre-wrap; word-break:break-word; user-select:none;
+  line-height:1.3; box-sizing:border-box; -webkit-user-drag:none;
+}
+.dg-placed-text:hover { border-color:rgba(0,194,255,0.35); }
+.dg-placed-text.selected { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,194,255,0.15); cursor:grab; }
+.dg-placed-text.editing { cursor:text; user-select:text; border-color:var(--blue); background:rgba(255,255,255,0.65); }
+.dg-placed-text.dragging { cursor:grabbing; box-shadow:0 4px 14px rgba(0,0,0,0.18); }
+.dg-ptxt-del {
+  position:absolute; top:-11px; right:-11px; width:20px; height:20px; border-radius:50%;
+  background:#EF4444; color:#fff; border:2px solid #fff; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.25); z-index:2;
+}
+.dg-ptxt-del svg { width:11px; height:11px; }
+/* Smart-resize handle (Canva-style): dragging the corner square scales the
+   font size right along with the box, same pattern as the PDF editor's
+   te-resize-handle. Sized with --dg-inv-zoom so it stays a constant
+   on-screen size no matter the canvas zoom level. */
+.dg-ptxt-resize {
+  position:absolute;
+  width:  calc(12px * var(--dg-inv-zoom, 1));
+  height: calc(12px * var(--dg-inv-zoom, 1));
+  bottom: calc(-7px * var(--dg-inv-zoom, 1));
+  right:  calc(-7px * var(--dg-inv-zoom, 1));
+  background:var(--blue); border:1.5px solid #fff; border-radius:3px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.35); cursor:nwse-resize; display:none; z-index:2;
+}
+.dg-placed-text.selected .dg-ptxt-resize { display:block; }
+/* Move handle: a dedicated grab point (Canva/PDF-editor pattern) so there's
+   an explicit affordance for "drag to reposition" distinct from the resize
+   corner — dragging the body still moves it too, this just makes the
+   handle visible/discoverable once a box is selected. */
+.dg-ptxt-move {
+  position:absolute;
+  width:  calc(16px * var(--dg-inv-zoom, 1));
+  height: calc(16px * var(--dg-inv-zoom, 1));
+  top:  calc(-20px * var(--dg-inv-zoom, 1));
+  left: calc(-20px * var(--dg-inv-zoom, 1));
+  background:var(--blue); border:1.5px solid #fff; border-radius:50%;
+  box-shadow:0 1px 4px rgba(0,0,0,0.35); cursor:move; display:none;
+  align-items:center; justify-content:center; z-index:2;
+}
+.dg-ptxt-move svg { pointer-events:none; width:60%; height:60%; }
+.dg-placed-text.selected .dg-ptxt-move { display:flex; }
+
+/* ── Smart alignment guides: thin magenta lines that flash when a dragged
+   text box's edge/center lines up with the canvas center/edges or another
+   placed text's edge/center — Canva-style. Pure visual layer, sits above
+   the overlay, never affects the chart canvas itself. ── */
+.dg-snap-guides { position:absolute; top:0; left:0; width:1200px; height:675px; pointer-events:none; z-index:5; }
+.dg-snap-line { position:absolute; background:#FF3B8D; box-shadow:0 0 4px rgba(255,59,141,0.6); }
+.dg-snap-line.v { width:1px; top:0; height:100%; }
+.dg-snap-line.h { height:1px; left:0; width:100%; }
+
+/* Insights side panel — premium enterprise dashboard treatment */
+.dg-insights-panel {
+  width:264px; flex-shrink:0;
+  background:linear-gradient(180deg, var(--bg3) 0%, var(--bg2) 100%);
+  border:1px solid var(--border); border-radius:var(--radius);
+  display:flex; flex-direction:column; min-height:0; overflow:visible; position:relative;
+  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 28px rgba(0,0,0,0.18);
+  transition:width 0.28s cubic-bezier(0.16,1,0.3,1), min-width 0.28s cubic-bezier(0.16,1,0.3,1), border-color 0.2s ease;
+}
+.dg-insights-panel.dg-collapsed {
+  width:0; min-width:0; border:none; box-shadow:none;
+}
+.dg-insights-panel.dg-collapsed .dg-insights-head,
+.dg-insights-panel.dg-collapsed .dg-insights-scroll { display:none; }
+/* Toggle tab, attached to left edge of the panel — mirrors the PDF editor's right-panel toggle */
+#dgInsightsToggleBtn {
+  position:absolute; top:50%; left:-22px; transform:translateY(-50%); z-index:20;
+  width:22px; height:64px;
+  background:var(--surface2);
+  border:1px solid var(--border); border-right:none; border-radius:10px 0 0 10px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  color:var(--dg-ink);
+  transition:left 0.22s ease, color 0.15s, background 0.15s, box-shadow 0.15s, width 0.15s;
+  box-shadow:0 1px 6px rgba(0,0,0,0.12);
+}
+#dgInsightsToggleBtn:hover {
+  color:var(--text); width:24px; left:-24px;
+  background:var(--dg-ink-soft);
+}
+.dg-insights-panel.dg-collapsed #dgInsightsToggleBtn {
+  background:var(--dg-ink-soft);
+  border-color:var(--border2);
+}
+.dg-insights-head {
+  display:flex; align-items:center; gap:8px; padding:13px 14px 12px;
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.dg-insights-head-icon {
+  width:22px; height:22px; border-radius:7px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--dg-ink-soft); color:var(--dg-ink);
+  box-shadow:0 0 0 1px rgba(0,0,0,0.03) inset;
+}
+.dg-insights-head-title { display:flex; flex-direction:column; gap:1px; }
+.dg-insights-head-title .dg-panel-title { margin:0; }
+.dg-insights-head-sub { font-size:9.5px; color:var(--text3); font-weight:600; letter-spacing:0.1px; }
+.dg-insights-scroll { flex:1; min-height:0; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+.dg-insights-scroll::-webkit-scrollbar { width:6px; }
+.dg-insights-scroll::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+.dg-insights-panel .dg-stat-strip { flex-direction:column; }
+.dg-insights-panel .dg-stat-card { min-width:0; flex:none; width:100%; }
+@media (max-width: 980px) {
+  .dg-main-row { flex-direction:column; }
+  .dg-insights-panel { width:100%; }
+  .dg-insights-panel.dg-collapsed { width:0; }
+  .dg-insights-panel .dg-stat-strip { flex-direction:row; }
+}
+.dg-zoom-controls {
+  display:flex; align-items:center; gap:0; flex-shrink:0;
+  border:1px solid var(--border); border-radius:6px; overflow:hidden;
+}
+.dg-zoom-btn {
+  width:26px; height:26px; display:flex; align-items:center; justify-content:center; border:none;
+  background:var(--pdfed-ribbon-btn-bg); color:var(--text2); cursor:pointer; transition:all 0.12s;
+}
+.dg-zoom-btn:hover:not(:disabled) { background:var(--pdfed-btn-hover); color:var(--text); }
+.dg-zoom-btn:disabled { opacity:0.35; cursor:default; }
+.dg-zoom-btn svg { pointer-events:none; }
+.dg-zoom-label {
+  background:transparent; border-left:1px solid var(--border); border-right:1px solid var(--border);
+  font-size:10px; font-weight:700; color:var(--text); font-family:'Inter',sans-serif;
+  min-width:42px; text-align:center; user-select:none; cursor:pointer; padding:0 2px; height:26px;
+  display:flex; align-items:center; justify-content:center;
+}
+.dg-zoom-label:hover { background:var(--pdfed-btn-hover); }
+.dg-scheme-select {
+  width:100%; padding:9px 32px 9px 12px; border-radius:10px; background-color:var(--surface); border:1px solid var(--border);
+  color:var(--text); font-size:12px; font-weight:700; letter-spacing:0.15px; outline:none; cursor:pointer;
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 12px center; background-size:10px 10px;
+  transition:border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dg-scheme-select:hover { border-color:var(--border2); }
+.dg-scheme-select:focus { border-color:var(--pdfed-accent); box-shadow:0 0 0 3px var(--pdfed-accent-bg); }
+.dg-custom-swatch-wrap { position:relative; display:inline-block; }
+.dg-custom-swatch-del {
+  position:absolute; top:-6px; right:-6px; width:13px; height:13px; border-radius:50%;
+  background:#ef4444; color:#fff; font-size:9px; line-height:13px; text-align:center;
+  opacity:0; transition:opacity 0.15s ease; cursor:pointer;
+}
+.dg-custom-swatch-wrap:hover .dg-custom-swatch-del { opacity:1; }
+.dg-empty-swatch-hint { font-size:11px; color:var(--text3); font-style:italic; }
+.dg-collapse-header {
+  display:flex; align-items:center; gap:8px; cursor:pointer; padding:2px 0 8px;
+  user-select:none;
+}
+.dg-collapse-header .dg-chevron {
+  margin-left:auto; font-size:9px; color:var(--text3); transition:transform 0.2s ease;
+}
+.dg-collapse-header.open .dg-chevron { transform:rotate(90deg); }
+.dg-collapse-body {
+  display:none; flex-direction:column; gap:12px;
+}
+.dg-collapse-body.open { display:flex; }
+
+.dg-template-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dg-template-btn {
+  padding:9px 10px; border-radius:9px; cursor:pointer; text-align:left;
+  background:var(--surface); border:1px solid var(--border); color:var(--text2);
+  font-size:11.5px; font-weight:700; display:flex; flex-direction:column; gap:3px;
+  transition:all 0.15s ease;
+}
+.dg-template-btn:hover { background:var(--surface2); border-color:var(--border2); color:var(--text); }
+.dg-template-btn small { font-weight:500; color:var(--text3); font-size:9.5px; letter-spacing:0.2px; }
+
+.dg-stat-strip { display:flex; gap:10px; flex-wrap:wrap; }
+.dg-stat-card {
+  flex:1; min-width:112px; position:relative; overflow:hidden;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:11px; padding:11px 12px 11px 14px; display:flex; flex-direction:column; gap:3px;
+  transition:border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.dg-stat-card::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--dg-accent, var(--dg-ink)); opacity:0.7;
+}
+.dg-stat-card:hover {
+  border-color:var(--border2);
+  box-shadow:0 2px 10px rgba(0,0,0,0.10);
+}
+.dg-stat-card-top { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.dg-stat-icon {
+  width:20px; height:20px; border-radius:6px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(var(--dg-accent-rgb, var(--dg-ink-rgb)), 0.14);
+  color:var(--dg-accent, var(--dg-ink));
+}
+.dg-stat-icon svg { width:12px; height:12px; }
+.dg-stat-label { font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--text3); }
+.dg-stat-value { font-size:17px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; line-height:1.2; letter-spacing:-0.2px; }
+.dg-stat-sub { font-size:10px; color:var(--text3); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dg-stat-trend {
+  display:inline-flex; align-items:center; gap:2px; font-size:10px; font-weight:800;
+  padding:1px 5px; border-radius:5px; width:fit-content; margin-top:1px;
+}
+.dg-stat-trend svg { width:9px; height:9px; }
+.dg-stat-trend.up { color:#4F9D77; background:rgba(79,157,119,0.12); }
+.dg-stat-trend.down { color:#B85C56; background:rgba(184,92,86,0.12); }
+.dg-stat-trend.flat { color:#8a94a3; background:rgba(138,148,163,0.12); }
+
+/* AI-generated narrative insight callout */
+.dg-insight-sentence {
+  position:relative; overflow:hidden;
+  font-size:12px; color:var(--text2); line-height:1.55; display:none;
+  background:var(--surface);
+  border:1px solid var(--border2); border-radius:11px;
+  padding:12px 13px 12px 14px;
+}
+.dg-insight-sentence::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--dg-ink);
+}
+.dg-insight-sentence.show { display:block; }
+.dg-insight-badge {
+  display:flex; align-items:center; gap:5px; margin-bottom:7px;
+  font-size:9px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--dg-ink);
+}
+.dg-insight-badge svg { width:11px; height:11px; }
+.dg-insight-text { color:var(--text); font-weight:500; }
+.dg-insight-text b { color:var(--text); font-weight:800; }
+
+/* Written Analysis — inline panel that sits beneath the chart in the Live Preview column
+   (not the sidebar, not a popup), shown only after the person clicks the toolbar chip. */
+.dg-analysis-panel {
+  display:none; margin-top:12px;
+  background:var(--surface);
+  border:1px solid var(--border2); border-radius:12px;
+  padding:14px 15px 15px;
+}
+.dg-analysis-panel.open { display:block; }
+.dg-analysis-panel-head {
+  display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:10px;
+}
+.dg-analysis-panel-badge {
+  display:flex; align-items:center; gap:5px;
+  font-size:10.5px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--dg-ink);
+}
+.dg-analysis-panel-badge svg { width:13px; height:13px; }
+.dg-analysis-panel-icon-btn {
+  display:flex; align-items:center; justify-content:center; width:22px; height:22px;
+  border-radius:6px; border:none; background:transparent; color:var(--text3); cursor:pointer;
+  transition:all .15s;
+}
+.dg-analysis-panel-icon-btn:hover { background:var(--dg-ink-soft); color:var(--dg-ink); }
+.dg-analysis-panel-icon-btn svg { width:13px; height:13px; }
+.dg-analysis-panel-text { color:var(--text); font-weight:500; font-size:12.5px; line-height:1.7; }
+.dg-analysis-panel-text b { color:var(--text); font-weight:800; }
+.dg-analysis-panel-actions { display:flex; gap:7px; margin-top:14px; }
+.dg-smart-analysis-btn {
+  flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:8px 8px; border-radius:8px; font-size:11.5px; font-weight:700;
+  border:1px solid var(--border2); background:var(--bg3); color:var(--text2);
+  cursor:pointer; transition:all .15s;
+}
+.dg-smart-analysis-btn svg { width:12px; height:12px; }
+.dg-smart-analysis-btn:hover { border-color:var(--dg-ink); color:var(--dg-ink); background:var(--dg-ink-soft); }
+.dg-smart-analysis-btn.primary { background:var(--dg-ink); color:#fff; border:none; }
+.dg-smart-analysis-btn.primary:hover { opacity:0.9; }
+
+/* Upload preview — quick look at detected columns/types before mapping label & value */
+.dg-upload-preview { margin-top:10px; }
+.dg-upload-preview-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:7px; }
+.dg-upload-chip {
+  font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px;
+  background:rgba(0,194,255,0.1); color:var(--blue); border:1px solid rgba(0,194,255,0.22);
+}
+.dg-upload-chip.text { background:rgba(138,148,163,0.12); color:var(--text3); border-color:var(--border2); }
+.dg-upload-chip.date { background:rgba(16,185,129,0.12); color:var(--green); border-color:rgba(16,185,129,0.3); }
+.dg-upload-preview-table-wrap { max-height:130px; overflow:auto; border:1px solid var(--border2); border-radius:8px; }
+.dg-upload-preview-table { width:100%; border-collapse:collapse; font-size:10px; }
+.dg-upload-preview-table th, .dg-upload-preview-table td {
+  padding:5px 7px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  max-width:110px; border-bottom:1px solid var(--border);
+}
+.dg-upload-preview-table th {
+  position:sticky; top:0; background:var(--bg3); color:var(--text2); font-weight:800; z-index:1;
+}
+.dg-upload-preview-table th .dg-upload-preview-type { display:block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--blue); margin-top:1px; }
+.dg-upload-preview-table th .dg-upload-preview-type.text { color:var(--text3); }
+.dg-upload-preview-table th .dg-upload-preview-type.date { color:var(--green); }
+.dg-upload-preview-table td { color:var(--text2); }
+.dg-upload-preview-table tr:last-child td { border-bottom:none; }
+
+.dg-bw-row { display:flex; gap:8px; }
+.dg-bw-swatch {
+  flex:1; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:10.5px; font-weight:700; letter-spacing:0.3px; cursor:pointer; position:relative; overflow:hidden;
+  border:1px solid var(--border2); transition:transform 0.12s ease, box-shadow 0.12s ease;
+}
+.dg-bw-swatch::after {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(160deg, rgba(255,255,255,0.14), transparent 55%);
+}
+.dg-bw-swatch span { position:relative; z-index:1; }
+.dg-bw-swatch:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,0,0,0.18); }
+.dg-bw-black { background:#0a0a0a; color:#ffffff; border-color:#000; }
+.dg-bw-white { background:#ffffff; color:#101820; border-color:var(--border2); }
+
+.dg-custom-colour-box {
+  margin-top:2px; padding:16px; border-radius:16px; position:relative; overflow:hidden;
+  background:linear-gradient(165deg, var(--bg2) 0%, var(--surface) 100%);
+  border:1px solid var(--border2);
+  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 10px 30px -18px rgba(0,0,0,0.55);
+}
+.dg-wheel-heading { margin-bottom:12px; position:relative; z-index:1; }
+.dg-wheel-heading-title {
+  display:block; font-size:12.5px; font-weight:800; color:var(--text); letter-spacing:0.2px;
+}
+.dg-wheel-heading-sub {
+  display:block; font-size:10.5px; color:var(--text3); margin-top:2px; font-weight:500;
+}
+.dg-custom-colour-row { display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
+.dg-custom-colour-row input[type="color"] {
+  width:40px; height:40px; border-radius:10px; border:none; padding:0; cursor:pointer; flex-shrink:0;
+  box-shadow:0 0 0 1px var(--border2), 0 6px 16px -6px rgba(0,0,0,0.5);
+}
+.dg-wheel-hex {
+  font-size:13px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0.3px;
+}
+.dg-wheel-actions { display:flex; gap:8px; margin-top:14px; position:relative; z-index:1; }
+.dg-wheel-actions .btn-secondary, .dg-wheel-actions .btn-primary {
+  flex:1; padding:9px; font-size:11px; border-radius:10px; font-weight:700; letter-spacing:0.2px;
+  transition:filter 0.15s ease, transform 0.1s ease;
+}
+.dg-wheel-actions .btn-primary {
+  background:linear-gradient(135deg, var(--pdfed-accent), var(--purple, #7C5CFC)); border:none; color:#fff;
+  box-shadow:0 8px 18px -6px var(--pdfed-accent-bg);
+}
+.dg-wheel-actions .btn-primary:hover { filter:brightness(1.08); transform:translateY(-1px); }
+.dg-wheel-actions .btn-secondary:hover { transform:translateY(-1px); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE APP SHELL — sidebar becomes a slide-in drawer, topnav compacts,
+   dashboard/content grids reflow to 1–2 columns. This block targets the
+   global shell + dashboard only; the PDF Editor / Make Forms / Diagrams
+   canvases already have (or need their own) dedicated passes since they're
+   precision editing surfaces, not simple reflow-able content.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  html, body { overflow-x: hidden; }
+
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  /* Sidebar: fixed slide-in drawer over the content instead of a column
+     that pushes it. Same .sidebar-collapsed class the desktop toggle
+     already uses — just re-purposed here as "drawer closed" vs "open". */
+  .sidebar {
+    position: fixed;
+    top: var(--topnav-h);
+    left: 0;
+    bottom: 0;
+    width: min(82vw, 300px);
+    z-index: 300;
+    opacity: 1;
+    box-shadow: 14px 0 34px rgba(0,0,0,0.35);
+    transform: translateX(0);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .sidebar-collapsed .sidebar {
+    width: min(82vw, 300px);
+    padding: 16px 12px;
+    opacity: 1;
+    overflow: hidden;
+    border-right: none;
+    transform: translateX(-100%);
+  }
+  .sidebar-collapsed .app {
+    grid-template-columns: 1fr;
+  }
+  .main::before { left: 0; }
+
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: var(--topnav-h) 0 0 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 250;
+  }
+  body:not(.sidebar-collapsed) .sidebar-backdrop { display: block; }
+
+  /* Topnav: drop non-essential chrome, keep hamburger + logo + core actions */
+  .topnav { padding: 0 10px; gap: 8px; }
+  .topnav-ws-label, .topnav-beta-badge, .topnav-alltools-link { display: none; }
+  .new-project-btn span { display: none; }
+  .new-project-btn { padding: 0 9px; margin-left: 4px; }
+  .save-workflow-btn { margin-left: 0; }
+  .nav-logo-link img { height: 22px !important; }
+
+  /* Dashboard + generic sections: tighter padding, single-column hero */
+  .dashboard, .export-section { padding: 16px; }
+  .dash-hero { padding: 22px 18px; }
+  .dash-hero h1 { font-size: 26px; line-height: 1.15; }
+  .hero-actions { flex-wrap: wrap; }
+
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .export-grid { grid-template-columns: 1fr; }
+  .extract-opts { grid-template-columns: 1fr; }
+  .extracted-mini-grid { grid-template-columns: repeat(2, 1fr); }
+  .pdfed-fmt-grid { grid-template-columns: repeat(2, 1fr); }
+  .pdfed-pagesize-card { flex-direction: column; }
+
+  /* Search bar takes less room where it appears outside the topnav */
+  .search-bar { width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .stats-row { grid-template-columns: 1fr; }
+  .dash-hero h1 { font-size: 22px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   PRIVACY REDACTION TOOL (rdx*)
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  --rdx-name: #F59E0B;
+  --rdx-address: #8B5CF6;
+  --rdx-bank: #10B981;
+  --rdx-govid: #EF4444;
+  --rdx-license: #00C2FF;
+  --rdx-signature: #EC4899;
+  --rdx-phone: #3B82F6;
+  --rdx-email: #14B8A6;
+  --rdx-dob: #FB923C;
+  --rdx-photo: #A3E635;
+  --rdx-other: #94A3B8;
+}
+.rdx-wrap { display:flex; flex-direction:column; height:100%; min-height:0; }
+.rdx-head { padding:22px 26px 14px; flex-shrink:0; max-width:640px; }
+.rdx-head h2 { font-size:20px; font-weight:800; margin:0 0 4px; color:var(--text); }
+.rdx-head p { font-size:12.5px; color:var(--text2); margin:0; max-width:640px; line-height:1.6; max-height:60px; opacity:1; overflow:hidden; transition:max-height .45s ease, opacity .3s ease, margin .45s ease; }
+.rdx-head p.rdx-collapsed { max-height:0; opacity:0; margin:0; }
+
+/* ---- empty / upload state ---- */
+.rdx-empty { flex:1; display:flex; align-items:center; justify-content:center; padding:20px 26px 40px; }
+.rdx-dropzone {
+  width:100%; max-width:520px; border:2px dashed var(--border2); border-radius:16px;
+  padding:44px 32px; text-align:center; cursor:pointer; background:var(--surface);
+  transition:border-color .15s, background .15s;
+}
+.rdx-dropzone:hover, .rdx-dropzone.dragover { border-color:var(--blue); background:rgba(0,194,255,0.06); }
+.rdx-dropzone-icon { width:52px; height:52px; margin:0 auto 14px; border-radius:14px; background:rgba(0,194,255,0.12); display:flex; align-items:center; justify-content:center; color:var(--blue); }
+.rdx-dropzone h3 { font-size:15px; font-weight:700; color:var(--text); margin:0 0 6px; }
+.rdx-dropzone p { font-size:12px; color:var(--text2); margin:0 0 16px; line-height:1.6; }
+.rdx-dropzone .btn-primary { pointer-events:none; }
+.rdx-privacy-note { display:flex; align-items:center; gap:7px; justify-content:center; margin-top:18px; font-size:11px; color:var(--text3); }
+
+/* ---- workspace layout ---- */
+.rdx-body { flex:1; min-height:0; display:flex; gap:0; }
+.rdx-thumbs { width:84px; flex-shrink:0; border-right:1px solid var(--pdfed-strip-border); background:var(--pdfed-strip-bg); overflow-y:auto; padding:10px 8px; display:flex; flex-direction:column; gap:8px; }
+.rdx-thumb { border:2px solid transparent; border-radius:8px; overflow:hidden; cursor:pointer; position:relative; background:#fff; }
+.rdx-thumb.active { border-color:var(--blue); }
+.rdx-thumb img { display:block; width:100%; height:auto; }
+.rdx-thumb-num { position:absolute; bottom:2px; right:3px; font-size:9px; font-weight:700; background:rgba(0,0,0,0.6); color:#fff; padding:1px 4px; border-radius:4px; }
+.rdx-thumb-badge { position:absolute; top:2px; left:2px; font-size:8px; font-weight:800; background:var(--rdx-govid); color:#fff; padding:1px 4px; border-radius:4px; }
+
+/* Batch queue strip — shown when more than one file has been loaded at once */
+.rdx-docqueue { display:flex; flex-direction:column; gap:0; padding:0; border-bottom:1px solid var(--pdfed-panel-border); background:var(--pdfed-strip-bg); flex-shrink:0; }
+.rdx-docqueue-toprow { display:flex; align-items:center; gap:8px; padding:8px 14px; }
+.rdx-docqueue-label { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--text3); flex-shrink:0; }
+/* Folder tabs — appear once "Scan All" has identified document types (e.g.
+   Aadhaar card vs PAN card), letting the batch be filtered/grouped into
+   per-type "folders" instead of one long flat strip. Styled as compact,
+   flat filter chips (icon + label + inline count) — enterprise document-
+   management look rather than oversized game-badge tiles. */
+.rdx-dq-folders { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 14px; flex-wrap:wrap; border-top:1px solid var(--pdfed-panel-border); margin-top:2px; background:rgba(0,0,0,0.06); }
+.rdx-dq-folders-list { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.rdx-dq-folder-tab { display:flex; flex-direction:row; align-items:center; gap:7px; padding:6px 12px 6px 8px; border-radius:8px; border:1px solid var(--pdfed-panel-border); background:var(--surface); cursor:pointer; transition:all .15s; }
+.rdx-dq-folder-tab:hover { border-color:var(--border2); background:rgba(255,255,255,0.04); }
+.rdx-dq-folder-tab.active { border-color:var(--blue); background:rgba(0,194,255,0.08); }
+.rdx-dq-folder-tab .rdx-dq-folder-iconwrap { position:relative; width:20px; height:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.rdx-dq-folder-tab .rdx-dq-folder-icon { display:flex; align-items:center; justify-content:center; width:18px; height:18px; opacity:0.85; }
+.rdx-dq-folder-tab .rdx-dq-folder-icon-img { width:20px; height:20px; object-fit:contain; border-radius:4px; opacity:1; flex-shrink:0; }
+.rdx-dq-folder-tab.active .rdx-dq-folder-icon { opacity:1; }
+.rdx-dq-folder-tab .rdx-dq-folder-name { font-size:12px; font-weight:600; color:var(--text2); white-space:nowrap; }
+.rdx-dq-folder-tab.active .rdx-dq-folder-name { color:var(--blue); }
+.rdx-dq-folder-tab .rdx-dq-folder-count { font-size:10.5px; font-weight:700; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--pdfed-toolbar-bg); border:1px solid var(--pdfed-panel-border); color:var(--text3); display:flex; align-items:center; justify-content:center; }
+.rdx-dq-folder-tab.active .rdx-dq-folder-count { background:var(--blue); border-color:var(--blue); color:#fff; }
+.rdx-dq-folders-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:auto; }
+.rdx-push-ws-btn { display:flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; border:1px solid var(--pdfed-panel-border); background:var(--surface); color:var(--text2); font-size:12px; font-weight:700; cursor:pointer; transition:all .15s; white-space:nowrap; }
+.rdx-push-ws-btn:hover { border-color:var(--blue); color:var(--blue); background:rgba(0,194,255,0.06); }
+.rdx-push-ws-btn svg { flex-shrink:0; }
+.rdx-docqueue-items { display:flex; gap:6px; overflow-x:auto; flex:1; min-width:0; }
+.rdx-docqueue-item { display:flex; align-items:center; gap:6px; padding:5px 8px 5px 10px; border-radius:8px; border:1.5px solid var(--pdfed-panel-border); background:var(--surface); cursor:pointer; font-size:11.5px; font-weight:600; color:var(--text2); white-space:nowrap; flex-shrink:0; transition:all .15s; }
+.rdx-docqueue-item:hover { border-color:var(--blue); color:var(--text); }
+.rdx-docqueue-item.active { border-color:var(--blue); background:rgba(0,194,255,0.08); color:var(--text); }
+.rdx-docqueue-item .rdx-dq-status { width:6px; height:6px; border-radius:50%; background:var(--text3); flex-shrink:0; }
+.rdx-docqueue-item.found .rdx-dq-status { background:#F59E0B; }
+.rdx-docqueue-item.done .rdx-dq-status { background:#22C55E; }
+.rdx-docqueue-item .rdx-dq-name { max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+.rdx-docqueue-item .rdx-dq-badge { font-size:9.5px; font-weight:800; padding:1px 5px; border-radius:20px; background:rgba(245,158,11,0.16); color:#F59E0B; flex-shrink:0; }
+.rdx-docqueue-item.done .rdx-dq-badge { background:rgba(34,197,94,0.16); color:#22C55E; }
+.rdx-docqueue-item .rdx-dq-remove { display:flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; color:var(--text3); flex-shrink:0; }
+.rdx-docqueue-item .rdx-dq-remove:hover { background:rgba(239,68,68,0.15); color:#EF4444; }
+.rdx-docqueue-actions { display:flex; gap:6px; flex-shrink:0; }
+.rdx-docqueue-add, .rdx-docqueue-smart { display:flex; align-items:center; justify-content:center; gap:4px; padding:5px 10px; border-radius:8px; border:1.5px dashed var(--pdfed-panel-border); background:transparent; cursor:pointer; font-size:11px; font-weight:700; color:var(--text3); flex-shrink:0; transition:all .15s; white-space:nowrap; }
+.rdx-docqueue-add:hover { border-color:var(--blue); color:var(--blue); }
+.rdx-docqueue-smart { border-style:solid; }
+.rdx-docqueue-smart:hover { border-color:var(--blue); color:var(--blue); }
+.rdx-docqueue-smart.primary { border-color:var(--blue); background:rgba(0,194,255,0.1); color:var(--blue); }
+.rdx-docqueue-smart.primary:hover { background:var(--blue); color:#fff; }
+.rdx-docqueue-smart:disabled { opacity:0.45; cursor:not-allowed; }
+.rdx-docqueue-smart:disabled:hover { border-color:var(--pdfed-panel-border); background:transparent; color:var(--text3); }
+.rdx-docqueue-smart.primary:disabled:hover { border-color:var(--blue); background:rgba(0,194,255,0.1); color:var(--blue); }
+
+.rdx-canvas-area { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--pdfed-canvas-area-bg); }
+.rdx-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid var(--pdfed-toolbar-border); background:var(--pdfed-toolbar-bg); flex-shrink:0; }
+.rdx-btn {
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--text);
+  background:var(--pdfed-btn-bg); border:1px solid var(--pdfed-toolbar-border); border-radius:8px; padding:7px 12px;
+  cursor:pointer; transition:background .12s;
+}
+.rdx-btn:hover { background:var(--pdfed-btn-hover); }
+.rdx-btn:disabled { opacity:.4; cursor:not-allowed; }
+.rdx-btn.primary { background:linear-gradient(135deg, var(--blue), var(--purple)); border-color:transparent; color:#fff; }
+.rdx-btn.danger { color:#f87171; }
+.rdx-btn.active-toggle { background:rgba(0,194,255,0.18); border-color:var(--blue); color:var(--blue); }
+.rdx-select {
+  font-size:12px; font-weight:600; color:var(--text); background:var(--pdfed-btn-bg); border:1px solid var(--pdfed-toolbar-border);
+  border-radius:8px; padding:7px 10px; cursor:pointer;
+}
+.rdx-toolbar-sep { width:1px; height:22px; background:var(--pdfed-toolbar-border); margin:0 2px; }
+.rdx-page-nav { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2); font-weight:600; }
+.rdx-spacer { flex:1; }
+
+.rdx-canvas-scroll { flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:26px; }
+.rdx-canvas-wrap { position:relative; display:inline-block; box-shadow:0 8px 30px rgba(0,0,0,0.35); }
+.rdx-page-canvas { display:block; max-width:100%; height:auto; background:#fff; }
+.rdx-overlay { position:absolute; left:0; top:0; }
+.rdx-overlay.manual-mode { cursor:crosshair; }
+
+.rdx-box { position:absolute; border:2px solid var(--rdx-other); background:rgba(148,163,184,0.18); border-radius:2px; cursor:move; }
+.rdx-box.selected { box-shadow:0 0 0 2px rgba(255,255,255,0.5) inset; }
+.rdx-box:not(.selected) { opacity:.45; border-style:dashed; }
+.rdx-box.rdx-cat-name { border-color:var(--rdx-name); background:rgba(245,158,11,0.16); }
+.rdx-box.rdx-cat-address { border-color:var(--rdx-address); background:rgba(139,92,246,0.16); }
+.rdx-box.rdx-cat-bank { border-color:var(--rdx-bank); background:rgba(16,185,129,0.16); }
+.rdx-box.rdx-cat-govid { border-color:var(--rdx-govid); background:rgba(239,68,68,0.16); }
+.rdx-box.rdx-cat-license { border-color:var(--rdx-license); background:rgba(0,194,255,0.16); }
+.rdx-box.rdx-cat-signature { border-color:var(--rdx-signature); background:rgba(236,72,153,0.16); }
+.rdx-box.rdx-cat-phone { border-color:var(--rdx-phone); background:rgba(59,130,246,0.16); }
+.rdx-box.rdx-cat-email { border-color:var(--rdx-email); background:rgba(20,184,166,0.16); }
+.rdx-box.rdx-cat-dob { border-color:var(--rdx-dob); background:rgba(251,146,60,0.16); }
+.rdx-box.rdx-cat-photo { border-color:var(--rdx-photo); background:rgba(163,230,53,0.16); }
+.rdx-box-tag { position:absolute; top:-18px; left:-2px; font-size:9px; font-weight:800; color:#fff; background-color:var(--rdx-other); padding:1px 5px; border-radius:4px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .1s; }
+.rdx-box.rdx-cat-name .rdx-box-tag { background-color:var(--rdx-name); }
+.rdx-box.rdx-cat-address .rdx-box-tag { background-color:var(--rdx-address); }
+.rdx-box.rdx-cat-bank .rdx-box-tag { background-color:var(--rdx-bank); }
+.rdx-box.rdx-cat-govid .rdx-box-tag { background-color:var(--rdx-govid); }
+.rdx-box.rdx-cat-license .rdx-box-tag { background-color:var(--rdx-license); }
+.rdx-box.rdx-cat-signature .rdx-box-tag { background-color:var(--rdx-signature); }
+.rdx-box.rdx-cat-phone .rdx-box-tag { background-color:var(--rdx-phone); }
+.rdx-box.rdx-cat-email .rdx-box-tag { background-color:var(--rdx-email); }
+.rdx-box.rdx-cat-dob .rdx-box-tag { background-color:var(--rdx-dob); }
+.rdx-box.rdx-cat-photo .rdx-box-tag { background-color:var(--rdx-photo); }
+.rdx-box:hover .rdx-box-tag, .rdx-box.selected .rdx-box-tag { opacity:1; }
+.rdx-box-del { position:absolute; top:-9px; right:-9px; width:17px; height:17px; border-radius:50%; background:#f87171; color:#fff; font-size:12px; line-height:16px; text-align:center; cursor:pointer; font-weight:700; display:none; }
+.rdx-box:hover .rdx-box-del { display:block; }
+.rdx-box-handle { position:absolute; width:9px; height:9px; background:#fff; border:2px solid var(--blue); border-radius:50%; display:none; }
+.rdx-box:hover .rdx-box-handle, .rdx-box.selected .rdx-box-handle { display:block; }
+.rdx-h-nw { left:-6px; top:-6px; cursor:nwse-resize; }
+.rdx-h-ne { right:-6px; top:-6px; cursor:nesw-resize; }
+.rdx-h-sw { left:-6px; bottom:-6px; cursor:nesw-resize; }
+.rdx-h-se { right:-6px; bottom:-6px; cursor:nwse-resize; }
+
+/* ---- right sidebar: detected items ---- */
+.rdx-side { width:280px; flex-shrink:0; border-left:1px solid var(--pdfed-panel-border); background:var(--pdfed-panel-bg); display:flex; flex-direction:column; min-height:0; }
+.rdx-side-head { padding:14px 16px 10px; border-bottom:1px solid var(--pdfed-panel-border); flex-shrink:0; }
+.rdx-side-head h4 { font-size:12.5px; font-weight:800; color:var(--text); margin:0 0 2px; text-transform:uppercase; letter-spacing:.4px; }
+.rdx-side-head span { font-size:11px; color:var(--text3); }
+.rdx-side-list { flex:1; overflow-y:auto; padding:8px 10px 16px; }
+.rdx-empty-list { font-size:12px; color:var(--text3); text-align:center; padding:30px 12px; line-height:1.7; }
+.rdx-cat-group { margin-bottom:10px; border:1px solid var(--pdfed-section-border); border-radius:10px; overflow:hidden; }
+.rdx-cat-header { display:flex; align-items:center; padding:8px 10px; background:var(--pdfed-section-bg); }
+.rdx-cat-check { display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--text); cursor:pointer; width:100%; }
+.rdx-cat-count { margin-left:auto; font-size:10px; color:var(--text3); font-weight:700; background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:8px; }
+.rdx-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
+.rdx-dot-name { background:var(--rdx-name); }
+.rdx-dot-address { background:var(--rdx-address); }
+.rdx-dot-bank { background:var(--rdx-bank); }
+.rdx-dot-govid { background:var(--rdx-govid); }
+.rdx-dot-license { background:var(--rdx-license); }
+.rdx-dot-signature { background:var(--rdx-signature); }
+.rdx-dot-phone { background:var(--rdx-phone); }
+.rdx-dot-email { background:var(--rdx-email); }
+.rdx-dot-dob { background:var(--rdx-dob); }
+.rdx-dot-photo { background:var(--rdx-photo); }
+.rdx-dot-other { background:var(--rdx-other); }
+.rdx-item { display:flex; align-items:center; gap:7px; padding:6px 10px; font-size:11.5px; color:var(--text2); cursor:default; }
+.rdx-item:hover { background:var(--pdfed-btn-hover); }
+.rdx-item-text { flex:1; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rdx-item-text:hover { color:var(--blue); }
+.rdx-item-conf { font-size:9.5px; color:var(--text3); flex-shrink:0; }
+
+/* ---- review / scan progress modal ---- */
+.rdx-modal-backdrop { position:fixed; inset:0; background:rgba(4,8,18,0.65); backdrop-filter:blur(3px); z-index:900; display:none; align-items:center; justify-content:center; }
+.rdx-modal { width:420px; max-width:92vw; background:var(--pdfed-panel-bg); border:1px solid var(--pdfed-panel-border); border-radius:16px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+
+/* ── Folder grid modal — opened from a folder tab, shows every document of
+   that type as a thumbnail card so a batch of several Aadhaars/PANs can be
+   browsed and picked instead of scrolling one long flat list. ── */
+.rdx-grid-modal { width:860px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column; padding:0; overflow:hidden; }
+.rdx-grid-modal-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 20px; border-bottom:1px solid var(--pdfed-panel-border); flex-wrap:wrap; flex-shrink:0; }
+.rdx-grid-modal-title { font-weight:800; font-size:15px; color:var(--text); }
+.rdx-grid-modal-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.rdx-grid-selectall { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text2); cursor:pointer; user-select:none; }
+.rdx-grid-selectall input { width:14px; height:14px; cursor:pointer; }
+.rdx-grid-selcount { font-size:12px; color:var(--text3); min-width:60px; }
+.rdx-grid-body { flex:1; min-height:0; overflow-y:auto; padding:18px 20px; display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:16px; align-content:start; }
+.rdx-grid-empty { grid-column:1/-1; text-align:center; color:var(--text3); padding:40px 0; font-size:13px; }
+.rdx-grid-card { position:relative; display:flex; flex-direction:column; align-items:center; gap:7px; padding:10px; border-radius:14px; border:1.5px solid var(--pdfed-panel-border); background:var(--pdfed-section-bg); transition:all .15s; }
+.rdx-grid-card:hover { border-color:var(--border2); transform:translateY(-2px); }
+.rdx-grid-card.active { border-color:var(--blue); box-shadow:0 0 0 1.5px var(--blue) inset; }
+.rdx-grid-card-check { position:absolute; top:8px; left:8px; z-index:2; width:22px; height:22px; display:flex; align-items:center; justify-content:center; background:rgba(4,8,18,0.55); border-radius:6px; cursor:pointer; }
+.rdx-grid-card-check input { width:15px; height:15px; cursor:pointer; }
+.rdx-grid-card-thumb { width:100%; aspect-ratio:3/4; border-radius:10px; overflow:hidden; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.25); }
+.rdx-grid-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.rdx-grid-card-noimg { font-size:11px; color:var(--text3); }
+.rdx-grid-card-status { font-size:10px; font-weight:800; padding:2px 9px; border-radius:20px; letter-spacing:.2px; }
+.rdx-grid-card-status.rdx-gcs-pending { background:rgba(148,163,184,0.15); color:var(--text3); }
+.rdx-grid-card-status.rdx-gcs-found { background:rgba(245,158,11,0.16); color:#F59E0B; }
+.rdx-grid-card-status.rdx-gcs-clean { background:rgba(34,197,94,0.14); color:#22C55E; }
+.rdx-grid-card-status.rdx-gcs-done { background:rgba(0,194,255,0.14); color:var(--blue); }
+.rdx-grid-card-name { font-size:11.5px; font-weight:800; color:var(--blue); text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ── Single-document editor popup — the real redaction workspace (thumbs +
+   canvas + sidebar) gets moved into this modal when a grid card is clicked,
+   so manual box dragging/resizing happens in a focused popup rather than
+   navigating away from the folder grid; closing it moves the workspace
+   back to its normal inline spot. ── */
+.rdx-doceditor-modal { width:96vw; height:92vh; max-width:1400px; display:flex; flex-direction:column; padding:0; overflow:hidden; }
+.rdx-doceditor-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--pdfed-panel-border); flex-shrink:0; }
+.rdx-doceditor-head-title { font-weight:800; font-size:14px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rdx-doceditor-body { flex:1; min-height:0; display:flex; }
+.rdx-modal-icon { width:44px; height:44px; border-radius:12px; background:rgba(0,194,255,0.14); color:var(--blue); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+.rdx-modal h3 { font-size:16px; font-weight:800; color:var(--text); margin:0 0 6px; }
+.rdx-modal p.rdx-modal-sub { font-size:12px; color:var(--text2); margin:0 0 16px; line-height:1.6; }
+.rdx-modal-breakdown { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; max-height:220px; overflow-y:auto; }
+.rdx-modal-breakdown-row { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); background:var(--surface); border-radius:8px; padding:7px 10px; }
+.rdx-modal-breakdown-row span:last-child { margin-left:auto; font-weight:800; color:var(--text2); }
+.rdx-modal-breakdown-check { cursor:pointer; user-select:none; }
+.rdx-modal-breakdown-check:hover { background:var(--surface2, var(--surface)); }
+.rdx-modal-breakdown-check input[type="checkbox"] { width:15px; height:15px; flex:none; accent-color:var(--brand, #0068F8); cursor:pointer; }
+.rdx-modal-actions { display:flex; gap:8px; }
+.rdx-modal-actions .rdx-btn { flex:1; justify-content:center; padding:10px; }
+
+.rdx-progress-card {
+  position:fixed; bottom:20px; right:20px; z-index:950; width:260px; background:var(--pdfed-panel-bg);
+  border:1px solid var(--pdfed-panel-border); border-radius:12px; padding:14px 16px; box-shadow:0 12px 30px rgba(0,0,0,0.4);
+  display:none;
+}
+.rdx-progress-row { display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+.rdx-progress-spinner { width:16px; height:16px; border-radius:50%; border:2.5px solid rgba(0,194,255,0.25); border-top-color:var(--blue); animation:rdxspin .8s linear infinite; flex-shrink:0; }
+@keyframes rdxspin { to { transform:rotate(360deg); } }
+.rdx-progress-label { font-size:12px; font-weight:600; color:var(--text); flex:1; }
+.rdx-progress-pct { font-size:11px; font-weight:700; color:var(--blue); }
+.rdx-progress-track { height:5px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden; }
+.rdx-progress-fill { height:100%; background:linear-gradient(90deg, var(--blue), var(--purple)); width:4%; transition:width .2s; }
+
+/* ── Premium OCR shimmer — plays directly over the document canvas while
+   a page is being read, on top of (not instead of) the corner progress
+   card, so the "processing" feeling lives on the file itself: a soft
+   diagonal light sweep, a scanning laser line travelling top-to-bottom,
+   pulsing viewfinder corners, and a small status pill. Purely visual —
+   pointer-events:none so it never blocks the canvas underneath. ── */
+.rdx-canvas-shimmer {
+  position:absolute; inset:0; z-index:40; display:none;
+  overflow:hidden; pointer-events:none;
+  background:rgba(8,13,26,0.14);
+}
+.rdx-canvas-shimmer.active { display:block; }
+.rdx-shimmer-sweep {
+  position:absolute; inset:0;
+  background:linear-gradient(115deg, transparent 32%, rgba(255,255,255,0.30) 48%, rgba(0,194,255,0.22) 52%, transparent 68%);
+  background-size:260% 100%;
+  animation: rdxShimmerSweep 2.2s ease-in-out infinite;
+}
+@keyframes rdxShimmerSweep {
+  0%   { background-position: 140% 0; }
+  100% { background-position: -140% 0; }
+}
+.rdx-shimmer-scanline {
+  position:absolute; left:0; right:0; top:0; height:2px;
+  background:linear-gradient(90deg, transparent, var(--blue) 20%, #fff 50%, var(--blue) 80%, transparent);
+  box-shadow:0 0 16px 3px rgba(0,194,255,0.6), 0 0 4px rgba(255,255,255,0.75);
+  animation: rdxShimmerScan 2.6s cubic-bezier(.45,0,.55,1) infinite;
+}
+@keyframes rdxShimmerScan {
+  0%     { top:0%;   opacity:0; }
+  6%     { opacity:1; }
+  50%    { top:100%; opacity:1; }
+  56%    { opacity:0; }
+  56.01% { top:0%; }
+  100%   { top:0%;   opacity:0; }
+}
+.rdx-shimmer-corner {
+  position:absolute; width:22px; height:22px; border:2px solid var(--blue);
+  opacity:0.5; filter:drop-shadow(0 0 4px rgba(0,194,255,0.55));
+  animation: rdxShimmerPulse 1.8s ease-in-out infinite;
+}
+.rdx-shimmer-corner.tl { top:10px; left:10px; border-right:none; border-bottom:none; border-radius:4px 0 0 0; }
+.rdx-shimmer-corner.tr { top:10px; right:10px; border-left:none; border-bottom:none; border-radius:0 4px 0 0; }
+.rdx-shimmer-corner.bl { bottom:10px; left:10px; border-right:none; border-top:none; border-radius:0 0 0 4px; }
+.rdx-shimmer-corner.br { bottom:10px; right:10px; border-left:none; border-top:none; border-radius:0 0 4px 0; }
+.rdx-shimmer-corner.tr, .rdx-shimmer-corner.bl { animation-delay:.3s; }
+.rdx-shimmer-corner.br { animation-delay:.6s; }
+@keyframes rdxShimmerPulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+.rdx-shimmer-pill {
+  position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:7px; max-width:calc(100% - 32px);
+  background:rgba(4,8,18,0.72); backdrop-filter:blur(6px);
+  border:1px solid rgba(0,194,255,0.35); border-radius:99px;
+  padding:6px 14px; font-size:11.5px; font-weight:700; color:#fff;
+  letter-spacing:.2px; box-shadow:0 6px 18px rgba(0,0,0,0.35);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.rdx-shimmer-dot { width:6px; height:6px; border-radius:50%; background:var(--blue); box-shadow:0 0 8px 2px rgba(0,194,255,0.8); animation: rdxShimmerDot 1s ease-in-out infinite; flex-shrink:0; }
+@keyframes rdxShimmerDot { 0%,100% { opacity:0.35; transform:scale(0.8); } 50% { opacity:1; transform:scale(1.15); } }
+
+.rdx-mask-note { font-size:10.5px; color:var(--text3); padding:0 14px 8px; }
+
+@media (max-width: 900px) {
+  .rdx-side { display:none; }
+  .rdx-thumbs { width:64px; }
+}
+
+/* Brand Kit — top-bar popover (moved here from the old standalone Business
+   Proposals module so it's reachable regardless of which module is active).
+   Save one logo + company identity once; every proposal template inserted
+   onto the canvas picks it up automatically (see bkSave/bkLoad in JS). */
+.bk-panel{ position:absolute; top:calc(100% + 8px); left:0; z-index:900; width:260px; background:var(--bg2); border:1px solid var(--border2); border-radius:12px; padding:14px; box-shadow:0 12px 32px rgba(0,0,0,0.35); display:none; }
+.bk-panel.open{ display:block; }
+.bk-panel h4{ margin:0 0 10px; font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px; }
+.bk-panel .bk-badge{ font-size:9px; font-weight:800; letter-spacing:.04em; background:rgba(0,194,255,0.15); color:#00c2ff; border-radius:5px; padding:2px 6px; }
+.bk-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.bk-logo-drop{ width:44px; height:44px; border-radius:9px; border:1.5px dashed var(--border2); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; overflow:hidden; background:var(--surface2); }
+.bk-logo-drop img{ width:100%; height:100%; object-fit:contain; }
+.bk-logo-drop span{ font-size:16px; color:var(--text3); }
+.bk-field{ flex:1; min-width:0; }
+.bk-field input{ width:100%; background:var(--surface2); border:1px solid var(--border2); border-radius:7px; padding:6px 8px; font-size:12px; color:var(--text); }
+.bk-field input::placeholder{ color:var(--text3); }
+.bk-field + .bk-field{ margin-top:6px; }
+.bk-actions{ display:flex; gap:8px; margin-top:4px; }
+.bk-actions button{ flex:1; font-size:11px; font-weight:700; border-radius:7px; padding:7px 8px; cursor:pointer; border:1px solid var(--border2); background:var(--surface2); color:var(--text2); }
+.bk-actions button.primary{ background:#00c2ff; border-color:#00c2ff; color:#001018; }
+.bk-status{ font-size:10.5px; color:var(--text3); margin-top:8px; line-height:1.4; }
+
