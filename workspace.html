@@ -81841,6 +81841,8 @@ if (document.readyState === 'loading') {
   //     focus:'auto'|'face' finds the subject (skin tones, detail, contrast) itself.
   //   spp_studio {photo?: {source:'attached'|'page', which?:'selected'|'last'|'first'|number}, settings?: {...}, playback?: 'play'|'pause'|'restart',
   //       time?: 0..1, compare?: boolean, output?: 'png'|'video'|'place'|'live'}
+  //     -- Build 308: texts?: {clear?, update?: [{n,...}], remove?: [n], mode?: 'replace'|'add', items?: [{head, sub, badge, when: 'all'|'photo'|'time', photo (1-based), from, to (0..1 of the loop), pos, size, anim, color, font, align}]}
+  //        writes the EXTRA texts (More texts) in the same call, after photos, gallery and settings are applied.
   //     -- Build 280. Kadessa's hands on all of Showcase, in ONE call (a turn carries one action).
   //     Opens Showcase if needed, loads a photo (the one attached in chat, or an image on the open page),
   //     applies ANY mix of `settings` (fit, cutout, tol, trim, soft, motion, fmotion, secs, dir, amp, size,
@@ -84783,13 +84785,19 @@ if (document.readyState === 'loading') {
         }
         const r = api.configure(p.settings || {});
         if (r.skipped.length) notes.push('I skipped ' + r.skipped.join('; ') + '.');
+        let tx = null;
+        if (p.texts && typeof p.texts === 'object' && api.texts){
+          tx = api.texts(p.texts);
+          if (tx.did.length) notes.push('I ' + tx.did.join(', ') + '. Showcase now has ' + tx.total + ' extra text' + (tx.total === 1 ? '' : 's') + '.');
+          if (tx.skipped.length) notes.push('I skipped: ' + tx.skipped.join('; ') + '.');
+        }
         if (api.hasCut() || (p.photo && typeof p.photo === 'object')) api.flushCut();
         if (p.playback) api.setPlayback(String(p.playback));
         if (p.time !== undefined && p.time !== null && p.time !== '') api.seek(p.time);
         if (p.compare !== undefined) api.setCompare(p.compare === true || p.compare === 'true');
         const tr = p.tour ? api.tour(p.tour.motions, p.tour.secs_each) : null;
         if (p.tour && !tr) notes.push('None of those motions fit the current layout, so I left the motion as it was.');
-        if ((Object.keys(r.applied).length || tr) && typeof pushKadessaAppHistory === 'function'){
+        if ((Object.keys(r.applied).length || tr || (tx && tx.changed)) && typeof pushKadessaAppHistory === 'function'){
           const after = api.snapshot();
           if (tr) after.o[tr.key] = tr.last;
           pushKadessaAppHistory({
@@ -84804,7 +84812,13 @@ if (document.readyState === 'loading') {
           if (ctx.settings.fit === 'fill' && sh && sh !== 'sharp') notes.push('Heads up: this photo is ' + ctx.photo.originalSize[0] + ' x ' + ctx.photo.originalSize[1] + ', so a ' + ctx.settings.ratio + ' export will be ' + sh + ' and may look soft.');
           if (ctx.settings.fit === 'product' && ctx.photo.backgroundLooksBusy && ctx.settings.cutout) notes.push('The photo background looks busy, so the cutout may be rough. Say the word and I will switch to Fill to edges instead.');
         }
-        if (p.output) await api.output(String(p.output));
+        if (p.output){
+          let kind = String(p.output);
+          if (kind === 'live' && !(typeof pdfed !== 'undefined' && pdfed.active >= 0 && pdfed.pages[pdfed.active])){
+            kind = 'place'; notes.push('No page is open, so I placed it as a still on a new page instead of a live clip.');
+          }
+          await api.output(kind);
+        }
         return notes.length ? { say: notes.join(' ') } : null;
       },
       label: function(p){
@@ -84816,6 +84830,7 @@ if (document.readyState === 'loading') {
         if (n) bits.push('adjust ' + n + ' Showcase setting' + (n === 1 ? '' : 's'));
         if (p.photos) bits.push('load the photos');
         if (p.gallery) bits.push('arrange the photos');
+        if (p.texts) bits.push('write the texts');
         if (p.tour) bits.push('preview the motions');
         if (p.playback || p.time !== undefined) bits.push('control playback');
         if (p.output) bits.push({ png: 'download a PNG', video: 'record the video', place: 'place it on the page', live: 'place it as a live clip' }[p.output] || 'export');
@@ -88137,6 +88152,21 @@ html.spp-open #kadessa-panel{z-index:100004}
 .spp-reel{text-align:left;padding:9px 10px;border-radius:11px;border:1.5px solid var(--sp-line2);background:var(--sp-fill);color:var(--sp-ink);font-family:inherit;cursor:pointer;transition:border-color .2s,background .2s}
 .spp-reel b{display:block;font-size:11.5px;font-weight:700}.spp-reel small{display:block;font-size:10px;line-height:1.35;color:var(--sp-ink2);margin-top:2px}
 .spp-reel:hover{border-color:var(--sp-cy);background:var(--sp-cyfill)}.spp-reel.on{border-color:var(--sp-cy);background:var(--sp-cyfill)}.spp-reel.on b{color:var(--sp-acc)}
+/* More texts (build 305) */
+.spp-th .t{top:3px;left:3px}.spp-th .t.has{background:var(--sp-cy);color:#02121c}
+.spp-xt{border:1px solid var(--sp-line2);border-radius:12px;padding:10px 10px 2px;margin:0 0 10px;background:var(--bg2)}
+.spp-xt-h{display:flex;align-items:center;gap:6px;margin:0 0 8px}
+.spp-xt-h b{flex:1;min-width:0;font-size:11.5px;font-weight:700;letter-spacing:.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spp-xt-h button{width:24px;height:24px;border-radius:7px;border:1px solid var(--sp-line2);background:transparent;color:var(--sp-ink2);cursor:pointer;font:700 12px/1 inherit;font-family:inherit;padding:0;flex-shrink:0}
+.spp-xt-h button:hover{border-color:var(--sp-cy);color:var(--sp-acc);background:var(--sp-cyfill)}
+.spp-xt .spp-row{margin:9px 0}
+.spp-xt .spp-val.w{width:40px}
+.spp-xt .spp-grp{margin-bottom:6px}
+.spp-xt-bar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.spp-xt-bar .spp-link{flex:1 1 auto;width:auto;margin:0}
+.spp-xt-track{position:relative;border-radius:8px;background:var(--sp-fill2);margin:0 0 12px;overflow:hidden}
+.spp-xt-track i{position:absolute;height:12px;border-radius:4px;background:var(--sp-cy);opacity:.75;font:700 8.5px/12px inherit;font-family:inherit;font-style:normal;color:#02121c;text-align:center;overflow:hidden;cursor:pointer;box-sizing:border-box;border:1px solid var(--bg2)}
+.spp-xt-track i:hover{opacity:1}
 </style>
 <style id="sppPremium">
 /* ═══ Showcase · premium calm layer ═══
@@ -88283,6 +88313,85 @@ html.spp-open #kadessa-panel{z-index:100004}
 
 </style>
 
+<style id="sppTextsLayout">
+/* ═══ Showcase · roomy Texts layout (build 306) ═══
+   When "More texts" is open and has texts, the right panel glides wider so every control has room.
+   It glides back by itself when another section opens. One text is edited at a time (numbered chips),
+   so ten or twenty texts never turn into one long scroll. */
+@media (min-width:861px){
+  .spp-overlay .spp-body{grid-template-columns:minmax(0,1fr) auto}
+  .spp-overlay .spp-side{width:352px;transition:width .55s var(--sp-ease)}
+  .spp-overlay.sp-xt-wide .spp-side,.spp-overlay.sp-ph-wide .spp-side,.spp-overlay.sp-mo-wide .spp-side{width:min(560px,52vw)}
+  /* build 307: Motion picks show 4 across, so the whole list is in view without long scrolling */
+  .spp-overlay.sp-mo-wide #sppFMotionSeg.spp-c3,.spp-overlay.sp-mo-wide #sppMotionSeg.spp-c3{grid-template-columns:repeat(4,minmax(0,1fr))}
+  /* build 307: same glide for photos. Bigger thumbnails, presets and layouts in columns, so all of it is in view */
+  .spp-overlay.sp-ph-wide .spp-thumbs{grid-template-columns:repeat(auto-fill,minmax(74px,1fr))}
+  .spp-overlay.sp-ph-wide .spp-reels{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .spp-overlay.sp-ph-wide #sppGalSeg.spp-c2,.spp-overlay.sp-ph-wide #sppCutStyleSeg.spp-c2{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* chips: pick which text you are editing */
+.spp-xt-nav{margin:0 0 12px}
+.spp-xt-navtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 9px}
+.spp-xt-cap{font-size:10.5px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;color:var(--sp-ink2)}
+.spp-xt-wbtn{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border-radius:999px;border:1px solid var(--sp-line);background:transparent;color:var(--sp-ink2);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:background .3s,color .3s,border-color .3s}
+.spp-xt-wbtn:hover{background:var(--sp-fill2);color:var(--sp-ink);border-color:var(--sp-line2)}
+.spp-xt-wbtn svg{display:block}
+.spp-xt-chips{display:flex;flex-wrap:wrap;gap:6px}
+.spp-xt-chip{min-width:34px;height:34px;padding:0 10px;border-radius:11px;border:1px solid var(--sp-line2);background:var(--bg2);color:var(--sp-ink2);font-family:inherit;font-size:12px;font-weight:600;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums;transition:border-color .25s,background .25s,color .25s,box-shadow .25s,transform .25s var(--sp-ease)}
+.spp-xt-chip:hover{border-color:var(--sp-cy);color:var(--sp-ink);transform:translateY(-1px)}
+.spp-xt-chip.on{border-color:var(--sp-cy);background:var(--sp-cyfill);color:var(--sp-acc);box-shadow:0 0 0 3px var(--sp-cyfill);font-weight:700}
+.spp-xt-chip.empty:not(.on){border-style:dashed;opacity:.8}
+.spp-xt-chip.add{border-style:dashed;color:var(--sp-acc);font-size:15px;font-weight:500}
+.spp-xt-track i{opacity:.45}
+.spp-xt-track i:hover{opacity:.9}
+.spp-xt-track i.on{opacity:1;box-shadow:inset 0 0 0 1.5px var(--sp-ink)}
+
+/* the text being edited */
+.spp-xt-ed{padding-bottom:6px}
+.spp-xt-ed.spp-xt-in{animation:sppXtIn .32s var(--sp-ease)}
+@keyframes sppXtIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.spp-xt-ed .spp-xt-h{padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--sp-line)}
+.spp-xt-ed .spp-xt-h b{font-size:12.5px}
+.spp-xt-ed .spp-xt-h button{width:28px;height:28px;border-radius:9px}
+/* Fields flow into columns by themselves: one column while the panel is narrow, two once it has glided wider */
+.spp-xt-grid,.spp-xt-ed .spp-grp>.spp-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));column-gap:18px;align-items:start}
+.spp-xt-ed .spp-grp>.spp-in{padding-left:0;padding-right:0}
+.spp-xt-when>.spp-row:first-child{margin-top:0}
+.spp-xt-words input[type=text]:last-child{margin-bottom:0}
+
+/* start options: what you see first when you open More texts */
+.spp-xt-intro{margin:2px 0 16px;font-size:12.5px;line-height:1.6;color:var(--sp-ink2)}
+.spp-xt-start{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 6px}
+.spp-xt-opt{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;padding:14px 14px 13px;border-radius:14px;border:1px solid var(--sp-line2);background:var(--bg2);color:var(--sp-ink);font-family:inherit;cursor:pointer;box-sizing:border-box;transition:border-color .25s,background .25s,transform .25s var(--sp-ease)}
+button.spp-xt-opt:hover{border-color:var(--sp-cy);background:var(--sp-cyfill);transform:translateY(-1px)}
+.spp-xt-opt .ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--sp-cyfill);color:var(--sp-acc);margin-bottom:3px;flex-shrink:0}
+.spp-xt-opt b{font-size:12.5px;font-weight:650}
+.spp-xt-opt small{font-size:11px;line-height:1.5;color:var(--sp-ink2);font-weight:400}
+.spp-xt-split{cursor:default}
+.spp-xt-split .sr{display:flex;gap:6px;align-items:center;width:100%;margin-top:6px}
+.spp-xt-split .sr select{width:auto;flex:1;min-width:0;padding:7px 24px 7px 10px}
+.spp-xt-split .sr .spp-link{width:auto;margin:0;padding:7px 12px;flex-shrink:0}
+/* once texts exist the same options shrink into a slim "Add more" row */
+.spp-xt-start.has-texts .spp-xt-opt{flex-direction:row;align-items:center;gap:8px;padding:8px 11px;border-radius:11px}
+.spp-xt-start.has-texts .ic{width:22px;height:22px;border-radius:7px;margin:0}
+.spp-xt-start.has-texts small{display:none}
+.spp-xt-start.has-texts .spp-xt-split{grid-column:1/-1;flex-wrap:nowrap}
+.spp-xt-start.has-texts .spp-xt-split .sr{margin:0 0 0 auto;flex:1;max-width:210px}
+
+.spp-xt-hint{margin:0 0 14px;padding:9px 12px;border-radius:11px;background:var(--sp-fill);font-size:11.5px;line-height:1.55;color:var(--sp-ink2)}
+#sppMainText .spp-grp>.spp-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));column-gap:18px;align-items:start;padding-left:0;padding-right:0}
+@media (max-width:860px){#sppMainText .spp-grp>.spp-in{display:block}}
+@media (max-width:860px){.spp-xt-grid,.spp-xt-ed .spp-grp>.spp-in{display:block}}
+/* Format stays pinned at the top of the panel: switch 16:9 / 9:16 / 1:1 any time, whichever section is open */
+.spp-fmtbar{padding:14px 20px 14px;border-bottom:1px solid var(--sp-line);background:var(--bg2);flex-shrink:0}
+.spp-fmthead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 9px}
+.spp-fmtloops{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:500;color:var(--sp-ink2)}
+.spp-overlay .spp-side .spp-fmtloops select{width:auto;padding:5px 24px 5px 10px;font-size:11.5px;border-radius:9px}
+/* switches show their colour when they are on (they used to stay grey) */
+.spp-overlay .spp-modal input[type=checkbox]:checked{background:var(--sp-cy)}
+@media (prefers-reduced-motion:reduce){.spp-overlay .spp-side{transition:none}}
+</style>
 <div class="spp-overlay" id="sppOverlay" onmousedown="if(event.target===this)sppClose()">
   <div class="spp-modal" role="dialog" aria-label="Showcase">
     <div class="spp-head">
@@ -88305,13 +88414,24 @@ html.spp-open #kadessa-panel{z-index:100004}
       </div>
 
       <div class="spp-side">
+        <div class="spp-fmtbar" id="sppFmtBar">
+          <div class="spp-fmthead"><span class="spp-xt-cap">Format</span><label class="spp-fmtloops" for="sppLoops">Loops in video <select id="sppLoops"><option value="1">1 loop</option><option value="2">2 loops</option><option value="3">3 loops</option></select></label></div>
+          <div class="spp-seg" id="sppRatioSeg">
+              <button data-v="page" onclick="sppSetSeg('ratio','page',this)" title="Matches your open editor page exactly, so it fills it edge to edge">Page</button>
+              <button class="on" data-v="16:9" onclick="sppSetSeg('ratio','16:9',this)">16:9</button>
+              <button data-v="1:1" onclick="sppSetSeg('ratio','1:1',this)">1:1</button>
+              <button data-v="4:5" onclick="sppSetSeg('ratio','4:5',this)">4:5</button>
+              <button data-v="9:16" onclick="sppSetSeg('ratio','9:16',this)">9:16</button>
+            </div>
+        </div>
         <div class="spp-scroll">
-          <details class="spp-grp" name="sppacc" open><summary><i></i>Photo</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc" id="sppPhotoGrp" open><summary><i></i>Photo</summary><div class="spp-in">
             <div class="spp-seg" id="sppFitSeg" style="margin-bottom:12px"><button class="on" data-v="product" onclick="sppSetSeg('fit','product',this)" title="Cut the product out and show it on a background">Product cutout</button><button data-v="fill" onclick="sppSetSeg('fit','fill',this)" title="Your photo fills the whole frame, edge to edge, with your text written on it">Fill to edges</button><button data-v="gallery" onclick="sppSetSeg('fit','gallery',this)" title="Several photos as a slideshow, collage, spotlight or coverflow">Multi-photo</button></div>
             <div class="spp-drop spp-solo" id="sppDrop" onclick="document.getElementById('sppFile').click()">Drop a photo, or click to upload</div>
             <input type="file" id="sppFile" accept="image/*" style="display:none" onchange="sppPickFile(this.files[0]);this.value=''">
             <button class="spp-link spp-solo" onclick="sppUseFromPage()">Use selected image from page</button>
             <div class="spp-galonly">
+              <div class="spp-xt-navtop" style="margin:0 0 8px"><span class="spp-xt-cap">Photos</span><button type="button" class="spp-xt-wbtn" id="sppPhWide" data-wide-btn="1"></button></div>
               <div class="spp-row" style="margin-bottom:6px"><label>Reel presets <span style="opacity:.6;font-weight:500">(one tap, full edit)</span></label></div>
               <div class="spp-reels" id="sppReelGrid"></div>
               <div class="spp-note" id="sppReelLen" style="display:block;margin:6px 0 10px;font-weight:600"></div>
@@ -88350,7 +88470,8 @@ html.spp-open #kadessa-panel{z-index:100004}
             <div class="spp-note" id="sppCutNote">Works best on a plain, single-colour background. If the cutout eats into the product, lower the tolerance.</div>
           </div></details>
 
-          <details class="spp-grp" name="sppacc"><summary><i></i>Motion</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc" id="sppMotionGrp"><summary><i></i>Motion</summary><div class="spp-in">
+            <div class="spp-xt-navtop spp-solo" style="margin:0 0 8px"><span class="spp-xt-cap">Motion</span><button type="button" class="spp-xt-wbtn" data-wide-btn="1" id="sppMoWide"></button></div>
             <div class="spp-find spp-solo"><input type="text" id="sppMotionFind" placeholder="Find a motion…" autocomplete="off" aria-label="Find a motion"></div>
             <div class="spp-seg spp-chips spp-c3 spp-fillonly" id="sppFMotionSeg"><div class="spp-cat">Camera</div><button data-v="still" onclick="sppSetSeg('fmotion','still',this)">Still</button><button class="on" data-v="zoomin" onclick="sppSetSeg('fmotion','zoomin',this)" title="Slow push in, then ease back">Push in</button><button data-v="zoomout" onclick="sppSetSeg('fmotion','zoomout',this)" title="Starts close, slowly pulls out">Pull out</button><button data-v="pan" onclick="sppSetSeg('fmotion','pan',this)">Pan</button><button data-v="drift" onclick="sppSetSeg('fmotion','drift',this)">Drift</button><button data-v="kenburns" onclick="sppSetSeg('fmotion','kenburns',this)" title="Slow diagonal push, the classic cinematic move">Ken Burns</button><button data-v="cinema" onclick="sppSetSeg('fmotion','cinema',this)" title="Letterbox bars, a slow dolly push, vignette and a soft light streak, fading from and to black">Cinema</button><div class="spp-cat">Rhythm &amp; light</div><button data-v="beat" onclick="sppSetSeg('fmotion','beat',this)" title="Quick rhythmic zoom punches, like a reel synced to music">Beat</button><button data-v="shine" onclick="sppSetSeg('fmotion','shine',this)" title="A light sweep glides across the photo">Shine</button><button data-v="whip" onclick="sppSetSeg('fmotion','whip',this)" title="Whips in fast from a tight zoom and slides to a stop, then a slow push. Replays each loop">Whip</button><div class="spp-cat">Cinematic</div><button data-v="chilldrop" onclick="sppSetSeg('fmotion','chilldrop',this)" title="Cold-drink ad move: quick zoom, then three close-ups on the busiest spots of your photo, each slowing down with frost and a light glint, then snapping back with a puff of mist">Chill Drop</button><div class="spp-cat">Reveals</div><button data-v="assemble" onclick="sppSetSeg('fmotion','assemble',this)" title="The photo arrives as pieces flying in from every direction, locks together with a soft flash, then pushes in">Assemble</button><button data-v="shutter" onclick="sppSetSeg('fmotion','shutter',this)" title="Strips slide in from alternating sides and close into the full photo">Shutter</button><button data-v="iris" onclick="sppSetSeg('fmotion','iris',this)" title="The photo opens from the centre like a camera iris">Iris</button><button data-v="flip" onclick="sppSetSeg('fmotion','flip',this)" title="Tiles flip over in a wave from the centre to reveal the photo">Flip wave</button><button data-v="ripple" onclick="sppSetSeg('fmotion','ripple',this)" title="The photo forms out of a water ripple and settles into focus">Ripple</button><button data-v="pixel" onclick="sppSetSeg('fmotion','pixel',this)" title="Giant blocks sharpen step by step into the photo, like a retro game loading">Pixel resolve</button><button data-v="waterfall" onclick="sppSetSeg('fmotion','waterfall',this)" title="Thin columns of the photo drop in and bounce into place">Waterfall</button><div class="spp-cat">Dramatic</div><button data-v="warp" onclick="sppSetSeg('fmotion','warp',this)" title="The photo shoots out of the distance at light speed with white streaks, then gets pulled back in">Warp</button><button data-v="snap" onclick="sppSetSeg('fmotion','snap',this)" title="The photo crumbles to dust that blows away, then swirls back and rebuilds">Snap to dust</button><button data-v="glitch" onclick="sppSetSeg('fmotion','glitch',this)" title="Digital glitch: the photo tears into shifting bands and snaps clean">Glitch</button></div>
             <div class="spp-seg spp-chips spp-c3 spp-prod" id="sppMotionSeg"><div class="spp-cat">Showroom</div><button class="on" data-v="turntable" onclick="sppSetSeg('motion','turntable',this)">Turntable</button><button data-v="sway" onclick="sppSetSeg('motion','sway',this)">Sway</button><button data-v="wrap" onclick="sppSetSeg('motion','wrap',this)">Spin</button><button data-v="hover" onclick="sppSetSeg('motion','hover',this)">Tilt</button><button data-v="glint" onclick="sppSetSeg('motion','glint',this)">Glint</button><button data-v="carousel" onclick="sppSetSeg('motion','carousel',this)">Carousel</button><button data-v="levitate" onclick="sppSetSeg('motion','levitate',this)">Levitate</button><button data-v="orbit" onclick="sppSetSeg('motion','orbit',this)">Orbit</button><div class="spp-cat">Cinematic</div><button data-v="chilldrop" onclick="sppSetSeg('motion','chilldrop',this)">Chill Drop</button><div class="spp-cat">Playful</div><button data-v="bounce" onclick="sppSetSeg('motion','bounce',this)">Bounce</button><button data-v="echo" onclick="sppSetSeg('motion','echo',this)">Echo</button><button data-v="pulse" onclick="sppSetSeg('motion','pulse',this)">Pulse</button><button data-v="pop" onclick="sppSetSeg('motion','pop',this)">Pop</button><button data-v="swing" onclick="sppSetSeg('motion','swing',this)">Swing</button><button data-v="roll" onclick="sppSetSeg('motion','roll',this)">Roll in</button><button data-v="acrobat" onclick="sppSetSeg('motion','acrobat',this)">Acrobat</button><button data-v="breakdance" onclick="sppSetSeg('motion','breakdance',this)">Breakdance</button><button data-v="spinin" onclick="sppSetSeg('motion','spinin',this)">Spin in</button><button data-v="tumble" onclick="sppSetSeg('motion','tumble',this)">Tumble</button><button data-v="slice" onclick="sppSetSeg('motion','slice',this)">Slice</button><div class="spp-cat">Entrances</div><button data-v="hero" onclick="sppSetSeg('motion','hero',this)">Hero rise</button><button data-v="assemble" onclick="sppSetSeg('motion','assemble',this)">Assemble</button><button data-v="shatter" onclick="sppSetSeg('motion','shatter',this)">Shatter in</button><button data-v="dust" onclick="sppSetSeg('motion','dust',this)">Materialize</button><button data-v="blinds" onclick="sppSetSeg('motion','blinds',this)">Shutters</button><button data-v="scan" onclick="sppSetSeg('motion','scan',this)">Scan reveal</button><button data-v="flip" onclick="sppSetSeg('motion','flip',this)">Flip wave</button><button data-v="ripple" onclick="sppSetSeg('motion','ripple',this)">Ripple</button><button data-v="pixel" onclick="sppSetSeg('motion','pixel',this)">Pixel resolve</button><button data-v="waterfall" onclick="sppSetSeg('motion','waterfall',this)">Waterfall</button><div class="spp-cat">Dramatic</div><button data-v="warp" onclick="sppSetSeg('motion','warp',this)">Warp</button><button data-v="snap" onclick="sppSetSeg('motion','snap',this)">Snap to dust</button><button data-v="glitch" onclick="sppSetSeg('motion','glitch',this)">Glitch</button></div>
@@ -88384,16 +88505,24 @@ html.spp-open #kadessa-panel{z-index:100004}
             </div>
           </div></details>
 
-          <details class="spp-grp" name="sppacc"><summary><i></i>Text</summary><div class="spp-in">
+          <details class="spp-grp" name="sppacc" id="sppXtGrp"><summary><i></i>Text<span id="sppXtCount" style="margin-left:2px;font-size:10.5px;font-weight:700;color:var(--sp-acc)"></span></summary><div class="spp-in">
+            <div class="spp-xt-nav" id="sppXtNav" style="display:none"></div>
+            <div id="sppMainText">
+            <div class="spp-xt-hint" id="sppMainHint" style="display:none">This is your main text. Its look (font, motion, colour) is the starting point for your other texts, and each of them can change it.</div>
+
             <input type="text" id="sppHead" placeholder="Headline" oninput="sppSet('head',this.value)">
             <input type="text" id="sppSubl" placeholder="Subline" oninput="sppSet('sub',this.value)">
             <input type="text" id="sppBadge" placeholder="Badge, e.g. NEW" oninput="sppSet('badge',this.value)">
+            <div class="spp-galonly" id="sppStayBox">
+              <div class="spp-row" style="margin-bottom:4px"><label for="sppStay">Keep on screen the whole clip</label><input type="checkbox" id="sppStay" onchange="sppStaySet(this.checked)"></div>
+              <div class="spp-note" style="display:block;margin:0 0 6px">This text covers all your photos at once. Switch this on so it never fades out between loops.</div>
+            </div>
             <div class="spp-row"><label>Position</label>
               <select id="sppTxtPos" onchange="sppSet('txtPos',this.value)" style="width:auto;flex:1">
                 <option value="bottom">Bottom</option><option value="top">Top</option><option value="left">Left</option><option value="right">Right</option>
               </select></div>
             <div class="spp-row spp-fillonly"><label>Align</label>
-              <div class="spp-seg" style="flex:1" id="sppAlignSeg"><button class="on" data-v="center" onclick="sppSetSeg('txtAlign','center',this)">Center</button><button data-v="left" onclick="sppSetSeg('txtAlign','left',this)">Left</button></div></div>
+              <div class="spp-seg" style="flex:1" id="sppAlignSeg"><button class="on" data-v="center" onclick="sppSetSeg('txtAlign','center',this)">Center</button><button data-v="left" onclick="sppSetSeg('txtAlign','left',this)">Left</button><button data-v="right" onclick="sppSetSeg('txtAlign','right',this)">Right</button></div></div>
             <div class="spp-row spp-fillonly"><label>Text shade</label><input type="range" id="sppScrim" min="0" max="100" value="45" oninput="sppSet('scrim',+this.value)" title="Soft dark fade behind the words so they stay readable on any photo"><span class="spp-val" id="sppScrimV">45</span></div>
             <details class="spp-grp" style="border:none"><summary style="padding:8px 0 4px;opacity:.7">Style</summary><div class="spp-in">
               <div class="spp-row"><label>Font</label>
@@ -88418,6 +88547,17 @@ html.spp-open #kadessa-panel{z-index:100004}
                   <option value="auto">Mirror the motion</option><option value="fade">Fade out</option><option value="rise">Rise away</option><option value="stay">Stay on screen</option>
                 </select></div>
             </div></details>
+          
+            </div>
+            <div id="sppXtList"></div>
+            <div class="spp-xt-cap" id="sppXtStartCap" style="margin:22px 0 9px"></div>
+            <div class="spp-xt-start" id="sppXtStart">
+              <button type="button" class="spp-xt-opt" onclick="sppXtAdd()"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><b>Add a text</b><small>One text. You choose the words, where it sits and when it shows.</small></button>
+              <button type="button" class="spp-xt-opt spp-galonly" onclick="sppXtPerPhoto()" title="Creates one text for every photo that does not have one yet. Each appears together with its photo."><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 21h10"/></svg></span><b>One text per photo</b><small>Every photo gets its own words, shown together with that photo.</small></button>
+              <div class="spp-xt-opt spp-xt-split"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M8 7v10M16 7v10"/></svg></span><b>Split into scenes</b><small>Cut the video into equal parts, one text for each part.</small>
+                <div class="sr"><select id="sppXtSplitN" aria-label="Number of scenes"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>8</option></select><button type="button" class="spp-link" onclick="sppXtSplit()" title="Adds that many empty texts, each with its own equal share of the video">Create</button></div></div>
+            </div>
+            <div class="spp-note" id="sppXtNote"></div>
           </div></details>
 
           <details class="spp-grp" name="sppacc"><summary><i></i>Engage</summary><div class="spp-in">
@@ -88429,17 +88569,6 @@ html.spp-open #kadessa-panel{z-index:100004}
             <div class="spp-note warn" style="color:inherit;opacity:.7">Appears after the headline lands, and leaves with it. Uses your badge colour.</div>
           </div></details>
 
-          <details class="spp-grp" name="sppacc"><summary><i></i>Format</summary><div class="spp-in">
-            <div class="spp-seg" id="sppRatioSeg">
-              <button data-v="page" onclick="sppSetSeg('ratio','page',this)" title="Matches your open editor page exactly, so it fills it edge to edge">Page</button>
-              <button class="on" data-v="16:9" onclick="sppSetSeg('ratio','16:9',this)">16:9</button>
-              <button data-v="1:1" onclick="sppSetSeg('ratio','1:1',this)">1:1</button>
-              <button data-v="4:5" onclick="sppSetSeg('ratio','4:5',this)">4:5</button>
-              <button data-v="9:16" onclick="sppSetSeg('ratio','9:16',this)">9:16</button>
-            </div>
-            <div class="spp-row"><label>Loops in video</label>
-              <select id="sppLoops" style="width:auto;flex:1"><option value="1">1 loop</option><option value="2">2 loops</option><option value="3">3 loops</option></select></div>
-          </div></details>
 
         </div>
 
@@ -88552,7 +88681,8 @@ html.spp-open #kadessa-panel{z-index:100004}
       bgMode: 'matched', fillA: '#0b1220', fillB: '#1f4e8c', fillGrad: true,
       head: '', sub: '', badge: '', txtPos: 'bottom', font: 'clean', txtSize: 100, txtAuto: true, txtCol: '#ffffff',
       accent: '#00c2ff', txtAnim: 'rise', txtOut: 'auto', eng: 'none', engText: '', txtLive: 'none', fontName: '', ratio: '16:9',
-      fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center', gal: 'slideshow', cutStyle: 'hype', fxCol: 'white'
+      fit: 'product', fmotion: 'zoomin', scrim: 45, txtAlign: 'center', gal: 'slideshow', cutStyle: 'hype', fxCol: 'white',
+      xt: []   // More texts (build 305). Replaced, never edited in place: SP_DEFAULTS and undo snapshots share this array
     }
   };
 
@@ -89302,8 +89432,8 @@ html.spp-open #kadessa-panel{z-index:100004}
 
   // Layout: where the product sits, and where the words go
   function layout(W, H) {
-    var o = S.o, portrait = W < H * 1.05, pos = o.txtPos;
-    var hasText = !!(o.head || o.sub || o.badge);
+    var o = S.o, e = xtLead(o), portrait = W < H * 1.05, pos = e.txtPos;
+    var hasText = !!(e.head || e.sub || e.badge) && pos !== 'center';
     if (portrait && pos === 'left') pos = 'bottom';
     if (portrait && pos === 'right') pos = 'top';
     var L = { pos: pos, hasText: hasText, cx: W / 2, cy: H / 2, boxW: W * 0.7, boxH: H * 0.7 };
@@ -89336,7 +89466,9 @@ html.spp-open #kadessa-panel{z-index:100004}
     }
     else if (o.motion === 'chilldrop' && S.cut) drawChill(ctx, W, H, tn, opt);
     else { drawBackground(ctx, W, H, opt.flatten); if (S.cut) drawProduct(ctx, W, H, tn); }
+    var xa = null; try { xa = xtActive(tn, opt); xtScrim(ctx, W, H, xa); } catch (e) { console.error('Showcase texts failed', e); }
     S._tbox = null; drawText(ctx, W, H, tp, opt.textT === 1 ? 99 : (opt.tAbs != null ? opt.tAbs : tn * o.secs));
+    try { xtText(ctx, W, H, xa); } catch (e) { console.error('Showcase texts failed', e); }
     try { drawEngage(ctx, W, H, tn, opt); } catch (e) { console.error('Showcase engage failed', e); }
     if (opt.watermark) stampMark(ctx, W, H);
   }
@@ -89885,7 +90017,7 @@ html.spp-open #kadessa-panel{z-index:100004}
   }
   function fxPut(ctx, ln, x, y, align, px, a0) {
     var F = FXS; if (!F) { ctx.fillText(ln, x, y); return; }
-    var M = F.m, col = ctx.fillStyle, lw = ctx.measureText(ln).width, sx = align === 'center' ? x - lw / 2 : x, lc = sx + lw / 2;
+    var M = F.m, col = ctx.fillStyle, lw = ctx.measureText(ln).width, sx = align === 'center' ? x - lw / 2 : (align === 'right' ? x - lw : x), lc = sx + lw / 2;
     ctx.textAlign = 'left';
     fxUnits(ln, M.u).forEach(function (r) {
       var gi = F.idx++, ord = M.ord === 'c' ? Math.abs(gi - (F.n - 1) / 2) * 2 : gi, step = Math.min(M.st, (M.cap || 0.9) / F.n);
@@ -90095,6 +90227,7 @@ html.spp-open #kadessa-panel{z-index:100004}
     var maxW = sideways ? W * 0.4 : W * 0.86, align = sideways ? 'left' : 'center';
     var x = sideways ? (pos === 'left' ? W * 0.07 : W * 0.53) : W / 2;
     if (!sideways && (o.fit === 'fill' || o.fit === 'gallery') && o.txtAlign === 'left') { align = 'left'; x = W * 0.07; maxW = W * 0.8; }
+    else if (!sideways && (o.fit === 'fill' || o.fit === 'gallery') && o.txtAlign === 'right') { align = 'right'; x = W * 0.93; maxW = W * 0.8; }
     ctx.save();
     ctx.globalAlpha = prog; ctx.textBaseline = 'alphabetic'; ctx.textAlign = align;
     var slide = (o.txtAnim === 'rise' ? (1 - pin) * H * 0.03 : 0) - (riseOut ? sq * H * 0.03 : 0);
@@ -90109,7 +90242,7 @@ html.spp-open #kadessa-panel{z-index:100004}
     if (pos === 'bottom') top = H - blockH - H * 0.06;
     else if (pos === 'top') top = H * 0.06;
     else top = (H - blockH) / 2;
-    S._tbox = { top: top, bot: top + blockH, cx: align === 'center' ? x : x + maxW / 2, pos: pos };
+    S._tbox = { top: top, bot: top + blockH, cx: align === 'center' ? x : (align === 'right' ? x - maxW / 2 : x + maxW / 2), pos: pos };
     var amb = null, lv = o.txtLive;
     if (lv && lv !== 'none' && TXLIVE[lv]) {
       var LX = TXLIVE[lv], cyc = Math.max(1, Math.round(o.secs / LX.per)), alt = still ? o.secs * 0.3 : lt;
@@ -90121,7 +90254,7 @@ html.spp-open #kadessa-panel{z-index:100004}
       var Mx = MOT[fm], nn = Math.max(1, fu), isCls = fm === '_cls', mirror = q > 0 && o.txtOut === 'auto' && !isCls, lc = 0;
       headLines.concat(subLines).forEach(function (l) { lc += fxCount(l); });
       var FULL = (nn - 1) * Math.min(Mx.st, (Mx.cap || 0.9) / nn) + Mx.dur + (Mx.off || 0);
-      FXS = { m: Mx, t: mirror ? FULL * (1 - q) : lt, n: nn, idx: 0, x0: align === 'center' ? x - maxW / 2 : x, hi: o.accent, filt: 'filter' in ctx,
+      FXS = { m: Mx, t: mirror ? FULL * (1 - q) : lt, n: nn, idx: 0, x0: align === 'center' ? x - maxW / 2 : (align === 'right' ? x - maxW : x), hi: o.accent, filt: 'filter' in ctx,
               fo: isCls ? prog : ((q > 0 && !mirror) ? 1 - sq : 1), bo: 1 - sq, amb: amb, aidx: 0, an: Math.max(1, lc), cls: isCls, out: q > 0, pts: [], still: still, FULL: FULL };
       if (!isCls) slide = riseOut ? -sq * H * 0.03 : 0; ctx.globalAlpha = 1;
       if (fm === 'iris') { var ip = mirror ? 1 - q : clamp(lt, 0, 1); if (mirror) FXS.t = 99; ctx.beginPath(); ctx.arc(FXS.x0 + maxW / 2, top + blockH / 2, EO(ip) * (Math.hypot(maxW, blockH) * 0.6 + headPx), 0, 7); ctx.clip(); }
@@ -90131,7 +90264,7 @@ html.spp-open #kadessa-panel{z-index:100004}
     if (o.badge) {
       ctx.globalAlpha = FXS && !FXS.cls ? clamp(FXS.t / 0.5, 0, 1) * FXS.bo : prog; ctx.font = '800 ' + badgePx + 'px ' + FONTS.clean;
       var txt = String(o.badge).toUpperCase(), tw = ctx.measureText(txt).width + badgePx * 1.6, bh = badgePx * 1.9;
-      var bx = align === 'center' ? x - tw / 2 : x;
+      var bx = align === 'center' ? x - tw / 2 : (align === 'right' ? x - tw : x);
       ctx.fillStyle = o.accent; rr(ctx, bx, y, tw, bh, bh / 2); ctx.fill();
       ctx.fillStyle = lum(hexToRgb(o.accent)) > 0.6 ? '#0b1220' : '#ffffff';
       ctx.textAlign = 'center'; ctx.fillText(txt, bx + tw / 2, y + bh * 0.68);
@@ -90148,6 +90281,392 @@ html.spp-open #kadessa-panel{z-index:100004}
     }
     if (FXS && FXS.m.fin) FXS.m.fin(ctx, FXS);
     ctx.restore();
+  }
+
+  /* ───────────────────────── MORE TEXTS (build 305) ─────────────────────────
+     Extra texts on top of the main one. Every text has its own words, place, timing and style, so a showcase can present
+     many products (one text per photo) or run a timed explainer (one text per scene).
+     Each text is drawn by the SAME engine as the main text (drawText) with its own copy of the settings, so every text
+     motion, font, position and shade works for them too, in the preview, PNG, MP4 and live clips alike.
+     Stored in S.o.xt, so it travels with autosave, Drive, the image's own Showcase and live clips.
+     Timing is kept as fractions of the loop, so changing "Seconds per loop" keeps every text in step. */
+  var XT_MAX = 24;
+  var xtActId = 'main', xtFlash = false;   // 'main' = the first text (the Text section's own fields)   // which text is open in the editor (screen only, never saved)
+  var XT_WIDE_KEY = 'sarvarcShowcaseXtWide';
+  function xtWidePref() { try { return localStorage.getItem(XT_WIDE_KEY) !== '0'; } catch (e) { return true; } }
+  // The right panel glides wider while "More texts" is open and has texts; it glides back when another section opens.
+  function xtLayout() {
+    var ov = $('sppOverlay'), g = $('sppXtGrp'); if (!ov) return;
+    ov.classList.toggle('sp-xt-wide', !!(g && g.open && (S.o.xt || []).length && xtWidePref()));
+    // Photos: wide while the Photo section is open in multi-photo mode (same preference as the Texts toggle)
+    var pg = $('sppPhotoGrp'), md = ov.querySelector('.spp-modal');
+    ov.classList.toggle('sp-ph-wide', !!(pg && pg.open && md && md.classList.contains('spp-galmode') && xtWidePref()));
+    var mg = $('sppMotionGrp');
+    ov.classList.toggle('sp-mo-wide', !!(mg && mg.open && md && !md.classList.contains('spp-galmode') && xtWidePref()));
+    [].forEach.call(ov.querySelectorAll('[data-wide-btn]'), function (pw) {
+      var on = xtWidePref(); pw.setAttribute('aria-pressed', on ? 'true' : 'false');
+      pw.title = on ? 'Back to the normal panel width' : 'Give the panel more room so everything is in view';
+      pw.innerHTML = (on ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>Narrower'
+        : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Wider');
+    });
+  }
+  function xtPick(id, quiet) {
+    if (id === 'main') { xtActId = 'main'; xtFlash = false; xtRender(); return; }
+    if (!xtFind(id)) return;
+    xtActId = id; xtFlash = !quiet; xtRender();
+    var c = xtFind(id); if (c) xtSeekIfHidden(c);   // show it in the preview if it is not on screen right now
+  }
+  function xtHas(t) { return !!(t && (t.head || t.sub || t.badge)); }
+  // New texts start on the opposite side to the main text, so they never land on top of it
+  function xtDefPos() {
+    var o = S.o; if (!(o.head || o.sub || o.badge)) return o.txtPos || 'bottom';
+    return { bottom: 'top', top: 'bottom', left: 'right', right: 'left' }[o.txtPos] || 'top';
+  }
+  function xtNew(p) {
+    return Object.assign({ id: 'xt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), head: '', sub: '', badge: '', when: 'all', photo: 0, a: 0, b: 1,
+      pos: xtDefPos(), size: 100, anim: 'same', col: '', font: '', al: '' }, p || {});
+  }
+  // The text that decides how much room the layouts leave for words: the main one, or the first extra when the main one is empty.
+  function xtLead(o) {
+    if (o.head || o.sub || o.badge || !o.xt || !o.xt.length) return o;
+    for (var i = 0; i < o.xt.length; i++) {
+      var t = o.xt[i]; if (!xtHas(t) || (t.when === 'photo' && o.fit !== 'gallery')) continue;
+      return { head: t.head || '', sub: t.sub || '', badge: t.badge || '', txtPos: t.pos || o.txtPos, txtSize: o.txtSize * ((+t.size || 100) / 100) };
+    }
+    return o;
+  }
+  // When a text is on screen, as [start, end] fractions of the loop. null = not shown right now.
+  function xtWindow(t, n) {
+    if (t.when === 'photo') {
+      if (S.o.fit !== 'gallery' || n < 1) return null;
+      var p = clamp(Math.round(+t.photo || 0), 0, n - 1); return [p / n, (p + 1) / n];
+    }
+    if (t.when === 'time') {
+      var a = clamp(+t.a || 0, 0, 0.98), b = clamp(t.b == null ? 1 : +t.b, 0, 1); if (b < a + 0.02) b = Math.min(1, a + 0.02); return [a, b];
+    }
+    return [0, 1];
+  }
+  function xtActive(tn, opt) {
+    var o = S.o, xt = o.xt; if (!xt || !xt.length) return null;
+    var still = !!(opt && opt.textT === 1), secs = Math.max(0.5, o.secs), n = S.gal.length, out = null;
+    var lt = ((((opt && opt.tAbs != null && !still) ? opt.tAbs : tn * secs) % secs) + secs) % secs;
+    xt.forEach(function (t) {
+      if (!xtHas(t)) return;
+      var w = xtWindow(t, n); if (!w) return;
+      var a = w[0] * secs, b = w[1] * secs;
+      if (lt < a - 1e-6 || lt >= b - 1e-6) return;
+      var u = lt - a, d = Math.max(0.3, b - a);
+      var ov = Object.assign({}, o, { head: t.head || '', sub: t.sub || '', badge: t.badge || '', txtPos: t.pos || o.txtPos, txtSize: o.txtSize * ((+t.size || 100) / 100), secs: d, xt: null });
+      if (t.anim && t.anim !== 'same') ov.txtAnim = t.anim;
+      if (t.when !== 'all' && o.txtOut === 'stay') ov.txtOut = 'fade';   // a text that owns a time slot always leaves at the end of it
+      if (t.col) { ov.txtAuto = false; ov.txtCol = t.col; }
+      if (t.font) { ov.font = t.font; ov.fontName = ''; }
+      if (t.al) ov.txtAlign = t.al;
+      var prog = 1;
+      if (!still) { var keep = S.o; S.o = ov; try { prog = textProgress(null, u); } finally { S.o = keep; } }
+      (out = out || []).push({ ov: ov, u: u, prog: prog, still: still });
+    });
+    return out;
+  }
+  // The soft dark fade behind the words, for layouts where the photo fills the frame
+  function xtScrim(ctx, W, H, acts) {
+    var o = S.o; if (!acts || o.scrim <= 0 || !(o.fit === 'fill' || (o.fit === 'gallery' && GALFULL[o.gal]))) return;
+    acts.forEach(function (a) {
+      if (a.prog <= 0.001) return;
+      if (a.ov.txtPos === 'center') {
+        var al = o.scrim / 100 * 0.64 * a.prog, g = ctx.createLinearGradient(0, H * 0.26, 0, H * 0.74);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,' + al + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); return;
+      }
+      var keep = S.o; S.o = a.ov; try { drawScrim(ctx, W, H, a.prog); } finally { S.o = keep; }
+    });
+  }
+  function xtText(ctx, W, H, acts) {
+    if (!acts) return;
+    var keepO = S.o, keepBox = S._tbox;
+    acts.forEach(function (a) {
+      S.o = a.ov;
+      try { drawText(ctx, W, H, a.prog, a.still ? 99 : a.u); }
+      catch (e) { console.error('Showcase extra text failed', e); }
+      finally { S.o = keepO; }
+    });
+    S._tbox = keepBox; FXS = null;   // the main text box belongs to the Engage prompt, so it must be put back
+  }
+
+  /* ── editing ── */
+  var XT_POS = [['bottom', 'Bottom'], ['top', 'Top'], ['center', 'Centre'], ['left', 'Left'], ['right', 'Right']];
+  var XT_FONT = [['', 'Same as text 1'], ['clean', 'Clean sans'], ['serif', 'Elegant serif'], ['bold', 'Bold impact'], ['mono', 'Mono']];
+  var XT_AL = [['', 'Same as text 1'], ['center', 'Center'], ['left', 'Left'], ['right', 'Right']];
+  function xtSave() { try { if (window.sppSaveSoon) window.sppSaveSoon(); } catch (e) {} }
+  function xtSet(id, patch) {
+    S.o.xt = (S.o.xt || []).map(function (t) { return t.id === id ? Object.assign({}, t, patch) : t; });
+    xtSave();
+  }
+  function xtList(next) { S.o.xt = next; xtSave(); xtRender(); }
+  function xtFind(id) { return (S.o.xt || []).filter(function (t) { return t.id === id; })[0]; }
+  function xtSeek(t) {   // park the preview where this text is fully on screen
+    var w = xtWindow(t, S.gal.length); if (!w) { say('Switch to Multi-photo to preview a text that is linked to a photo.', 'info'); return; }
+    var secs = S.o.secs, tt = w[0] * secs + Math.min(1.2, (w[1] - w[0]) * secs * 0.6);
+    S.tNorm = clamp(tt / secs, 0, 0.9999); S.playing = false;
+    var pb = $('sppPlayBtn'); if (pb) pb.textContent = 'Play';
+    var sc = $('sppScrub'); if (sc) sc.value = Math.round(S.tNorm * 1000);
+  }
+  function xtSeekIfHidden(t) {
+    var w = xtWindow(t, S.gal.length); if (!w) return;
+    var lt = S.tNorm * S.o.secs; if (lt >= w[0] * S.o.secs && lt < w[1] * S.o.secs) return;
+    xtSeek(t);
+  }
+  window.sppXtAdd = function () {
+    var xt = S.o.xt || [];
+    if (xt.length >= XT_MAX) { say('Showcase holds up to ' + XT_MAX + ' extra texts.', 'info'); return; }
+    var p = {};
+    if (S.o.fit === 'gallery' && S.gal.length) {   // the next photo that has no text yet
+      var used = {}; xt.forEach(function (t) { if (t.when === 'photo') used[t.photo] = 1; });
+      var k = 0; while (k < S.gal.length - 1 && used[k]) k++;
+      p = { when: 'photo', photo: k };
+    }
+    var t = xtNew(p); xtActId = t.id; xtFlash = true; xtList(xt.concat([t]));
+    setTimeout(function () { var el = document.querySelector('#sppXtList [data-xid="' + t.id + '"] input[type=text]'); if (el) { try { el.focus({ preventScroll: true }); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { el.focus(); } } }, 60);
+  };
+  window.sppXtPerPhoto = function () {
+    var n = S.gal.length; if (!n) { say('Add a few photos first.', 'info'); return; }
+    var xt = S.o.xt || [], have = {}, add = [], i;
+    xt.forEach(function (t) { if (t.when === 'photo') have[t.photo] = 1; });
+    for (i = 0; i < n && xt.length + add.length < XT_MAX; i++) if (!have[i]) add.push(xtNew({ when: 'photo', photo: i }));
+    if (!add.length) { say(xt.length >= XT_MAX ? 'Showcase holds up to ' + XT_MAX + ' extra texts.' : 'Every photo already has its own text.', 'info'); return; }
+    xtActId = add[0].id; xtFlash = true;
+    xtList(xt.concat(add));
+    say('Added ' + add.length + ' text' + (add.length === 1 ? '' : 's') + '. Type the words for each photo.', 'success');
+  };
+  window.sppXtSplit = function () {
+    var k = +($('sppXtSplitN') || {}).value || 3, xt = S.o.xt || [], add = [], i;
+    if (xt.length + k > XT_MAX) { say('Showcase holds up to ' + XT_MAX + ' extra texts.', 'info'); return; }
+    for (i = 0; i < k; i++) add.push(xtNew({ when: 'time', a: i / k, b: (i + 1) / k }));
+    xtActId = add[0].id; xtFlash = true;
+    xtList(xt.concat(add));
+    say(k + ' timed texts added. Each one has an equal share of the video.', 'success');
+  };
+  function xtForPhoto(i) {   // the T button on a photo thumbnail
+    var xt = S.o.xt || [], ex = xt.filter(function (t) { return t.when === 'photo' && t.photo === i; })[0];
+    if (!ex) {
+      if (xt.length >= XT_MAX) { say('Showcase holds up to ' + XT_MAX + ' extra texts.', 'info'); return; }
+      ex = xtNew({ when: 'photo', photo: i }); xtActId = ex.id; xtFlash = true; xtList(xt.concat([ex]));
+    } else { xtActId = ex.id; xtFlash = true; xtRender(); }
+    var g = $('sppXtGrp'); if (g) { g.open = true; xtLayout(); }
+    setTimeout(function () {
+      var el = document.querySelector('#sppXtList [data-xid="' + ex.id + '"]'); if (!el) return;
+      try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+      var inp = el.querySelector('input[type=text]'); if (inp) inp.focus();
+    }, 70);
+  }
+  // Keeps each photo's text with its photo when photos are moved, removed or re-ordered.
+  function xtRemap(fn) {
+    var xt = S.o.xt; if (!xt || !xt.length) return;
+    var next = [];
+    xt.forEach(function (t) {
+      if (t.when !== 'photo') { next.push(t); return; }
+      var p = fn(+t.photo || 0); if (p == null) return;
+      next.push(p === t.photo ? t : Object.assign({}, t, { photo: p }));
+    });
+    S.o.xt = next; xtSave();
+  }
+  function xtMarkThumbs() {
+    var th = document.querySelectorAll('#sppGalThumbs .spp-th'), xt = S.o.xt || [];
+    [].forEach.call(th, function (d, i) {
+      var b = d.querySelector('.t'); if (!b) return;
+      var has = xt.some(function (t) { return t.when === 'photo' && t.photo === i && xtHas(t); });
+      b.classList.toggle('has', has); b.title = has ? 'Edit the text on this photo' : 'Add a text to this photo';
+    });
+  }
+
+  /* ── the panel ── */
+  function xtEl(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function xtSel(opts, val, on) {
+    var s2 = document.createElement('select'); s2.style.cssText = 'width:auto;flex:1';
+    opts.forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; s2.appendChild(op); });
+    s2.value = val; s2.onchange = function () { on(s2.value); }; return s2;
+  }
+  function xtRow(label, ctl, extra) { var r = xtEl('div', 'spp-row'); r.appendChild(xtEl('label', '', label)); r.appendChild(ctl); if (extra) r.appendChild(extra); return r; }
+  function xtRange(min, max, step, val, fmt, on) {
+    var r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.step = step; r.value = val;
+    var v = xtEl('span', 'spp-val w', fmt(val));
+    r.oninput = function () { v.textContent = fmt(+r.value); on(+r.value); };
+    return [r, v];
+  }
+  function xtLabel(t, i) {
+    var w = t.when === 'photo' ? 'Photo ' + ((+t.photo || 0) + 1) : t.when === 'time' ? (((+t.a || 0) * S.o.secs).toFixed(1) + 's to ' + ((t.b == null ? 1 : +t.b) * S.o.secs).toFixed(1) + 's') : 'Whole video';
+    var h = String(t.head || t.sub || t.badge || '').slice(0, 22);
+    return (i + 2) + '. ' + w + (h ? ' · ' + h : '');
+  }
+  function xtCard(t, i, n) {
+    var card = xtEl('div', 'spp-xt spp-xt-ed' + (xtFlash ? ' spp-xt-in' : '')), id = t.id; xtFlash = false; card.setAttribute('data-xid', id);
+    var h = xtEl('div', 'spp-xt-h'), title = xtEl('b', '', xtLabel(t, i));
+    function upTitle() { var cur = xtFind(id); if (cur) { title.textContent = xtLabel(cur, (S.o.xt || []).indexOf(cur)); xtChips(); } }
+    function hb(txt, tip, fn) { var b = xtEl('button', '', txt); b.type = 'button'; b.title = tip; b.onclick = fn; return b; }
+    h.appendChild(title);
+    h.appendChild(hb('▶', 'Show this text in the preview', function () { var c = xtFind(id); if (c) xtSeek(c); }));
+    h.appendChild(hb('⧉', 'Duplicate this text', function () {
+      var xt = S.o.xt || [], c = xtFind(id); if (!c) return;
+      if (xt.length >= XT_MAX) { say('Showcase holds up to ' + XT_MAX + ' extra texts.', 'info'); return; }
+      var cp = Object.assign({}, c, { id: xtNew().id }), at = xt.indexOf(c) + 1;
+      xtActId = cp.id; xtFlash = true;
+      xtList(xt.slice(0, at).concat([cp], xt.slice(at)));
+    }));
+    h.appendChild(hb('×', 'Delete this text', function () {
+      var all = S.o.xt || [], at = all.indexOf(xtFind(id)), rest = all.filter(function (x) { return x.id !== id; });
+      xtActId = rest.length ? rest[Math.min(Math.max(at, 0), rest.length - 1)].id : null; xtFlash = true;
+      xtList(rest);
+    }));
+    card.appendChild(h);
+    var grid = xtEl('div', 'spp-xt-grid'), words = xtEl('div', 'spp-xt-words'), whenBox = xtEl('div', 'spp-xt-when');
+    [['head', 'Headline'], ['sub', 'Subline'], ['badge', 'Badge, e.g. NEW']].forEach(function (f) {
+      var inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = (t.when === 'photo' && f[0] === 'head') ? 'Headline for photo ' + ((+t.photo || 0) + 1) : f[1];
+      inp.value = t[f[0]] || ''; inp.autocomplete = 'off';
+      inp.oninput = function () { var p = {}; p[f[0]] = inp.value; xtSet(id, p); upTitle(); xtMarkThumbs(); };
+      inp.onfocus = function () { var c = xtFind(id); if (c) xtSeekIfHidden(c); };
+      words.appendChild(inp);
+    });
+    // when it appears
+    var whenOpts = [['all', 'Whole video']];
+    if (S.o.fit === 'gallery' || t.when === 'photo') whenOpts.push(['photo', 'With a photo']);
+    whenOpts.push(['time', 'Custom time']);
+    whenBox.appendChild(xtRow('Appears', xtSel(whenOpts, t.when, function (v) {
+      var c = xtFind(id); if (!c) return;
+      var p = { when: v };
+      if (v === 'photo') p.photo = clamp(+c.photo || 0, 0, Math.max(0, n - 1));
+      if (v === 'time' && c.when !== 'time') { var w0 = xtWindow(c, n) || [0, 1]; p.a = w0[0]; p.b = w0[1]; }
+      xtSet(id, p); xtRender();
+    })));
+    if (t.when === 'photo') {
+      var po = [], k, cur = clamp(+t.photo || 0, 0, Math.max(0, n - 1));
+      for (k = 0; k < Math.max(1, n); k++) po.push([String(k), 'Photo ' + (k + 1)]);
+      whenBox.appendChild(xtRow('Photo', xtSel(po, String(cur), function (v) { xtSet(id, { photo: +v }); xtRender(); })));
+      if (S.o.fit !== 'gallery') whenBox.appendChild(xtEl('div', 'spp-note', 'This text shows once Multi-photo is on.'));
+    }
+    if (t.when === 'time') {
+      var secs = S.o.secs, fmt = function (v) { return (v / 1000 * secs).toFixed(1) + 's'; }, rt;
+      var rf = xtRange(0, 980, 5, Math.round((+t.a || 0) * 1000), fmt, function (v) {
+        if (v > +rt[0].value - 20) { rt[0].value = Math.min(1000, v + 20); rt[1].textContent = fmt(+rt[0].value); }
+        xtSet(id, { a: v / 1000, b: +rt[0].value / 1000 }); upTitle();
+      });
+      rt = xtRange(20, 1000, 5, Math.round((t.b == null ? 1 : +t.b) * 1000), fmt, function (v) {
+        if (v < +rf[0].value + 20) { rf[0].value = Math.max(0, v - 20); rf[1].textContent = fmt(+rf[0].value); }
+        xtSet(id, { a: +rf[0].value / 1000, b: v / 1000 }); upTitle();
+      });
+      whenBox.appendChild(xtRow('From', rf[0], rf[1])); whenBox.appendChild(xtRow('To', rt[0], rt[1]));
+    }
+    // style and motion
+    var sg = document.createElement('details'); sg.className = 'spp-grp'; sg.style.border = 'none';
+    var sm = xtEl('summary', '', 'Style and motion'); sm.style.cssText = 'padding:8px 0 4px;opacity:.7'; sg.appendChild(sm);
+    var si = xtEl('div', 'spp-in'); sg.appendChild(si);
+    si.appendChild(xtRow('Position', xtSel(XT_POS, t.pos || 'bottom', function (v) { xtSet(id, { pos: v }); })));
+    var an = document.createElement('select'); an.style.cssText = 'width:auto;flex:1';
+    var base = $('sppTxtAnim'); an.innerHTML = '<option value="same">Same as text 1</option>' + (base ? base.innerHTML : '');
+    an.value = t.anim || 'same'; an.onchange = function () { xtSet(id, { anim: an.value }); };
+    si.appendChild(xtRow('Motion', an));
+    var sz = xtRange(40, 200, 1, +t.size || 100, function (v) { return String(v); }, function (v) { xtSet(id, { size: v }); });
+    si.appendChild(xtRow('Size', sz[0], sz[1]));
+    si.appendChild(xtRow('Font', xtSel(XT_FONT, t.font || '', function (v) { xtSet(id, { font: v }); })));
+    si.appendChild(xtRow('Align', xtSel(XT_AL, t.al || '', function (v) { xtSet(id, { al: v }); })));
+    var au = document.createElement('input'); au.type = 'checkbox'; au.checked = !t.col;
+    var cl = document.createElement('input'); cl.type = 'color'; cl.value = t.col || '#ffffff';
+    var cr = xtRow('Text colour', cl); cr.style.display = t.col ? '' : 'none';
+    au.onchange = function () { cr.style.display = au.checked ? 'none' : ''; xtSet(id, { col: au.checked ? '' : cl.value }); };
+    cl.oninput = function () { xtSet(id, { col: cl.value }); };
+    si.appendChild(xtRow('Auto text colour', au)); si.appendChild(cr);
+    grid.appendChild(words); grid.appendChild(whenBox); card.appendChild(grid);
+    card.appendChild(sg);
+    return card;
+  }
+  // A thin timeline: when each text is on screen. Click one to preview it.
+  function xtTrack() {
+    var tr = $('sppXtTrack'); if (!tr) return;
+    var xt = S.o.xt || [], n = S.gal.length, lanes = [], items = [];
+    xt.forEach(function (t, i) {
+      var w = xtWindow(t, n); if (!w) return;
+      var L = 0; while (lanes[L] != null && lanes[L] > w[0] + 1e-6) L++;
+      lanes[L] = w[1]; items.push([t, i, w, L]);
+    });
+    tr.innerHTML = '';
+    if (!items.length) { tr.style.display = 'none'; return; }
+    tr.style.display = ''; tr.style.height = (Math.min(lanes.length, 6) * 14 + 4) + 'px';
+    items.forEach(function (it) {
+      if (it[3] >= 6) return;
+      var b = xtEl('i', '', String(it[1] + 1));
+      b.style.left = (it[2][0] * 100) + '%'; b.style.width = Math.max(2, (it[2][1] - it[2][0]) * 100) + '%'; b.style.top = (2 + it[3] * 14) + 'px';
+      b.title = xtLabel(it[0], it[1]); if (it[0].id === xtActId) b.className = 'on'; b.onclick = function () { xtActId = it[0].id; xtFlash = true; xtRender(); xtSeek(it[0]); }; tr.appendChild(b);
+    });
+  }
+  // Numbered chips: one tap picks the text to edit. The same numbers sit on the timeline above.
+  function xtChips() {
+    var nav = $('sppXtNav'); if (!nav) return;
+    var xt = S.o.xt || [];
+    nav.innerHTML = '';
+    if (!xt.length) { nav.style.display = 'none'; return; }
+    nav.style.display = '';
+    var top = xtEl('div', 'spp-xt-navtop');
+    top.appendChild(xtEl('span', 'spp-xt-cap', (xt.length + 1) + ' texts'));
+    var on = xtWidePref(), wb = xtEl('button', 'spp-xt-wbtn' + (on ? ' is-wide' : '')); wb.type = 'button';
+    wb.title = on ? 'Back to the normal panel width' : 'Give the panel more room while you work on texts';
+    wb.setAttribute('aria-pressed', on ? 'true' : 'false');
+    wb.innerHTML = on
+      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>'
+      : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+    wb.appendChild(document.createTextNode(on ? 'Narrower' : 'Wider'));
+    wb.onclick = function () { try { localStorage.setItem(XT_WIDE_KEY, xtWidePref() ? '0' : '1'); } catch (e) {} xtChips(); xtLayout(); };
+    top.appendChild(wb); nav.appendChild(top);
+    var row = xtEl('div', 'spp-xt-chips'), mo = S.o, mhas = !!(mo.head || mo.sub || mo.badge);
+    var m1 = xtEl('button', 'spp-xt-chip' + (xtActId === 'main' ? ' on' : '') + (mhas ? '' : ' empty'), '1'); m1.type = 'button';
+    m1.title = 'Main text' + (mhas ? ': ' + String(mo.head || mo.sub || mo.badge).slice(0, 22) : ''); m1.setAttribute('aria-pressed', xtActId === 'main' ? 'true' : 'false');
+    m1.onclick = function () { xtPick('main'); }; row.appendChild(m1);
+    xt.forEach(function (t, i) {
+      var b = xtEl('button', 'spp-xt-chip' + (t.id === xtActId ? ' on' : '') + (xtHas(t) ? '' : ' empty'), String(i + 2)); b.type = 'button';
+      b.title = xtLabel(t, i); b.setAttribute('aria-pressed', t.id === xtActId ? 'true' : 'false');
+      b.onclick = function () { xtPick(t.id); };
+      row.appendChild(b);
+    });
+    if (xt.length < XT_MAX) { var ad = xtEl('button', 'spp-xt-chip add', '+'); ad.type = 'button'; ad.title = 'Add another text'; ad.setAttribute('aria-label', 'Add another text'); ad.onclick = function () { window.sppXtAdd(); }; row.appendChild(ad); }
+    nav.appendChild(row);
+  }
+  window.sppStaySet = function (on) {
+    var v = on ? 'stay' : 'auto', sel = $('sppTxtOut'); if (sel) sel.value = v;
+    window.sppSet('txtOut', v);
+  };
+  function xtStay() { var c = $('sppStay'); if (c) c.checked = S.o.txtOut === 'stay'; }
+  function xtStart() {
+    var st = $('sppXtStart'), cap = $('sppXtStartCap'), intro = $('sppXtIntro'), has = (S.o.xt || []).length > 0;
+    if (st) st.classList.add('has-texts');
+    if (cap) cap.textContent = has ? 'Add more' : 'Need more than one text?';
+    if (intro) intro.style.display = 'none';
+  }
+  (function () {
+    var g = $('sppXtGrp'); if (g) g.addEventListener('toggle', function () { xtStart(); xtLayout(); }); xtStart();
+    var pg = $('sppPhotoGrp'); if (pg) pg.addEventListener('toggle', function () { xtLayout(); });
+    var mgp = $('sppMotionGrp'); if (mgp) mgp.addEventListener('toggle', function () { xtLayout(); });
+    [].forEach.call(document.querySelectorAll('#sppOverlay [data-wide-btn]'), function (pw) { pw.onclick = function () { try { localStorage.setItem(XT_WIDE_KEY, xtWidePref() ? '0' : '1'); } catch (e) {} xtLayout(); if ((S.o.xt || []).length) xtChips(); }; });
+    var prevSeg = window.sppSetSeg;
+    if (typeof prevSeg === 'function') window.sppSetSeg = function () { var r = prevSeg.apply(this, arguments); try { xtLayout(); } catch (e) {} return r; };
+    xtLayout();
+    ['sppHead', 'sppSubl', 'sppBadge'].forEach(function (id) { var e = $(id); if (e) e.addEventListener('input', function () { if ((S.o.xt || []).length) xtChips(); }); });
+  })();
+  function xtRender() {
+    var box = $('sppXtList'); if (!box) return;
+    var xt = S.o.xt || [], n = S.gal.length;
+    if (xtActId !== 'main' && !xtFind(xtActId)) xtActId = 'main';
+    box.innerHTML = '';
+    var at = xtActId === 'main' ? -1 : xt.indexOf(xtFind(xtActId));
+    if (at > -1) box.appendChild(xtCard(xt[at], at, n));
+    var mt = $('sppMainText'); if (mt) mt.style.display = xtActId === 'main' ? '' : 'none';
+    var mh = $('sppMainHint'); if (mh) mh.style.display = xt.length ? '' : 'none';
+    var c = $('sppXtCount'); if (c) c.textContent = xt.length ? ' · ' + (xt.length + 1) : '';
+    var nt = $('sppXtNote');
+    if (nt) {
+      if (S.o.fit === 'gallery') {
+        nt.textContent = 'A text set to "With a photo" appears together with that photo. The loop is shared evenly between your photos.' +
+          ((S.o.gal === 'collage' || S.o.gal === 'fastcuts') ? ' In this layout the photos are not shown one at a time, so use "Custom time" to place words exactly.' : '');
+      } else nt.textContent = 'Tip: "Seconds per loop" (Motion) is the length of your video. Use "Split the video into" for steps or scenes, or give each text its own start and end.';
+    }
+    xtChips(); xtStart(); xtStay(); xtLayout(); paintRanges(); xtMarkThumbs();
   }
   function rr(ctx, x, y, w, h, r) {
     ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
@@ -90205,14 +90724,16 @@ html.spp-open #kadessa-panel{z-index:100004}
         x.drawImage(c, (96 - c.width * k) / 2, (96 - c.height * k) / 2, c.width * k, c.height * k); c._th = t.toDataURL('image/jpeg', 0.7);
       }
       var d = document.createElement('div'), im = new Image(); d.className = 'spp-th'; im.src = c._th; im.alt = ''; d.appendChild(im);
-      [['x', '×', 'Remove', function () { S.gal.splice(i, 1); }],
-       ['l', '‹', 'Move earlier', function () { if (i > 0) S.gal.splice(i - 1, 0, S.gal.splice(i, 1)[0]); }],
-       ['r', '›', 'Move later', function () { if (i < S.gal.length - 1) S.gal.splice(i + 1, 0, S.gal.splice(i, 1)[0]); }]].forEach(function (a) {
+      [['x', '×', 'Remove', function () { S.gal.splice(i, 1); xtRemap(function (p) { return p === i ? null : (p > i ? p - 1 : p); }); }],
+       ['l', '‹', 'Move earlier', function () { if (i > 0) { S.gal.splice(i - 1, 0, S.gal.splice(i, 1)[0]); xtRemap(function (p) { return p === i ? i - 1 : (p === i - 1 ? i : p); }); } }],
+       ['r', '›', 'Move later', function () { if (i < S.gal.length - 1) { S.gal.splice(i + 1, 0, S.gal.splice(i, 1)[0]); xtRemap(function (p) { return p === i ? i + 1 : (p === i + 1 ? i : p); }); } }],
+       ['t', 'T', 'Add a text to this photo', function () { xtForPhoto(i); }]].forEach(function (a) {
         var b = document.createElement('button'); b.type = 'button'; b.className = a[0]; b.textContent = a[1]; b.title = a[2];
         b.onclick = function () { a[3](); galThumbs(); }; d.appendChild(b);
       });
       box.appendChild(d);
     });
+    try { xtRender(); } catch (e) { console.error('Showcase texts panel failed', e); }
   }
   (function () {
     var d = $('sppGalDrop'); if (!d) return;
@@ -90237,7 +90758,7 @@ html.spp-open #kadessa-panel{z-index:100004}
   }
   // Area left for photos once the words have their space
   function galRect(W, H) {
-    var o = S.o, L = layout(W, H), m = Math.min(W, H) * 0.06, R = { x: m, y: m, w: W - 2 * m, h: H - 2 * m };
+    var o = xtLead(S.o), L = layout(W, H), m = Math.min(W, H) * 0.06, R = { x: m, y: m, w: W - 2 * m, h: H - 2 * m };
     if (!L.hasText) return R;
     if (L.pos === 'left' || L.pos === 'right') { R.w -= W * 0.42; if (L.pos === 'left') R.x += W * 0.42; return R; }
     var u = Math.min(W, H) * 0.1 * o.txtSize / 100, cpl = 0.86 * W / (0.56 * u), hl = o.head ? Math.min(2, Math.ceil(o.head.length / cpl)) : 0, rp = u * (0.75 + (o.badge ? 0.75 : 0) + hl * 1.1 + (o.sub ? 0.75 : 0));
@@ -90555,13 +91076,13 @@ html.spp-open #kadessa-panel{z-index:100004}
   // SMART ORDER: keep the first photo, then always go to the most similar colour/brightness next
   window.sppGalSmartOrder = function () {
     var n = S.gal.length; if (n < 3) { say('Add at least 3 photos to re-order', 'info'); return []; }
-    var left = S.gal.slice(1), out = [S.gal[0]], cur = galInfo(S.gal[0]);
+    var before = S.gal.slice(), left = S.gal.slice(1), out = [S.gal[0]], cur = galInfo(S.gal[0]);
     function dist(a, b) { return Math.hypot(a.avg[0] - b.avg[0], a.avg[1] - b.avg[1], a.avg[2] - b.avg[2]) + Math.abs(a.lum - b.lum) * 120; }
     while (left.length) {
       var bi = 0, bd = 1e9; left.forEach(function (c, k) { var d = dist(cur, galInfo(c)); if (d < bd) { bd = d; bi = k; } });
       cur = galInfo(left[bi]); out.push(left.splice(bi, 1)[0]);
     }
-    S.gal = out; galThumbs(); say('Photos re-ordered so colours flow smoothly', 'success'); return out.length;
+    S.gal = out; xtRemap(function (p) { var k = out.indexOf(before[p]); return k < 0 ? p : k; }); galThumbs(); say('Photos re-ordered so colours flow smoothly', 'success'); return out.length;
   };
 
 
@@ -91470,6 +91991,7 @@ html.spp-open #kadessa-panel{z-index:100004}
     try {
       window.sppOpen(); S.editTarget = { idx: idx, id: item.id };
       Object.keys(clip.o || {}).forEach(function (k) { if (k in S.o) S.o[k] = clip.o[k]; });
+      S.o.xt = (clip.o && clip.o.xt) ? clip.o.xt : [];
       if (clip.gal && clip.gal.length) {
         var list = []; for (var i = 0; i < clip.gal.length; i++) list.push(await spDecode(clip.gal[i]));
         S.gal = list; S.o.fit = 'gallery'; syncUi(); galThumbs();
@@ -91769,6 +92291,7 @@ html.spp-open #kadessa-panel{z-index:100004}
     });
     S.t0 = performance.now() - S.tNorm * S.o.secs * 1000;
     paintRanges();
+    try { xtRender(); } catch (e) { console.error('Showcase texts panel failed', e); }
   }
   function applyState(st) {
     if (!st || !st.o) return;
@@ -91818,6 +92341,11 @@ html.spp-open #kadessa-panel{z-index:100004}
     var f = window[n];
     window[n] = function () { var r = f.apply(this, arguments); try { window.sppSaveSoon(); } catch (e) {} return r; };
   });
+  // More texts: the panel follows the layout, the photos and the loop length (its time labels are in seconds)
+  ['sppSet', 'sppSetSeg'].forEach(function (n) {
+    var f = window[n];
+    window[n] = function (k) { var r = f.apply(this, arguments); if (k === 'secs' || k === 'fit' || k === 'gal' || k === 'txtOut') { try { xtRender(); } catch (e) {} } return r; };
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { if (window.sppFlush) window.sppFlush(); }
     else if (S.open && window.sppSync) window.sppSync('visible');
@@ -91847,7 +92375,7 @@ html.spp-open #kadessa-panel{z-index:100004}
     back: { t: 'enum', v: ['plain', 'mirror'] }, shadow: { t: 'bool' }, reflect: { t: 'bool' },
     bgMode: { t: 'enum', v: ['empty', 'matched', 'filled'] }, fillA: { t: 'color' }, fillB: { t: 'color' }, fillGrad: { t: 'bool' },
     head: { t: 'text', max: 120 }, sub: { t: 'text', max: 160 }, badge: { t: 'text', max: 24 },
-    txtPos: { t: 'enum', v: ['bottom', 'top', 'left', 'right'] }, txtAlign: { t: 'enum', v: ['center', 'left'] },
+    txtPos: { t: 'enum', v: ['bottom', 'top', 'left', 'right'] }, txtAlign: { t: 'enum', v: ['center', 'left', 'right'] },
     scrim: { t: 'num', min: 0, max: 100 }, font: { t: 'enum', v: ['clean', 'serif', 'bold', 'mono'] },
     txtSize: { t: 'num', min: 60, max: 150 }, txtAuto: { t: 'bool' }, txtCol: { t: 'color' }, accent: { t: 'color' },
     txtAnim: { t: 'enum', v: ['match', 'rise', 'fade', 'none', 'mask', 'track', 'focus', 'cascade', 'flip', 'assemble', 'warp', 'snap', 'glitch', 'decode', 'type', 'pop', 'shine', 'iris', 'beat', 'caret', 'marker', 'pointer'] }, fontName: { t: 'text', max: 60 }, txtOut: { t: 'enum', v: ['auto', 'fade', 'rise', 'stay'] }, txtLive: { t: 'enum', v: ['none', 'zigzag', 'wave', 'float', 'orbit', 'swing', 'jelly', 'blink', 'shimmer'] }, eng: { t: 'enum', v: ['none', 'tap', 'swipe', 'like', 'hearts', 'comment'] }, engText: { t: 'text', max: 60 },
@@ -91960,6 +92488,10 @@ html.spp-open #kadessa-panel{z-index:100004}
       loops: lp ? +lp.value : 1, exportSize: [e[0], e[1]], playing: !!S.playing, position: Math.round(S.tNorm * 100) / 100,
       compareOn: !!($('sppWrapRel') && $('sppWrapRel').classList.contains('cmp')), busy: !!S.busy || !!S.recording, recording: !!S.recording
     };
+    ctx.texts = { max: XT_MAX, count: (o.xt || []).length, note: 'n is the number among the extra texts (n 1 is shown as text 2 in the panel). photo is 1-based. from and to are fractions of the loop.', items: (o.xt || []).map(function (t, i) {
+      var r = { n: i + 1, head: t.head || '', sub: t.sub || '', badge: t.badge || '', when: t.when || 'all', pos: t.pos || '' };
+      if (t.when === 'photo') r.photo = (+t.photo || 0) + 1; if (t.when === 'time') { r.from = +t.a || 0; r.to = t.b == null ? 1 : +t.b; }
+      return r; }) };
     try {
       var pg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
       ctx.pageOpen = !!pg; ctx.imagesOnPage = pg ? (pg.placedImages || []).filter(function (it) { return it && it.dataUrl; }).length : 0;
@@ -92046,8 +92578,76 @@ html.spp-open #kadessa-panel{z-index:100004}
     })();
     return { key: key, names: ok, last: ok[ok.length - 1], ms: ms };
   }
+  /* build 308: Kadessa writes the extra texts (More texts), so one call can take photos, motion and every text to a finished clip.
+     spec: { clear, update: [{n, ...fields}], remove: [n], mode: 'replace' | 'add', items: [{head, sub, badge, when, photo, from, to, pos, size, anim, color, font, align}] }
+     n is the number among the EXTRA texts (1 = the first extra, shown as text 2 in the panel). photo is 1-based. from and to are fractions of the loop. */
+  var SP_XT_POS = ['bottom', 'top', 'center', 'left', 'right'], SP_XT_FONTS = ['clean', 'serif', 'bold', 'mono'], SP_XT_ALIGNS = ['center', 'left', 'right'];
+  function spXtClean(v, max) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max); }
+  function spXtFields(t, it, skipped) {
+    ['head', 'sub', 'badge'].forEach(function (k) { if (k in it) t[k] = spXtClean(it[k], k === 'head' ? 120 : (k === 'sub' ? 160 : 24)); });
+    var w = null;
+    if (it.when != null) {
+      var ws = String(it.when).toLowerCase().replace(/[\s_-]+/g, '');
+      w = /^(photo|withphoto|perphoto|withaphoto)$/.test(ws) ? 'photo' : (/^(time|custom|customtime|window)$/.test(ws) ? 'time' : (/^(all|whole|wholevideo|always|video)$/.test(ws) ? 'all' : null));
+    } else if (it.photo != null) w = 'photo';
+    else if (it.from != null || it.to != null) w = 'time';
+    if (w === 'photo' && S.o.fit !== 'gallery') { w = 'all'; skipped.push('a text linked to a photo needs Multi-photo, so it stays on for the whole video'); }
+    if (w) t.when = w;
+    if (t.when === 'photo' && (it.photo != null || w === 'photo')) t.photo = clamp(Math.round(Number(it.photo) || 1) - 1, 0, Math.max(0, S.gal.length - 1));
+    if (t.when === 'time') {
+      var a = it.from != null ? clamp(Number(it.from) || 0, 0, 0.98) : (t.a != null ? +t.a : 0), b = it.to != null ? clamp(Number(it.to) || 1, 0.02, 1) : (t.b != null ? +t.b : 1);
+      if (b < a + 0.02) b = Math.min(1, a + 0.02);
+      t.a = a; t.b = b;
+    }
+    if (it.pos != null) { var ps = String(it.pos).toLowerCase().trim(); if (ps === 'centre' || ps === 'middle') ps = 'center'; if (SP_XT_POS.indexOf(ps) !== -1) t.pos = ps; }
+    if (it.size != null && isFinite(Number(it.size))) t.size = clamp(Math.round(Number(it.size)), 40, 200);
+    if (it.anim != null) {
+      var an = String(it.anim).toLowerCase().replace(/[\s_-]+/g, '');
+      if (an === '' || an === 'same' || an === 'default') t.anim = 'same'; else if (SP_SPEC.txtAnim.v.indexOf(an) !== -1) t.anim = an;
+    }
+    if (it.color != null) { var cs = String(it.color).trim().toLowerCase(); if (cs === '' || cs === 'auto' || cs === 'same') t.col = ''; else { var hx = spHex(cs); if (hx) t.col = hx; } }
+    if (it.font != null) { var fs = String(it.font).toLowerCase().trim(); if (fs === '' || fs === 'same' || fs === 'auto') t.font = ''; else if (SP_XT_FONTS.indexOf(fs) !== -1) t.font = fs; }
+    if (it.align != null) { var as = String(it.align).toLowerCase().trim(); if (as === '' || as === 'same' || as === 'auto') t.al = ''; else if (SP_XT_ALIGNS.indexOf(as) !== -1) t.al = as; }
+    return t;
+  }
+  function spTexts(spec) {
+    spec = spec || {}; var did = [], skipped = [], cur = (S.o.xt || []).slice(), changed = false;
+    if (spec.clear && cur.length) { cur = []; changed = true; did.push('cleared the extra texts'); }
+    if (Array.isArray(spec.update) && cur.length) {
+      var up = 0;
+      spec.update.forEach(function (it) {
+        var i = Math.round(Number(it && it.n)) - 1;
+        if (!(i >= 0 && i < cur.length)) { skipped.push('there is no extra text number ' + (i + 1)); return; }
+        cur[i] = spXtFields(Object.assign({}, cur[i]), it, skipped); up++;
+      });
+      if (up) { changed = true; did.push('updated ' + up + ' extra text' + (up === 1 ? '' : 's')); }
+    }
+    if (Array.isArray(spec.remove) && cur.length) {
+      var rm = spec.remove.map(Number), n0 = cur.length;
+      cur = cur.filter(function (t, i) { return rm.indexOf(i + 1) === -1; });
+      if (cur.length !== n0) { changed = true; did.push('removed ' + (n0 - cur.length) + ' extra text' + (n0 - cur.length === 1 ? '' : 's')); }
+    }
+    var items = Array.isArray(spec.items) ? spec.items : [];
+    if (items.length) {
+      if (String(spec.mode || 'replace').toLowerCase() !== 'add' && cur.length) cur = [];
+      var made = 0;
+      items.forEach(function (it) {
+        if (!it || typeof it !== 'object') return;
+        if (cur.length >= XT_MAX) { if (made !== -1) { skipped.push('Showcase holds up to ' + XT_MAX + ' extra texts'); made = -1; } return; }
+        var t = spXtFields(xtNew(), it, skipped);
+        if (!xtHas(t)) { skipped.push('a text with no words was left out'); return; }
+        cur.push(t); if (made !== -1) made++;
+      });
+      if (made > 0) { changed = true; did.push('wrote ' + made + ' extra text' + (made === 1 ? '' : 's')); }
+    }
+    if (changed) {
+      xtList(cur);
+      if (xtActId !== 'main' && !xtFind(xtActId)) xtActId = 'main';
+    }
+    return { did: did, skipped: skipped, changed: changed, total: (S.o.xt || []).length };
+  }
   window.sppKadessa = {
-    smartOrder: function () { return window.sppGalSmartOrder(); }, loadMany: spLoadMany, pageImages: spPageImages, editGallery: spGalEdit, tour: spTour,
+    smartOrder: function () { return window.sppGalSmartOrder(); }, loadMany: spLoadMany, texts: spTexts, pageImages: spPageImages, editGallery: spGalEdit, tour: spTour,
     isOpen: function () { return !!S.open; },
     open: function () { if (!S.open) window.sppOpen(); },
     close: function () { if (S.open) window.sppClose(); },
