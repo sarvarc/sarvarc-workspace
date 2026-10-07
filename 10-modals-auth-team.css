@@ -1,0 +1,952 @@
+/* Insert page modal — every full-screen modal in the app (auth, team,
+   export, refine, settings…) shares this overlay. It used to toggle a hard
+   display:none → display:flex with zero transition, so any modal (most
+   noticeably the login modal and the Team modal) just snapped into
+   existence with no sense of motion. Switched to an always-in-DOM,
+   opacity/visibility-driven overlay so `.open` can animate — this is a
+   pure CSS change with no JS/markup dependency, so every modal that shares
+   this class gets a smooth fade+rise for free, login included.
+   `pointer-events:none` + `visibility:hidden` while closed keeps it fully
+   inert (no accidental clicks/tab-stops through the invisible layer), and
+   the delayed `visibility` transition means it truly leaves the a11y tree
+   only after the fade-out finishes. */
+.pdfed-insert-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+  z-index: 700; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s, backdrop-filter 0.2s ease;
+}
+.pdfed-insert-modal-overlay.open {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity 0.2s ease, visibility 0s linear 0s, backdrop-filter 0.2s ease;
+}
+/* The card itself rises + scales in slightly, so opening reads as one
+   deliberate motion rather than a pop. Targets the direct child generically
+   (">" combinator) since different modals wrap different card classes
+   (.sarvarc-pw-modal, .pdfed-export-modal, etc.) — this way every modal
+   sharing the overlay gets the same treatment without listing each one.
+   Respects reduced-motion. */
+.pdfed-insert-modal-overlay > * {
+  transform: translateY(14px) scale(0.97);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(.22,1,.36,1), opacity 0.2s ease;
+}
+.pdfed-insert-modal-overlay.open > * {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdfed-insert-modal-overlay, .pdfed-insert-modal-overlay > * { transition: opacity 0.12s linear !important; transform: none !important; }
+}
+
+/* ─── Edit lock overlay — appears only at the moment a logged-out guest who
+   has used their free export actually tries to click or type something
+   (see sarvarcEditLockGuard), not the instant that condition becomes true.
+   The backdrop is deliberately light and unblurred so their work stays
+   visible behind the card — seeing exactly what they'd be walking away
+   from is the point, not hiding it. Sits just below the auth modal's
+   z-index so opening "Log In" from here still renders on top of it, and
+   removes itself automatically the moment sign-in succeeds. ─── */
+.sarvarc-editlock-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  z-index: 690; display: none; align-items: center; justify-content: center;
+}
+.sarvarc-editlock-overlay.open { display: flex; }
+.sarvarc-editlock-card {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 32px 30px; width: 94%; max-width: 380px;
+  text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.6), var(--glow-blue);
+}
+.sarvarc-editlock-icon {
+  width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.sarvarc-editlock-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.sarvarc-editlock-sub { font-size: 12.5px; color: var(--text2); line-height: 1.55; margin-bottom: 22px; }
+.sarvarc-editlock-btn {
+  width: 100%; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--blue), #0090c8); color: #06121F;
+  font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700;
+}
+.sarvarc-editlock-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,194,255,0.38); }
+.pdfed-insert-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 0; width: 94%; max-width: 860px;
+  max-height: 90vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.6), var(--glow-blue);
+}
+.pdfed-insert-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 14px; padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.pdfed-insert-head-text { display: flex; gap: 12px; align-items: flex-start; }
+.pdfed-insert-head-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.pdfed-insert-modal h3 {
+  font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 800;
+  color: var(--text);
+}
+.pdfed-insert-modal p {
+  color: var(--text2); font-size: 11.5px; margin-top: 3px;
+}
+.pdfed-insert-close {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text2);
+  cursor: pointer; transition: all 0.15s;
+}
+.pdfed-insert-close:hover { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+.pdfed-insert-body { padding: 20px 24px; overflow-y: auto; }
+.pdfed-insert-footer {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 16px 24px 20px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.pdfed-insert-body-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start;
+}
+@media (max-width: 720px) {
+  .pdfed-insert-body-grid { grid-template-columns: 1fr; }
+}
+.pdfed-insert-modal h3 {
+  font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 800;
+  margin-bottom: 6px;
+}
+.pdfed-insert-modal p {
+  color: var(--text2); font-size: 12px; margin-bottom: 16px;
+}
+/* ─── Diagrams & Graphs: Push-to-Workspace destination choice modal ─── */
+.dg-push-choice-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+  /* Must outrank every modal it can be opened on top of — notably the Map
+     Explorer (.dg-mapx-modal, z-index:9999), which is still open when a
+     fetched states/provinces map gets pushed. At the old z-index:750 this
+     dialog rendered fully behind the Map Explorer's own dark backdrop, so
+     choosing "New Page"/"Live Page" looked like it did nothing — the click
+     had nowhere visible to land, which read as "the map isn't pushing". */
+  z-index: 10050; display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px);
+}
+.dg-push-choice-overlay.open { display: flex; }
+.dg-push-choice-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 18px; width: 94%; max-width: 480px; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.6), var(--glow-blue);
+}
+.dg-push-choice-head { padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+.dg-push-choice-head h3 { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 800; color: var(--text); }
+.dg-push-choice-head p { color: var(--text2); font-size: 11.5px; margin-top: 4px; }
+.dg-push-choice-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+.dg-push-choice-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; width: 100%;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  cursor: pointer; transition: all 0.15s; text-align: left; font-family: 'Inter', sans-serif;
+}
+.dg-push-choice-card:hover { border-color: var(--border2); background: var(--surface2); transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
+.dg-push-choice-icon {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.dg-push-choice-text h4 { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.dg-push-choice-text p { font-size: 11.5px; color: var(--text2); line-height: 1.4; }
+.dg-push-choice-footer { display: flex; justify-content: flex-end; padding: 14px 24px 20px; border-top: 1px solid var(--border); }
+
+/* ─── Diagrams & Graphs: big-data multi-chart suggestion modal + gallery ─── */
+.dg-multi-suggest-stats {
+  display: flex; gap: 10px; padding: 0 24px 4px; flex-wrap: wrap;
+}
+.dg-multi-suggest-stat {
+  flex: 1; min-width: 110px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px;
+}
+.dg-multi-suggest-stat b { display: block; font-size: 17px; color: var(--blue); font-weight: 800; }
+.dg-multi-suggest-stat span { font-size: 10.5px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.03em; }
+.dg-multi-gallery {
+  display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+.dg-multi-gallery.open { display: block; }
+.dg-multi-gallery-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+}
+.dg-multi-gallery-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.dg-multi-gallery-title span { font-weight: 400; color: var(--text2); margin-left: 6px; }
+.dg-multi-gallery-actions { display: flex; gap: 8px; }
+.dg-multi-gallery-strip {
+  display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px;
+}
+.dg-multi-gallery-card {
+  flex: 0 0 168px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; cursor: pointer; transition: all 0.15s;
+}
+.dg-multi-gallery-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+.dg-multi-gallery-card.active { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,194,255,0.25); }
+.dg-multi-gallery-card canvas { display: block; width: 100%; height: 100px; background: #fff; }
+.dg-multi-gallery-card-label {
+  font-size: 11px; font-weight: 600; color: var(--text); padding: 7px 9px 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.pdfed-insert-type-tabs {
+  display: inline-flex; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 18px;
+}
+.pdfed-insert-type-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: none; background: transparent; color: var(--text2);
+  font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif;
+  padding: 8px 16px; border-radius: 7px; cursor: pointer; transition: all 0.15s;
+}
+.pdfed-insert-type-tab svg { flex-shrink: 0; }
+.pdfed-insert-type-tab:hover:not(.sel) { color: var(--text); }
+.pdfed-insert-type-tab.sel {
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff;
+  box-shadow: 0 2px 10px rgba(0,194,255,0.3);
+}
+
+.pdfed-insert-content-area { display: none; margin-bottom: 4px; }
+.pdfed-insert-content-area.visible { display: block; }
+
+/* page content editor */
+.pdfed-blank-editor {
+  background: #fff;
+  border-radius: 8px;
+  min-height: 130px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 14px;
+  color: #222;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  outline: none;
+  border: 1px solid var(--border);
+  line-height: 1.7;
+}
+
+.pdfed-insert-img-drop {
+  border: 2px dashed rgba(0,194,255,0.3);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text2); font-size: 12px;
+}
+.pdfed-insert-img-drop:hover { border-color: var(--blue); background: rgba(0,194,255,0.05); }
+.pdfed-insert-img-drop.has-img { padding: 8px; }
+.pdfed-insert-img-drop img { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; margin: 0 auto; }
+
+.pdfed-color-row {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
+}
+.pdfed-color-swatch {
+  width: 24px; height: 24px; border-radius: 6px;
+  cursor: pointer; border: 1px solid var(--border2);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.12s, border-color 0.12s;
+}
+.pdfed-color-swatch:hover { transform: translateY(-1px); }
+.pdfed-color-swatch.sel { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,194,255,0.18); }
+
+/* ── Export modal (redesigned) ──────────────────────────────────────────── */
+.pdfed-export-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; width: 92%; max-width: 640px;
+  max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.65), var(--glow-blue);
+}
+.pdfed-export-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.pdfed-export-head h3 {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 800; color: var(--text);
+}
+.pdfed-export-head h3 svg { color: var(--blue); flex-shrink: 0; }
+.pdfed-export-sub { font-size: 11.5px; color: var(--text2); margin-top: 3px; }
+.pdfed-export-close {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text2);
+  cursor: pointer; transition: all 0.15s;
+}
+.pdfed-export-close:hover { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+
+.pdfed-export-body {
+  display: grid; grid-template-columns: 168px 1fr; gap: 24px;
+  padding: 22px 24px; overflow-y: auto; overflow-x: visible;
+}
+@media (max-width: 560px) {
+  .pdfed-export-body { grid-template-columns: 1fr; padding: 18px; gap: 16px; }
+  .pdfed-export-preview { flex-direction: row; align-items: center; }
+  .pdfed-export-preview-frame { width: 84px; flex-shrink: 0; aspect-ratio: 3/4; }
+  .pdfed-export-preview-nav { flex-direction: row; }
+}
+
+.pdfed-export-preview { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.pdfed-export-preview-frame {
+  position: relative; width: 100%; aspect-ratio: 3/4;
+  background: #fff; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border2); box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+  flex-shrink: 0;
+}
+.pdfed-export-preview-frame img { width: 100%; height: 100%; object-fit: contain; display: block; background: #fff; }
+.pdfed-export-preview-frame .pep-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #b9c4d0;
+}
+.pdfed-export-preview-pagecount {
+  position: absolute; bottom: 6px; right: 6px;
+  background: rgba(10,15,30,0.75); color: #fff;
+  font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 20px; letter-spacing: 0.3px;
+}
+.pdfed-export-preview-nav { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text2); white-space: nowrap; }
+.pdfed-export-preview-nav button {
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--bg3); color: var(--text2);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;
+}
+.pdfed-export-preview-nav button:hover:not(:disabled) { border-color: var(--border2); color: var(--text); }
+.pdfed-export-preview-nav button:disabled { opacity: 0.35; cursor: default; }
+
+.pdfed-export-settings { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pdfed-export-field { position: relative; }
+.pdfed-export-label {
+  display: block; font-size: 10.5px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 7px;
+}
+
+.pdfed-export-select {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  padding: 9px 12px; cursor: pointer; transition: border-color 0.15s;
+}
+.pdfed-export-select:hover { border-color: var(--border2); }
+.pdfed-export-select.open { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,194,255,0.12); }
+.pdfed-export-select-icon {
+  width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.pdfed-export-select-text { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pdfed-export-select-name {
+  font-size: 13px; font-weight: 700; color: var(--text); font-family: 'Inter', sans-serif;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pdfed-export-select-badge {
+  font-size: 9px; font-weight: 700; color: #fff; background: var(--blue);
+  padding: 2px 7px; border-radius: 20px; letter-spacing: 0.3px; flex-shrink: 0;
+}
+.pdfed-export-select-chevron { color: var(--text3); transition: transform 0.15s; flex-shrink: 0; }
+.pdfed-export-select.open .pdfed-export-select-chevron { transform: rotate(180deg); }
+
+.pdfed-export-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5); padding: 6px; z-index: 20;
+  display: none; max-height: 260px; overflow-y: auto;
+}
+.pdfed-export-menu.open { display: block; }
+.pdfed-export-menu-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 8px; cursor: pointer; transition: background 0.12s;
+}
+.pdfed-export-menu-item:hover { background: var(--bg3); }
+.pdfed-export-menu-item.sel { background: rgba(0,194,255,0.08); }
+.pdfed-export-menu-icon {
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.1); color: var(--blue);
+}
+.pdfed-export-menu-body { flex: 1; min-width: 0; }
+.pdfed-export-menu-title { font-size: 12.5px; font-weight: 700; color: var(--text); font-family: 'Inter', sans-serif; }
+.pdfed-export-menu-desc { font-size: 10.5px; color: var(--text2); margin-top: 1px; }
+.pdfed-export-menu-check { color: var(--blue); flex-shrink: 0; opacity: 0; }
+.pdfed-export-menu-item.sel .pdfed-export-menu-check { opacity: 1; }
+
+.pdfed-export-note {
+  background: rgba(0,194,255,0.07); border: 1px solid rgba(0,194,255,0.2);
+  border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.5; color: var(--text2);
+}
+
+.pdfed-export-logo-options { display: flex; flex-direction: column; gap: 8px; }
+.pdfed-export-logo-option {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s; background: var(--surface);
+}
+.pdfed-export-logo-option:hover { background: var(--bg3); border-color: var(--border2); }
+.pdfed-export-logo-option.sel { background: rgba(0,194,255,0.08); border-color: var(--blue); }
+.pdfed-export-logo-option .pdfed-export-menu-check { opacity: 0; }
+.pdfed-export-logo-option.sel .pdfed-export-menu-check { opacity: 1; }
+
+.pdfed-export-range-input {
+  width: 100%; margin-top: 8px; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 12px;
+  outline: none; font-family: 'DM Sans', sans-serif; transition: border-color 0.15s;
+}
+.pdfed-export-range-input:focus { border-color: var(--blue); }
+
+/* Password field with a show/hide eye toggle — wraps the existing input so
+   its width/margin behavior stays identical, just adds room on the right
+   for the icon button. */
+.sarvarc-pw-field { position: relative; }
+.sarvarc-pw-field .pdfed-export-range-input { padding-right: 38px; }
+.sarvarc-pw-eye {
+  position: absolute; right: 10px; top: 50%; margin-top: 4px; transform: translateY(-50%);
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  color: var(--text3); cursor: pointer; border-radius: 5px; background: transparent;
+}
+.sarvarc-pw-eye:hover { color: var(--text2); background: var(--surface2); }
+
+.sarvarc-google-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px 14px; border-radius: 11px; border: 1px solid var(--border2);
+  background: var(--bg2); color: var(--text); font-size: 13px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16,40,90,0.04);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease;
+}
+.sarvarc-google-btn:hover { background: var(--surface2); border-color: var(--border2); box-shadow: 0 6px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+.sarvarc-google-btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(16,40,90,0.04); }
+.sarvarc-auth-divider {
+  display: flex; align-items: center; gap: 12px; margin: 2px 0;
+  font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px;
+}
+.sarvarc-auth-divider::before, .sarvarc-auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border2);
+}
+
+/* ─── Auth modal premium refinements: generous rhythm, badged header icon,
+   pill tab switcher, elevated inputs. Scoped tightly (#sarvarcAuthOverlay /
+   sarvarc-auth-* classes) so nothing here leaks into the other modals that
+   reuse .sarvarc-pw-modal / .pdfed-export-range-input elsewhere in the app. */
+.sarvarc-auth-head { padding: 24px 26px 18px; }
+.sarvarc-auth-head-left { display: flex; align-items: center; gap: 12px; }
+.sarvarc-auth-icon-badge {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+}
+.sarvarc-auth-head h3 { font-size: 17px; letter-spacing: -0.1px; }
+.sarvarc-auth-head .pdfed-export-sub { margin-top: 4px; }
+
+.sarvarc-auth-body { padding: 26px 26px 24px; gap: 18px; }
+
+.sarvarc-auth-tabs {
+  display: flex; gap: 4px; background: var(--bg3); padding: 4px; border-radius: 11px;
+  border: 1px solid var(--border);
+}
+.sarvarc-auth-tabs button {
+  flex: 1; padding: 9px 0; font-size: 12.5px; font-weight: 700; border: none; border-radius: 8px;
+  cursor: pointer; font-family: 'Inter', sans-serif; color: var(--text2); background: transparent;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+.sarvarc-auth-tabs button.active {
+  background: var(--bg2); color: var(--text);
+  box-shadow: 0 2px 8px rgba(16,40,90,0.14), 0 0 0 1px var(--border2);
+}
+
+.sarvarc-auth-fields { display: flex; flex-direction: column; gap: 10px; }
+/* The sign-up / login prompt must sit above the fullscreen slideshow (z-index 900), otherwise an Export Clip
+   click that hits the free-export limit opens it invisibly underneath and looks like nothing happened. */
+#sarvarcAuthOverlay { z-index: 1000000; }
+#sarvarcAuthOverlay .pdfed-export-range-input {
+  margin-top: 0; padding: 13px 14px; border-radius: 11px; font-size: 13.5px;
+  background: var(--bg3); border: 1.5px solid var(--border);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+#sarvarcAuthOverlay .pdfed-export-range-input:focus {
+  border-color: var(--blue); background: var(--bg2); box-shadow: 0 0 0 4px rgba(0,194,255,0.12);
+}
+#sarvarcAuthOverlay .sarvarc-pw-field .pdfed-export-range-input { padding-right: 42px; }
+#sarvarcAuthOverlay .sarvarc-pw-eye { right: 12px; }
+
+.sarvarc-auth-note { font-size: 11px; line-height: 1.55; color: var(--text3); }
+.sarvarc-auth-head + .sarvarc-auth-body #sarvarcAuthError { font-size: 11px; }
+#sarvarcAuthOverlay .sarvarc-pw-modal { position: relative; z-index: 0; }
+.sarvarc-auth-watermark {
+  position: absolute; top: 50%; left: 50%; z-index: -1;
+  transform: translate(-50%, -50%) rotate(-6deg);
+  width: 300px; max-width: 150%; opacity: 0.06;
+  pointer-events: none; user-select: none;
+}
+[data-theme="light"] .sarvarc-auth-watermark { opacity: 0.05; }
+#sarvarcAuthOverlay .sarvarc-pw-modal { max-width: 404px; border-radius: 22px; }
+#sarvarcAuthOverlay .pdfed-export-footer { padding: 18px 26px 26px; }
+#sarvarcAuthOverlay .pdfed-export-download-btn { padding: 11px 24px; }
+
+/* ─── Split-screen redesign: wide two-pane card (form left, brand/visual
+   right), matching the reference "Welcome back" layout. Everything above
+   still applies to shared bits (inputs, google button, tabs); this block
+   only changes the outer shell and adds the right-hand visual pane. All
+   existing ids/onclicks are untouched, so no JS behavior changes. */
+#sarvarcAuthOverlay .sarvarc-pw-modal.sarvarc-auth-split {
+  max-width: none; width: 100%; height: 100%; border-radius: 0; flex-direction: row;
+  overflow: hidden; box-shadow: none; background: transparent;
+}
+/* Full-page takeover: the overlay itself becomes the glass, a light blue
+   tint over a soft blur of whatever's really behind it (the live app),
+   kept light so that background stays clearly visible. The opaque left
+   pane then just paints over that blur in its own region, so only the
+   right side actually reads as "workspace visible behind glass". */
+#sarvarcAuthOverlay.pdfed-insert-modal-overlay {
+  align-items: stretch; justify-content: stretch;
+  background: linear-gradient(160deg, rgba(4,14,30,0.30) 0%, rgba(0,70,130,0.22) 45%, rgba(0,180,255,0.16) 100%);
+  backdrop-filter: blur(6px) saturate(115%);
+}
+.sarvarc-auth-split-left {
+  flex: 0 0 44%; max-width: 620px; min-width: 380px; height: 100%;
+  display: flex; flex-direction: column; overflow-y: auto;
+  background: var(--bg2); box-shadow: 8px 0 30px rgba(0,0,0,0.25); position: relative; z-index: 1;
+}
+.sarvarc-auth-split-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 26px 60px 0; flex-shrink: 0;
+}
+.sarvarc-auth-split-brand { display: flex; align-items: center; gap: 9px; }
+.sarvarc-auth-split-brand img.sarvarc-auth-watermark {
+  position: static; transform: none; z-index: auto; max-width: none;
+  height: 24px; width: auto; object-fit: contain; opacity: 1; pointer-events: auto;
+}
+.sarvarc-auth-split .sarvarc-auth-body {
+  padding: 20px 60px; gap: 16px; max-width: 400px; width: 100%;
+  box-sizing: border-box; margin: auto auto;
+}
+.sarvarc-auth-split #sarvarcAuthConfirmPane {
+  max-width: 400px; width: 100%; box-sizing: border-box; margin: auto auto;
+}
+.sarvarc-auth-split .sarvarc-auth-heading h2 {
+  font-family: 'Inter', sans-serif; font-size: 24px; font-weight: 800;
+  letter-spacing: -0.3px; color: var(--text); margin: 0;
+}
+.sarvarc-auth-split .sarvarc-auth-heading h2#sarvarcAuthTitle { color: var(--text); }
+.sarvarc-auth-split .sarvarc-auth-heading .pdfed-export-sub {
+  margin-top: 5px; font-size: 13px; font-family: 'DM Sans', sans-serif; line-height: 1.5;
+}
+.sarvarc-auth-split .sarvarc-auth-note, .sarvarc-auth-split #sarvarcAuthError {
+  font-family: 'DM Sans', sans-serif;
+}
+.sarvarc-auth-split .sarvarc-auth-note { font-size: 11.5px; line-height: 1.6; }
+.sarvarc-auth-split-switch { font-family: 'DM Sans', sans-serif; }
+.sarvarc-auth-split #sarvarcAuthForgotWrap span { font-family: 'Inter', sans-serif; }
+.sarvarc-auth-split .sarvarc-auth-tabs { display: none; }
+.sarvarc-auth-split-switch {
+  font-size: 12px; color: var(--text2); text-align: center; margin-top: 2px;
+}
+.sarvarc-auth-split-switch span { color: var(--blue); font-weight: 700; cursor: pointer; }
+
+.sarvarc-auth-split-right {
+  flex: 1 1 auto; position: relative; overflow: hidden; height: 100%;
+  display: flex; align-items: flex-end; padding: 50px 64px;
+  background: linear-gradient(160deg, rgba(10,70,150,0.14) 0%, rgba(0,120,190,0.10) 45%, rgba(0,190,255,0.08) 100%);
+}
+/* Darkens toward the bottom, where the copy sits, so the tagline stays
+   readable no matter what real app screen is behind the glass; fades to
+   nothing well before the top so the live background stays clearly
+   visible through most of the pane. */
+.sarvarc-auth-split-right::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top, rgba(3,10,24,0.50) 0%, rgba(3,10,24,0.12) 32%, rgba(3,10,24,0) 55%);
+}
+.sarvarc-auth-split-tagline {
+  position: absolute; top: 26px; right: 30px; z-index: 1;
+  font-size: 12px; font-family: 'DM Sans', sans-serif; font-style: italic; color: rgba(255,255,255,0.85);
+}
+.sarvarc-auth-split-copy { position: relative; z-index: 1; width: 100%; min-height: 92px; }
+.sarvarc-auth-split-copy h3 {
+  font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 800; line-height: 1.25;
+  color: #fff; margin: 0 0 8px;
+}
+.sarvarc-auth-split-copy p { font-size: 13px; font-family: 'DM Sans', sans-serif; color: rgba(255,255,255,0.85); margin: 0; }
+
+/* Rotating slogans: four lines cross-fade in place every 3s, pure CSS via
+   staggered animation-delay on one shared keyframe (no JS timer needed).
+   Each stays fully visible for ~2s with a soft fade + gentle rise on the
+   way in/out, then stays hidden for the other three slots of the 12s
+   loop. Respects reduced-motion by freezing on the first slogan. */
+.sarvarc-auth-split-copy .sarvarc-auth-slogan {
+  position: absolute; inset: 0; opacity: 0;
+  animation: sarvarcAuthSloganFade 12s ease-in-out infinite;
+}
+@keyframes sarvarcAuthSloganFade {
+  0%   { opacity: 0; transform: translateY(8px); }
+  4%   { opacity: 1; transform: translateY(0); }
+  21%  { opacity: 1; transform: translateY(0); }
+  25%  { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sarvarc-auth-split-copy .sarvarc-auth-slogan { animation: none; opacity: 0; }
+  .sarvarc-auth-split-copy .sarvarc-auth-slogan:first-child { opacity: 1; }
+}
+@media (max-width: 760px) {
+  #sarvarcAuthOverlay .sarvarc-pw-modal.sarvarc-auth-split { flex-direction: column; }
+  .sarvarc-auth-split-left { flex: 1 1 auto; max-width: none; min-width: 0; width: 100%; }
+  .sarvarc-auth-split-right { display: none; }
+}
+
+.pdfed-export-checkbox { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text2); cursor: pointer; user-select: none; }
+.pdfed-export-checkbox input { display: none; }
+.pdfed-export-checkbox-box {
+  width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border2);
+  background: var(--bg3); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.pdfed-export-checkbox input:checked + .pdfed-export-checkbox-box { background: var(--blue); border-color: var(--blue); }
+.pdfed-export-checkbox-box svg { opacity: 0; width: 11px; height: 11px; color: #fff; }
+.pdfed-export-checkbox input:checked + .pdfed-export-checkbox-box svg { opacity: 1; }
+
+.pdfed-refine-logo-row { display: flex; gap: 12px; align-items: flex-start; }
+.pdfed-refine-logo-drop {
+  width: 72px; height: 72px; flex-shrink: 0; border-radius: 10px;
+  border: 1.5px dashed var(--border2); background: var(--bg3);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s; overflow: hidden; padding: 6px;
+}
+.pdfed-refine-logo-drop:hover { border-color: var(--blue); background: var(--surface2); }
+.pdfed-refine-logo-drop img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pdfed-refine-logo-drop-label { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text3); }
+.pdfed-refine-logo-drop-label span { font-size: 10px; }
+.pdfed-refine-logo-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pdfed-refine-logo-status { font-size: 12px; color: var(--text2); line-height: 1.4; }
+.pdfed-refine-logo-swatches { display: flex; gap: 6px; align-items: center; }
+.pdfed-refine-logo-swatch {
+  width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border2);
+  flex-shrink: 0;
+}
+.pdfed-refine-logo-remove {
+  align-self: flex-start; background: none; border: none; color: var(--text3);
+  font-size: 11px; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 2px;
+}
+.pdfed-refine-logo-remove:hover { color: var(--text2); }
+
+/* Opacity slider that appears once "Add as background watermark" is
+   checked — sits right under that checkbox in the Logo step. */
+.pdfed-refine-watermark-opacity-row {
+  display: flex; align-items: center; gap: 10px; margin-top: 6px;
+}
+.pdfed-refine-watermark-opacity-label { font-size: 11px; color: var(--text2); flex-shrink: 0; }
+.pdfed-refine-watermark-opacity-row input[type="range"] {
+  flex: 1; accent-color: var(--blue); height: 4px; cursor: pointer;
+}
+.pdfed-refine-watermark-opacity-val {
+  font-size: 11px; color: var(--text); font-weight: 700; width: 32px; text-align: right; flex-shrink: 0;
+}
+
+/* ─── Refine Report — easy-UI step grouping ───
+   Wraps the modal's fields into clearly labeled, numbered steps (Style →
+   Logo → Layout → Formatting) so a first-time user can scan top-to-bottom
+   instead of parsing one long flat list of unrelated controls. */
+.pdfed-refine-step { padding: 14px 24px; border-top: 1px solid var(--border2); }
+.pdfed-refine-step:first-child { border-top: none; }
+.pdfed-refine-step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pdfed-refine-step-num {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--blue); color: #fff;
+  font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pdfed-refine-step-title { font-size: 13px; font-weight: 700; color: var(--text1); }
+.pdfed-refine-step-sub { font-size: 11px; color: var(--text3); font-weight: 400; margin-left: 4px; }
+.pdfed-refine-step > .pdfed-export-field:last-child,
+.pdfed-refine-step > .pdfed-export-checkbox:last-child { margin-bottom: 0; }
+.pdfed-refine-formatting-list { display: flex; flex-direction: column; gap: 10px; }
+.pdfed-refine-formatting-toggle {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  font-size: 12px; font-weight: 600; color: var(--text2); list-style: none; margin-bottom: 10px;
+}
+.pdfed-refine-formatting-toggle::-webkit-details-marker { display: none; }
+.pdfed-refine-formatting-toggle svg { width: 12px; height: 12px; transition: transform 0.15s; flex-shrink: 0; }
+details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); }
+
+/* ─── Refine Report — bigger, two-column modal ───
+   The modal used to be a single narrow (440px) column: a tiny preview
+   stacked above a long scrolling form, so nothing was visible at once and
+   it read as a plain settings dialog rather than something that shows you
+   what it's about to do. This widens the modal into a proper rectangle and
+   splits it into a left column (a "what this does" summary + the live
+   preview, pinned in view) and a right column (the numbered steps,
+   scrolling independently) so the preview stays visible the whole time a
+   person is adjusting settings. */
+#pdfedRefineOverlay .pdfed-export-modal { max-width: 1040px; width: 95%; }
+.pdfed-refine-layout { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.pdfed-refine-preview-col {
+  width: 340px; flex-shrink: 0; background: var(--bg3);
+  border-right: 1px solid var(--border);
+  padding: 20px 22px 22px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px;
+  justify-content: center;
+}
+.pdfed-refine-preview-col .pdfed-refine-capabilities,
+.pdfed-refine-preview-col .pdfed-refine-preview-wrap { flex-shrink: 0; }
+.pdfed-refine-preview-col .pdfed-refine-safety-note { margin-top: 0; }
+.pdfed-refine-preview-col .pdfed-refine-preview-wrap { padding: 0; }
+.pdfed-refine-safety-note {
+  margin-top: auto; display: flex; gap: 10px; align-items: flex-start;
+  background: rgba(0,194,255,0.06); border: 1px solid rgba(0,194,255,0.18);
+  border-radius: 12px; padding: 13px 14px;
+}
+.pdfed-refine-safety-note svg { color: var(--blue); flex-shrink: 0; margin-top: 1px; }
+.pdfed-refine-safety-title { font-size: 11.5px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.pdfed-refine-safety-body { font-size: 11px; line-height: 1.5; color: var(--text2); }
+.pdfed-refine-safety-body b { color: var(--text); }
+@media (max-width: 860px) {
+  .pdfed-refine-safety-note { margin-top: 16px; }
+}
+.pdfed-refine-steps-col {
+  flex: 1 1 auto; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.pdfed-refine-steps-col .da-dropdown-body { flex: 1 1 auto; }
+.pdfed-refine-cap-title {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--text2); margin-bottom: 9px;
+}
+.pdfed-refine-cap-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.pdfed-refine-cap-chip {
+  font-size: 10.5px; font-weight: 600; color: var(--blue);
+  background: rgba(0,194,255,0.1); border: 1px solid rgba(0,194,255,0.25);
+  border-radius: 20px; padding: 4px 10px; line-height: 1.3;
+}
+@media (max-width: 860px) {
+  #pdfedRefineOverlay .pdfed-export-modal { max-width: 94%; }
+  .pdfed-refine-layout { flex-direction: column; overflow-y: auto; }
+  .pdfed-refine-preview-col {
+    width: auto; border-right: none; border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+  }
+  .pdfed-refine-steps-col { overflow: visible; }
+  .pdfed-refine-steps-col .da-dropdown-body { overflow-y: visible; flex: none; }
+}
+
+/* ─── Refine Report — live style preview ───
+   A small mock report card (not the real page) that reflects the chosen
+   theme font/colors, logo, alignment, and section-icon toggle the instant
+   they change, so the person can see roughly what the pass will look like
+   before running it on the actual document. */
+.pdfed-refine-preview-wrap { padding: 16px 24px 0; flex-shrink: 0; }
+.pdfed-refine-preview {
+  background: #fff; border: 1px solid var(--border2); border-radius: 10px;
+  padding: 16px 18px; box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  color: #0f172a; overflow: hidden; transition: box-shadow 0.15s;
+  position: relative;
+}
+/* Background watermark sample in the live preview card — centered behind
+   every other element, negative z-index so it stays under the normal-flow
+   header/table/paragraph content instead of painting over it (positioned
+   descendants with z-index 0+ paint AFTER static in-flow siblings). */
+.prp-watermark {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  max-width: 62%; max-height: 68%; object-fit: contain; z-index: -1;
+  pointer-events: none; display: none;
+}
+.prp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
+.prp-logo { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; flex-shrink: 0; display: none; }
+.prp-title { font-size: 14px; font-weight: 800; text-align: left; }
+.prp-section { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; margin-top: 6px; text-align: left; }
+.prp-section-icon { width: 16px; height: 16px; display: none; flex-shrink: 0; }
+.prp-divider { height: 3px; border-radius: 2px; margin: 5px 0 9px; width: 70px; display: none; }
+.prp-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 8px; }
+.prp-table th { padding: 5px 6px; text-align: left; font-weight: 700; }
+.prp-table td { padding: 5px 6px; border-bottom: 1px solid #eef1f5; color: #334155; }
+.prp-para { font-size: 10px; line-height: 1.5; color: #64748b; text-align: left; }
+.pdfed-refine-preview-label { font-size: 10px; color: var(--text3); margin-top: 7px; text-align: center; }
+.prp-align-center .prp-header { justify-content: center; }
+.prp-align-center .prp-title, .prp-align-center .prp-section, .prp-align-center .prp-para { text-align: center; }
+.prp-align-center .prp-section { justify-content: center; }
+.prp-align-center .prp-divider { margin-left: auto; margin-right: auto; }
+.prp-align-stretch .prp-header { justify-content: space-between; }
+.prp-align-stretch .prp-table { width: 100%; }
+
+/* Logo placement (independent of content alignment above) — nudges just the
+   logo mark to its own left/center/right slot within the header row, in a
+   given theme's chosen content alignment. */
+.prp-header.logo-pos-left .prp-logo { order: -1; margin-right: 0; }
+.prp-header.logo-pos-center .prp-logo { order: -1; margin: 0 auto; }
+.prp-header.logo-pos-right .prp-logo { order: 2; margin-left: auto; }
+
+/* Header text group placement — independent of the logo's own order above,
+   so the two can be paired on the same side (both right, stacked) or
+   opposite sides (logo right, text left), whichever reads as intended. */
+.prp-header.text-pos-left .prp-header-text { order: -2; margin-right: auto; }
+.prp-header.text-pos-right .prp-header-text { order: 3; margin-left: auto; text-align: right; }
+.prp-header.text-pos-right .prp-title,
+.prp-header.text-pos-right .prp-subheading,
+.prp-header.text-pos-right .prp-contact { text-align: right; }
+.prp-header-divider { height: 3px; border-radius: 2px; width: 100%; margin: 8px 0 10px; display: none; }
+
+.pdfed-export-footer {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 16px 24px 22px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+
+/* ── Data Arrangement: cell dropdown lists (Excel-style "Data Validation") ── */
+.da-dropdown-modal { max-width: 440px; }
+.da-dropdown-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0; }
+.da-dropdown-target { font-size: 11.5px; color: var(--text2); }
+.da-dropdown-target b { color: var(--text); font-family: 'Inter', sans-serif; }
+.da-dropdown-scope { display: flex; gap: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+.da-dropdown-scope-btn {
+  flex: 1; text-align: center; padding: 8px 6px; border-radius: 7px; cursor: pointer;
+  font-size: 11.5px; font-weight: 700; color: var(--text2); transition: all 0.15s; user-select: none;
+  font-family: 'Inter', sans-serif;
+}
+.da-dropdown-scope-btn.active { background: var(--blue); color: #fff; box-shadow: 0 2px 8px rgba(0,194,255,0.3); }
+.da-dropdown-textarea {
+  width: 100%; min-height: 130px; resize: vertical; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.6;
+  outline: none; font-family: 'DM Sans', sans-serif; transition: border-color 0.15s;
+}
+.da-dropdown-textarea:focus { border-color: var(--blue); }
+.da-dropdown-remove-btn {
+  padding: 9px 16px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.35);
+  background: rgba(239,68,68,0.08); color: #ef4444; cursor: pointer; margin-right: auto; transition: all 0.15s;
+  font-family: 'Inter', sans-serif; font-weight: 600;
+}
+.da-dropdown-remove-btn:hover { background: rgba(239,68,68,0.16); }
+
+/* select rendered in a cell that has a dropdown list attached */
+.da-td-select {
+  width: 100%; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237BA8C4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center;
+  background-size: 10px; border: 1px solid transparent; border-radius: 4px;
+  color: var(--text); font-family: inherit; font-size: inherit;
+  padding: 6px 22px 6px 8px; cursor: pointer; outline: none; box-sizing: border-box;
+}
+.da-td-select:hover { background-color: var(--surface2); }
+.da-td-select:focus { border-color: var(--border2); box-shadow: 0 0 0 2px rgba(0,194,255,0.12); }
+/* FIX: an unset dropdown cell (showing the "Select…" placeholder) is styled
+   distinctly from both a picked value and a plain blank text cell, so a
+   whole freshly-dropdown-enabled column doesn't read as "nothing happened". */
+.da-td-select-unset { color: var(--text2); font-style: italic; }
+
+/* right-click context menu for a data cell */
+.da-ctx-menu {
+  position: fixed; z-index: 500; min-width: 190px; background: var(--bg2);
+  border: 1px solid var(--border2); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  padding: 5px; display: none;
+}
+.da-ctx-item {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; font-size: 12px; color: var(--text); transition: background 0.12s;
+}
+.da-ctx-item:hover { background: var(--bg3); }
+.da-ctx-item svg { flex-shrink: 0; color: var(--text2); }
+.da-ctx-item-danger { color: #ef4444; }
+.da-ctx-item-danger svg { color: #ef4444; }
+[data-theme="light"] .da-ctx-menu { box-shadow: 0 16px 40px rgba(16,40,90,0.18); }
+.pdfed-export-download-btn {
+  display: flex; align-items: center; gap: 7px; justify-content: center;
+  padding: 10px 22px; font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+  color: #fff; background: linear-gradient(135deg, var(--blue), var(--purple));
+  border: none; border-radius: 10px; cursor: pointer;
+  box-shadow: 0 8px 22px rgba(0,194,255,0.28); transition: transform 0.15s, box-shadow 0.15s;
+}
+.pdfed-export-download-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,194,255,0.38); }
+
+/* ─── SHARED PASSWORD-PROTECT PROMPT (one-click export flows that don't
+   already have a full export settings modal — Redaction, Make Forms, Form
+   Canvas, Diagrams) ─── */
+.sarvarc-pw-modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; width: 92%; max-width: 380px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.65), var(--glow-blue);
+}
+.sarvarc-pw-modal-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ─── TEAM MODAL — enterprise-grade member cards, avatars, role badges ─── */
+.sarvarc-team-modal { max-width: 520px; }
+/* Loading skeleton — shimmering placeholder shown while the modal's first
+   network round-trip (invites + teams) is in flight. */
+.sarvarc-team-skel-bar, .sarvarc-team-skel-row {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border2) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: sarvarcTeamSkelShimmer 1.3s ease-in-out infinite;
+}
+.sarvarc-team-skel-row { width: 100%; height: 52px; border-radius: 10px; margin-bottom: 8px; }
+@keyframes sarvarcTeamSkelShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sarvarc-team-skel-bar, .sarvarc-team-skel-row { animation: none; background: var(--surface2); }
+}
+.sarvarc-team-count-pill {
+  font-size: 10.5px; font-weight: 700; color: var(--text2);
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 999px; padding: 2px 9px; margin-left: 8px; letter-spacing: .02em;
+}
+.sarvarc-team-section-label {
+  font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em;
+  font-weight: 700; margin: 4px 0 9px; display: flex; align-items: center; justify-content: space-between;
+}
+.sarvarc-team-members-list { display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; padding-right: 2px; }
+.sarvarc-team-member-card {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+  transition: border-color .15s, background .15s, transform .15s;
+}
+.sarvarc-team-member-card:hover { border-color: var(--border2); background: var(--surface2); }
+.sarvarc-team-member-card.is-you { border-color: rgba(0,194,255,0.35); background: rgba(0,194,255,0.05); }
+.sarvarc-team-avatar-wrap { position: relative; flex: none; }
+.sarvarc-team-avatar {
+  width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+  border: 2px solid var(--border2); display: block; background: var(--surface2);
+}
+.sarvarc-team-avatar-fallback {
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff; border: 2px solid var(--border2);
+}
+.sarvarc-team-online-dot {
+  position: absolute; bottom: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%;
+  background: #22c55e; border: 2px solid var(--bg2); box-shadow: 0 0 0 0 rgba(34,197,94,0.6);
+  animation: sarvarcTeamPulse 2s infinite;
+}
+.sarvarc-team-online-dot.offline { background: var(--text3); border-color: var(--bg2); animation: none; box-shadow: none; }
+@keyframes sarvarcTeamPulse {
+  0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+  70% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+.sarvarc-team-member-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.sarvarc-team-member-name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.sarvarc-team-member-you-tag { font-size: 9.5px; font-weight: 700; color: var(--cyan); background: rgba(0,194,255,0.12); border-radius: 5px; padding: 1px 5px; letter-spacing: .02em; }
+.sarvarc-team-member-email { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sarvarc-team-role-badge {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 999px; flex: none; white-space: nowrap;
+}
+/* Owner badge — same "restrained gold" language used for premium accents
+   elsewhere in the app (slim ring / soft glow, never a flat painted chip):
+   a translucent gold tint + border, matching the glass treatment every
+   other role badge here already uses, instead of an opaque yellow pill
+   that reads out of place against the navy/cyan surfaces around it. */
+.sarvarc-team-role-owner { color: #b8860b; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.4); }
+[data-theme="dark"] .sarvarc-team-role-owner { color: #f0cf6a; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.35); }
+.sarvarc-team-role-admin { color: #fff; background: linear-gradient(135deg, var(--blue), var(--cyan)); }
+.sarvarc-team-role-member { color: var(--text2); background: var(--surface2); border: 1px solid var(--border2); }
+.sarvarc-team-member-actions { flex: none; display: flex; gap: 6px; }
+.sarvarc-team-action-btn {
+  padding: 5px 10px; font-size: 10.5px; font-weight: 600; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text2);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.sarvarc-team-action-btn:hover { background: var(--surface); }
+.sarvarc-team-action-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.35); }
+.sarvarc-team-action-btn.danger:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+.sarvarc-team-action-btn.leave { color: #f59e0b; border-color: rgba(245,158,11,0.35); }
+.sarvarc-team-action-btn.leave:hover { background: rgba(245,158,11,0.1); border-color: #f59e0b; }
+.sarvarc-team-switcher-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.sarvarc-team-switcher-select {
+  flex: 1; padding: 8px 10px; font-size: 12.5px; font-weight: 600; border-radius: 9px;
+  background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+}

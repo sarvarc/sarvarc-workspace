@@ -1,0 +1,372 @@
+.sm-page { max-width: 1120px; padding: 26px 30px 48px; }
+.sm-page-header { display: flex; align-items: flex-start; gap: 14px; }
+.sm-page-header-icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; margin-top: 2px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--pdfed-accent-bg), rgba(59,130,246,0.16));
+  border: 1px solid var(--pdfed-accent); color: var(--pdfed-accent);
+}
+.sm-page-desc {
+  font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-top: 4px; max-width: 620px;
+  overflow: hidden; max-height: 90px; opacity: 1;
+  transition: opacity .5s ease, max-height .6s ease, margin-top .6s ease;
+}
+.sm-page-desc.sm-desc-hidden { opacity: 0; max-height: 0; margin-top: 0; pointer-events: none; }
+/* Pull-to-refresh strip above the session list. Collapsed to 0 height at
+   rest; JS drives --sm-ptr-h (drag distance, capped) and toggles state
+   classes as the gesture progresses. Threshold state gets a filled arrow
+   background so "release now" is obvious before the person lets go. */
+.sm-ptr {
+  --sm-ptr-h: 0px;
+  height: var(--sm-ptr-h);
+  overflow: hidden;
+  display: flex; align-items: flex-end; justify-content: center;
+  touch-action: pan-x pan-down;
+}
+.sm-ptr.sm-ptr-animate { transition: height .25s cubic-bezier(.2,.8,.2,1); }
+.sm-ptr-inner {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px;
+  opacity: min(1, calc(var(--sm-ptr-h) / 34px));
+}
+.sm-ptr-arrow {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--border2, var(--border));
+  color: var(--text3);
+  transform: rotate(0deg);
+  transition: transform .18s ease, background .15s ease, border-color .15s ease, color .15s ease;
+}
+.sm-ptr.sm-ptr-armed .sm-ptr-arrow {
+  transform: rotate(180deg);
+  background: var(--pdfed-accent-bg); border-color: var(--pdfed-accent); color: var(--pdfed-accent);
+}
+.sm-ptr.sm-ptr-refreshing .sm-ptr-arrow,
+.sm-ptr.sm-ptr-done .sm-ptr-arrow { display: none; }
+.sm-ptr-ring {
+  display: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(0,194,255,0.18);
+  border-top-color: var(--blue, #00C2FF);
+  flex-shrink: 0;
+}
+.sm-ptr.sm-ptr-refreshing .sm-ptr-ring { display: inline-block; animation: smDriveSyncSpin 0.8s linear infinite; }
+.sm-ptr-label { font-size: 11.5px; font-weight: 600; color: var(--text3); white-space: nowrap; }
+.sm-ptr.sm-ptr-armed .sm-ptr-label,
+.sm-ptr.sm-ptr-refreshing .sm-ptr-label { color: var(--text2); }
+.sm-ptr.sm-ptr-done .sm-ptr-label { color: var(--pdfed-accent); }
+#smManualRefreshBtn svg { transition: transform .5s ease; }
+#smManualRefreshBtn.sm-refreshing svg { animation: smDriveSyncSpin 0.8s linear infinite; }
+.sm-layout { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; margin-top: 22px; }
+.sm-main { flex: 1 1 420px; min-width: 0; }
+.sm-side { width: 248px; flex: 0 0 248px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 20px; }
+.sm-trust-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden;
+}
+.sm-trust-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 12px 14px;
+  font-size: 12px; font-weight: 500; color: var(--text2);
+  border-bottom: 1px solid var(--border);
+}
+.sm-trust-item:last-child { border-bottom: none; }
+.sm-trust-item svg { flex-shrink: 0; color: var(--text3); }
+
+/* Always-on Drive connection status card. Distinct from the transient
+   .sm-ptr strip: that one only appears during an active pull; this one is
+   always visible so "are we connected, and how stale is the data" is a
+   glance away, not something you have to trigger a refresh to find out. */
+.sm-drive-status-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 5px;
+}
+.sm-drive-status-row { display: flex; align-items: center; gap: 8px; }
+.sm-drive-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text3);
+  transition: background .2s ease, box-shadow .2s ease;
+}
+.sm-drive-status-text { font-size: 12px; font-weight: 600; color: var(--text2); }
+.sm-drive-status-sub { font-size: 10.5px; color: var(--text3); padding-left: 16px; }
+/* checking — neutral, waiting on the first status check */
+.sm-drive-status-panel[data-state="checking"] .sm-drive-status-dot {
+  background: var(--text3); animation: smDriveDotPulse 1.8s ease-in-out infinite;
+}
+/* syncing — active pull in flight */
+.sm-drive-status-panel[data-state="syncing"] .sm-drive-status-dot {
+  background: var(--blue, #00C2FF); box-shadow: 0 0 0 2px rgba(0,194,255,0.12);
+  animation: smDriveDotPulse 1.8s ease-in-out infinite;
+}
+.sm-drive-status-panel[data-state="syncing"] .sm-drive-status-text { color: var(--blue, #00C2FF); }
+/* connected — a real sync round-trip just completed */
+/* token_ok — token good, but this only confirms we *can* reach Drive, not
+   that a sync has actually run yet (see smUpdateDriveStatusUI) */
+.sm-drive-status-panel[data-state="connected"] .sm-drive-status-dot,
+.sm-drive-status-panel[data-state="token_ok"] .sm-drive-status-dot {
+  background: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.1);
+}
+.sm-drive-status-panel[data-state="connected"] .sm-drive-status-text,
+.sm-drive-status-panel[data-state="token_ok"] .sm-drive-status-text { color: #22c55e; }
+/* offline — browser has no network at all */
+.sm-drive-status-panel[data-state="offline"] .sm-drive-status-dot { background: #f59e0b; }
+.sm-drive-status-panel[data-state="offline"] .sm-drive-status-text { color: #f59e0b; }
+/* not_connected — no Google/Drive token; sessions stay local-only */
+.sm-drive-status-panel[data-state="not_connected"] .sm-drive-status-dot { background: var(--text3); }
+/* error — last sync attempt failed, will retry automatically */
+.sm-drive-status-panel[data-state="error"] .sm-drive-status-dot { background: #ef4444; }
+.sm-drive-status-panel[data-state="error"] .sm-drive-status-text { color: #ef4444; }
+/* Subtle breathing opacity, not a blink — same restrained language as the
+   rest of the app's status affordances. No box-shadow animation: the halo
+   stays a fixed, quiet ring rather than pulsing in sync with the dot. */
+@keyframes smDriveDotPulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.sm-save-card {
+  display: flex; margin: 0 0 22px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 5px 5px 5px 14px;
+  transition: border-color .15s ease;
+}
+.sm-save-card:focus-within { border-color: var(--border2); }
+.sm-save-row { display: flex; gap: 8px; flex: 1; align-items: center; }
+.sm-save-row input {
+  flex: 1; min-width: 0; background: transparent; border: none;
+  padding: 10px 4px; color: var(--text); font-size: 12.5px; font-family: inherit;
+}
+.sm-save-row input::placeholder { color: var(--text3); }
+.sm-save-row input:focus { outline: none; }
+.sm-save-row button {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; font-size: 12.5px; border-radius: 7px; border: 1px solid transparent;
+  background: var(--pdfed-accent); color: #fff; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background .15s ease;
+}
+.sm-save-row button:hover { background: var(--blue); }
+.sm-save-row button:active { filter: brightness(0.94); }
+.sm-session-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  background: var(--surface);
+}
+.sm-session-count {
+  font-size: 10.5px; font-weight: 700; color: var(--text3); text-transform: uppercase;
+  letter-spacing: .07em; padding: 9px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface2, rgba(127,127,127,0.04));
+}
+.sm-session-empty {
+  padding: 52px 20px; text-align: center; color: var(--text3); font-size: 12.5px;
+  border: 1.5px dashed var(--border); border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.sm-session-empty svg { opacity: .45; }
+
+/* Buffering ring shown in the Saved Sessions list while a Drive pull is in
+   flight (see sarvarcDriveSyncPending). Same flat two-tone border spinner
+   idiom as .da-spinner / .rdx-progress-spinner elsewhere in the app — no
+   glow, no eased spin — so every "loading" affordance in the product reads
+   as one consistent language instead of this one standing out. */
+.sm-drive-sync-ring {
+  display: inline-block;
+  width: 28px; height: 28px;
+  border: 2.5px solid var(--border2, rgba(127,127,127,0.2));
+  border-top-color: var(--blue, #00C2FF);
+  border-radius: 50%;
+  animation: smDriveSyncSpin 0.8s linear infinite;
+}
+@keyframes smDriveSyncSpin { to { transform: rotate(360deg); } }
+.sm-drive-sync-label {
+  font-size: 12.5px; font-weight: 600; color: var(--text2, var(--text3));
+  letter-spacing: .02em;
+}
+.sm-drive-sync-sub {
+  font-size: 11px; color: var(--text3); opacity: .8;
+}
+
+/* ── log-line row ── */
+.sm-session-row {
+  position: relative;
+  display: flex; align-items: center; gap: 14px;
+  padding: 9px 16px 9px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  transition: background .12s ease;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.sm-session-list .sm-session-row:last-child { border-bottom: none; }
+.sm-session-row:hover { background: var(--surface2, rgba(127,127,127,0.05)); }
+.sm-session-row::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--pdfed-accent); opacity: 0; transition: opacity .12s ease;
+}
+.sm-session-row:hover::before { opacity: 1; }
+
+.sm-session-icon {
+  width: 15px; height: 15px; flex-shrink: 0; color: var(--text3);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Thumbnail preview of the saved session's first PDF page, so the list
+   reads like a document browser instead of a plain log of filenames — the
+   person can recognize what they're opening at a glance instead of relying
+   on the name alone. Falls back to the plain document/lock glyph (via
+   .sm-session-icon above) for sessions with no PDF page to render from
+   (e.g. a session saved from Data Arrangement or Diagrams only). */
+.sm-session-thumb {
+  width: 128px; height: 96px; flex-shrink: 0; border-radius: 7px;
+  overflow: hidden; background: var(--surface2, rgba(127,127,127,0.08));
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.sm-session-thumb img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  pointer-events: none;
+}
+.sm-session-row.sm-session-locked .sm-session-thumb { opacity: .55; filter: grayscale(0.3); }
+.sm-session-name {
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  background: none; border: none; padding: 3px 5px; margin: -3px -5px;
+  font-family: inherit; cursor: text; border-radius: 4px; flex: 1 1 280px; min-width: 160px;
+  white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+  transition: background .15s ease;
+}
+.sm-session-name:hover, .sm-session-name:focus { outline: none; background: var(--surface3, rgba(127,127,127,0.1)); }
+
+.sm-session-meta {
+  font-size: 10.5px; color: var(--text3); flex: 0 0 auto; white-space: nowrap;
+  font-variant-numeric: tabular-nums; letter-spacing: .01em;
+}
+
+.sm-session-divider { width: 1px; align-self: stretch; background: var(--border); flex-shrink: 0; }
+
+/* module checkboxes, inline, wraps onto a second line if there isn't
+   room for every module pill instead of silently scrolling out of view */
+.sm-mod-row {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 260px; min-width: 220px;
+  flex-wrap: wrap; row-gap: 6px;
+}
+.sm-mod-check {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px 3px 6px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+  color: var(--text3); cursor: pointer; user-select: none;
+  transition: all .12s ease;
+}
+.sm-mod-check input { display: none; }
+.sm-mod-check .chk-box {
+  width: 12px; height: 12px; border-radius: 3.5px; border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: inherit;
+}
+.sm-mod-check .chk-box svg { opacity: 0; transform: scale(.6); transition: all .12s ease; }
+.sm-mod-check.has-data { color: var(--text2); border-color: var(--border2); }
+.sm-mod-check.has-data:hover { border-color: var(--pdfed-accent); color: var(--pdfed-accent); }
+.sm-mod-check.checked { background: var(--pdfed-accent-bg); border-color: var(--pdfed-accent); color: var(--pdfed-accent); }
+.sm-mod-check.checked .chk-box { background: var(--pdfed-accent); border-color: var(--pdfed-accent); color: #fff; }
+.sm-mod-check.checked .chk-box svg { opacity: 1; transform: scale(1); }
+.sm-mod-check.empty { opacity: .38; cursor: not-allowed; }
+.sm-mod-detail { opacity: .8; font-weight: 500; }
+
+.sm-session-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.sm-session-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text2);
+  border-radius: 6px; padding: 5px 11px; font-size: 11px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; transition: all .12s ease; white-space: nowrap;
+}
+.sm-session-btn:hover { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent); }
+.sm-session-btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+.sm-session-btn.icon-only { padding: 5px 7px; }
+.sm-session-btn.danger:hover { background: rgba(239,68,68,0.08); color: #ef4444; border-color: rgba(239,68,68,0.35); }
+.sm-topnav-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; margin-right: 4px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text2);
+  font-size: 12px; font-weight: 500; cursor: pointer; flex-shrink: 0;
+}
+.sm-topnav-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+.sm-topnav-btn.active { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent); }
+.sm-module-save-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0;
+  width: 32px !important; height: 32px !important; padding: 0 !important; flex-shrink: 0;
+}
+
+/* ─── Locked session (belongs to a different / signed-out Google account) ─── */
+.sm-session-row.sm-session-locked { background: var(--surface2, rgba(127,127,127,0.035)); }
+.sm-session-row.sm-session-locked .sm-session-name { opacity: .62; cursor: not-allowed; }
+.sm-session-row.sm-session-locked .sm-mod-row { opacity: .45; pointer-events: none; }
+.sm-session-row.sm-session-locked .sm-session-icon { color: var(--text3); }
+.sm-lock-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.28);
+  white-space: nowrap; flex-shrink: 0;
+}
+.sm-lock-badge svg { flex-shrink: 0; }
+.sm-session-unlock-btn {
+  background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #ef4444;
+  border-radius: 6px; padding: 5px 11px; font-size: 11px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; transition: all .12s ease; white-space: nowrap;
+}
+.sm-session-unlock-btn:hover { background: rgba(239,68,68,0.14); border-color: #ef4444; }
+
+/* ─── Team Projects badge + All/Team scope tabs ─── */
+.sm-team-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: rgba(59,130,246,0.08); color: #3b82f6; border: 1px solid rgba(59,130,246,0.28);
+  white-space: nowrap; flex-shrink: 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+}
+.sm-team-badge svg { flex-shrink: 0; }
+.sm-scope-tabs { display: flex; gap: 6px; margin: 10px 2px 12px; }
+.sm-scope-tab {
+  padding: 5px 13px; font-size: 11.5px; font-weight: 600; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--text3); border: 1px solid var(--border); transition: all .12s ease;
+}
+.sm-scope-tab:hover { color: var(--text2); border-color: var(--border2); }
+.sm-scope-tab.active { background: rgba(59,130,246,0.1); color: #3b82f6; border-color: rgba(59,130,246,0.35); }
+
+/* ── Mobile (same 768px shell breakpoint as the rest of the app) ──
+   Saved Sessions previously had no dedicated mobile pass — the fixed
+   248px sticky sidebar, the 128×96 thumbnail, and the icon-only action
+   buttons (26×26px, below the ~44px touch target guideline) all held
+   their desktop sizing on phones. This block reflows the page to a
+   single column and makes Load/Open reachable and tappable without
+   touching desktop layout at all. */
+@media (max-width: 768px) {
+  .sm-page { padding: 16px 14px 40px; }
+  .sm-page-header-icon { width: 36px; height: 36px; }
+  .sm-page-desc { max-width: none; }
+
+  /* Sidebar: on desktop this sits pinned to the side so the connection
+     status is always visible at a glance. On mobile there's no side column
+     to pin it to, and with a full session list below, stacking it after
+     the list the naive way buried it past everything else — a 14-session
+     list meant scrolling right past "Connected"/"Not connected" without
+     ever seeing it. `order: -1` puts it first instead, so it's the first
+     thing on screen, same "at a glance" intent as the desktop sidebar.
+     Trust badges hidden here — useful context on first visit, but not
+     worth pushing the actual session list further down every time. */
+  .sm-layout { gap: 14px; }
+  .sm-side { width: 100%; flex: 1 1 100%; position: static; order: -1; gap: 10px; }
+  .sm-trust-panel { display: none; }
+
+  /* Search/import/refresh bar: wrap instead of squeezing three buttons
+     and a text input onto one unbreakable row, and drop button text so
+     the icons stay tappable at full size. */
+  .sm-save-card { padding: 8px; margin-bottom: 16px; }
+  .sm-save-row { flex-wrap: wrap; row-gap: 8px; }
+  .sm-save-row input { flex-basis: 100%; padding: 8px 4px; }
+  .sm-save-row .sm-session-btn span { display: none; }
+  .sm-save-row .sm-session-btn { padding: 8px; }
+  .sm-save-row #smManualRefreshBtn { margin-left: auto; }
+
+  /* Session rows: smaller thumbnail so it doesn't eat the whole row on a
+     narrow screen, and bigger tap targets on every action button —
+     "Load all" most of all, since that's the one that matters most. */
+  .sm-session-row { padding: 10px 12px; gap: 10px; }
+  .sm-session-thumb { width: 64px; height: 48px; }
+  .sm-session-name { flex-basis: 100%; min-width: 0; }
+  .sm-session-divider { display: none; }
+  .sm-mod-row { flex-basis: 100%; }
+  .sm-session-actions { flex-basis: 100%; justify-content: flex-end; gap: 8px; }
+  .sm-session-btn, .sm-session-unlock-btn { padding: 9px 13px; font-size: 12px; }
+  .sm-session-btn.icon-only { padding: 9px 11px; }
+  .sm-session-load-btn { flex: 1 1 auto; justify-content: center; }
+}

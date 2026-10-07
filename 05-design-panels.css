@@ -1,0 +1,319 @@
+/* ─── AI EDITOR ─── */
+.editor-section { padding: 28px; position: relative; z-index: 1; }
+.editor-layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; height: calc(100vh - 140px); }
+
+.canvas-area {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.canvas-placeholder {
+  text-align: center; color: var(--text2);
+}
+.canvas-placeholder .c-icon { font-size: 56px; margin-bottom: 16px; opacity: 0.3; }
+.canvas-placeholder p { font-size: 13px; }
+
+.canvas-area canvas { max-width: 100%; max-height: 100%; display: none; }
+.canvas-area canvas.visible { display: block; }
+
+.editor-tools {
+  display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto;
+}
+
+.tool-group {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+}
+.tool-group h4 {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text2); margin-bottom: 12px;
+}
+
+.tool-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.tool-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; transition: all 0.15s; color: var(--text2);
+  font-family: 'Inter', sans-serif; font-size: 11px;
+}
+.tool-btn:hover { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+.tool-btn .t-icon { font-size: 18px; }
+
+.slider-row { margin-bottom: 12px; }
+.slider-row label { font-size: 11px; color: var(--text2); display: flex; justify-content: space-between; margin-bottom: 6px; }
+.slider-row input[type=range] {
+  width: 100%; accent-color: var(--blue);
+  cursor: pointer;
+}
+
+/* ─── Canvas recolor / gradient tint panel (right panel "Canvas" tool) ───
+   Premium pass: segmented pill switch, circular swatches with live hex
+   readouts, custom-styled sliders, tiered primary/secondary actions. */
+.pdfed-ctint-modebar {
+  display: flex; gap: 2px; padding: 3px; margin-bottom: 14px;
+  background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border); border-radius: 10px;
+}
+.pdfed-ctint-mode-btn {
+  flex: 1; padding: 7px 8px; border: none; border-radius: 7px; background: transparent;
+  color: var(--text2); font-size: 11.5px; font-weight: 600; letter-spacing: .1px; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.pdfed-ctint-mode-btn.active {
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff;
+  box-shadow: 0 2px 10px rgba(0,194,255,0.25);
+}
+.pdfed-ctint-mode-btn:not(.active):hover { background: var(--pdfed-btn-hover); color: var(--text); }
+
+.pdfed-ctint-preview {
+  height: 44px; border-radius: 10px; margin-bottom: 16px;
+  border: 1px solid var(--pdfed-section-border);
+  background: linear-gradient(90deg, #0A0F1E, #0A0F1E);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.03);
+  opacity: 1;
+}
+
+.pdfed-ctint-label {
+  font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px;
+  font-weight: 700; display: block; margin-bottom: 8px;
+}
+.pdfed-ctint-section { margin-bottom: 14px; }
+.pdfed-ctint-divider {
+  height: 1px; border: none; margin: 14px 0;
+  background: linear-gradient(90deg, transparent, var(--pdfed-section-border) 50%, transparent);
+}
+
+/* Solid colour swatch row */
+.pdfed-ctint-swatch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pdfed-ctint-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.2);
+  transition: transform .12s, box-shadow .12s;
+}
+.pdfed-ctint-swatch:hover { transform: scale(1.14); }
+.pdfed-ctint-swatch.active {
+  border-color: var(--pdfed-accent);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 0 0 3px var(--pdfed-accent-bg);
+}
+
+/* Gradient stop picker — circular colour well + live hex readout, with a
+   directional connector implying the flow from Start to End. */
+.pdfed-ctint-stop-row { display: flex; align-items: center; gap: 10px; }
+.pdfed-ctint-stop {
+  display: flex; align-items: center; gap: 9px; flex: 1;
+  padding: 6px 10px; border-radius: 9px;
+  background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border);
+}
+.pdfed-ctint-color-well {
+  position: relative; width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.25);
+}
+.pdfed-ctint-color-well input[type="color"] {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: none; border-radius: 50%;
+  cursor: pointer; padding: 0; opacity: 0;
+}
+.pdfed-ctint-stop-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pdfed-ctint-stop-name { font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
+.pdfed-ctint-stop-hex { font-size: 11.5px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pdfed-ctint-stop-flow {
+  flex-shrink: 0; width: 14px; height: 14px; color: var(--text3);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Direction quick-picks */
+.pdfed-ctint-preset-row { display: flex; gap: 6px; margin-top: 10px; }
+.pdfed-ctint-preset-btn {
+  flex: 1; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.pdfed-ctint-preset-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); border-color: var(--pdfed-accent); }
+.pdfed-ctint-preset-btn.wide { font-size: 10.5px; letter-spacing: .2px; }
+
+/* Image background — upload zone + thumbnail preview */
+.pdfed-ctint-image-zone {
+  border: 1.5px dashed var(--pdfed-section-border); border-radius: 10px; cursor: pointer;
+  background: var(--pdfed-section-bg); transition: all .15s; overflow: hidden;
+}
+.pdfed-ctint-image-zone:hover { border-color: var(--pdfed-accent); }
+.pdfed-ctint-image-empty {
+  padding: 20px 10px; text-align: center; font-size: 11.5px; color: var(--text3); font-weight: 600;
+}
+.pdfed-ctint-image-thumb-wrap { position: relative; width: 100%; height: 78px; }
+.pdfed-ctint-image-thumb-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pdfed-ctint-image-select {
+  width: 100%; padding: 7px 9px; border-radius: 8px; margin-top: 10px;
+  background: var(--pdfed-btn-bg); border: 1px solid var(--pdfed-section-border); color: var(--text);
+  font-size: 11.5px; font-family: 'Inter', sans-serif; cursor: pointer; outline: none;
+}
+
+/* Sliders — thin gradient track, accent thumb, matches the rest of the panel */
+.pdfed-ctint-slider-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.pdfed-ctint-slider-row label { font-size: 11px; color: var(--text2); font-weight: 600; }
+.pdfed-ctint-slider-row .val { font-size: 11px; color: var(--pdfed-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+input[type="range"].pdfed-ctint-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--pdfed-section-border), var(--pdfed-section-border));
+  outline: none; cursor: pointer;
+}
+input[type="range"].pdfed-ctint-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  border: 2px solid var(--bg2); box-shadow: 0 1px 4px rgba(0,0,0,0.4); cursor: pointer; margin-top: -5.5px;
+}
+input[type="range"].pdfed-ctint-slider::-moz-range-thumb {
+  width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--bg2);
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); box-shadow: 0 1px 4px rgba(0,0,0,0.4); cursor: pointer;
+}
+input[type="range"].pdfed-ctint-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; }
+input[type="range"].pdfed-ctint-slider::-moz-range-track { height: 4px; border-radius: 999px; background: var(--pdfed-section-border); }
+
+/* Actions — one clear primary action, two quiet secondary ones */
+.pdfed-ctint-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+.pdfed-ctint-apply-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 10px; border-radius: 9px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .1px;
+  box-shadow: 0 3px 14px rgba(0,194,255,0.28); transition: transform .12s, box-shadow .12s;
+}
+.pdfed-ctint-apply-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(0,194,255,0.4); }
+.pdfed-ctint-apply-btn.te-faf-apply-btn {
+  position: relative; overflow: hidden;
+  box-shadow: 0 3px 14px rgba(0,194,255,0.22), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.pdfed-ctint-apply-btn.te-faf-apply-btn:hover {
+  box-shadow: 0 6px 20px rgba(0,194,255,0.38), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.pdfed-ctint-secondary-row { display: flex; gap: 6px; }
+.pdfed-ctint-secondary-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 6px; border-radius: 8px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--text2); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.pdfed-ctint-secondary-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+.pdfed-ctint-secondary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pdfed-ctint-secondary-btn:disabled:hover { background: var(--pdfed-btn-bg); color: var(--text2); }
+
+/* Design panel — cinematic fade preset picker: compact, sober icon badges
+   (a stroked glyph on a graphite panel) matching a professional colour-
+   grading console, rather than colourful glossy orbs. */
+.pdfed-design-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 4px; }
+.pdfed-design-preset {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 2px 0 0; border: none; background: transparent; color: var(--text3);
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  min-width: 0; max-width: 100%;
+}
+.pdfed-design-swatch {
+  display: flex; align-items: center; justify-content: center;
+  position: relative; width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 55%), var(--pdfed-btn-bg);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.3);
+  color: var(--text3);
+  transition: transform .15s cubic-bezier(.22,.9,.32,1.1), box-shadow .15s, color .15s, background .15s;
+}
+.pdfed-design-swatch svg { width: 15px; height: 15px; }
+.pdfed-design-preset:hover .pdfed-design-swatch {
+  transform: translateY(-1px);
+  color: var(--text2);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.07), 0 3px 7px rgba(0,0,0,0.35);
+}
+.pdfed-design-label {
+  font-size: 7.5px; font-weight: 600; letter-spacing: 0.15px; line-height: 1.15;
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; transition: color .15s;
+}
+.pdfed-design-preset.active { color: var(--text2); }
+.pdfed-design-preset.active .pdfed-design-label { color: var(--text); font-weight: 700; }
+.pdfed-design-preset.active .pdfed-design-swatch {
+  color: var(--cyan);
+  outline: 1.5px solid var(--cyan); outline-offset: 2px;
+}
+/* Premium 3D Cinematic tier — slim gold ring instead of cyan, so these read
+   as the higher-end filters rather than being indistinguishable from the
+   basic fades. Rest state stays the same neutral graphite as the standard
+   tier — the gold only shows up on hover/selection, kept deliberately
+   restrained rather than a gold-tinted panel at all times. */
+.pdfed-design-preset.premium:hover .pdfed-design-swatch { color: #ffc65c; }
+.pdfed-design-preset.premium.active .pdfed-design-swatch {
+  color: #ffc65c;
+  outline: 1.5px solid #ffc65c; outline-offset: 2px;
+}
+.pdfed-design-preset.premium.active .pdfed-design-label { color: #ffc65c; }
+
+/* Cosmic tier — same restrained-until-selected treatment as Premium, but a
+   soft violet accent instead of gold, so it reads as its own distinct set
+   rather than a variant of the cinematic tier. */
+.pdfed-design-preset.cosmic:hover .pdfed-design-swatch { color: #b388ff; }
+.pdfed-design-preset.cosmic.active .pdfed-design-swatch {
+  color: #b388ff;
+  outline: 1.5px solid #b388ff; outline-offset: 2px;
+}
+.pdfed-design-preset.cosmic.active .pdfed-design-label { color: #b388ff; }
+
+/* Saved gradients / colours — user's own presets, persisted in localStorage */
+.pdfed-ctint-save-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 7px; border: 1px solid var(--pdfed-section-border);
+  background: var(--pdfed-btn-bg); color: var(--pdfed-accent); font-size: 10.5px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+}
+.pdfed-ctint-save-btn:hover { background: var(--pdfed-accent-bg); border-color: var(--pdfed-accent); }
+.pdfed-ctint-preset-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.pdfed-ctint-preset-empty {
+  font-size: 10.5px; color: var(--text3); line-height: 1.5; padding: 10px 0 2px;
+}
+.pdfed-ctint-preset-card {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; width: 44px; cursor: pointer;
+}
+.pdfed-ctint-preset-item {
+  position: relative; width: 32px; height: 32px; border-radius: 9px;
+  border: 1px solid var(--pdfed-section-border); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform .12s;
+}
+.pdfed-ctint-preset-card:hover .pdfed-ctint-preset-item { transform: scale(1.08); }
+.pdfed-ctint-preset-label {
+  font-size: 8.5px; font-weight: 700; color: var(--text3); text-align: center; line-height: 1.3;
+  max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pdfed-ctint-preset-del {
+  position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  background: var(--bg2); border: 1px solid var(--pdfed-section-border); color: var(--text3);
+  cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s;
+}
+.pdfed-ctint-preset-card:hover .pdfed-ctint-preset-del { opacity: 1; }
+.pdfed-ctint-preset-del:hover { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+
+.ai-assistant {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.ai-chat {
+  flex: 1; overflow-y: auto; max-height: 160px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ai-msg {
+  font-size: 12px; padding: 8px 10px; border-radius: 8px; line-height: 1.5;
+}
+.ai-msg.bot { background: rgba(0,194,255,0.1); border: 1px solid rgba(0,194,255,0.2); color: var(--text); }
+.ai-msg.user { background: var(--surface2); color: var(--text2); text-align: right; }
+
+.ai-input-row { display: flex; gap: 6px; }
+.ai-input {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px;
+  color: var(--text); font-family: 'Inter', sans-serif; font-size: 12px;
+  outline: none; transition: border 0.2s;
+}
+.ai-input:focus { border-color: var(--border2); }
+.ai-send {
+  background: var(--blue); border: none; border-radius: 8px;
+  width: 34px; color: white; font-size: 14px;
+  cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+}
+.ai-send:hover { background: #3d6ef5; }

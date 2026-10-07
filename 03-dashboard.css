@@ -1,0 +1,219 @@
+/* ─── DASHBOARD ─── */
+.dashboard { padding: 28px; position: relative; z-index: 1; }
+
+.dash-hero {
+  background: linear-gradient(135deg, rgba(0,194,255,0.08), rgba(0,115,230,0.06), rgba(0,194,255,0.04));
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 32px 36px;
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+.dash-hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(0,194,255,0.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.dash-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40px; left: 30%;
+  width: 150px; height: 150px;
+  background: radial-gradient(circle, rgba(0,115,230,0.12) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(0,194,255,0.12);
+  border: 1px solid rgba(0,194,255,0.30);
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 11px; color: var(--cyan); font-weight: 600;
+  margin-bottom: 14px; letter-spacing: 0.5px;
+}
+.dash-hero h1 {
+  font-family: 'Inter', sans-serif;
+  font-size: 32px; font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+.dash-hero h1 span {
+  background: linear-gradient(90deg, var(--cyan), #0073E6);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.dash-hero p { color: var(--text2); line-height: 1.6; max-width: 440px; }
+
+.hero-actions { display: flex; gap: 12px; margin-top: 22px; }
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  color: white; border: none;
+  padding: 10px 22px; border-radius: 9px;
+  font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px;
+  cursor: pointer; transition: all 0.2s;
+  box-shadow: 0 4px 20px rgba(0,194,255,0.30);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(0,194,255,0.45); }
+.btn-primary svg { flex-shrink: 0; }
+.btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px 22px; border-radius: 9px;
+  font-family: 'Inter', sans-serif; font-weight: 500; font-size: 13px;
+  cursor: pointer; transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-secondary svg { flex-shrink: 0; }
+.btn-primary { white-space: nowrap; }
+.btn-secondary:hover { border-color: var(--border2); background: rgba(0,194,255,0.08); }
+
+.btn-pill {
+  display:inline-flex; align-items:center; gap:6px;
+  background: var(--surface); color: var(--text2);
+  border: 1px solid var(--border);
+  padding: 7px 16px; border-radius: 999px;
+  font-family:'Inter',sans-serif; font-weight:500; font-size:12.5px;
+  cursor:pointer; transition:all 0.2s; white-space:nowrap;
+}
+.btn-pill:hover { border-color: var(--border2); background: var(--surface2); color: var(--text); }
+.btn-pill svg { flex-shrink:0; }
+
+/* ─── SHARED ICON + LABEL ALIGNMENT ───
+   Buttons across the tool (Extract, Merge Forms, Data Arrangement, image tools, PDF
+   editor, etc.) each wrapped their own icon+text in an inline style="display:inline-flex;
+   align-items:center;gap:Npx" span, with the gap drifting between 4px/5px/6px/8px
+   depending on who wrote that button. .btn-icon-label is the one shared class for that
+   exact pattern — same flex alignment, same gap, everywhere it's used, so an icon next
+   to its label lines up identically no matter which tool it's in. */
+.btn-icon-label { display:inline-flex; align-items:center; gap:6px; }
+.btn-icon-label svg { flex-shrink:0; }
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  transition: all 0.2s;
+}
+.stat-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+.stat-val {
+  font-family: 'Inter', sans-serif; font-size: 28px; font-weight: 800;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.feat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.feat-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--feat-color, var(--blue)), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.feat-card:hover { transform: translateY(-2px); border-color: var(--feat-color, var(--border2)); box-shadow: var(--shadow-card-hover); }
+.feat-card:hover::before { opacity: 0.05; }
+
+.feat-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; margin-bottom: 12px;
+  background: rgba(255,255,255,0.05);
+}
+.feat-card h3 { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.feat-card p { font-size: 12px; color: var(--text2); line-height: 1.5; }
+.feat-arrow { position: absolute; top: 20px; right: 20px; color: var(--text3); font-size: 12px; }
+
+/* ─── DASHBOARD: "Your Recent Work" — live pull from Diagrams/Charts + Data
+   Arrangement, so the dashboard reflects what's actually been built in this
+   browser instead of staying a static promo page. ─── */
+.dash-recent-section { margin-bottom: 28px; }
+.dash-recent-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.dash-recent-head h2 { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 800; }
+.dash-recent-head p { font-size: 12px; color: var(--text3); margin-top: 3px; }
+.dash-recent-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dash-recent-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+}
+.dash-recent-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+.dash-recent-panel-head h3 { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.dash-recent-panel-head h3 svg { color: var(--blue); flex-shrink: 0; }
+.dash-recent-count {
+  font-size: 10.5px; font-weight: 700; color: var(--text3);
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 1px 7px; border-radius: 99px;
+}
+.dash-open-link {
+  font-size: 11.5px; color: var(--blue); cursor: pointer; font-weight: 600;
+  white-space: nowrap; transition: opacity 0.15s;
+}
+.dash-open-link:hover { opacity: 0.7; }
+.dash-recent-grid { display: flex; flex-direction: column; gap: 8px; }
+.dash-recent-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.18s;
+  background: var(--surface);
+}
+.dash-recent-card:hover { border-color: rgba(0,194,255,0.35); background: var(--surface2); transform: translateY(-1px); }
+.dash-recent-card-icon {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,194,255,0.10); color: var(--blue);
+}
+.dash-recent-card-body { flex: 1; min-width: 0; }
+.dash-recent-card-title {
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash-recent-card-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.dash-recent-card-badge {
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 99px;
+  background: rgba(0,194,255,0.12); color: var(--blue);
+  text-transform: capitalize;
+}
+.dash-recent-card-badge.is-current { background: rgba(16,185,129,0.14); color: #10B981; }
+.dash-recent-empty {
+  text-align: center; padding: 22px 12px; color: var(--text3);
+  font-size: 12px; line-height: 1.6; border: 1px dashed var(--border); border-radius: 10px;
+}
+.dash-recent-empty strong { display: block; color: var(--text2); font-size: 12.5px; margin-bottom: 3px; }
+.dash-recent-empty .btn-pill { margin-top: 10px; }
+@media (max-width: 900px) {
+  .dash-recent-cols { grid-template-columns: 1fr; }
+}

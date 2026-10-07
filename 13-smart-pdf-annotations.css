@@ -1,0 +1,455 @@
+/* ─── SMART PDF BUILDER ─── */
+.smartpdf-section { padding: 28px; position: relative; z-index: 1; }
+
+.smartpdf-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+.smartpdf-main {
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.url-input-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+}
+.url-input-card h4 {
+  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.url-input-row {
+  display: flex; gap: 10px;
+}
+.url-input-field {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 14px; border-radius: 9px;
+  font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
+  transition: border 0.2s;
+}
+.url-input-field:focus { border-color: var(--border2); box-shadow: var(--glow-blue); }
+.url-input-field::placeholder { color: var(--text3); }
+
+.url-fetch-btn {
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  color: white; border: none; padding: 10px 22px; border-radius: 9px;
+  font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  box-shadow: 0 4px 18px rgba(0,194,255,0.3);
+  display: flex; align-items: center; gap: 7px;
+}
+.url-fetch-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(0,194,255,0.45); }
+.url-fetch-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.smartpdf-preview-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  display: none;
+}
+.smartpdf-preview-card.visible { display: block; }
+.smartpdf-preview-card h4 {
+  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+
+.preview-iframe-wrap {
+  position: relative; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.preview-iframe-mask-top,
+.preview-iframe-mask-bot {
+  position: absolute; left: 0; right: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; font-size: 11px; font-weight: 600;
+}
+.preview-iframe-mask-top {
+  top: 0; height: var(--header-crop, 80px);
+  background: rgba(0,194,255,0.18);
+  border-bottom: 2px dashed rgba(0,194,255,0.6);
+  color: var(--blue);
+}
+.preview-iframe-mask-bot {
+  bottom: 0; height: var(--footer-crop, 80px);
+  background: rgba(236,72,153,0.15);
+  border-top: 2px dashed rgba(236,72,153,0.5);
+  color: var(--pink);
+}
+.preview-iframe-wrap iframe {
+  display: block; width: 100%; height: 480px;
+  border: none; background: white;
+}
+
+.crop-sliders-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;
+}
+.crop-slider-group label { font-size: 11px; color: var(--text2); display: block; margin-bottom: 4px; }
+.crop-slider-group input[type=range] {
+  width: 100%; accent-color: var(--blue); display: block;
+}
+.crop-slider-val {
+  font-size: 11px; color: var(--text3); margin-top: 2px;
+}
+
+.smartpdf-fetching {
+  display: none; flex-direction: column; align-items: center; gap: 14px;
+  padding: 40px 20px; text-align: center;
+}
+.smartpdf-fetching.visible { display: flex; }
+.fetch-progress-bar {
+  width: 100%; max-width: 320px; height: 4px;
+  background: var(--bg3); border-radius: 99px; overflow: hidden;
+}
+.fetch-progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-radius: 99px; transition: width 0.4s;
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+@keyframes progressPulse {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.6; }
+}
+
+.smartpdf-settings-panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: sticky; top: 16px;
+}
+.smartpdf-settings-panel h4 {
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px; color: var(--text2);
+}
+
+.ignore-zone-card {
+  background: var(--bg3); border-radius: 10px; padding: 12px 14px;
+}
+.ignore-zone-card h5 {
+  font-size: 11px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 10px;
+}
+.ignore-zone-list { display: flex; flex-direction: column; gap: 7px; }
+.ignore-zone-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 10px; font-size: 12px;
+}
+.ignore-zone-item.active { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.06); }
+.ignore-zone-item .iz-label { display: flex; align-items: center; gap: 7px; color: var(--text2); }
+.iz-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+.smartpdf-how {
+  background: linear-gradient(135deg, rgba(0,194,255,0.07), rgba(0,115,230,0.05));
+  border: 1px solid var(--border2); border-radius: 12px; padding: 16px;
+  font-size: 12px; color: var(--text2); line-height: 1.65;
+}
+.smartpdf-how strong { color: var(--text); }
+
+/* ─── ANNOTATION TOOLS ─── */
+.pdfed-color-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  cursor: pointer; flex-shrink: 0;
+  transition: transform 0.12s, box-shadow 0.12s;
+  border: 2px solid transparent;
+}
+.pdfed-color-dot:hover { transform: scale(1.18); }
+.pdfed-color-dot.active { border-color: white; box-shadow: 0 0 0 2px rgba(255,255,255,0.5); transform: scale(1.12); }
+
+/* Color picker dropdown */
+.pdfed-color-picker-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.pdfed-color-trigger {
+  min-width: 58px;
+}
+.pdfed-color-panel {
+  display: none;
+  position: fixed;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 14px;
+  width: 192px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,194,255,0.08);
+  z-index: 9999;
+}
+.pdfed-color-panel.open { display: block; }
+
+/* Canvas Color flyout — docks beside the right panel rather than expanding
+   inline in the accordion stack. Reuses .pdfed-color-panel's fixed/positioned
+   popover base, just wider and scrollable since it holds a full control set. */
+.pdfed-canvas-flyout {
+  width: 264px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,194,255,0.10);
+}
+
+/* Annotation cursor modes */
+.annot-mode-draw #pdfedAnnotCanvas,
+.annot-mode-eraser #pdfedAnnotCanvas,
+.annot-mode-highlight #pdfedAnnotCanvas,
+.annot-mode-arrow #pdfedAnnotCanvas,
+.annot-mode-rect #pdfedAnnotCanvas,
+.annot-mode-circle #pdfedAnnotCanvas,
+.annot-mode-line #pdfedAnnotCanvas,
+.annot-mode-dblarrow #pdfedAnnotCanvas,
+.annot-mode-roundrect #pdfedAnnotCanvas,
+.annot-mode-triangle #pdfedAnnotCanvas,
+.annot-mode-diamond #pdfedAnnotCanvas,
+.annot-mode-pentagon #pdfedAnnotCanvas,
+.annot-mode-star #pdfedAnnotCanvas,
+.annot-mode-hexagon #pdfedAnnotCanvas,
+.annot-mode-redact #pdfedAnnotCanvas,
+.annot-mode-addtext #pdfedAnnotCanvas,
+.annot-mode-link #pdfedAnnotCanvas { pointer-events: all !important; cursor: crosshair !important; }
+.annot-mode-eraser #pdfedAnnotCanvas { cursor: cell !important; }
+
+/* Hand (pan) tool */
+.pdfed-rbn-btn.pdfed-hand-btn { position: relative; }
+.pdfed-rbn-btn.pdfed-hand-btn.annot-active { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); }
+.pdfed-canvas-scroll.pdfed-hand-mode { cursor: grab; }
+.pdfed-canvas-scroll.pdfed-hand-mode.pdfed-panning { cursor: grabbing; }
+.pdfed-canvas-scroll.pdfed-hand-mode.pdfed-panning * { cursor: grabbing !important; }
+
+/* canvas sits exactly on top, explicit z-index (not just DOM order) so it
+   visually sits ABOVE the OCR/edited-text overlay, placed images/text/tables,
+   and search highlights. Without this, a Redact box (or any annotation) could
+   get silently covered by OCR text rendered in #pdfedTextOverlay on top of it, the box looked "applied" but the real text was still floating above it. This
+   also now matches the export/bake order (pdfedComposeThumb), which has always
+   painted annotation strokes, including redactions, dead last, on top of
+   everything. */
+#pdfedAnnotCanvas { position: absolute; top: 0; left: 0; z-index: 8; }
+
+.pdfed-rbn-btn.annot-active { background: var(--pdfed-accent-bg) !important; color: var(--pdfed-accent) !important; }
+
+/* ── Text Highlight Layer ── */
+#pdfedTextHlLayer {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 4;
+  transform-origin: top left;
+}
+#pdfedTextHlLayer.active { pointer-events: all; cursor: text; }
+#pdfedTextHlLayer span {
+  color: transparent !important;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+  -webkit-user-select: text;
+  /* Invisible but fully selectable, double-click selects a word, triple-click selects a line */
+}
+/* Floating highlight toolbar */
+#pdfedHlToolbar {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface, #1a2035);
+  border: 1px solid rgba(0,194,255,0.25);
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 260px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+#pdfedHlToolbar.show { display: flex; }
+.pdfed-hl-swatch {
+  width: 20px; height: 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+}
+.pdfed-hl-swatch:hover { transform: scale(1.25); border-color: rgba(255,255,255,0.4); }
+.pdfed-hl-swatch.active { border-color: #fff; transform: scale(1.18); }
+/* Sidebar panel swatches */
+.pdfed-hl-panel-swatch {
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 2.5px solid transparent;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+  flex-shrink: 0;
+}
+.pdfed-hl-panel-swatch:hover { transform: scale(1.2); border-color: rgba(255,255,255,0.5); }
+.pdfed-hl-panel-swatch.active { border-color: #fff; transform: scale(1.15); box-shadow: 0 0 0 2px rgba(0,194,255,0.4); }
+#pdfedHlCustomColor {
+  width: 20px; height: 20px; border-radius: 5px;
+  border: 2px solid rgba(255,255,255,0.25);
+  padding: 0; cursor: pointer; flex-shrink: 0;
+  background: none;
+}
+#pdfedHlApplyBtn {
+  padding: 4px 10px;
+  background: linear-gradient(135deg,var(--cyan,#00C2FF),var(--purple,#8B5CF6));
+  color: #fff; border: none; border-radius: 6px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+#pdfedHlApplyBtn:hover { opacity: 0.88; }
+#pdfedHlDismissBtn {
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--text2,#aaa); border: 1px solid var(--border,#333);
+  border-radius: 6px; font-size: 11px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+.pdfed-hl-divider { width: 1px; height: 18px; background: rgba(255,255,255,0.12); flex-shrink:0; }
+
+/* Shapes group dropdown */
+.pdfed-shapes-group {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+}
+.pdfed-shapes-main {
+  border-radius: 6px 0 0 6px !important;
+}
+.pdfed-shapes-caret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  background: var(--pdfed-ribbon-btn-bg);
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  color: var(--text2);
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.pdfed-shapes-caret:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+.pdfed-shapes-caret svg { pointer-events: none; }
+.pdfed-shapes-dropdown {
+  display: none;
+  position: fixed;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 6px;
+  z-index: 9999;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  min-width: 110px;
+}
+.pdfed-shapes-dropdown.open { display: block; }
+.pdfed-shapes-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.pdfed-shapes-opt:hover { background: var(--surface2); color: var(--text); }
+.pdfed-shapes-opt.active { background: rgba(0,194,255,0.12); color: var(--cyan); }
+
+/* Grid variant, used for the merged Shapes dropdown so it's compact/square
+   instead of a long vertical list. Fixed-size tiles via flexbox so a partial
+   final row centers itself rather than hanging left with dead space. */
+.pdfed-shapes-dropdown-grid {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: 4px;
+  width: 246px;
+  padding: 8px;
+}
+.pdfed-shapes-dropdown-grid.open { display: flex; }
+.pdfed-shapes-opt-grid {
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 3px;
+  border-radius: 8px;
+  text-align: center;
+  white-space: normal;
+  border: 1px solid transparent;
+}
+.pdfed-shapes-opt-grid:hover { border-color: var(--border2); }
+.pdfed-shapes-opt-grid.active { border-color: rgba(0,194,255,0.35); }
+.pdfed-shapes-opt-grid svg { flex-shrink: 0; opacity: 0.85; }
+.pdfed-shapes-opt-grid.active svg { opacity: 1; }
+.pdfed-shapes-opt-grid span {
+  font-size: 9px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  max-width: 52px;
+}
+
+/* export button 2 hidden initially */
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text3); border-radius: 99px; }
+
+/* Loading spinner */
+.spinner {
+  width: 20px; height: 20px; border: 2px solid var(--border);
+  border-top-color: var(--blue); border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.mf-btn-spinner {
+  display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.35);
+  border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite;
+  vertical-align:-2px; margin-right:6px;
+}
+/* Same idiom as .mf-btn-spinner, but for light-surface buttons (e.g. the
+   Google login button) where a white ring would be invisible. */
+.sarvarc-btn-spinner-dark {
+  display:inline-block; width:12px; height:12px; border:2px solid var(--border2);
+  border-top-color:var(--blue); border-radius:50%; animation:spin 0.7s linear infinite;
+  vertical-align:-2px; margin-right:6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Hidden file input */
+#fileInput { display: none; }
+
+/* Selected count bar */
+.selection-bar {
+  background: rgba(0,194,255,0.1); border: 1px solid rgba(0,194,255,0.3);
+  border-radius: 10px; padding: 12px 16px;
+  display: none; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.selection-bar.visible { display: flex; }
+.sel-count { font-weight: 700; color: var(--blue); }
+.sel-spacer { flex: 1; }
+
+/* Page canvas thumbnails */
+.page-thumbnails {
+  display: flex; gap: 8px; overflow-x: auto;
+  margin-bottom: 16px; padding-bottom: 8px;
+}
+.page-thumb {
+  flex-shrink: 0; width: 80px; 
+  background: var(--bg2); border: 2px solid var(--border);
+  border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s;
+}
+.page-thumb.active { border-color: var(--blue); }
+.page-thumb canvas { width: 100%; height: 56px; object-fit: cover; }
+.page-thumb .thumb-label { font-size: 9px; text-align: center; padding: 4px; color: var(--text3); }

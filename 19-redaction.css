@@ -1,0 +1,314 @@
+/* ══════════════════════════════════════════════════════════════════════
+   PRIVACY REDACTION TOOL (rdx*)
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  --rdx-name: #F59E0B;
+  --rdx-address: #8B5CF6;
+  --rdx-bank: #10B981;
+  --rdx-govid: #EF4444;
+  --rdx-license: #00C2FF;
+  --rdx-signature: #EC4899;
+  --rdx-phone: #3B82F6;
+  --rdx-email: #14B8A6;
+  --rdx-dob: #FB923C;
+  --rdx-photo: #A3E635;
+  --rdx-other: #94A3B8;
+}
+.rdx-wrap { display:flex; flex-direction:column; height:100%; min-height:0; }
+.rdx-head { padding:22px 26px 14px; flex-shrink:0; max-width:640px; }
+.rdx-head h2 { font-size:20px; font-weight:800; margin:0 0 4px; color:var(--text); }
+.rdx-head p { font-size:12.5px; color:var(--text2); margin:0; max-width:640px; line-height:1.6; max-height:60px; opacity:1; overflow:hidden; transition:max-height .45s ease, opacity .3s ease, margin .45s ease; }
+.rdx-head p.rdx-collapsed { max-height:0; opacity:0; margin:0; }
+
+/* ---- empty / upload state ---- */
+.rdx-empty { flex:1; display:flex; align-items:center; justify-content:center; padding:20px 26px 40px; }
+.rdx-dropzone {
+  width:100%; max-width:520px; border:2px dashed var(--border2); border-radius:16px;
+  padding:44px 32px; text-align:center; cursor:pointer; background:var(--surface);
+  transition:border-color .15s, background .15s;
+}
+.rdx-dropzone:hover, .rdx-dropzone.dragover { border-color:var(--blue); background:rgba(0,194,255,0.06); }
+.rdx-dropzone-icon { width:52px; height:52px; margin:0 auto 14px; border-radius:14px; background:rgba(0,194,255,0.12); display:flex; align-items:center; justify-content:center; color:var(--blue); }
+.rdx-dropzone h3 { font-size:15px; font-weight:700; color:var(--text); margin:0 0 6px; }
+.rdx-dropzone p { font-size:12px; color:var(--text2); margin:0 0 16px; line-height:1.6; }
+.rdx-dropzone .btn-primary { pointer-events:none; }
+.rdx-privacy-note { display:flex; align-items:center; gap:7px; justify-content:center; margin-top:18px; font-size:11px; color:var(--text3); }
+
+/* ---- workspace layout ---- */
+.rdx-body { flex:1; min-height:0; display:flex; gap:0; }
+.rdx-thumbs { width:84px; flex-shrink:0; border-right:1px solid var(--pdfed-strip-border); background:var(--pdfed-strip-bg); overflow-y:auto; padding:10px 8px; display:flex; flex-direction:column; gap:8px; }
+.rdx-thumb { border:2px solid transparent; border-radius:8px; overflow:hidden; cursor:pointer; position:relative; background:#fff; }
+.rdx-thumb.active { border-color:var(--blue); }
+.rdx-thumb img { display:block; width:100%; height:auto; }
+.rdx-thumb-num { position:absolute; bottom:2px; right:3px; font-size:9px; font-weight:700; background:rgba(0,0,0,0.6); color:#fff; padding:1px 4px; border-radius:4px; }
+.rdx-thumb-badge { position:absolute; top:2px; left:2px; font-size:8px; font-weight:800; background:var(--rdx-govid); color:#fff; padding:1px 4px; border-radius:4px; }
+
+/* Batch queue strip — shown when more than one file has been loaded at once */
+.rdx-docqueue { display:flex; flex-direction:column; gap:0; padding:0; border-bottom:1px solid var(--pdfed-panel-border); background:var(--pdfed-strip-bg); flex-shrink:0; }
+.rdx-docqueue-toprow { display:flex; align-items:center; gap:8px; padding:8px 14px; }
+.rdx-docqueue-label { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--text3); flex-shrink:0; }
+/* Folder tabs — appear once "Scan All" has identified document types (e.g.
+   Aadhaar card vs PAN card), letting the batch be filtered/grouped into
+   per-type "folders" instead of one long flat strip. Styled as compact,
+   flat filter chips (icon + label + inline count) — enterprise document-
+   management look rather than oversized game-badge tiles. */
+.rdx-dq-folders { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 14px; flex-wrap:wrap; border-top:1px solid var(--pdfed-panel-border); margin-top:2px; background:rgba(0,0,0,0.06); }
+.rdx-dq-folders-list { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.rdx-dq-folder-tab { display:flex; flex-direction:row; align-items:center; gap:7px; padding:6px 12px 6px 8px; border-radius:8px; border:1px solid var(--pdfed-panel-border); background:var(--surface); cursor:pointer; transition:all .15s; }
+.rdx-dq-folder-tab:hover { border-color:var(--border2); background:rgba(255,255,255,0.04); }
+.rdx-dq-folder-tab.active { border-color:var(--blue); background:rgba(0,194,255,0.08); }
+.rdx-dq-folder-tab .rdx-dq-folder-iconwrap { position:relative; width:20px; height:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.rdx-dq-folder-tab .rdx-dq-folder-icon { display:flex; align-items:center; justify-content:center; width:18px; height:18px; opacity:0.85; }
+.rdx-dq-folder-tab .rdx-dq-folder-icon-img { width:20px; height:20px; object-fit:contain; border-radius:4px; opacity:1; flex-shrink:0; }
+.rdx-dq-folder-tab.active .rdx-dq-folder-icon { opacity:1; }
+.rdx-dq-folder-tab .rdx-dq-folder-name { font-size:12px; font-weight:600; color:var(--text2); white-space:nowrap; }
+.rdx-dq-folder-tab.active .rdx-dq-folder-name { color:var(--blue); }
+.rdx-dq-folder-tab .rdx-dq-folder-count { font-size:10.5px; font-weight:700; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--pdfed-toolbar-bg); border:1px solid var(--pdfed-panel-border); color:var(--text3); display:flex; align-items:center; justify-content:center; }
+.rdx-dq-folder-tab.active .rdx-dq-folder-count { background:var(--blue); border-color:var(--blue); color:#fff; }
+.rdx-dq-folders-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:auto; }
+.rdx-push-ws-btn { display:flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; border:1px solid var(--pdfed-panel-border); background:var(--surface); color:var(--text2); font-size:12px; font-weight:700; cursor:pointer; transition:all .15s; white-space:nowrap; }
+.rdx-push-ws-btn:hover { border-color:var(--blue); color:var(--blue); background:rgba(0,194,255,0.06); }
+.rdx-push-ws-btn svg { flex-shrink:0; }
+.rdx-docqueue-items { display:flex; gap:6px; overflow-x:auto; flex:1; min-width:0; }
+.rdx-docqueue-item { display:flex; align-items:center; gap:6px; padding:5px 8px 5px 10px; border-radius:8px; border:1.5px solid var(--pdfed-panel-border); background:var(--surface); cursor:pointer; font-size:11.5px; font-weight:600; color:var(--text2); white-space:nowrap; flex-shrink:0; transition:all .15s; }
+.rdx-docqueue-item:hover { border-color:var(--blue); color:var(--text); }
+.rdx-docqueue-item.active { border-color:var(--blue); background:rgba(0,194,255,0.08); color:var(--text); }
+.rdx-docqueue-item .rdx-dq-status { width:6px; height:6px; border-radius:50%; background:var(--text3); flex-shrink:0; }
+.rdx-docqueue-item.found .rdx-dq-status { background:#F59E0B; }
+.rdx-docqueue-item.done .rdx-dq-status { background:#22C55E; }
+.rdx-docqueue-item .rdx-dq-name { max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+.rdx-docqueue-item .rdx-dq-badge { font-size:9.5px; font-weight:800; padding:1px 5px; border-radius:20px; background:rgba(245,158,11,0.16); color:#F59E0B; flex-shrink:0; }
+.rdx-docqueue-item.done .rdx-dq-badge { background:rgba(34,197,94,0.16); color:#22C55E; }
+.rdx-docqueue-item .rdx-dq-remove { display:flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; color:var(--text3); flex-shrink:0; }
+.rdx-docqueue-item .rdx-dq-remove:hover { background:rgba(239,68,68,0.15); color:#EF4444; }
+.rdx-docqueue-actions { display:flex; gap:6px; flex-shrink:0; }
+.rdx-docqueue-add, .rdx-docqueue-smart { display:flex; align-items:center; justify-content:center; gap:4px; padding:5px 10px; border-radius:8px; border:1.5px dashed var(--pdfed-panel-border); background:transparent; cursor:pointer; font-size:11px; font-weight:700; color:var(--text3); flex-shrink:0; transition:all .15s; white-space:nowrap; }
+.rdx-docqueue-add:hover { border-color:var(--blue); color:var(--blue); }
+.rdx-docqueue-smart { border-style:solid; }
+.rdx-docqueue-smart:hover { border-color:var(--blue); color:var(--blue); }
+.rdx-docqueue-smart.primary { border-color:var(--blue); background:rgba(0,194,255,0.1); color:var(--blue); }
+.rdx-docqueue-smart.primary:hover { background:var(--blue); color:#fff; }
+.rdx-docqueue-smart:disabled { opacity:0.45; cursor:not-allowed; }
+.rdx-docqueue-smart:disabled:hover { border-color:var(--pdfed-panel-border); background:transparent; color:var(--text3); }
+.rdx-docqueue-smart.primary:disabled:hover { border-color:var(--blue); background:rgba(0,194,255,0.1); color:var(--blue); }
+
+.rdx-canvas-area { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--pdfed-canvas-area-bg); }
+.rdx-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid var(--pdfed-toolbar-border); background:var(--pdfed-toolbar-bg); flex-shrink:0; }
+.rdx-btn {
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--text);
+  background:var(--pdfed-btn-bg); border:1px solid var(--pdfed-toolbar-border); border-radius:8px; padding:7px 12px;
+  cursor:pointer; transition:background .12s;
+}
+.rdx-btn:hover { background:var(--pdfed-btn-hover); }
+.rdx-btn:disabled { opacity:.4; cursor:not-allowed; }
+.rdx-btn.primary { background:linear-gradient(135deg, var(--blue), var(--purple)); border-color:transparent; color:#fff; }
+.rdx-btn.danger { color:#f87171; }
+.rdx-btn.active-toggle { background:rgba(0,194,255,0.18); border-color:var(--blue); color:var(--blue); }
+.rdx-select {
+  font-size:12px; font-weight:600; color:var(--text); background:var(--pdfed-btn-bg); border:1px solid var(--pdfed-toolbar-border);
+  border-radius:8px; padding:7px 10px; cursor:pointer;
+}
+.rdx-toolbar-sep { width:1px; height:22px; background:var(--pdfed-toolbar-border); margin:0 2px; }
+.rdx-page-nav { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2); font-weight:600; }
+.rdx-spacer { flex:1; }
+
+.rdx-canvas-scroll { flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:26px; }
+.rdx-canvas-wrap { position:relative; display:inline-block; box-shadow:0 8px 30px rgba(0,0,0,0.35); }
+.rdx-page-canvas { display:block; max-width:100%; height:auto; background:#fff; }
+.rdx-overlay { position:absolute; left:0; top:0; }
+.rdx-overlay.manual-mode { cursor:crosshair; }
+
+.rdx-box { position:absolute; border:2px solid var(--rdx-other); background:rgba(148,163,184,0.18); border-radius:2px; cursor:move; }
+.rdx-box.selected { box-shadow:0 0 0 2px rgba(255,255,255,0.5) inset; }
+.rdx-box:not(.selected) { opacity:.45; border-style:dashed; }
+.rdx-box.rdx-cat-name { border-color:var(--rdx-name); background:rgba(245,158,11,0.16); }
+.rdx-box.rdx-cat-address { border-color:var(--rdx-address); background:rgba(139,92,246,0.16); }
+.rdx-box.rdx-cat-bank { border-color:var(--rdx-bank); background:rgba(16,185,129,0.16); }
+.rdx-box.rdx-cat-govid { border-color:var(--rdx-govid); background:rgba(239,68,68,0.16); }
+.rdx-box.rdx-cat-license { border-color:var(--rdx-license); background:rgba(0,194,255,0.16); }
+.rdx-box.rdx-cat-signature { border-color:var(--rdx-signature); background:rgba(236,72,153,0.16); }
+.rdx-box.rdx-cat-phone { border-color:var(--rdx-phone); background:rgba(59,130,246,0.16); }
+.rdx-box.rdx-cat-email { border-color:var(--rdx-email); background:rgba(20,184,166,0.16); }
+.rdx-box.rdx-cat-dob { border-color:var(--rdx-dob); background:rgba(251,146,60,0.16); }
+.rdx-box.rdx-cat-photo { border-color:var(--rdx-photo); background:rgba(163,230,53,0.16); }
+.rdx-box-tag { position:absolute; top:-18px; left:-2px; font-size:9px; font-weight:800; color:#fff; background-color:var(--rdx-other); padding:1px 5px; border-radius:4px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .1s; }
+.rdx-box.rdx-cat-name .rdx-box-tag { background-color:var(--rdx-name); }
+.rdx-box.rdx-cat-address .rdx-box-tag { background-color:var(--rdx-address); }
+.rdx-box.rdx-cat-bank .rdx-box-tag { background-color:var(--rdx-bank); }
+.rdx-box.rdx-cat-govid .rdx-box-tag { background-color:var(--rdx-govid); }
+.rdx-box.rdx-cat-license .rdx-box-tag { background-color:var(--rdx-license); }
+.rdx-box.rdx-cat-signature .rdx-box-tag { background-color:var(--rdx-signature); }
+.rdx-box.rdx-cat-phone .rdx-box-tag { background-color:var(--rdx-phone); }
+.rdx-box.rdx-cat-email .rdx-box-tag { background-color:var(--rdx-email); }
+.rdx-box.rdx-cat-dob .rdx-box-tag { background-color:var(--rdx-dob); }
+.rdx-box.rdx-cat-photo .rdx-box-tag { background-color:var(--rdx-photo); }
+.rdx-box:hover .rdx-box-tag, .rdx-box.selected .rdx-box-tag { opacity:1; }
+.rdx-box-del { position:absolute; top:-9px; right:-9px; width:17px; height:17px; border-radius:50%; background:#f87171; color:#fff; font-size:12px; line-height:16px; text-align:center; cursor:pointer; font-weight:700; display:none; }
+.rdx-box:hover .rdx-box-del { display:block; }
+.rdx-box-handle { position:absolute; width:9px; height:9px; background:#fff; border:2px solid var(--blue); border-radius:50%; display:none; }
+.rdx-box:hover .rdx-box-handle, .rdx-box.selected .rdx-box-handle { display:block; }
+.rdx-h-nw { left:-6px; top:-6px; cursor:nwse-resize; }
+.rdx-h-ne { right:-6px; top:-6px; cursor:nesw-resize; }
+.rdx-h-sw { left:-6px; bottom:-6px; cursor:nesw-resize; }
+.rdx-h-se { right:-6px; bottom:-6px; cursor:nwse-resize; }
+
+/* ---- right sidebar: detected items ---- */
+.rdx-side { width:280px; flex-shrink:0; border-left:1px solid var(--pdfed-panel-border); background:var(--pdfed-panel-bg); display:flex; flex-direction:column; min-height:0; }
+.rdx-side-head { padding:14px 16px 10px; border-bottom:1px solid var(--pdfed-panel-border); flex-shrink:0; }
+.rdx-side-head h4 { font-size:12.5px; font-weight:800; color:var(--text); margin:0 0 2px; text-transform:uppercase; letter-spacing:.4px; }
+.rdx-side-head span { font-size:11px; color:var(--text3); }
+.rdx-side-list { flex:1; overflow-y:auto; padding:8px 10px 16px; }
+.rdx-empty-list { font-size:12px; color:var(--text3); text-align:center; padding:30px 12px; line-height:1.7; }
+.rdx-cat-group { margin-bottom:10px; border:1px solid var(--pdfed-section-border); border-radius:10px; overflow:hidden; }
+.rdx-cat-header { display:flex; align-items:center; padding:8px 10px; background:var(--pdfed-section-bg); }
+.rdx-cat-check { display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--text); cursor:pointer; width:100%; }
+.rdx-cat-count { margin-left:auto; font-size:10px; color:var(--text3); font-weight:700; background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:8px; }
+.rdx-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
+.rdx-dot-name { background:var(--rdx-name); }
+.rdx-dot-address { background:var(--rdx-address); }
+.rdx-dot-bank { background:var(--rdx-bank); }
+.rdx-dot-govid { background:var(--rdx-govid); }
+.rdx-dot-license { background:var(--rdx-license); }
+.rdx-dot-signature { background:var(--rdx-signature); }
+.rdx-dot-phone { background:var(--rdx-phone); }
+.rdx-dot-email { background:var(--rdx-email); }
+.rdx-dot-dob { background:var(--rdx-dob); }
+.rdx-dot-photo { background:var(--rdx-photo); }
+.rdx-dot-other { background:var(--rdx-other); }
+.rdx-item { display:flex; align-items:center; gap:7px; padding:6px 10px; font-size:11.5px; color:var(--text2); cursor:default; }
+.rdx-item:hover { background:var(--pdfed-btn-hover); }
+.rdx-item-text { flex:1; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rdx-item-text:hover { color:var(--blue); }
+.rdx-item-conf { font-size:9.5px; color:var(--text3); flex-shrink:0; }
+
+/* ---- review / scan progress modal ---- */
+.rdx-modal-backdrop { position:fixed; inset:0; background:rgba(4,8,18,0.65); backdrop-filter:blur(3px); z-index:900; display:none; align-items:center; justify-content:center; }
+.rdx-modal { width:420px; max-width:92vw; background:var(--pdfed-panel-bg); border:1px solid var(--pdfed-panel-border); border-radius:16px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+
+/* ── Folder grid modal — opened from a folder tab, shows every document of
+   that type as a thumbnail card so a batch of several Aadhaars/PANs can be
+   browsed and picked instead of scrolling one long flat list. ── */
+.rdx-grid-modal { width:860px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column; padding:0; overflow:hidden; }
+.rdx-grid-modal-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 20px; border-bottom:1px solid var(--pdfed-panel-border); flex-wrap:wrap; flex-shrink:0; }
+.rdx-grid-modal-title { font-weight:800; font-size:15px; color:var(--text); }
+.rdx-grid-modal-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.rdx-grid-selectall { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text2); cursor:pointer; user-select:none; }
+.rdx-grid-selectall input { width:14px; height:14px; cursor:pointer; }
+.rdx-grid-selcount { font-size:12px; color:var(--text3); min-width:60px; }
+.rdx-grid-body { flex:1; min-height:0; overflow-y:auto; padding:18px 20px; display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:16px; align-content:start; }
+.rdx-grid-empty { grid-column:1/-1; text-align:center; color:var(--text3); padding:40px 0; font-size:13px; }
+.rdx-grid-card { position:relative; display:flex; flex-direction:column; align-items:center; gap:7px; padding:10px; border-radius:14px; border:1.5px solid var(--pdfed-panel-border); background:var(--pdfed-section-bg); transition:all .15s; }
+.rdx-grid-card:hover { border-color:var(--border2); transform:translateY(-2px); }
+.rdx-grid-card.active { border-color:var(--blue); box-shadow:0 0 0 1.5px var(--blue) inset; }
+.rdx-grid-card-check { position:absolute; top:8px; left:8px; z-index:2; width:22px; height:22px; display:flex; align-items:center; justify-content:center; background:rgba(4,8,18,0.55); border-radius:6px; cursor:pointer; }
+.rdx-grid-card-check input { width:15px; height:15px; cursor:pointer; }
+.rdx-grid-card-thumb { width:100%; aspect-ratio:3/4; border-radius:10px; overflow:hidden; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.25); }
+.rdx-grid-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.rdx-grid-card-noimg { font-size:11px; color:var(--text3); }
+.rdx-grid-card-status { font-size:10px; font-weight:800; padding:2px 9px; border-radius:20px; letter-spacing:.2px; }
+.rdx-grid-card-status.rdx-gcs-pending { background:rgba(148,163,184,0.15); color:var(--text3); }
+.rdx-grid-card-status.rdx-gcs-found { background:rgba(245,158,11,0.16); color:#F59E0B; }
+.rdx-grid-card-status.rdx-gcs-clean { background:rgba(34,197,94,0.14); color:#22C55E; }
+.rdx-grid-card-status.rdx-gcs-done { background:rgba(0,194,255,0.14); color:var(--blue); }
+.rdx-grid-card-name { font-size:11.5px; font-weight:800; color:var(--blue); text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ── Single-document editor popup — the real redaction workspace (thumbs +
+   canvas + sidebar) gets moved into this modal when a grid card is clicked,
+   so manual box dragging/resizing happens in a focused popup rather than
+   navigating away from the folder grid; closing it moves the workspace
+   back to its normal inline spot. ── */
+.rdx-doceditor-modal { width:96vw; height:92vh; max-width:1400px; display:flex; flex-direction:column; padding:0; overflow:hidden; }
+.rdx-doceditor-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--pdfed-panel-border); flex-shrink:0; }
+.rdx-doceditor-head-title { font-weight:800; font-size:14px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rdx-doceditor-body { flex:1; min-height:0; display:flex; }
+.rdx-modal-icon { width:44px; height:44px; border-radius:12px; background:rgba(0,194,255,0.14); color:var(--blue); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+.rdx-modal h3 { font-size:16px; font-weight:800; color:var(--text); margin:0 0 6px; }
+.rdx-modal p.rdx-modal-sub { font-size:12px; color:var(--text2); margin:0 0 16px; line-height:1.6; }
+.rdx-modal-breakdown { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; max-height:220px; overflow-y:auto; }
+.rdx-modal-breakdown-row { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); background:var(--surface); border-radius:8px; padding:7px 10px; }
+.rdx-modal-breakdown-row span:last-child { margin-left:auto; font-weight:800; color:var(--text2); }
+.rdx-modal-breakdown-check { cursor:pointer; user-select:none; }
+.rdx-modal-breakdown-check:hover { background:var(--surface2, var(--surface)); }
+.rdx-modal-breakdown-check input[type="checkbox"] { width:15px; height:15px; flex:none; accent-color:var(--brand, #0068F8); cursor:pointer; }
+.rdx-modal-actions { display:flex; gap:8px; }
+.rdx-modal-actions .rdx-btn { flex:1; justify-content:center; padding:10px; }
+
+.rdx-progress-card {
+  position:fixed; bottom:20px; right:20px; z-index:950; width:260px; background:var(--pdfed-panel-bg);
+  border:1px solid var(--pdfed-panel-border); border-radius:12px; padding:14px 16px; box-shadow:0 12px 30px rgba(0,0,0,0.4);
+  display:none;
+}
+.rdx-progress-row { display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+.rdx-progress-spinner { width:16px; height:16px; border-radius:50%; border:2.5px solid rgba(0,194,255,0.25); border-top-color:var(--blue); animation:rdxspin .8s linear infinite; flex-shrink:0; }
+@keyframes rdxspin { to { transform:rotate(360deg); } }
+.rdx-progress-label { font-size:12px; font-weight:600; color:var(--text); flex:1; }
+.rdx-progress-pct { font-size:11px; font-weight:700; color:var(--blue); }
+.rdx-progress-track { height:5px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden; }
+.rdx-progress-fill { height:100%; background:linear-gradient(90deg, var(--blue), var(--purple)); width:4%; transition:width .2s; }
+
+/* ── Premium OCR shimmer — plays directly over the document canvas while
+   a page is being read, on top of (not instead of) the corner progress
+   card, so the "processing" feeling lives on the file itself: a soft
+   diagonal light sweep, a scanning laser line travelling top-to-bottom,
+   pulsing viewfinder corners, and a small status pill. Purely visual —
+   pointer-events:none so it never blocks the canvas underneath. ── */
+.rdx-canvas-shimmer {
+  position:absolute; inset:0; z-index:40; display:none;
+  overflow:hidden; pointer-events:none;
+  background:rgba(8,13,26,0.14);
+}
+.rdx-canvas-shimmer.active { display:block; }
+.rdx-shimmer-sweep {
+  position:absolute; inset:0;
+  background:linear-gradient(115deg, transparent 32%, rgba(255,255,255,0.30) 48%, rgba(0,194,255,0.22) 52%, transparent 68%);
+  background-size:260% 100%;
+  animation: rdxShimmerSweep 2.2s ease-in-out infinite;
+}
+@keyframes rdxShimmerSweep {
+  0%   { background-position: 140% 0; }
+  100% { background-position: -140% 0; }
+}
+.rdx-shimmer-scanline {
+  position:absolute; left:0; right:0; top:0; height:2px;
+  background:linear-gradient(90deg, transparent, var(--blue) 20%, #fff 50%, var(--blue) 80%, transparent);
+  box-shadow:0 0 16px 3px rgba(0,194,255,0.6), 0 0 4px rgba(255,255,255,0.75);
+  animation: rdxShimmerScan 2.6s cubic-bezier(.45,0,.55,1) infinite;
+}
+@keyframes rdxShimmerScan {
+  0%     { top:0%;   opacity:0; }
+  6%     { opacity:1; }
+  50%    { top:100%; opacity:1; }
+  56%    { opacity:0; }
+  56.01% { top:0%; }
+  100%   { top:0%;   opacity:0; }
+}
+.rdx-shimmer-corner {
+  position:absolute; width:22px; height:22px; border:2px solid var(--blue);
+  opacity:0.5; filter:drop-shadow(0 0 4px rgba(0,194,255,0.55));
+  animation: rdxShimmerPulse 1.8s ease-in-out infinite;
+}
+.rdx-shimmer-corner.tl { top:10px; left:10px; border-right:none; border-bottom:none; border-radius:4px 0 0 0; }
+.rdx-shimmer-corner.tr { top:10px; right:10px; border-left:none; border-bottom:none; border-radius:0 4px 0 0; }
+.rdx-shimmer-corner.bl { bottom:10px; left:10px; border-right:none; border-top:none; border-radius:0 0 0 4px; }
+.rdx-shimmer-corner.br { bottom:10px; right:10px; border-left:none; border-top:none; border-radius:0 0 4px 0; }
+.rdx-shimmer-corner.tr, .rdx-shimmer-corner.bl { animation-delay:.3s; }
+.rdx-shimmer-corner.br { animation-delay:.6s; }
+@keyframes rdxShimmerPulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+.rdx-shimmer-pill {
+  position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:7px; max-width:calc(100% - 32px);
+  background:rgba(4,8,18,0.72); backdrop-filter:blur(6px);
+  border:1px solid rgba(0,194,255,0.35); border-radius:99px;
+  padding:6px 14px; font-size:11.5px; font-weight:700; color:#fff;
+  letter-spacing:.2px; box-shadow:0 6px 18px rgba(0,0,0,0.35);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.rdx-shimmer-dot { width:6px; height:6px; border-radius:50%; background:var(--blue); box-shadow:0 0 8px 2px rgba(0,194,255,0.8); animation: rdxShimmerDot 1s ease-in-out infinite; flex-shrink:0; }
+@keyframes rdxShimmerDot { 0%,100% { opacity:0.35; transform:scale(0.8); } 50% { opacity:1; transform:scale(1.15); } }
+
+.rdx-mask-note { font-size:10.5px; color:var(--text3); padding:0 14px 8px; }
+
+@media (max-width: 900px) {
+  .rdx-side { display:none; }
+  .rdx-thumbs { width:64px; }
+}

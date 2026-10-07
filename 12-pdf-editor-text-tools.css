@@ -1,0 +1,433 @@
+/* Floating font-formatting toolbar for placed text boxes.
+   Sized/spaced deliberately generous (not the raw minimum) because this
+   toolbar is a fixed, real-pixel-size UI element that never scales with the
+   page's zoom level — on a small or square-format page (low zoom-to-fit) it
+   sits right next to a much bigger, zoomed page, so it needs enough visual
+   weight and click-target size to still read as a clear, professional
+   control rather than a cramped afterthought. */
+.pdfed-ptxt-toolbar {
+  position: absolute; z-index: 20; display: flex; align-items: center; gap: 5px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 6px 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.32);
+  pointer-events: auto; backdrop-filter: blur(6px);
+  transition: top .12s ease, left .12s ease;
+}
+.pdfed-ptxt-tb-select {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  font-size: 12.5px; border-radius: 6px; padding: 6px 8px; cursor: pointer;
+  max-width: 130px; height: 30px; box-sizing: border-box; font-family: 'Inter', sans-serif;
+}
+.pdfed-ptxt-tb-size {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  font-size: 12.5px; border-radius: 6px; padding: 6px 4px; width: 50px; height: 30px;
+  box-sizing: border-box; text-align: center; font-family: 'Inter', sans-serif;
+}
+.pdfed-ptxt-tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 3px; }
+.pdfed-ptxt-tb-btn {
+  width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.1s;
+}
+.pdfed-ptxt-tb-btn:hover { background: var(--surface2); color: var(--text); }
+.pdfed-ptxt-tb-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.pdfed-ptxt-tb-color {
+  width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; background: transparent;
+}
+.pdfed-ptxt-tb-color::-webkit-color-swatch-wrapper { padding: 2px; }
+.pdfed-ptxt-tb-color::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+/* Text gradient trigger button + its popover — lets a placed text box's fill
+   switch from a flat color to a two-stop gradient, mirroring the existing
+   Canvas recolor/gradient panel's Solid/Gradient pattern but scoped to a
+   single text box instead of the whole page. */
+.pdfed-ptxt-tb-btn.pdfed-ptxt-grad-btn.active {
+  background: linear-gradient(90deg, #00C2FF, #7C3AED); color: #fff; border-color: transparent;
+}
+.pdfed-ptxt-grad-popover {
+  position: fixed; z-index: 9999; display: none; flex-direction: column; gap: 10px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  pointer-events: auto; backdrop-filter: blur(6px); font-family: 'Inter', sans-serif;
+  width: 190px;
+}
+.pdfed-ptxt-grad-popover.show { display: flex; }
+.pdfed-ptxt-grad-preview {
+  height: 26px; border-radius: 6px; border: 1px solid var(--border);
+}
+.pdfed-ptxt-grad-row { display: flex; align-items: center; gap: 8px; }
+.pdfed-ptxt-grad-row label { font-size: 10.5px; color: var(--text2); font-weight: 700; flex: 1; }
+.pdfed-ptxt-grad-row input[type=color] {
+  width: 30px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 5px;
+  cursor: pointer; background: transparent;
+}
+.pdfed-ptxt-grad-angles { display: flex; gap: 6px; }
+.pdfed-ptxt-grad-angles button {
+  flex: 1; padding: 5px 0; font-size: 12px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); cursor: pointer;
+}
+.pdfed-ptxt-grad-angles button:hover, .pdfed-ptxt-grad-angles button.active {
+  background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent);
+}
+.pdfed-ptxt-grad-remove {
+  font-size: 11px; font-weight: 700; color: var(--text2); background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 0; cursor: pointer;
+}
+.pdfed-ptxt-grad-remove:hover { color: #E5484D; border-color: rgba(229,72,77,0.35); background: rgba(229,72,77,0.10); }
+
+/* Bulleted list inside a placed text box: tight, evenly-spaced markers that
+   sit close to the text (not the browser's default oversized indent), and a
+   marker color that always matches the run it belongs to. */
+.pdfed-ptxt-content ul {
+  margin: 0; padding: 0; list-style: none;
+}
+.pdfed-ptxt-content ul li {
+  position: relative; margin: 0 0 0.28em 0; padding-left: 1.1em;
+}
+.pdfed-ptxt-content ul li:last-child { margin-bottom: 0; }
+.pdfed-ptxt-content ul li::before {
+  content: "•"; position: absolute; left: 0; top: 0;
+  color: currentColor; font-weight: 700;
+}
+
+/* ── Opacity slider, shared visual language across the text formatting
+   toolbar and the standalone popover used for images/tables ── */
+.pdfed-opacity-slider {
+  -webkit-appearance: none; appearance: none; width: 70px; height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--blue));
+  background-color: var(--bg3); cursor: pointer; margin: 0 2px;
+}
+.pdfed-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--blue); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.pdfed-opacity-slider::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--blue);
+  cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.pdfed-ptxt-tb-opacity-val {
+  font-size: 11.5px; font-weight: 600; color: var(--text2); min-width: 34px; text-align: center; font-family: 'Inter', sans-serif;
+}
+.pdfed-opacity-popover {
+  position: fixed; z-index: 9999; display: none; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  pointer-events: auto; backdrop-filter: blur(6px); font-family: 'Inter', sans-serif;
+}
+.pdfed-opacity-popover.show { display: flex; }
+.pdfed-opacity-popover-label {
+  font-size: 10.5px; font-weight: 700; color: var(--text2); white-space: nowrap;
+}
+.pdfed-opacity-popover .pdfed-opacity-slider { width: 90px; }
+.pdfed-opacity-popover-val {
+  font-size: 11px; font-weight: 700; color: var(--text); min-width: 34px; text-align: right;
+}
+
+/* ── Live border-color popover — small floating swatch + hex field, opened
+   from a placed border's own "Color" badge, mirrors the opacity popover's
+   look/positioning but edits color instead of alpha ── */
+.pdfed-border-color-popover {
+  position: fixed; z-index: 9999; display: none; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  pointer-events: auto; backdrop-filter: blur(6px); font-family: 'Inter', sans-serif;
+}
+.pdfed-border-color-popover.show { display: flex; }
+.pdfed-border-color-popover input[type=color] {
+  width: 26px; height: 26px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 6px;
+  padding: 0; cursor: pointer; background: none; flex-shrink: 0;
+}
+.pdfed-border-color-popover input[type=text] {
+  width: 76px; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 5px 7px; font-family: 'Inter', sans-serif; font-size: 11px;
+  font-weight: 600; text-transform: uppercase; outline: none;
+}
+
+/* zoom controls */
+.pdfed-zoom-controls {
+  display: flex; align-items: center; gap: 6px;
+}
+.pdfed-zoom-btn {
+  width: 26px; height: 26px; border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text2); font-size: 14px;
+  transition: all 0.1s;
+}
+.pdfed-zoom-btn:hover { background: var(--surface2); color: var(--text); }
+.pdfed-zoom-val { font-size: 11px; color: var(--text2); min-width: 36px; text-align: center; }
+
+/* ── Zoom level flash badge (Canva-style) ── */
+#pdfedZoomBadge {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 200;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.10);
+  white-space: nowrap;
+}
+#pdfedZoomBadge.show { opacity: 1; }
+
+/* ── Quick search (Ctrl+F) ── */
+.pdfed-search-bar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 210;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10,15,30,0.92);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 6px 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+  backdrop-filter: blur(10px);
+  font-family: 'Inter', sans-serif;
+  animation: pdfedSearchIn 0.15s ease-out;
+}
+[data-theme="light"] .pdfed-search-bar,
+.theme-light .pdfed-search-bar { background: rgba(240,246,255,0.95); }
+.pdfed-search-bar.show { display: flex; }
+@keyframes pdfedSearchIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pdfed-search-bar input {
+  width: 170px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  padding: 6px 8px;
+  outline: none;
+}
+.pdfed-search-bar input:focus { border-color: var(--border2); }
+
+/* ── Duplicate / Delete page quick actions (top-right, above canvas) ── */
+.pdfed-page-actions {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 205;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(20,26,42,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 4px;
+  box-shadow: 0 4px 20px rgba(0,194,255,0.18), 0 2px 10px rgba(0,0,0,0.35);
+  backdrop-filter: blur(10px);
+}
+[data-theme="light"] .pdfed-page-actions,
+.theme-light .pdfed-page-actions { background: rgba(255,255,255,0.65); box-shadow: 0 4px 20px rgba(0,115,230,0.15), 0 2px 10px rgba(0,0,0,0.08); }
+.pdfed-page-actions.show { display: flex; }
+.pdfed-page-actions.hide-for-search { display: none !important; }
+.pdfed-pgact-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pdfed-pgact-btn:hover { background: rgba(0,194,255,0.16); color: var(--cyan); box-shadow: 0 0 10px rgba(0,194,255,0.35); }
+.pdfed-pgact-btn.danger:hover { background: rgba(255,80,80,0.16); color: #ff5c5c; box-shadow: 0 0 10px rgba(255,80,80,0.35); }
+.pdfed-pgact-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.pdfed-pgact-btn svg { flex-shrink: 0; }
+.pdfed-pgact-btn.comparing { background: rgba(0,194,255,0.22); color: var(--cyan); animation: pdfedComparePulse 2.2s ease-in-out infinite; }
+@keyframes pdfedComparePulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(0,194,255,0.35); }
+  50%      { box-shadow: 0 0 18px rgba(0,194,255,0.6); }
+}
+.pdfed-pgact-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.12); flex-shrink: 0; }
+[data-theme="light"] .pdfed-pgact-sep,
+.theme-light .pdfed-pgact-sep { background: rgba(0,0,0,0.1); }
+.pdfed-search-count {
+  font-size: 11px;
+  color: var(--text3);
+  min-width: 46px;
+  text-align: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pdfed-search-btn {
+  width: 24px; height: 24px; border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text2); flex-shrink: 0;
+  transition: all 0.1s;
+}
+.pdfed-search-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+.pdfed-search-btn:disabled { opacity: 0.35; cursor: default; }
+.pdfed-search-btn:disabled:hover { background: var(--surface); color: var(--text2); border-color: var(--border); }
+
+.pdfed-search-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  transform-origin: top left;
+  z-index: 6;
+}
+.pdfed-search-mark {
+  position: absolute;
+  background: rgba(255, 224, 0, 0.45);
+  border: 1px solid rgba(255, 193, 7, 0.7);
+  border-radius: 2px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.pdfed-search-mark.active {
+  background: rgba(255, 138, 0, 0.55);
+  border: 1.5px solid #FF8A00;
+  box-shadow: 0 0 0 2px rgba(255,138,0,0.25);
+}
+
+
+.pdfbuild-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+.pdfbuild-canvas-area {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+}
+
+.pdfbuild-drop-zone {
+  border: 2px dashed rgba(0,194,255,0.25); border-radius: 12px;
+  min-height: 120px; padding: 20px;
+  display: flex; flex-wrap: wrap; gap: 12px;
+  transition: all 0.2s; margin-bottom: 16px;
+}
+.pdfbuild-drop-zone.dragover-zone {
+  border-color: var(--blue); background: rgba(0,194,255,0.05);
+}
+.pdfbuild-drop-zone.empty-hint {
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 8px; color: var(--text3);
+}
+.pdfbuild-drop-zone.empty-hint .dz-icon { font-size: 36px; opacity: 0.35; }
+.pdfbuild-drop-zone.empty-hint p { font-size: 12px; }
+
+/* draggable page cards */
+.pdf-page-card {
+  width: 100px; position: relative;
+  background: var(--bg3); border: 2px solid var(--border);
+  border-radius: 8px; overflow: hidden; cursor: grab;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+.pdf-page-card:hover { border-color: var(--border2); }
+.pdf-page-card.dragging-card { opacity: 0.4; transform: scale(0.95); }
+.pdf-page-card.drag-over-card { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,194,255,0.25); }
+.pdf-page-card img { width: 100%; height: 70px; object-fit: cover; display: block; pointer-events: none; }
+.pdf-page-label {
+  font-size: 9px; color: var(--text2); text-align: center;
+  padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pdf-page-num {
+  position: absolute; top: 4px; left: 4px;
+  background: rgba(0,0,0,0.65); color: white;
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+}
+.pdf-page-remove {
+  position: absolute; top: 3px; right: 3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(239,68,68,0.8); color: white;
+  font-size: 9px; display: none; align-items: center; justify-content: center;
+  cursor: pointer; border: none; line-height: 1;
+}
+.pdf-page-card:hover .pdf-page-remove { display: flex; }
+
+.pdfbuild-add-row {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
+}
+
+/* settings panel */
+.pdfbuild-settings {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: sticky; top: 16px;
+}
+.pdfbuild-settings h4 {
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px; color: var(--text2);
+  margin-bottom: 2px;
+}
+.setting-row { display: flex; flex-direction: column; gap: 5px; }
+.setting-row label { font-size: 11px; color: var(--text2); }
+.setting-row select, .setting-row input[type=text] {
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 7px 10px; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 12px; outline: none;
+  transition: border 0.2s; width: 100%;
+}
+.setting-row select:focus, .setting-row input[type=text]:focus { border-color: var(--border2); }
+.setting-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.toggle-switch {
+  width: 34px; height: 18px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 99px;
+  cursor: pointer; position: relative; transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-switch.on { background: var(--blue); border-color: var(--blue); }
+.toggle-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; background: white; border-radius: 50%;
+  transition: left 0.2s;
+}
+.toggle-switch.on::after { left: 18px; }
+
+.pdf-page-counter {
+  background: rgba(0,194,255,0.08); border: 1px solid rgba(0,194,255,0.2);
+  border-radius: 8px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text2);
+}
+.pdf-page-counter strong { color: var(--blue); font-family: 'Inter', sans-serif; font-size: 18px; margin-right: 2px; }
+
+.pdfbuild-from-extracted {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+}
+.pdfbuild-from-extracted h5 {
+  font-size: 11px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px;
+}
+.extracted-mini-grid {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 6px;
+  max-height: 160px; overflow-y: auto;
+}
+.extracted-mini-thumb {
+  width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px;
+  border: 2px solid transparent; cursor: pointer; transition: border 0.15s;
+}
+.extracted-mini-thumb:hover { border-color: var(--blue); }
+.extracted-mini-thumb.in-pdf { border-color: var(--green); opacity: 0.6; }

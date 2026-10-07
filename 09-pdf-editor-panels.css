@@ -1,0 +1,248 @@
+/* ─── Assets library (right panel) ───
+   Folder-style browser for auto-stored images/logos/signatures. Mirrors the
+   Canvas Color section's collapsible header pattern. */
+.sarvarc-assets-tabbar {
+  display: flex; gap: 4px; margin-bottom: 10px;
+  background: var(--bg3); border-radius: 7px; padding: 3px;
+}
+.sarvarc-assets-tab {
+  flex: 1; border: none; background: transparent; color: var(--text2);
+  font-size: 10.5px; font-weight: 600; padding: 6px 4px; border-radius: 5px;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.sarvarc-assets-tab:hover { color: var(--text); }
+.sarvarc-assets-tab.active { background: var(--pdfed-panel-bg, #fff); color: var(--blue); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.sarvarc-assets-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  max-height: 260px; overflow-y: auto; padding-right: 2px;
+}
+.sarvarc-asset-tile {
+  position: relative; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden;
+  background: #fff; border: 1px solid var(--border); cursor: pointer;
+}
+.sarvarc-asset-tile img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
+.sarvarc-asset-del {
+  position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(20,20,25,.65); color: #fff; border: none; display: flex;
+  align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity .12s;
+}
+.sarvarc-asset-tile:hover .sarvarc-asset-del { opacity: 1; }
+.sarvarc-asset-check {
+  position: absolute; top: 3px; left: 3px; z-index: 2; width: 15px; height: 15px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.sarvarc-asset-check input { accent-color: var(--blue); width: 13px; height: 13px; cursor: pointer; margin: 0; }
+
+/* ─── Asset client folders — a horizontal chip row above the grid, "All"
+   plus one chip per folder the person created (Prayag, Ajay, Vijay, etc.),
+   so a freelancer juggling several clients' logos/signatures/images never
+   has to eyeball which asset belongs to which project. Selecting a chip
+   filters the grid below to just that client; right-clicking a folder chip
+   opens rename/delete (reuses the same pdfedOpenCtxMenu system as the
+   right-click menu on canvas objects, for a consistent feel). Assigning an
+   asset TO a folder happens the other way round — right-click the asset
+   tile itself, see sarvarcAssetContextMenu below. */
+.sarvarc-asset-folders {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px;
+}
+.sarvarc-asset-folder-chip {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--text2);
+  background: var(--bg3); border: 1px solid transparent;
+  border-radius: 22px; padding: 8px 16px; cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s, transform .12s;
+  white-space: nowrap;
+}
+.sarvarc-asset-folder-chip:hover { color: var(--text); background: var(--surface2); transform: translateY(-1px); }
+.sarvarc-asset-folder-chip.active { background: rgba(0,194,255,0.14); color: var(--blue); border-color: rgba(0,194,255,0.35); }
+.sarvarc-asset-folder-chip svg { flex-shrink: 0; width: 15px; height: 15px; }
+.sarvarc-asset-folder-add { color: var(--blue); background: transparent; border: 1px dashed var(--border2); }
+.sarvarc-asset-folder-add:hover { background: rgba(0,194,255,0.08); border-color: var(--blue); }
+/* Drop target pulse — briefly rings a folder chip (or the Assets tab, when
+   the panel isn't open on the folders row) once the flying dot from
+   pdfedFlyDotToClientFolder lands on it, confirming "it arrived here". */
+.pdfed-asset-target-pulse { animation: pdfedTargetPulse .55s ease; }
+@keyframes pdfedTargetPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,194,255,0.55); }
+  100% { box-shadow: 0 0 0 14px rgba(0,194,255,0); }
+}
+
+/* ─── Right panel tabbar: icon-only, title reveals on hover ───
+   Compact, icon-first tabs (Panel / Assets / My Notes). The active tab keeps
+   its label visible as a quiet anchor; every tab expands with a smooth
+   slide + fade on hover, with a gentle icon lift for a premium feel. */
+.pdfed-right-tabbar {
+  display: flex; gap: 6px; padding: 10px 12px 0 12px; flex-shrink: 0;
+}
+.pdfed-right-tab {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 0;
+  font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.3px; padding: 8px 9px; border-radius: 8px 8px 0 0;
+  background: transparent; border: 1px solid transparent;
+  border-bottom: none; color: var(--text3); cursor: pointer;
+  transition: color .2s ease, background .25s ease, border-color .25s ease, padding .3s cubic-bezier(.4,0,.2,1);
+}
+.pdfed-right-tab-icon {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.pdfed-right-tab-label {
+  display: inline-block; max-width: 0; opacity: 0; overflow: hidden;
+  white-space: nowrap; margin-left: 0;
+  transition: max-width .32s cubic-bezier(.4,0,.2,1), opacity .2s ease .04s, margin-left .32s cubic-bezier(.4,0,.2,1);
+}
+.pdfed-right-tab:hover {
+  color: var(--text2); background: var(--pdfed-section-bg); border-color: var(--pdfed-section-border);
+}
+.pdfed-right-tab:hover .pdfed-right-tab-icon { transform: translateY(-1px) scale(1.08); }
+.pdfed-right-tab:hover .pdfed-right-tab-label,
+.pdfed-right-tab.active .pdfed-right-tab-label {
+  max-width: 110px; opacity: 1; margin-left: 6px;
+}
+.pdfed-right-tab.active {
+  color: var(--cyan); background: var(--pdfed-section-bg);
+  border-color: var(--pdfed-section-border);
+}
+.pdfed-notes-dot {
+  position: absolute; top: -3px; right: -5px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--pdfed-accent, #ff5c5c);
+  box-shadow: 0 0 0 2px var(--pdfed-panel-bg, #fff);
+  display: none;
+}
+.pdfed-notes-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 5px; border-radius: 20px;
+  background: var(--pdfed-accent-bg); color: var(--pdfed-accent);
+  font-size: 9.5px; font-weight: 700; margin-left: 5px; vertical-align: middle;
+}
+.pdfed-notes-badge:empty { display: none; }
+
+/* ─── Notes panel ─── */
+.pdfed-notes-privacy {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border);
+  border-radius: 8px; padding: 9px 11px; margin-bottom: 14px;
+  font-size: 10.5px; line-height: 1.6; color: var(--text2);
+}
+.pdfed-notes-privacy svg { flex-shrink: 0; margin-top: 1px; color: var(--text3); }
+.pdfed-notes-input-row {
+  display: flex; gap: 7px; margin-bottom: 14px;
+}
+.pdfed-notes-input-row input {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 7px; padding: 9px 11px;
+  font-family: 'Inter', sans-serif; font-size: 12px; outline: none;
+  transition: border-color .15s;
+}
+.pdfed-notes-input-row input:focus { border-color: var(--pdfed-accent); }
+.pdfed-notes-input-row button {
+  flex-shrink: 0; background: var(--pdfed-accent);
+  color: #fff; border: none; border-radius: 7px; width: 36px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: opacity .15s;
+}
+.pdfed-notes-input-row button:hover { opacity: 0.85; }
+.pdfed-notes-list { display: flex; flex-direction: column; gap: 7px; }
+.pdfed-note-item {
+  display: flex; align-items: flex-start; gap: 9px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 10px;
+  transition: border-color .15s;
+}
+.pdfed-note-item:hover { border-color: var(--border2); }
+.pdfed-note-check {
+  flex-shrink: 0; width: 16px; height: 16px; border-radius: 5px;
+  border: 1.5px solid var(--text3); margin-top: 1px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: transparent; transition: all .12s;
+}
+.pdfed-note-check:hover { border-color: var(--pdfed-accent); }
+.pdfed-note-item.done .pdfed-note-check { background: var(--green); border-color: var(--green); color: #fff; }
+.pdfed-note-text {
+  flex: 1; font-size: 12px; line-height: 1.55; color: var(--text);
+  word-break: break-word; white-space: pre-wrap; cursor: text;
+}
+.pdfed-note-item.done .pdfed-note-text { color: var(--text3); text-decoration: line-through; }
+.pdfed-note-del {
+  flex-shrink: 0; opacity: 0.35; cursor: pointer; color: var(--text3);
+  padding: 2px; border-radius: 4px; transition: opacity .12s, color .12s;
+}
+.pdfed-note-del:hover { opacity: 1; color: #ef4444; }
+.pdfed-notes-empty {
+  text-align: center; color: var(--text3); font-size: 11.5px;
+  padding: 30px 10px; line-height: 1.7;
+}
+.pdfed-notes-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--pdfed-section-border);
+  font-size: 10.5px; color: var(--text3);
+}
+.pdfed-notes-footer span.clickable { color: var(--pdfed-accent); cursor: pointer; transition: opacity .15s; }
+.pdfed-notes-footer span.clickable:hover { opacity: 0.75; }
+
+/* ─── Canvas right-click context menu ─── */
+.pdfed-ctxmenu {
+  position: fixed; z-index: 900; display: none;
+  min-width: 210px; max-width: 250px; max-height: 80vh; overflow-y: auto;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px;
+  padding: 6px; box-shadow: 0 16px 44px rgba(0,0,0,0.5), var(--glow-blue);
+  backdrop-filter: blur(14px);
+}
+.pdfed-ctxmenu.open { display: block; }
+.pdfed-ctx-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 6px; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 12px; color: var(--text2);
+  white-space: nowrap; user-select: none;
+}
+.pdfed-ctx-item svg { flex-shrink: 0; opacity: 0.85; }
+.pdfed-ctx-item:hover:not(.disabled) { background: rgba(0,194,255,0.12); color: var(--text); }
+.pdfed-ctx-item.disabled { color: var(--text3); cursor: default; opacity: 0.45; }
+.pdfed-ctx-item.danger:hover:not(.disabled) { background: rgba(239,68,68,0.14); color: #ef4444; }
+.pdfed-ctx-item .pdfed-ctx-shortcut { margin-left: auto; font-size: 10px; color: var(--text3); }
+.pdfed-ctx-sep { height: 1px; background: var(--pdfed-section-border); margin: 5px 4px; }
+.pdfed-ctx-label {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
+  color: var(--text3); padding: 6px 9px 3px;
+}
+
+/* Items with a submenu (e.g. "Send to Client Folder" on a placed image's
+   right-click menu) get a trailing chevron; hovering opens #pdfedCtxSubmenu,
+   a second independently-positioned flyout panel — kept as its own fixed
+   element rather than nested inside .pdfed-ctxmenu so it's never clipped by
+   that menu's own scroll area. See pdfedOpenCtxSubmenu. */
+.pdfed-ctx-item.has-submenu .pdfed-ctx-chevron { margin-left: auto; opacity: 0.55; flex-shrink: 0; }
+#pdfedCtxSubmenu { z-index: 901; }
+
+/* ─── Fly-to-folder dot — the little traveling dot shown when a placed
+   image on the canvas is sent straight into a client folder (right-click →
+   Send to Client Folder → pick a folder). It arcs from the click point to
+   the folder chip (or the Assets tab if the panel isn't open on that row)
+   and gives a small bounce right before landing, so the send feels
+   physical rather than just a silent toast. See pdfedFlyDotToClientFolder. */
+.pdfed-fly-dot {
+  position: fixed; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--blue, #00c2ff);
+  box-shadow: 0 0 10px rgba(0,194,255,.85), 0 0 0 3px rgba(0,194,255,.15);
+  z-index: 99999; pointer-events: none; opacity: 0;
+  transform: translate(-50%, -50%);
+}
+.pdfed-fly-dot.flying { animation: pdfedDotFly .78s cubic-bezier(.32,0,.24,1) forwards; }
+@keyframes pdfedDotFly {
+  0%   { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); }
+  65%  { opacity: 1; transform: translate(-50%, -50%) translate(calc(var(--dx) * 0.92), calc(var(--dy) * 0.92 - 18px)) scale(0.85); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.25); }
+  90%  { opacity: 1; transform: translate(-50%, -50%) translate(calc(var(--dx) * 0.985), calc(var(--dy) * 0.985 - 7px)) scale(0.85); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.55); }
+}
+
+.pdfed-upload-placeholder {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 10px;
+  width: 100%; height: 100%; min-height: 400px;
+  padding: 40px;
+  text-align: center;
+  color: var(--text3);
+}
+.pdfed-upload-placeholder .pu-icon { margin-bottom: 4px; }
+.pdfed-upload-placeholder h3 { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 800; color: var(--text2); margin-bottom: 2px; }

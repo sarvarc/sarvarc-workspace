@@ -1,0 +1,81 @@
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE APP SHELL — sidebar becomes a slide-in drawer, topnav compacts,
+   dashboard/content grids reflow to 1–2 columns. This block targets the
+   global shell + dashboard only; the PDF Editor / Make Forms / Diagrams
+   canvases already have (or need their own) dedicated passes since they're
+   precision editing surfaces, not simple reflow-able content.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  html, body { overflow-x: hidden; }
+
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  /* Sidebar: fixed slide-in drawer over the content instead of a column
+     that pushes it. Same .sidebar-collapsed class the desktop toggle
+     already uses — just re-purposed here as "drawer closed" vs "open". */
+  .sidebar {
+    position: fixed;
+    top: var(--topnav-h);
+    left: 0;
+    bottom: 0;
+    width: min(82vw, 300px);
+    z-index: 300;
+    opacity: 1;
+    box-shadow: 14px 0 34px rgba(0,0,0,0.35);
+    transform: translateX(0);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .sidebar-collapsed .sidebar {
+    width: min(82vw, 300px);
+    padding: 16px 12px;
+    opacity: 1;
+    overflow: hidden;
+    border-right: none;
+    transform: translateX(-100%);
+  }
+  .sidebar-collapsed .app {
+    grid-template-columns: 1fr;
+  }
+  .main::before { left: 0; }
+
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: var(--topnav-h) 0 0 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 250;
+  }
+  body:not(.sidebar-collapsed) .sidebar-backdrop { display: block; }
+
+  /* Topnav: drop non-essential chrome, keep hamburger + logo + core actions */
+  .topnav { padding: 0 10px; gap: 8px; }
+  .topnav-ws-label, .topnav-beta-badge, .topnav-alltools-link { display: none; }
+  .new-project-btn span { display: none; }
+  .new-project-btn { padding: 0 9px; margin-left: 4px; }
+  .save-workflow-btn { margin-left: 0; }
+  .nav-logo-link img { height: 22px !important; }
+
+  /* Dashboard + generic sections: tighter padding, single-column hero */
+  .dashboard, .export-section { padding: 16px; }
+  .dash-hero { padding: 22px 18px; }
+  .dash-hero h1 { font-size: 26px; line-height: 1.15; }
+  .hero-actions { flex-wrap: wrap; }
+
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .export-grid { grid-template-columns: 1fr; }
+  .extract-opts { grid-template-columns: 1fr; }
+  .extracted-mini-grid { grid-template-columns: repeat(2, 1fr); }
+  .pdfed-fmt-grid { grid-template-columns: repeat(2, 1fr); }
+  .pdfed-pagesize-card { flex-direction: column; }
+
+  /* Search bar takes less room where it appears outside the topnav */
+  .search-bar { width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .stats-row { grid-template-columns: 1fr; }
+  .dash-hero h1 { font-size: 22px; }
+}

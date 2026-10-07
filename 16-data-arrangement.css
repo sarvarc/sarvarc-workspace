@@ -1,0 +1,786 @@
+/* ─────────────────────────  DATA ARRANGEMENT  ───────────────────────── */
+.da-section { display:flex; flex-direction:column; gap:16px; padding:28px; position:relative; z-index:1; transition:padding 0.15s ease; }
+.da-section.da-working { padding:8px 14px 10px; gap:6px; }
+.da-header-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 0;
+}
+
+.da-progress {
+  display:flex; align-items:center; gap:10px;
+  padding:12px 16px; border-radius:10px;
+  background:var(--bg2); border:1px solid var(--border);
+  font-size:12.5px; color:var(--text2); font-weight:600;
+}
+.da-spinner {
+  width:16px; height:16px; border-radius:50%;
+  border:2px solid var(--border2); border-top-color:var(--blue);
+  animation:daSpin 0.7s linear infinite; flex-shrink:0;
+}
+@keyframes daSpin { to { transform:rotate(360deg); } }
+
+.da-workspace { display:flex; flex-direction:column; gap:10px; min-height:0; }
+
+/* Sticky control strip: tabs + toolbar + formula bar pinned together at the
+   top of the scroll area, spreadsheet-style, so the tools are always within
+   reach no matter how far down a long table you've scrolled. Sticks against
+   .main (the app's own scroll container), just under the top nav. */
+.da-sticky-head {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--bg);
+  padding-top: 2px; margin-top: -2px;
+}
+.da-working .da-sticky-head { gap:6px; }
+/* Once the strip is pinned and something has scrolled underneath it, give it
+   a real edge — a hairline plus a soft cast shadow — so it visibly sits
+   "above" the table instead of just floating with nothing behind it. */
+.da-sticky-head.da-scrolled {
+  box-shadow: 0 12px 20px -16px rgba(0,0,0,0.55);
+}
+.da-sticky-head.da-scrolled::after {
+  content:''; position:absolute; left:-2px; right:-2px; bottom:-6px; height:1px;
+  background:linear-gradient(90deg, transparent, var(--border2) 12%, var(--border2) 88%, transparent);
+}
+
+/* Tabs, one per uploaded file / sheet */
+.da-tabs {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding-bottom:2px; border-bottom:1px solid var(--border);
+  position:relative;
+}
+.da-tab {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px; border-radius:9px 9px 0 0;
+  font-size:12px; font-weight:600; color:var(--text2);
+  background:transparent; cursor:pointer; white-space:nowrap;
+  border:1px solid transparent; border-bottom:none;
+  transition:background 0.15s ease, color 0.15s ease;
+  max-width:220px;
+}
+.da-tab:hover { background:var(--surface2); color:var(--text); }
+.da-tab.active {
+  background:var(--bg2); color:var(--blue);
+  border-color:var(--border); box-shadow:0 -2px 0 var(--blue) inset;
+}
+.da-tab-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px; }
+.da-tab-close {
+  display:flex; align-items:center; justify-content:center;
+  width:16px; height:16px; border-radius:50%; flex-shrink:0;
+  color:var(--text3); font-size:13px; line-height:1;
+}
+.da-tab-close:hover { background:rgba(239,68,68,0.18); color:#ef4444; }
+
+/* Grouped tab: one uploaded file that came back as BOTH a table and
+   written content (image/PDF OCR, or a doc/PDF with a table plus prose).
+   Instead of two look-alike generic tabs, this shows the file name once
+   with a small segmented switch to flip between the two views. */
+.da-tab-group {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px 6px 12px; border-radius:9px 9px 0 0;
+  background:transparent; border:1px solid transparent; border-bottom:none;
+  max-width:360px; transition:background 0.15s ease;
+}
+.da-tab-group:hover { background:var(--surface2); }
+.da-tab-group.active { background:var(--bg2); border-color:var(--border); box-shadow:0 -2px 0 var(--blue) inset; }
+.da-tab-group-name { font-size:11.5px; font-weight:600; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; flex-shrink:0; }
+.da-tab-switch { display:flex; align-items:center; background:var(--surface2); border-radius:7px; padding:2px; gap:2px; flex-shrink:0; }
+.da-tab-switch-btn {
+  border:none; background:transparent; font-size:10.5px; font-weight:700;
+  padding:4px 9px; border-radius:5px; color:var(--text3); cursor:pointer;
+  white-space:nowrap; transition:background 0.15s ease, color 0.15s ease;
+}
+.da-tab-switch-btn:hover { color:var(--text); }
+.da-tab-switch-btn.active { background:var(--blue); color:#fff; }
+.da-tab-group .da-tab-close { flex-shrink:0; }
+
+/* "+" add-table tab, sitting right after the last real tab — same row,
+   same rhythm, but visually a quieter icon-only affordance so it doesn't
+   compete with the actual data tabs for attention. Wrapped in its own
+   relative container so its dropdown anchors to the button itself, not
+   wherever it happens to fall in the wrapping tab row. */
+.da-tab-add-wrap { position:relative; flex-shrink:0; }
+.da-tab-add {
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  width:26px; height:26px; margin:2px 0 4px 2px; border-radius:7px;
+  background:transparent; border:1px solid transparent; color:var(--text3);
+  cursor:pointer; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.da-tab-add:hover { background:var(--surface2); color:var(--blue); border-color:var(--border); }
+.da-tab-add-menu {
+  display:none; position:absolute; z-index:40; top:calc(100% + 4px); left:2px;
+  min-width:168px; background:var(--bg3); border:1px solid var(--border2); border-radius:10px;
+  box-shadow:0 12px 32px -8px rgba(0,0,0,0.5); padding:5px;
+}
+.da-tab-add-menu.open { display:flex; flex-direction:column; gap:1px; }
+.da-tab-add-menu button {
+  display:flex; align-items:center; gap:7px;
+  padding:7px 9px; border-radius:7px; font-size:12px; font-weight:600;
+  background:transparent; border:none; color:var(--text2); cursor:pointer; text-align:left;
+  transition:background 0.12s ease, color 0.12s ease;
+}
+.da-tab-add-menu button svg { opacity:0.75; flex-shrink:0; }
+.da-tab-add-menu button:hover { background:var(--surface2); color:var(--text); }
+[data-theme="light"] .da-tab-add-menu { background:#fff; box-shadow:0 12px 28px -10px rgba(16,40,90,0.28); }
+
+/* Toolbar — a genuine ribbon strip: a slightly raised card with real depth
+   (gradient + hairline top highlight + soft shadow), not just a flat tinted
+   rectangle. Sits flush against the formula bar below it so the two read as
+   one continuous control surface, spreadsheet-app style. */
+.da-toolbar {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:7px 9px; border-radius:10px 10px 0 0;
+  background:linear-gradient(180deg, var(--surface) 0%, var(--bg2) 100%);
+  border:1px solid var(--border); border-bottom:1px solid var(--border2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.06);
+  position:relative;
+}
+/* Logical clusters (file ops / view ops / edit ops / push ops / destructive+export)
+   sit inside real, visible chips — a defined border plus a faint fill — so
+   the bar reads as a handful of grouped tools instead of one long unbroken
+   row of identical pills. Every direct child of the toolbar — chip, search
+   box, info chip, divider, standalone button — shares the same 6px rhythm
+   from the flex gap above, so nothing floats closer to one neighbor than
+   another; the tighter 3px gap *inside* a chip is what visually reads as
+   "these buttons belong together." */
+.da-toolbar-group {
+  display:flex; align-items:center; gap:3px;
+  padding:3px; border-radius:7px; min-height:30px; box-sizing:border-box;
+  background:var(--surface2); border:1px solid var(--border);
+}
+.da-toolbar-group + .da-toolbar-group { margin-left:0; }
+.da-search {
+  display:flex; align-items:center; gap:7px;
+  padding:6px 11px; border-radius:7px; min-height:30px; box-sizing:border-box;
+  background:var(--surface); border:1px solid var(--border);
+  color:var(--text3); min-width:170px; flex:0 1 210px;
+  transition:border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.da-search svg { flex-shrink:0; opacity:0.7; transition:opacity 0.15s ease, color 0.15s ease; }
+.da-search:focus-within {
+  border-color:var(--blue); background:var(--bg2);
+  box-shadow:0 0 0 3px rgba(0,194,255,0.12);
+}
+.da-search:focus-within svg { opacity:1; color:var(--blue); }
+.da-search input {
+  border:none; background:transparent; outline:none;
+  font-size:12px; color:var(--text); width:100%;
+}
+.da-toolbar-spacer { flex:1; }
+.da-meta { font-size:10.5px; color:var(--text3); font-weight:600; white-space:nowrap; letter-spacing:0.15px; }
+/* Status/info text (live-rate label, column·row count) sits in the same bar
+   as the button chips, so it gets the same pill treatment — same height,
+   same radius, same border — the moment it has something to say. Empty,
+   it takes up no space and shows no box, so the bar never displays an
+   awkward blank pill while waiting for data. */
+.da-toolbar-chip:not(:empty) {
+  display:inline-flex; align-items:center;
+  padding:6px 11px; border-radius:7px; min-height:30px; box-sizing:border-box;
+  background:var(--surface); border:1px solid var(--border);
+}
+.da-tool-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:6px 10px; border-radius:6px; font-size:11.5px; font-weight:600;
+  background:transparent; border:1px solid transparent; color:var(--text2);
+  cursor:pointer; white-space:nowrap;
+  transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.da-tool-btn svg { opacity:0.75; transition:opacity 0.15s ease; flex-shrink:0; }
+.da-tool-btn:hover { background:var(--surface); color:var(--text); border-color:var(--border); }
+.da-tool-btn:hover svg { opacity:1; }
+.da-tool-btn:active { transform:translateY(0.5px); }
+.da-tool-btn.active { background:rgba(0,194,255,0.12); color:var(--blue); border-color:rgba(0,194,255,0.25); }
+.da-tool-btn.active svg { opacity:1; }
+.da-tool-btn-stacked {
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  padding:5px 10px; min-width:44px; font-size:9.5px;
+}
+.btn-stacked {
+  display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:3px !important;
+  padding:6px 12px !important; min-width:48px; font-size:10px !important; line-height:1;
+}
+/* No side margin of its own — the toolbar's 6px gap already places it
+   evenly between its neighbors, same as every other item on the bar. */
+.da-tool-divider { width:1px; height:20px; align-self:center; background:var(--border2); opacity:0.7; }
+/* The bar reads left→right as rising "weight": quiet file/creation actions
+   first, calmer structural edit tools in the middle, then the two
+   send-elsewhere actions, then Clear All tucked in its own muted chip —
+   and finally Export standing free with a solid gradient fill and a touch
+   of extra breathing room, so it's unmistakably where the eye should land
+   last, and never gets crowded by the destructive action right before it. */
+.da-toolbar-cta { margin-left:2px; }
+
+/* Calmer, flatter variants for the two "push" actions and the destructive /
+   primary actions that live inside the data-arrangement toolbar specifically —
+   scoped so the rest of the app's bold gradient buttons are untouched. */
+.da-toolbar .btn-secondary {
+  background:var(--surface); border:1px solid var(--border2); color:var(--text2);
+  font-weight:600; box-shadow:none; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.da-toolbar .btn-secondary:hover {
+  background:rgba(0,194,255,0.08); color:var(--text); border-color:var(--blue);
+  transform:none;
+}
+.da-toolbar .btn-primary {
+  background:linear-gradient(180deg, var(--blue) 0%, var(--blue) 100%); color:#04131c;
+  box-shadow:0 1px 2px rgba(0,0,0,0.15), 0 2px 8px -2px rgba(0,194,255,0.45); font-weight:700;
+  border:1px solid transparent;
+}
+.da-toolbar .btn-primary:hover { filter:brightness(1.08); box-shadow:0 2px 4px rgba(0,0,0,0.18), 0 4px 12px -2px rgba(0,194,255,0.55); transform:translateY(-0.5px); }
+.da-toolbar #daClearAllBtn {
+  color:var(--text3) !important; border-color:transparent !important; opacity:0.9;
+}
+.da-toolbar #daClearAllBtn:hover {
+  color:#ef4444 !important; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25) !important; opacity:1;
+}
+
+/* Day/light mode: the flat, borders-on-hover-only treatment above works on a
+   dark background because the button still reads against var(--bg2), but on
+   a white bg2 an invisible border means the button has no visible edge to
+   navigate by. Give the toolbar and every button inside it a soft resting
+   shadow + defined border in light mode so users can see what's clickable
+   without needing to hover first. */
+[data-theme="light"] .da-toolbar {
+  background:linear-gradient(180deg, #fff 0%, var(--bg2) 100%);
+  box-shadow: var(--shadow-card);
+}
+[data-theme="light"] .da-toolbar-group {
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(16,40,90,0.05), 0 1px 1px rgba(16,40,90,0.03);
+}
+[data-theme="light"] .da-tool-btn {
+  border-color: transparent;
+}
+[data-theme="light"] .da-tool-btn:hover {
+  background:#fff; box-shadow: 0 1px 3px rgba(16,40,90,0.1);
+}
+[data-theme="light"] .da-tool-divider { background: var(--border2); opacity:0.7; }
+[data-theme="light"] .da-search,
+[data-theme="light"] .da-toolbar-chip:not(:empty),
+[data-theme="light"] .da-fb-autosum-btn,
+[data-theme="light"] .da-fb-fx-btn {
+  box-shadow: 0 1px 2px rgba(16,40,90,0.05);
+}
+[data-theme="light"] .da-toolbar .btn-secondary {
+  background: #fff; box-shadow: 0 1px 2px rgba(16,40,90,0.06);
+}
+[data-theme="light"] .da-toolbar .btn-secondary:hover {
+  box-shadow: 0 2px 6px rgba(16,40,90,0.10);
+}
+[data-theme="light"] .da-toolbar .btn-primary {
+  box-shadow: 0 2px 6px rgba(0,150,210,0.25);
+}
+[data-theme="light"] .da-toolbar .btn-primary:hover {
+  box-shadow: 0 4px 10px rgba(0,150,210,0.32);
+}
+[data-theme="light"] .da-toolbar #daClearAllBtn {
+  border-color: transparent !important;
+}
+[data-theme="light"] .da-toolbar #daClearAllBtn:hover {
+  box-shadow: 0 1px 3px rgba(239,68,68,0.15);
+}
+[data-theme="light"] .da-sticky-head.da-scrolled {
+  box-shadow: 0 14px 22px -16px rgba(16,40,90,0.28);
+}
+
+
+/* ── Compact icon ribbon ─────────────────────────────────────────────
+   Toolbar buttons are icon-only; the name fades in as a tooltip on
+   hover/keyboard focus. Groups lose their boxed chips and are split by
+   hairline dividers instead, so the whole bar is one slim, quiet row. */
+.da-toolbar { padding:4px 8px; gap:4px; z-index:25; border-radius:10px 10px 0 0; }
+.da-toolbar .da-toolbar-group,
+[data-theme="light"] .da-toolbar .da-toolbar-group {
+  background:transparent; border:none; box-shadow:none; padding:0; gap:2px; min-height:0;
+}
+.da-toolbar .da-toolbar-group + .da-toolbar-group { position:relative; margin-left:6px; padding-left:6px; }
+.da-toolbar .da-toolbar-group + .da-toolbar-group::before {
+  content:''; position:absolute; left:0; top:5px; bottom:5px; width:1px;
+  background:var(--border2); opacity:0.7;
+}
+.da-icon-btn {
+  position:relative; width:30px; height:30px; padding:0; justify-content:center;
+  border-radius:7px; color:var(--text2);
+}
+.da-icon-btn svg { opacity:0.85; }
+.da-icon-btn:hover { background:var(--surface2); border-color:transparent; }
+[data-theme="light"] .da-icon-btn:hover { background:#fff; box-shadow:0 1px 3px rgba(16,40,90,0.12); }
+.da-icon-btn:focus-visible { outline:2px solid var(--blue); outline-offset:1px; }
+.da-toolbar #daClearAllBtn:hover { border-color:transparent !important; }
+.da-toolbar .da-search { min-height:30px; padding:5px 10px; background:var(--bg2); }
+.da-toolbar .da-toolbar-cta { min-height:30px; margin-left:4px; }
+
+/* Tooltip: dark pill under the icon, short delay so it doesn't flicker
+   while the cursor passes over the bar. */
+.da-toolbar [data-tip]::after {
+  content:attr(data-tip); position:absolute; top:calc(100% + 7px); left:50%;
+  transform:translate(-50%,-3px); white-space:pre; pointer-events:none;
+  padding:5px 9px; border-radius:6px; font-size:11px; font-weight:600; line-height:1.2;
+  letter-spacing:0.1px; color:#f4f7fb; background:#0f1520;
+  border:1px solid rgba(255,255,255,0.08); box-shadow:0 6px 16px -4px rgba(0,0,0,0.45);
+  opacity:0; visibility:hidden; z-index:60;
+  transition:opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+}
+.da-toolbar [data-tip]:hover::after,
+.da-toolbar [data-tip]:focus-visible::after {
+  opacity:1; visibility:visible; transform:translate(-50%,0);
+  transition:opacity 0.14s ease 0.28s, transform 0.14s ease 0.28s, visibility 0s linear 0.28s;
+}
+[data-theme="light"] .da-toolbar [data-tip]::after { background:#1b2740; color:#fff; border-color:rgba(255,255,255,0.06); }
+@media (hover:none) { .da-toolbar [data-tip]::after { display:none; } }
+
+
+/* Push actions stay labelled and clearly visible */
+.da-toolbar .da-push-btn {
+  height:30px; padding:0 11px; gap:6px; font-size:11.5px; font-weight:600;
+  color:var(--text); background:rgba(0,194,255,0.08);
+  border:1px solid rgba(0,194,255,0.35); border-radius:7px;
+}
+.da-toolbar .da-push-btn svg { opacity:1; color:var(--blue); }
+.da-toolbar .da-push-btn:hover { background:rgba(0,194,255,0.16); border-color:var(--blue); }
+[data-theme="light"] .da-toolbar .da-push-btn { background:#fff; box-shadow:0 1px 2px rgba(16,40,90,0.08); }
+[data-theme="light"] .da-toolbar .da-push-btn:hover { background:rgba(0,150,210,0.08); }
+.da-toolbar .da-push-btn:disabled { opacity:0.5; cursor:default; }
+
+/* Filter button + panel */
+.da-filter-wrap { position:relative; display:inline-flex; }
+.da-filter-wrap.open [data-tip]::after { display:none; }
+.da-filter-wrap.open .da-icon-btn { background:var(--surface2); }
+.da-filter-badge {
+  position:absolute; top:-4px; right:-4px; min-width:15px; height:15px; padding:0 4px;
+  border-radius:8px; font-size:9.5px; font-weight:700; line-height:15px; text-align:center;
+  background:var(--blue); color:#04131c; box-shadow:0 0 0 2px var(--bg2); box-sizing:border-box;
+}
+.da-filter-pop {
+  display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:70;
+  width:520px; max-width:calc(100vw - 24px); box-sizing:border-box; padding:12px;
+  background:var(--bg3); border:1px solid var(--border2); border-radius:12px;
+  box-shadow:0 16px 40px -10px rgba(0,0,0,0.55);
+}
+.da-filter-wrap.open .da-filter-pop { display:block; }
+.da-filter-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.da-filter-title { font-size:12.5px; font-weight:700; color:var(--text); }
+.da-filter-match { font-size:11.5px; color:var(--text3); display:inline-flex; align-items:center; gap:5px; }
+.da-filter-rules { display:flex; flex-direction:column; gap:6px; max-height:280px; overflow:auto; }
+.da-filter-rule { display:grid; grid-template-columns:1fr 1fr 1.3fr 26px; gap:6px; align-items:center; }
+.da-filter-pop select, .da-filter-pop input {
+  height:30px; box-sizing:border-box; min-width:0; width:100%; padding:0 8px; font-size:12px;
+  background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:7px; outline:none;
+}
+.da-filter-match select { width:auto; height:26px; padding:0 6px; font-weight:600; }
+.da-filter-pop select:focus, .da-filter-pop input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,194,255,0.12); }
+.da-filter-noval { font-size:11px; color:var(--text3); font-style:italic; padding-left:4px; }
+/* Two side-by-side "From / To" inputs for the "is between" operator --
+   sits inside the same grid cell the single value input would otherwise
+   occupy, so switching an existing rule to/from "between" never reflows
+   the column or condition selects next to it. */
+.da-filter-vals { display:flex; align-items:center; gap:4px; min-width:0; }
+.da-filter-vals input { min-width:0; flex:1 1 0; }
+.da-filter-vals-sep { color:var(--text3); font-size:11px; flex:0 0 auto; }
+.da-filter-x {
+  width:26px; height:26px; border-radius:6px; border:none; background:transparent;
+  color:var(--text3); font-size:16px; line-height:1; cursor:pointer;
+}
+.da-filter-x:hover { background:rgba(239,68,68,0.12); color:#ef4444; }
+.da-filter-empty { font-size:12px; color:var(--text3); padding:8px 2px; }
+.da-filter-foot { display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.da-filter-status { flex:1; font-size:11px; color:var(--text3); font-weight:600; text-align:center; }
+/* Flags "0 of N rows" so a filter that has accidentally hidden the whole
+   table (typo, wrong operator) is obvious at a glance rather than reading
+   like any other status line. */
+.da-filter-status.da-filter-status-empty { color:#ef4444; }
+.da-filter-add, .da-filter-clear {
+  height:28px; padding:0 10px; border-radius:7px; font-size:11.5px; font-weight:600; cursor:pointer;
+  background:transparent; border:1px solid var(--border2); color:var(--text2);
+}
+.da-filter-add { color:var(--blue); border-color:rgba(0,194,255,0.35); }
+.da-filter-add:hover { background:rgba(0,194,255,0.1); }
+.da-filter-clear:hover { color:#ef4444; border-color:rgba(239,68,68,0.35); background:rgba(239,68,68,0.08); }
+[data-theme="light"] .da-filter-pop { background:#fff; box-shadow:0 16px 36px -12px rgba(16,40,90,0.3); }
+[data-theme="light"] .da-filter-pop select, [data-theme="light"] .da-filter-pop input { background:#fff; }
+[data-theme="light"] .da-filter-badge { box-shadow:0 0 0 2px #fff; }
+@media (max-width:560px) {
+  .da-filter-rule { grid-template-columns:1fr 1fr 26px; }
+  .da-filter-rule input, .da-filter-rule .da-filter-vals, .da-filter-noval { grid-column:1 / span 2; }
+}
+/* Grid */
+.da-grid-wrap {
+  position:relative; overflow:auto; border-radius:12px;
+  border:1px solid var(--border); background:var(--bg2);
+  max-height:60vh;
+  box-shadow:0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,20,40,0.18);
+  /* Keep the horizontal scrollbar itself visible rather than relying on an
+     OS auto-hide scrollbar someone might not notice — but neutral grey,
+     matching ordinary OS/browser chrome, not a bright brand-colored bar. */
+  scrollbar-width: thin; scrollbar-color: rgba(140,150,165,0.45) transparent;
+}
+.da-grid-wrap::-webkit-scrollbar { height:9px; width:9px; }
+.da-grid-wrap::-webkit-scrollbar-track { background:transparent; }
+.da-grid-wrap::-webkit-scrollbar-thumb { background:rgba(140,150,165,0.35); border-radius:6px; }
+.da-grid-wrap::-webkit-scrollbar-thumb:hover { background:rgba(140,150,165,0.55); }
+/* Outer positioning context for the left/right step buttons that overlay
+   the grid — lets someone click through a wide table instead of only
+   dragging the scrollbar or swiping on a trackpad. Styled as plain,
+   understated chrome (flat, low-contrast) rather than a bright floating
+   bubble, matching the rest of the toolbar's icon buttons. */
+.da-grid-outer { position:relative; }
+.da-grid-nav-btn {
+  position:absolute; top:50%; transform:translateY(-50%); z-index:5;
+  width:26px; height:40px; border-radius:6px; border:1px solid var(--border);
+  background:var(--bg2); color:var(--text2); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .15s ease, background .15s ease, color .15s ease;
+}
+.da-grid-nav-btn svg { opacity:0.7; }
+.da-grid-outer:hover .da-grid-nav-btn.da-grid-nav-active { opacity:1; pointer-events:auto; }
+.da-grid-nav-btn:hover { background:var(--surface); color:var(--text); }
+.da-grid-nav-btn:hover svg { opacity:1; }
+.da-grid-nav-btn[disabled] { opacity:0 !important; pointer-events:none !important; }
+.da-grid-nav-btn.da-grid-nav-left { left:0; border-top-right-radius:0; border-bottom-right-radius:0; }
+.da-grid-nav-btn.da-grid-nav-right { right:0; border-top-left-radius:0; border-bottom-left-radius:0; }
+@media (hover:none) {
+  /* Touch devices swipe natively — don't show click-step buttons that would
+     just sit in the way of a finger. */
+  .da-grid-nav-btn { display:none; }
+}
+/* In the tight "working" state (a table is loaded) let the grid claim
+   most of the viewport height, the way Google Sheets fills the window
+   below its toolbar, instead of stopping at an arbitrary 60vh. */
+.da-working .da-grid-wrap { max-height: calc(100vh - var(--topnav-h, 56px) - 150px); }
+/* Table sizes itself to its content instead of being force-stretched to fill
+   the wrapper, a 3-column dataset now reads as a compact, well-proportioned
+   table instead of a few words scattered across the full viewport width. */
+table.da-table { border-collapse:separate; border-spacing:0; width:auto; min-width:0; }
+table.da-table.da-frozen thead th { position:sticky; top:0; z-index:3; }
+
+/* Detected main heading (report title) — sits above the sub-headers/column
+   row so the two levels never get visually confused, and stays sticky with
+   the table so it's visible even when scrolled down. */
+.da-title-banner {
+  position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px;
+  padding:9px 14px; margin-bottom:-1px;
+  background:linear-gradient(180deg, var(--surface2), var(--surface));
+  border:1px solid var(--border2); border-radius:12px 12px 0 0;
+}
+.da-title-banner-label {
+  flex:none; font-size:9.5px; font-weight:700; letter-spacing:.06em;
+  color:var(--accent, #00c2ff); opacity:.85; white-space:nowrap;
+}
+.da-title-banner-text {
+  flex:1; font-size:14px; font-weight:700; color:var(--text);
+  outline:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.da-title-banner-text:focus { text-overflow:clip; overflow:visible; white-space:normal; }
+.da-title-banner-del {
+  flex:none; width:18px; height:18px; display:flex; align-items:center; justify-content:center;
+  border-radius:5px; cursor:pointer; color:var(--text3); font-size:14px; line-height:1;
+}
+.da-title-banner-del:hover { background:rgba(255,80,80,0.12); color:#ff5050; }
+
+/* Inline hint shown only while a table has zero real content in it — tells
+   the person they can just copy/paste a table straight in, no button
+   needed. Sits above the header row like the title banner, but calmer
+   (dashed border, muted background) since it's guidance, not data. */
+.da-empty-hint-banner {
+  display:flex; align-items:center; gap:9px;
+  padding:10px 14px; margin-bottom:8px;
+  background:var(--surface2); border:1px dashed var(--border2); border-radius:10px;
+  color:var(--text2); font-size:12px; line-height:1.5;
+}
+.da-empty-hint-banner svg { flex:none; color:var(--blue); opacity:0.85; }
+.da-empty-hint-banner kbd {
+  display:inline-block; padding:1px 6px; margin:0 1px; border-radius:4px;
+  background:var(--surface); border:1px solid var(--border2); border-bottom-width:2px;
+  font-family:'Source Code Pro', monospace; font-size:10.5px; font-weight:700; color:var(--text);
+}
+[data-theme="light"] .da-empty-hint-banner { background:#fff; box-shadow:0 1px 2px rgba(16,40,90,0.05); }
+[data-theme="light"] .da-empty-hint-banner kbd { background:var(--surface2); }
+
+.da-table th, .da-table td {
+  border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border);
+  padding:0; position:relative;
+}
+.da-table th:last-child, .da-table td:last-child { border-right:none; }
+.da-table thead th { border-bottom:1px solid var(--border2); }
+
+.da-rownum {
+  position:sticky; left:0; z-index:2;
+  background:var(--bg3); color:var(--text3);
+  font-size:10.5px; font-weight:700; text-align:center;
+  min-width:44px; width:44px; user-select:none;
+  padding:9px 4px;
+}
+.da-table thead .da-rownum { z-index:4; }
+.da-rownum-inner { position:relative; display:flex; align-items:center; justify-content:center; height:100%; }
+.da-rownum-inner .da-row-num-text { transition:opacity 0.1s ease; }
+tr:hover .da-rownum-inner .da-row-num-text { opacity:0; }
+.da-row-del-btn {
+  position:absolute; inset:0; margin:auto; display:flex;
+  align-items:center; justify-content:center;
+  width:18px; height:18px; border-radius:5px;
+  color:var(--text3); font-size:13px; opacity:0; transition:opacity 0.15s ease;
+}
+tr:hover .da-row-del-btn { opacity:1; }
+.da-row-del-btn:hover { background:rgba(239,68,68,0.2); color:#ef4444; }
+
+.da-th-cell {
+  display:flex; align-items:center; gap:7px;
+  padding:11px 16px; font-size:11.5px; font-weight:800;
+  color:var(--blue); background:var(--bg3);
+  letter-spacing:0.2px; white-space:nowrap;
+  min-width:110px; max-width:320px;
+  outline:none; overflow:hidden;
+}
+.da-th-name {
+  outline:none; overflow:hidden; text-overflow:ellipsis;
+  min-width:0; flex:1;
+}
+.da-th-name:focus { background:rgba(0,194,255,0.1); text-overflow:clip; overflow:visible; }
+.da-th-type {
+  font-size:8.5px; font-weight:700; text-transform:uppercase;
+  color:var(--text3); background:var(--surface2);
+  padding:1px 5px; border-radius:4px; letter-spacing:0.3px; flex-shrink:0;
+}
+.da-th-del {
+  margin-left:auto; flex-shrink:0; width:15px; height:15px; border-radius:4px;
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text3); font-size:12px; line-height:1; opacity:0; transition:opacity 0.15s ease;
+}
+th:hover .da-th-del { opacity:1; }
+.da-th-del:hover { background:rgba(239,68,68,0.2); color:#ef4444; }
+
+/* Tiny per-column quick-math buttons: shown only under NUM columns, let a
+   user total/diff/multiply/divide the whole column in one click instead of
+   typing =SUM(...) by hand. Result lands in a reusable totals row at the
+   bottom of the table, same spot a manual AutoSum would land in. */
+.da-th-ops {
+  display:flex; gap:3px; padding:0 10px 8px; background:var(--bg3);
+}
+.da-th-opbtn {
+  min-width:17px; height:17px; border-radius:4px; border:1px solid var(--border2);
+  background:var(--surface2); color:var(--blue); font-size:10.5px; font-weight:800;
+  line-height:1; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; padding:0 3px; transition:background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.da-th-opbtn.da-th-opbtn-avg { font-size:8.5px; letter-spacing:0.2px; }
+.da-th-opbtn:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
+.da-th-opbtn:active { transform:scale(0.9); }
+/* A column with a "live" op (click again to turn off) stays highlighted so
+   it's clear at a glance which columns auto-recalculate as rows change. */
+.da-th-opbtn.da-th-opbtn-active { background:var(--blue); color:#fff; border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+
+.da-td-cell {
+  display:block; padding:9.5px 16px; font-size:12.5px; line-height:1.5; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  min-width:110px; max-width:320px; outline:none;
+}
+.da-td-cell:focus { background:rgba(0,194,255,0.08); text-overflow:clip; overflow:visible; white-space:pre-wrap; word-break:break-word; position:relative; z-index:1; box-shadow:0 0 0 1px var(--border2) inset; }
+.da-table tbody tr:nth-child(even) .da-td-cell,
+.da-table tbody tr:nth-child(even) .da-rownum { background:var(--surface); }
+.da-table tbody tr:hover .da-td-cell:not(:focus) { background:rgba(0,194,255,0.05); }
+.da-td-cell.da-cell-num { text-align:right; font-variant-numeric:tabular-nums; }
+.da-td-cell.da-cell-empty { color:var(--text3); font-style:italic; }
+.da-mark { background:rgba(255,196,0,0.35); border-radius:2px; }
+
+/* A cell with a link attached: small chain-icon badge pinned to the
+   top-right corner of the cell, sitting outside the contenteditable div so
+   it never gets caught up in normal text editing/selection. Clicking it
+   opens the link in a new tab; the cell text underneath stays editable. */
+.da-td-cell.da-cell-has-link { padding-right:22px; }
+.da-td-link-badge {
+  position:absolute; top:3px; right:3px; z-index:2;
+  width:15px; height:15px; border-radius:4px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface2); color:var(--blue); border:1px solid var(--border2);
+  cursor:pointer; transition:background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+.da-td-link-badge:hover { background:var(--blue); color:#fff; transform:scale(1.14); }
+
+/* Formula-driven cells: a subtle tint + left rule marks a cell as computed
+   rather than typed, and errors get an unmistakable red so a broken
+   reference never gets mistaken for real data. */
+.da-td-cell.da-cell-formula { background:rgba(16,185,129,0.07); box-shadow:2px 0 0 rgba(16,185,129,0.5) inset; }
+.da-table tbody tr:nth-child(even) .da-td-cell.da-cell-formula { background:rgba(16,185,129,0.1); }
+.da-td-cell.da-cell-formula:focus { background:rgba(0,194,255,0.08); box-shadow:0 0 0 1px var(--border2) inset; }
+.da-td-cell.da-cell-error { color:#ef4444; font-weight:700; box-shadow:2px 0 0 #ef4444 inset; background:rgba(239,68,68,0.08); }
+.da-table tbody tr:nth-child(even) .da-td-cell.da-cell-error { background:rgba(239,68,68,0.1); }
+
+/* Excel-style smart fill: a small drag handle sits at the bottom-right
+   corner of the active cell (or the bottom of a shift-selected seed range).
+   Dragging it down the column extends a detected pattern — dates advance
+   day by day, numbers step by their delta, weekday/month names cycle, and
+   "Item 1"-style text increments its trailing number — falling back to a
+   plain copy when no pattern is recognized, same as Excel/Sheets. */
+.da-fill-seedcell { box-shadow:0 0 0 1.5px var(--blue, #00c2ff) inset !important; }
+.da-fill-handle {
+  position:absolute; right:-4px; bottom:-4px; width:8px; height:8px;
+  background:var(--blue, #00c2ff); border:1.5px solid var(--bg2); border-radius:2px;
+  cursor:crosshair; z-index:6;
+}
+.da-fill-handle:hover { transform:scale(1.35); }
+.da-fill-preview { box-shadow:0 0 0 1.5px var(--blue, #00c2ff) inset !important; background:rgba(0,194,255,0.14) !important; }
+
+/* ── SARVARC_TOUCH_BRIDGE: bigger hit targets on real phones ──────────────
+   These handles were sized for a mouse cursor (7–10px). A fingertip is
+   roughly 40–48px, so on a confirmed touch phone (see
+   data-sarvarc-touch-mode, set only when narrow width AND touch both line
+   up — never on desktop or a resized desktop window) we grow the actual
+   hit area well past the visible mark, without changing how anything looks
+   for the vastly more common mouse/trackpad case. */
+html[data-sarvarc-touch-mode="1"] .pdfed-crop-handle {
+  width: 26px; height: 26px; margin: -8px; /* keeps the visible 10px dot centered */
+}
+html[data-sarvarc-touch-mode="1"] .pdfed-img-resize-handle {
+  width: 26px !important; height: 26px !important; margin: -8px !important;
+}
+html[data-sarvarc-touch-mode="1"] .pdfed-table-coldiv { width: 20px; margin-left: -6.5px; }
+html[data-sarvarc-touch-mode="1"] .pdfed-table-rowdiv { height: 20px; margin-top: -6.5px; }
+html[data-sarvarc-touch-mode="1"] .da-fill-handle {
+  width: 24px; height: 24px; right: -12px; bottom: -12px;
+  background: transparent; border: none;
+}
+html[data-sarvarc-touch-mode="1"] .da-fill-handle::after {
+  /* keep the small visible dot inside the now much-larger invisible hit area */
+  content: ""; position: absolute; inset: 8px; background: var(--blue, #00c2ff);
+  border: 1.5px solid var(--bg2); border-radius: 2px;
+}
+
+/* ── SARVARC_TOUCH_BRIDGE: finger-clear loupe ──────────────────────────
+   Floats above whichever finger is currently dragging a handle, showing a
+   live zoomed mirror of the work area plus a crosshair for the exact touch
+   point — so the finger's own shadow never hides the crop edge / fill
+   range / node it's placing. Only ever created/shown during a claimed
+   drag; see showLoupe()/hideLoupe() in the touch bridge script. */
+#sarvarcTouchLoupe {
+  position: fixed; left: 0; top: 0; width: 128px; height: 128px;
+  pointer-events: none; z-index: 99999;
+  opacity: 0; transform: scale(0.9); transition: opacity .1s ease, transform .1s ease;
+}
+#sarvarcTouchLoupe.open { opacity: 1; transform: scale(1); }
+#sarvarcTouchLoupe .sarvarc-loupe-clip {
+  width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
+  background: var(--surface, #fff);
+  border: 2.5px solid var(--cyan, #00c2ff);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35), 0 0 0 4px rgba(0,194,255,0.15);
+}
+#sarvarcTouchLoupe .sarvarc-loupe-inner { position: absolute; left: 0; top: 0; will-change: transform; }
+#sarvarcTouchLoupe .sarvarc-loupe-crosshair {
+  position: absolute; left: 50%; top: 50%; width: 16px; height: 16px;
+  margin: -8px 0 0 -8px; pointer-events: none;
+}
+#sarvarcTouchLoupe .sarvarc-loupe-crosshair::before,
+#sarvarcTouchLoupe .sarvarc-loupe-crosshair::after {
+  content: ""; position: absolute; background: var(--cyan, #00c2ff);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.9);
+}
+#sarvarcTouchLoupe .sarvarc-loupe-crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
+#sarvarcTouchLoupe .sarvarc-loupe-crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
+
+/* Column-letter ruler row, sits above the real header row so cell refs
+   used in formulas (A1, B2…) map to something visible on screen, same as
+   any spreadsheet. */
+.da-collabels-row .da-collabel {
+  padding:4px 16px; font-size:9.5px; font-weight:700; text-align:center;
+  color:var(--text3); background:var(--bg3); letter-spacing:0.4px;
+  border-bottom:1px solid var(--border); user-select:none;
+}
+.da-collabels-row .da-rownum { padding:4px; font-size:9.5px; }
+
+/* ─── Row / column / cell selection, and the color-tag highlighting built on
+   top of it — lets someone mark "these rows are Q1 invoices" and see it at
+   a glance, instead of just painting color with no meaning behind it. ─── */
+.da-rownum, .da-collabel { cursor:pointer; user-select:none; }
+.da-rownum.da-rownum-selected,
+.da-collabel.da-collabel-selected {
+  background:rgba(0,194,255,0.28) !important; color:var(--text);
+}
+.da-td-cell.da-cell-selected,
+.da-td-select.da-cell-selected {
+  box-shadow:0 0 0 1.5px rgba(0,194,255,0.6) inset !important;
+}
+.da-highlight-summary {
+  display:flex; flex-direction:column; gap:7px; padding:11px 15px; margin-bottom:6px;
+  background:var(--surface); border:1px solid var(--border2); border-radius:10px;
+}
+.da-hl-legend-label {
+  font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text3);
+}
+.da-hl-legend-list { display:flex; flex-direction:column; gap:6px; }
+.da-hl-legend-item { display:flex; align-items:center; gap:9px; font-size:12px; }
+.da-hl-legend-dot {
+  width:11px; height:11px; border-radius:50%; flex:none;
+  box-shadow:0 0 0 1px rgba(255,255,255,0.12);
+}
+.da-hl-legend-tag { color:var(--text); font-weight:600; min-width:110px; }
+.da-hl-legend-meta { color:var(--text3); font-variant-numeric:tabular-nums; }
+.da-hl-swatch-row { display:flex; gap:9px; flex-wrap:wrap; }
+.da-hl-swatch {
+  width:27px; height:27px; border-radius:7px; cursor:pointer; border:2px solid transparent;
+  transition:transform 0.12s ease, border-color 0.12s ease; display:flex; align-items:center; justify-content:center;
+}
+.da-hl-swatch:hover { transform:scale(1.1); }
+.da-hl-swatch.active { border-color:var(--text); }
+.da-hl-swatch svg { display:none; color:#111; }
+.da-hl-swatch.active svg { display:block; }
+
+/* Formula bar: mirrors the ref box + fx input every spreadsheet app has, so
+   editing a formula isn't confined to the tiny grid cell. Sits flush under
+   the toolbar — same side borders, no shared border between them, rounded
+   only on the bottom — so the two read as one continuous control surface
+   rather than two separate floating boxes. */
+.da-formula-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 9px; border-radius:0 0 10px 10px; margin-top:-1px;
+  background:var(--surface); border:1px solid var(--border); border-top:1px solid var(--border2);
+}
+.da-fb-ref {
+  flex-shrink:0; min-width:44px; text-align:center;
+  padding:5px 8px; border-radius:7px; font-size:11px; font-weight:800;
+  color:var(--blue); background:rgba(0,194,255,0.1); border:1px solid var(--border2);
+  letter-spacing:0.3px;
+}
+.da-fb-fx-btn {
+  flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  width:26px; height:26px; border-radius:7px; font-size:11.5px; font-weight:800;
+  font-style:italic; color:var(--green); background:var(--surface2);
+  border:1px solid var(--border); cursor:pointer; transition:background 0.15s ease, border-color 0.15s ease;
+}
+.da-fb-fx-btn:hover { background:var(--surface2); border-color:var(--green); box-shadow:0 0 0 3px rgba(16,185,129,0.12); }
+.da-fb-divider { width:1px; align-self:stretch; background:var(--border); }
+.da-formula-bar input {
+  flex:1; min-width:0; border:none; background:transparent; outline:none;
+  font-size:12.5px; color:var(--text); font-family:'Source Code Pro', monospace;
+  padding:5px 4px;
+}
+.da-formula-bar input::placeholder { color:var(--text3); font-family:'Inter', sans-serif; font-style:italic; }
+.da-formula-bar input:disabled { color:var(--text3); }
+.da-fb-autosum-btn {
+  flex-shrink:0; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;
+  color:var(--text2); background:transparent; border:1px solid var(--border); cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  transition:background 0.15s ease, color 0.15s ease;
+}
+.da-fb-autosum-btn:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
+
+/* fx function picker popover */
+.da-fx-popover {
+  display:none; position:absolute; z-index:40; top:calc(100% + 6px); left:0;
+  width:300px; max-height:320px; overflow-y:auto;
+  background:var(--bg3); border:1px solid var(--border2); border-radius:10px;
+  box-shadow:0 12px 32px -8px rgba(0,0,0,0.5); padding:6px;
+}
+.da-fx-popover.open { display:block; }
+.da-fx-item {
+  display:flex; flex-direction:column; gap:1px; padding:7px 9px; border-radius:7px;
+  cursor:pointer; transition:background 0.12s ease;
+}
+.da-fx-item:hover { background:var(--surface2); }
+.da-fx-name { font-size:11.5px; font-weight:800; color:var(--blue); }
+.da-fx-syntax { font-size:10.5px; font-family:'Source Code Pro', monospace; color:var(--text2); }
+.da-fx-desc { font-size:10px; color:var(--text3); }
+.da-fb-wrap { position:relative; flex:1; min-width:0; display:flex; }
