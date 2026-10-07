@@ -186,3 +186,105 @@
     box-shadow:0 0 6px 1px rgba(255,255,255,0.75);
     animation: kadessaActionBadgeBreathe 1.15s ease-in-out infinite;
   }
+
+  /* ===== KADESSA PANEL REDESIGN (build 280) ===================================
+     Her actions used to run silently, so the thread looked like plain chat.
+     Now each action shows up as a live card (running, done, failed, skipped)
+     with an Undo button, the header carries a real status line, and the panel
+     can open wide for longer sessions. */
+  #kadessa-panel{ width:384px; height:560px; transition:width .22s ease, height .22s ease; }
+  #kadessa-panel.kadessa-big{ width:min(780px, calc(100vw - 40px)); height:calc(100vh - 140px); }
+  #kadessa-head{ padding:11px 10px 11px 14px; gap:8px; }
+  #kadessa-head-id{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+  #kadessa-head #kadessa-avatar{ opacity:1; width:34px; height:34px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; flex:0 0 auto; box-shadow:0 0 0 2px rgba(255,255,255,0.35); }
+  #kadessa-avatar img{ width:24px; height:24px; object-fit:contain; display:block; }
+  #kadessa-head #kadessa-status{ display:flex; align-items:flex-start; gap:6px; font-size:11px; line-height:1.3; opacity:0.95; margin-top:1px; }
+  #kadessa-head #kadessa-status span{ display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; min-width:0; opacity:1; }
+  #kadessa-head-id > div{ min-width:0; }
+  #kadessa-head #kadessa-status::before{ content:''; width:6px; height:6px; margin-top:4px; border-radius:50%; background:rgba(255,255,255,0.7); flex:0 0 auto; }
+  #kadessa-head #kadessa-status[data-mode="thinking"]::before{ background:#fff; box-shadow:0 0 6px 1px rgba(255,255,255,0.75); animation:kadessaActionBadgeBreathe 1.15s ease-in-out infinite; }
+  #kadessa-head #kadessa-status[data-mode="acting"]::before{ background:#fff; box-shadow:0 0 8px 2px rgba(255,255,255,0.9); animation:kadessaActionBadgeBreathe .7s ease-in-out infinite; }
+  #kadessa-head #kadessa-acting-badge{ display:none; }
+  #kadessa-head #kadessa-acting-badge.show{ display:none; }
+  .kadessa-head-btn{ background:rgba(255,255,255,0.14); border:none; color:#fff; width:28px; height:28px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; flex:0 0 auto; }
+  .kadessa-head-btn:hover{ background:rgba(255,255,255,0.26); }
+  .kadessa-head-btn svg{ width:15px; height:15px; display:block; }
+  #kadessa-head #kadessa-close{ width:28px; height:28px; border-radius:8px; background:rgba(255,255,255,0.14); font-size:19px; }
+  #kadessa-head #kadessa-close:hover{ background:rgba(255,255,255,0.26); }
+  #kadessa-panel.kadessa-big .kadessa-msg{ max-width:72%; font-size:14px; }
+  .kadessa-msg.kadessa{ border-left:3px solid var(--cyan, #00C2FF); }
+
+  /* light formatting for her replies */
+  .kadessa-rich{ white-space:normal; }
+  .kadessa-rich .kr-p{ margin:0; }
+  .kadessa-rich .kr-p + .kr-p, .kadessa-rich .kr-p + ul, .kadessa-rich .kr-p + ol, .kadessa-rich ul + .kr-p, .kadessa-rich ol + .kr-p{ margin-top:7px; }
+  .kadessa-rich ul, .kadessa-rich ol{ margin:0; padding-left:18px; }
+  .kadessa-rich li{ margin:2px 0; }
+  .kadessa-rich strong{ font-weight:700; }
+  .kadessa-rich code{ font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12px; background:rgba(0,0,0,0.25); border-radius:4px; padding:1px 5px; }
+
+  /* action cards */
+  .kadessa-acts{ align-self:stretch; display:flex; flex-direction:column; gap:6px; }
+  .kadessa-act{ display:flex; align-items:flex-start; gap:10px; padding:9px 11px; border-radius:11px; background:var(--surface, rgba(255,255,255,0.04)); border:1px solid var(--border, rgba(0,194,255,0.10)); color:var(--text, #E8F4FF); font-size:12.5px; line-height:1.4; animation:kadessaActIn .22s ease-out; }
+  .kadessa-act-icon{ width:20px; height:20px; flex:0 0 auto; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-top:1px; box-sizing:border-box; }
+  .kadessa-act-icon svg{ width:11px; height:11px; display:block; }
+  .kadessa-act.running{ border-color:var(--border2, rgba(0,194,255,0.30)); }
+  .kadessa-act.running .kadessa-act-icon{ border:2px solid rgba(0,194,255,0.25); border-top-color:var(--cyan, #00C2FF); animation:kadessaSpin .8s linear infinite; }
+  .kadessa-act.done .kadessa-act-icon{ background:none; border:1.5px solid var(--cyan, #00C2FF); color:var(--cyan, #00C2FF); }
+  .kadessa-act.fail{ border-color:rgba(232,137,107,0.40); }
+  .kadessa-act.fail .kadessa-act-icon{ background:none; border:1.5px solid #E8896B; color:#E8896B; }
+  .kadessa-act.skip .kadessa-act-icon, .kadessa-act.undone .kadessa-act-icon{ background:rgba(122,168,196,0.18); color:var(--text2, #7BA8C4); }
+  .kadessa-act.skip, .kadessa-act.undone{ opacity:0.75; }
+  .kadessa-act-body{ flex:1; min-width:0; }
+  .kadessa-act-kicker{ font-size:10px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text2, #7BA8C4); }
+  .kadessa-act.done .kadessa-act-kicker{ color:var(--text2, #7BA8C4); }
+  .kadessa-act.fail .kadessa-act-kicker{ color:#E8896B; }
+  .kadessa-act-title{ overflow-wrap:anywhere; }
+  .kadessa-act-undo{ flex:0 0 auto; align-self:center; border:1px solid var(--border2, rgba(0,194,255,0.30)); background:none; color:var(--cyan, #00C2FF); border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; }
+  .kadessa-act-undo:hover{ background:rgba(0,194,255,0.10); }
+  @keyframes kadessaSpin{ to{ transform:rotate(360deg); } }
+  @keyframes kadessaActIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+
+  /* welcome state */
+  .kadessa-welcome{ margin:auto 0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; padding:6px 8px; }
+  .kadessa-welcome-avatar{ width:64px; height:64px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffffff, #F2F8FC 70%); border:1px solid rgba(0,194,255,0.35); display:flex; align-items:center; justify-content:center; box-shadow:0 0 22px rgba(0,194,255,0.25); }
+  .kadessa-welcome-avatar img{ width:44px; height:44px; object-fit:contain; display:block; }
+  .kadessa-welcome h4{ margin:4px 0 0; font-size:16px; font-weight:700; color:var(--text, #E8F4FF); }
+  .kadessa-welcome p{ margin:0; font-size:12.5px; line-height:1.5; color:var(--text2, #7BA8C4); max-width:290px; }
+  .kadessa-chips{ display:flex; flex-wrap:wrap; justify-content:center; gap:7px; margin-top:8px; }
+  .kadessa-chip{ border:1px solid var(--border2, rgba(0,194,255,0.30)); background:rgba(0,194,255,0.07); color:var(--text, #E8F4FF); border-radius:999px; padding:6px 12px; font-size:12px; cursor:pointer; font-family:inherit; }
+  .kadessa-chip:hover{ background:rgba(0,194,255,0.16); border-color:var(--cyan, #00C2FF); }
+
+  /* ===== KADESSA ON-PAGE ANIMATIONS (build 309) ===============================
+     She marks the spot, makes the change, then settles. Scope strip shows where
+     she is working, each action card says where, and the page itself shows what
+     she is touching (PDF Editor items, Data Arrangement rows/columns/cells). */
+  #kadessa-scope{ display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--bg2, #0D1528); border-bottom:1px solid var(--border, rgba(0,194,255,0.10)); font-size:12px; color:var(--text2, #7BA8C4); flex:0 0 auto; }
+  #kadessa-scope b{ color:var(--text, #E8F4FF); font-weight:600; }
+  #kadessa-scope .pin{ width:6px; height:6px; border-radius:50%; background:var(--cyan, #00C2FF); flex:0 0 auto; }
+  #kadessa-scope .area{ transition:opacity .2s; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kadessa-divider{ align-self:stretch; display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--text2, #7BA8C4); animation:kadessaActIn .25s ease-out; }
+  .kadessa-divider::before, .kadessa-divider::after{ content:''; flex:1; height:1px; background:var(--border2, rgba(0,194,255,0.30)); }
+  .kadessa-act-where{ font-size:11px; color:var(--text2, #7BA8C4); margin-top:2px; }
+  #kadessa-fx-layer{ position:fixed; inset:0; pointer-events:none; z-index:99990; }
+  .kfx-ring{ position:fixed; box-sizing:border-box; border-radius:6px; pointer-events:none; opacity:0;
+    box-shadow:0 0 0 1.5px #00C2FF, 0 0 18px rgba(0,194,255,0.35); background:rgba(0,194,255,0.06);
+    transition:opacity .22s ease, left .56s cubic-bezier(.2,.8,.2,1), top .56s cubic-bezier(.2,.8,.2,1), width .56s cubic-bezier(.2,.8,.2,1), height .56s cubic-bezier(.2,.8,.2,1); }
+  .kfx-ring.on{ opacity:1; }
+  .kfx-tag{ position:absolute; top:-23px; left:-1px; background:linear-gradient(135deg,#00C2FF,#0073E6); color:#fff; font:700 10px 'Inter',system-ui,sans-serif; padding:3px 8px; border-radius:6px; white-space:nowrap; opacity:0; transform:translateY(4px); transition:opacity .2s, transform .2s; }
+  .kfx-ring.on .kfx-tag{ opacity:1; transform:none; }
+  .kfx-ring.below .kfx-tag{ top:auto; bottom:-23px; }
+  .kfx-sw{ position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; }
+  .kfx-ring.sweep .kfx-sw::after{ content:''; position:absolute; left:0; right:0; top:0; height:2px; background:linear-gradient(90deg,transparent,#00C2FF,transparent); box-shadow:0 0 10px 2px rgba(0,194,255,0.55); animation:kfxSweep .8s ease-out both; }
+  @keyframes kfxSweep{ from{ top:0; opacity:1; } to{ top:calc(100% - 2px); opacity:.2; } }
+  .kfx-ghost{ position:fixed; box-sizing:border-box; border:1.5px dashed rgba(0,115,230,0.55); border-radius:6px; opacity:1; transition:opacity .6s .1s; pointer-events:none; }
+  .kfx-ghost.gone{ opacity:0; }
+  .kfx-reveal{ animation:kfxReveal .7s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes kfxReveal{ from{ clip-path:inset(0 0 100% 0); opacity:.35; } to{ clip-path:inset(0 0 0 0); opacity:1; } }
+  .kfx-rowin td, .kfx-rowin th{ animation:kfxFade .5s ease both; animation-delay:var(--kfx-d, 0ms); }
+  @keyframes kfxFade{ from{ opacity:0; } to{ opacity:1; } }
+  td.kfx-spot, th.kfx-spot{ box-shadow:inset 0 0 0 1.5px #00C2FF !important; filter:brightness(1.12); transition:box-shadow .3s, filter .3s; }
+  @media (prefers-reduced-motion: reduce){
+    .kfx-ring, .kfx-ghost, .kfx-tag{ transition:none !important; }
+    .kfx-reveal, .kfx-rowin td, .kfx-rowin th, .kfx-ring.sweep .kfx-sw::after{ animation:none !important; }
+  }
