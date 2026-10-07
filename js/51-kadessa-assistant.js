@@ -1993,6 +1993,7 @@
     try {
       if (!c || typeof c !== 'object') return c;
       c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
+      c.daSummaries = true; // tells the Worker this client can add summary columns (da_add_summary)
       try { var dsT = (typeof daGetActive === 'function') ? daGetActive() : null; if (dsT && dsT.headers && dsT.headers.length) c.openTable = { name: dsT.name, rowCount: (dsT.rows || []).length, columns: kadessaProfileColumns(dsT).slice(0, 30) }; } catch (e) {}
       if (c.activePanel === 'Diagrams & Graphs') c.diagram = kdgSnapshot();
       if (c.activePanel === 'Data Arrangement' && typeof daSelection !== 'undefined' && typeof daGetActive === 'function'){
@@ -2399,6 +2400,13 @@
       risk: 'safe',
       run: function(p){ daKadessaLinkTables(p); },
       label: function(p){ return 'Connect ' + (p.table || 'a table') + ' to ' + (p.parentTable || 'another table') + ' by ' + (p.keyColumn || 'a shared column'); }
+    },
+    // da_add_summary {table, keyColumn, childTable, childKeyColumn?, kind: count|sum|average|remaining, valueColumn?, startColumn?, columnName?}
+    //   -- adds a column to a PARENT table that counts or adds up the matching rows of a CHILD table, so it updates by itself.
+    da_add_summary: {
+      risk: 'safe',
+      run: function(p){ daKadessaAddSummary(p); },
+      label: function(p){ return 'Add a ' + (p.kind || 'summary') + ' column to ' + (p.table || 'a table') + ' from ' + (p.childTable || 'another table'); }
     },
     da_create_table_from_template: {
       risk: 'safe',
