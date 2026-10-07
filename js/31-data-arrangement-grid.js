@@ -740,7 +740,7 @@ function daToggleInterconnect(on) {
   daState.interconnect = !!on;
   daState.datasets.forEach(d => { d._calcCache = new Map(); });
   daPersist(); daRenderTabs(); daRenderTable();
-  if (typeof toast === 'function') toast(on ? 'Tables interconnected. Use \'Table name\'!B2 in formulas, or Connect columns.' : 'Interconnect off. Linked cells keep their last values.', 'info');
+  if (typeof toast === 'function') toast(on ? 'Tables interconnected. Use Connect columns to bring details in, or Add summary to count and total rows from another table.' : 'Interconnect off. Linked cells keep their last values.', 'info');
 }
 function daInjectLinkSwitch() {
   const wrap = document.getElementById('daTabs'); if (!wrap || wrap.querySelector('.da-xsw')) return;
@@ -762,9 +762,10 @@ function daInjectLinkSwitch() {
   const box = document.createElement('div'); box.className = 'da-xsw';
   box.title = 'When on, tabs can read from each other: cross-tab formulas, lookups and connected columns';
   box.innerHTML = '<label><input type="checkbox" ' + (daState.interconnect ? 'checked' : '') + '><span class="trk"></span>Interconnect tables</label>' +
-    (daState.interconnect ? '<button type="button">Connect columns\u2026</button>' : '');
+    (daState.interconnect ? '<button type="button">Connect columns\u2026</button><button type="button" class="da-xsum">Add summary\u2026</button>' : '');
   box.querySelector('input').onchange = (e) => daToggleInterconnect(e.target.checked);
   const b = box.querySelector('button'); if (b) b.onclick = daOpenLinkDialog;
+  const b2 = box.querySelector('.da-xsum'); if (b2) b2.onclick = daOpenSummaryDialog;
   wrap.appendChild(box);
 }
 const _daRenderTabsBase = daRenderTabs;
@@ -902,6 +903,125 @@ daRenderTable = function () {
   if (daState.interconnect) { try { daXHealRows(); } catch (e) { console.warn('[Interconnect] row fill failed', e); } }
   return _daRenderTableBase2.apply(this, arguments);
 };
+
+// ─── SUMMARY COLUMNS: a parent table counts or adds up rows of a child table ───
+// Links (above) bring a parent's details INTO a child table. Summaries go the other way:
+// e.g. Customers gets "Total Amount" = the sum of Sales.Amount where Sales.Customer ID matches
+// this row's Customer ID. They are plain COUNTIF / SUMIF formulas, so the number changes by
+// itself the moment a row is added or edited in the other table. Used by the "Add summary"
+// button (by hand) and by Kadessa (da_add_summary), both through daApplySummary.
+const DA_SUMMARY_KINDS = ['count', 'sum', 'average', 'remaining'];
+function daXSummaryFormula(ds, s, ri) {
+  const t = daState.datasets.find(d => d.id === s.toId); if (!t) return '';
+  const N = 1048576 /* whole column: ranges are clamped to the table's real rows */, nm = "'" + t.name + "'";
+  const rng = (c) => { const L = daColToLetters(c); return nm + '!' + L + '1:' + L + N; };
+  const key = daColToLetters(s.keyCol) + (ri + 1);
+  const cnt = 'COUNTIF(' + rng(s.toCol) + ',' + key + ')';
+  const sum = s.valCol >= 0 ? 'SUMIF(' + rng(s.toCol) + ',' + key + ',' + rng(s.valCol) + ')' : '';
+  let core;
+  if (s.kind === 'count') core = cnt;
+  else if (s.kind === 'sum') core = sum;
+  else if (s.kind === 'average') core = 'IF(' + cnt + '=0,0,ROUND(' + sum + '/' + cnt + ',2))';
+  else core = daColToLetters(s.fromCol) + (ri + 1) + '-' + sum; // remaining
+  // A blank key row stays blank (otherwise COUNTIF would count the other table's blank rows).
+  return '=IF(' + key + '="","",' + core + ')';
+}
+function daApplySummary(ds, t, kc, tk, kind, vc, fc, label) {
+  if (DA_SUMMARY_KINDS.indexOf(kind) < 0) throw new Error('kind must be count, sum, average or remaining');
+  if (kind !== 'count' && !(vc >= 0)) throw new Error('pick the column to add up');
+  if (kind === 'remaining' && !(fc >= 0)) throw new Error('pick the starting-amount column');
+  const list = (ds.xsums = ds.xsums || []);
+  const same = list.find(s => s.toId === t.id && s.keyCol === kc && s.toCol === tk && s.kind === kind && s.valCol === (kind === 'count' ? -1 : vc) && s.fromCol === (kind === 'remaining' ? fc : -1) && ds.headers[s.ours] === s.name);
+  if (same) return same.name; // already there, nothing to add twice
+  const th = (i) => String(t.headers[i] == null ? '' : t.headers[i]).trim();
+  let name = String(label == null ? '' : label).trim().slice(0, 60);
+  if (!name) name = kind === 'count' ? 'No. of ' + t.name : kind === 'sum' ? 'Total ' + th(vc) : kind === 'average' ? 'Average ' + th(vc) : 'Remaining ' + String(ds.headers[fc] == null ? '' : ds.headers[fc]).trim();
+  const base = name; let n = 2;
+  while (ds.headers.some(h => String(h).trim().toLowerCase() === name.toLowerCase())) name = base + ' ' + (n++);
+  ds.headers.push(name);
+  const ours = ds.headers.length - 1;
+  const s = { keyCol: kc, toId: t.id, toCol: tk, valCol: kind === 'count' ? -1 : vc, fromCol: kind === 'remaining' ? fc : -1, kind: kind, ours: ours, name: name };
+  ds.rows.forEach((r, ri) => { while (r.length < ours) r.push(''); r[ours] = daXSummaryFormula(ds, s, ri); });
+  list.push(s);
+  daState.interconnect = true;
+  daState.datasets.forEach(d => { d._calcCache = new Map(); });
+  daPersist(); daRenderTabs(); daRenderTable();
+  return name;
+}
+// Kadessa: add a summary column to a PARENT table from a CHILD table.
+function daKadessaAddSummary(p) {
+  const ds = daXFindTable(p.table), t = daXFindTable(p.childTable);
+  if (!ds || !t) throw new Error('table not found: "' + (!ds ? p.table : p.childTable) + '" (use the exact tab name)');
+  if (ds === t) throw new Error('a table cannot summarise itself');
+  const kind = String(p.kind || '').trim().toLowerCase();
+  if (DA_SUMMARY_KINDS.indexOf(kind) < 0) throw new Error('kind must be count, sum, average or remaining');
+  const kc = daXFindCol(ds, p.keyColumn), tk = daXFindCol(t, p.childKeyColumn != null ? p.childKeyColumn : p.keyColumn);
+  if (kc < 0 || tk < 0) throw new Error('matching column not found in "' + (kc < 0 ? ds.name : t.name) + '"');
+  let vc = -1, fc = -1;
+  if (kind !== 'count') { vc = daXFindCol(t, p.valueColumn); if (vc < 0) throw new Error('column to add up not found in "' + t.name + '"'); }
+  if (kind === 'remaining') { fc = daXFindCol(ds, p.startColumn); if (fc < 0) throw new Error('starting-amount column not found in "' + ds.name + '"'); }
+  return daApplySummary(ds, t, kc, tk, kind, vc, fc, p.columnName);
+}
+// New rows: any empty summary cell gets its formula automatically (skipped if the column was removed or renamed).
+function daXHealSummaries() {
+  let changed = false;
+  daState.datasets.forEach(ds => (ds.xsums || []).forEach(s => {
+    if (ds.headers[s.ours] !== s.name) return;
+    if (!daState.datasets.some(d => d.id === s.toId)) return;
+    ds.rows.forEach((r, ri) => {
+      if (String(r[s.ours] == null ? '' : r[s.ours]) === '') { while (r.length <= s.ours) r.push(''); r[s.ours] = daXSummaryFormula(ds, s, ri); changed = true; }
+    });
+  }));
+  if (changed) daPersist();
+}
+const _daRenderTableBase3 = daRenderTable;
+daRenderTable = function () {
+  if (daState.interconnect) { try { daXHealSummaries(); } catch (e) { console.warn('[Interconnect] summary fill failed', e); } }
+  return _daRenderTableBase3.apply(this, arguments);
+};
+// By hand: the "Add summary" button next to the Interconnect switch.
+function daOpenSummaryDialog() {
+  const ds = daState.datasets.find(d => d.id === daState.activeId);
+  const others = daState.datasets.filter(d => d !== ds);
+  if (!ds || !others.length) { if (typeof toast === 'function') toast('Add a second table first, then add a summary from it.', 'info'); return; }
+  const colOpts = (t) => t.headers.map((h, i) => '<option value="' + i + '">' + daColToLetters(i) + ' \u00b7 ' + daEsc(h) + '</option>').join('');
+  const ov = document.createElement('div'); ov.className = 'da-xdlg';
+  ov.innerHTML = '<div><b>Add summary column</b><span style="color:var(--text2)">Add a column to <b>' + daEsc(ds.name) + '</b> that counts or adds up rows from another table. It updates by itself whenever that other table changes.</span>' +
+    '<label>Take rows from table<select id="daSt">' + others.map(o => '<option value="' + o.id + '">' + daEsc(o.name) + '</option>').join('') + '</select></label>' +
+    '<label>Matching column in this table (like Customer ID)<select id="daSk">' + colOpts(ds) + '</select></label>' +
+    '<label>Its matching column in that table<select id="daStk"></select></label>' +
+    '<label>What to show<select id="daSkind"><option value="count">Count of rows (how many)</option><option value="sum">Total of a column</option><option value="average">Average of a column</option><option value="remaining">Remaining (a number here minus the total)</option></select></label>' +
+    '<label id="daSvW">Column to add up (in that table)<select id="daSv"></select></label>' +
+    '<label id="daSfW">Starting amount (column in this table)<select id="daSf">' + colOpts(ds) + '</select></label>' +
+    '<label>Column name (optional)<input id="daSn" type="text" maxlength="60" placeholder="Leave empty for an automatic name" style="padding:6px;border-radius:6px;background:var(--surface2);color:var(--text);border:1px solid var(--border)"></label>' +
+    '<div class="row"><button type="button" id="daSc" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">Cancel</button>' +
+    '<button type="button" id="daSo" style="padding:6px 12px;border-radius:6px;border:0;background:var(--blue);color:#fff;cursor:pointer">Add summary column</button></div></div>';
+  document.body.appendChild(ov);
+  const q = (id) => ov.querySelector('#' + id);
+  const tgt = () => others.find(o => o.id === q('daSt').value);
+  const same = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+  const sync = () => { const k = q('daSkind').value; q('daSvW').style.display = k === 'count' ? 'none' : ''; q('daSfW').style.display = k === 'remaining' ? '' : 'none'; };
+  const fill = () => {
+    const t = tgt(); q('daStk').innerHTML = colOpts(t); q('daSv').innerHTML = colOpts(t);
+    // Guess the shared column (same header in both tables, preferring an ID-like one), a number column to add up, and a starting amount.
+    let best = null;
+    ds.headers.forEach((h, i) => { const j = t.headers.findIndex(x => same(x, h)); if (j >= 0 && String(h).trim() !== '') { const idish = /(^|\W)(id|no|number|code|sku)(\W|$)/i.test(h); if (!best || (idish && !best.idish)) best = { i: i, j: j, idish: idish }; } });
+    if (best) { q('daSk').value = best.i; q('daStk').value = best.j; }
+    const vi = t.headers.findIndex(h => /amount|total|price|qty|quantity|value|cost|revenue|paid/i.test(h)); if (vi >= 0) q('daSv').value = vi;
+    const fi = ds.headers.findIndex(h => /stock|qty|quantity|opening|balance|limit|budget|capacity/i.test(h)); if (fi >= 0) q('daSf').value = fi;
+    sync();
+  };
+  q('daSt').onchange = fill; q('daSkind').onchange = sync; fill();
+  q('daSc').onclick = () => ov.remove();
+  q('daSo').onclick = () => {
+    const t = tgt(), kind = q('daSkind').value;
+    try {
+      const name = daApplySummary(ds, t, +q('daSk').value, +q('daStk').value, kind, kind === 'count' ? -1 : +q('daSv').value, kind === 'remaining' ? +q('daSf').value : -1, q('daSn').value);
+      ov.remove();
+      if (typeof toast === 'function') toast('Added "' + name + '". It updates by itself when ' + t.name + ' changes.', 'success');
+    } catch (e) { if (typeof toast === 'function') toast(e.message || 'Could not add the summary column.', 'error'); }
+  };
+}
 
 // ─── Live exchange rates (opt-in) ───────────────────────────────────────
 // Only called when the user clicks "Get Live Rates" — never automatically.
