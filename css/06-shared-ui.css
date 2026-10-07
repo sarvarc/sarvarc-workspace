@@ -1,0 +1,325 @@
+/* ─── CONNECTED WORKFLOW BADGES ─── */
+.workflow-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+  padding: 3px 8px; border-radius: 20px;
+  border: 1px solid rgba(0,194,255,0.35);
+  background: rgba(0,194,255,0.1); color: var(--cyan);
+}
+.save-to-gallery-btn {
+  width: 100%;
+  background: linear-gradient(135deg, var(--green), #059669);
+  color: white; border: none; border-radius: 9px;
+  padding: 10px 16px; font-family: 'Inter', sans-serif;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  transition: all 0.2s; box-shadow: 0 4px 16px rgba(16,185,129,0.3);
+}
+.save-to-gallery-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(16,185,129,0.45); }
+.save-to-gallery-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* Edit in editor btn on gallery cards */
+.overlay-btn.ai-edit { background: rgba(8,12,24,0.85); }
+.overlay-btn.ai-edit:hover { background: linear-gradient(135deg, var(--cyan), var(--purple)); border-color: transparent; }
+
+/* ─── EXPORT ─── */
+.export-section { padding: 28px; position: relative; z-index: 1; }
+.export-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+.export-card {
+  background: var(--bg2); border: 2px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  cursor: pointer; transition: all 0.2s; text-align: center;
+  box-shadow: var(--shadow-card);
+}
+.export-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+.export-card.selected { border-color: var(--blue); background: rgba(0,194,255,0.07); }
+.export-card .e-icon { font-size: 32px; margin-bottom: 10px; }
+.export-card h3 { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.export-card p { font-size: 11px; color: var(--text2); }
+.export-badge { background: var(--blue); color: white; font-size: 9px; padding: 2px 6px; border-radius: 20px; font-weight: 700; margin-top: 8px; display: inline-block; }
+
+/* ─── TOAST ─── */
+.toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px;
+  /* Must always render above every modal in the app, including ones opened
+     later in the DOM (e.g. Map Explorer, which gets re-parented to <body> on
+     open — see dgOpenMapExplorer). At the old z-index:9999, a toast fired
+     while such a modal was open could tie on z-index and lose to it by DOM
+     order, making error/info toasts silently invisible right when they
+     matter most (e.g. a failed map push). */
+  z-index: 2000000;
+}
+.toast {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; min-width: 240px;
+  animation: toastIn 0.3s ease; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  backdrop-filter: blur(20px);
+}
+.toast.success { border-color: rgba(16,185,129,0.4); }
+.toast.error { border-color: rgba(236,72,153,0.4); }
+.toast.info { border-color: rgba(0,194,255,0.4); }
+.toast-icon { font-size: 16px; }
+@keyframes toastIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ===== Premium first-login welcome moment — in SARVARC's own cyan/blue brand identity ===== */
+.sarvarc-welcome-overlay {
+  position: fixed; inset: 0; z-index: 2100000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6,10,20,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(.16,.8,.24,1);
+}
+[data-theme="light"] .sarvarc-welcome-overlay { background: rgba(10,15,30,0.42); }
+.sarvarc-welcome-overlay.open { opacity: 1; pointer-events: auto; }
+.sarvarc-welcome-card {
+  position: relative; overflow: hidden;
+  background: linear-gradient(180deg, var(--bg3), var(--bg2));
+  border: 1px solid var(--border2);
+  border-radius: 20px; padding: 42px 46px 30px;
+  min-width: 300px; max-width: 380px; text-align: center;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.55), 0 0 60px rgba(0,194,255,0.10), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  transform: scale(0.92) translateY(10px); opacity: 0;
+  transition: transform 0.5s cubic-bezier(.16,.8,.24,1), opacity 0.4s ease;
+}
+.sarvarc-welcome-overlay.open .sarvarc-welcome-card { transform: scale(1) translateY(0); opacity: 1; }
+/* Signature gradient hairline across the top, matching the app's other
+   brand accent lines (nav underline, section dividers, etc). */
+.sarvarc-welcome-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--purple), var(--cyan), transparent);
+  background-size: 200% 100%;
+  animation: sarvarcWelcomeSheen 2.6s linear both;
+}
+@keyframes sarvarcWelcomeSheen { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.sarvarc-welcome-watermark {
+  position: absolute; top: 50%; left: 50%; width: 230px; height: auto;
+  transform: translate(-50%,-50%); opacity: 0.05; pointer-events: none;
+}
+.sarvarc-welcome-badge {
+  position: relative; width: 50px; height: 50px; margin: 0 auto 18px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #fff;
+  box-shadow: 0 0 0 1px rgba(0,194,255,0.35), var(--glow-blue);
+  animation: sarvarcWelcomeBadgeIn 0.6s cubic-bezier(.16,.8,.24,1) 0.15s both;
+}
+@keyframes sarvarcWelcomeBadgeIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.sarvarc-welcome-eyebrow {
+  position: relative; font-size: 10px; font-weight: 700; letter-spacing: 0.24em;
+  text-transform: uppercase; color: var(--blue); margin-bottom: 10px;
+}
+.sarvarc-welcome-name {
+  position: relative; font-size: 22px; font-weight: 800; letter-spacing: -0.01em;
+  line-height: 1.3; margin-bottom: 6px; overflow-wrap: anywhere;
+  background: linear-gradient(90deg, var(--text), var(--cyan) 65%, var(--purple));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.sarvarc-welcome-sub {
+  position: relative; font-size: 12.5px; color: var(--text2); margin-bottom: 22px;
+}
+.sarvarc-welcome-progress {
+  position: relative; height: 2px; width: 100%; border-radius: 2px;
+  background: var(--border); overflow: hidden;
+}
+.sarvarc-welcome-progress-bar {
+  height: 100%; width: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--purple));
+  transform-origin: left; transform: scaleX(1);
+}
+.sarvarc-welcome-overlay.open .sarvarc-welcome-progress-bar {
+  transition: transform 2.6s linear; transform: scaleX(0);
+}
+
+
+/* ─── OCR PROGRESS BAR ───────────────────────────────────────────────────────
+   Persistent bottom-LEFT status card (mirrors the toast container, which
+   lives bottom-right) shown for the whole duration of an OCR pass. Unlike a
+   toast, it doesn't auto-dismiss after a few seconds, OCR on a slow/blurry
+   page can take a while, and a person watching a spinner with no numbers has
+   no way to tell "almost done" from "stuck". A real percentage (driven by
+   Tesseract's own progress callback) plus a status label fixes that. */
+.pdfed-ocr-progress {
+  position: fixed; bottom: 24px; left: 24px; z-index: 9999;
+  width: 260px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5); backdrop-filter: blur(20px);
+  animation: toastIn 0.3s ease;
+}
+.pdfed-ocr-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.pdfed-ocr-spinner {
+  width: 15px; height: 15px; flex-shrink: 0;
+  border: 2px solid rgba(0,194,255,0.25); border-top-color: var(--blue);
+  border-radius: 50%; animation: pdfedOcrSpin 0.75s linear infinite;
+}
+@keyframes pdfedOcrSpin { to { transform: rotate(360deg); } }
+.pdfed-ocr-progress-label { font-size: 12.5px; font-weight: 600; color: var(--text); flex: 1; }
+.pdfed-ocr-progress-pct { font-size: 11.5px; font-weight: 700; color: var(--blue); font-variant-numeric: tabular-nums; }
+.pdfed-ocr-progress-track {
+  height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden;
+}
+.pdfed-ocr-progress-fill {
+  height: 100%; width: 4%; border-radius: 3px; background: var(--blue);
+  transition: width 0.25s ease;
+}
+
+/* ─── MODAL ─── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 500; display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 28px; max-width: 500px; width: 90%;
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), var(--glow-blue);
+}
+.modal h2 { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+.modal p { color: var(--text2); font-size: 13px; margin-bottom: 20px; }
+.modal img { width: 100%; border-radius: 10px; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 10px; }
+/* Delete-style confirm inside the SARVARC prompt/confirm modal (see
+   sarvarcModalConfirm) — the shared .btn-primary is blue by default, this
+   swaps it to a red action specifically for #sarvarcModalOkBtn so a
+   destructive confirm ("Delete") doesn't look like a routine one. */
+#sarvarcModalOkBtn.danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 4px 20px rgba(239,68,68,0.35);
+}
+#sarvarcModalOkBtn.danger:hover { box-shadow: 0 6px 25px rgba(239,68,68,0.45); }
+
+/* ─── EXPORT PROGRESS OVERLAY, floating 3D sheets ─── */
+.export-overlay {
+  position: fixed; inset: 0; z-index: 1000000;
+  background: rgba(5,10,20,0.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  display: none; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.4s ease;
+  overflow: hidden;
+}
+.export-overlay.open { display: flex; }
+.export-overlay.visible { opacity: 1; }
+
+/* Slow-drifting, low-opacity color wash behind the card, organic blob
+   shapes (not circles), heavily blurred so they read as ambience only. */
+.export-aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.aurora-blob {
+  position: absolute; filter: blur(70px);
+  opacity: 0.13; mix-blend-mode: screen; will-change: transform;
+  animation: auroraDrift ease-in-out infinite;
+}
+.aurora-blob.a1 { width: 420px; height: 380px; background: var(--blue); top: -12%; left: -8%; border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; animation-duration: 19s; }
+.aurora-blob.a2 { width: 380px; height: 420px; background: var(--purple); bottom: -14%; right: -6%; border-radius: 58% 42% 39% 61% / 55% 48% 52% 45%; animation-duration: 23s; animation-delay: -6s; }
+.aurora-blob.a3 { width: 300px; height: 260px; background: var(--green); top: 42%; left: 62%; border-radius: 48% 52% 60% 40% / 44% 56% 44% 56%; animation-duration: 27s; animation-delay: -11s; opacity: 0.08; }
+@keyframes auroraDrift {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(28px,-22px) scale(1.08); }
+  66% { transform: translate(-22px,16px) scale(0.95); }
+}
+
+.export-overlay-card {
+  position: relative; z-index: 1;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 22px; padding: 40px 40px 34px; width: 90%; max-width: 320px;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6), var(--glow-blue);
+  transform: translateY(10px) scale(0.96); transition: transform 0.4s cubic-bezier(.2,.8,.2,1);
+}
+.export-overlay.visible .export-overlay-card { transform: translateY(0) scale(1); }
+
+/* 3D stage: a small stack of translucent page-sheets floats in depth and
+   drifts toward the viewer as progress advances, no rings, no spinners. */
+.export-scene { position: relative; width: 132px; height: 132px; margin-bottom: 18px; perspective: 620px; }
+.export-stack { position: absolute; inset: 0; transform-style: preserve-3d; }
+
+.export-sheet {
+  position: absolute; left: 50%; top: 50%; width: 82px; height: 104px;
+  margin: -52px 0 0 -41px; border-radius: 9px;
+  background: linear-gradient(155deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+  border: 1px solid rgba(0,194,255,0.28);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.4);
+  backface-visibility: hidden;
+}
+.sheet-back-2 { animation: floatBack2 7s ease-in-out infinite; opacity: 0.32; filter: blur(1.4px); }
+.sheet-back-1 { animation: floatBack1 6s ease-in-out infinite; animation-delay: -2s; opacity: 0.5; filter: blur(0.5px); }
+@keyframes floatBack2 {
+  0%,100% { transform: translateZ(-44px) translateY(9px) rotateX(9deg) rotateY(-11deg); }
+  50%     { transform: translateZ(-44px) translateY(2px) rotateX(6deg) rotateY(-15deg); }
+}
+@keyframes floatBack1 {
+  0%,100% { transform: translateZ(-21px) translateY(4px) rotateX(6deg) rotateY(-6deg); }
+  50%     { transform: translateZ(-21px) translateY(-3px) rotateX(4deg) rotateY(-9deg); }
+}
+
+.export-front-wrap { position: absolute; inset: 0; transform-style: preserve-3d; animation: floatFrontWrap 5s ease-in-out infinite; animation-delay: -1s; }
+@keyframes floatFrontWrap {
+  0%,100% { transform: translateY(0) rotateZ(0deg); }
+  50%     { transform: translateY(-3px) rotateZ(0.5deg); }
+}
+.sheet-front {
+  opacity: 0.88;
+  transform: translateZ(4px) scale(1) rotateX(4deg) rotateY(-4deg);
+  box-shadow: 0 18px 40px rgba(0,194,255,0.15);
+  transition: transform 0.5s cubic-bezier(.2,.7,.2,1), opacity 0.5s ease, box-shadow 0.5s ease;
+  overflow: hidden;
+}
+.export-overlay.success .sheet-front,
+.export-overlay.success .sheet-back-1,
+.export-overlay.success .sheet-back-2 {
+  opacity: 0; transform: translateZ(-30px) scale(0.9);
+  transition: transform 0.4s ease, opacity 0.35s ease;
+}
+
+/* Slow diagonal sheen sweeping across the front sheet, the subtle premium
+   polish detail, tasteful and low-opacity rather than a shimmer/skeleton look. */
+.sheet-sheen {
+  position: absolute; inset: 0; border-radius: 9px;
+  background: linear-gradient(120deg, transparent 32%, rgba(255,255,255,0.20) 48%, transparent 64%);
+  background-size: 240% 240%;
+  animation: sheenSweep 3.6s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+@keyframes sheenSweep {
+  0% { background-position: -130% -130%; }
+  100% { background-position: 130% 130%; }
+}
+.sheet-fold {
+  position: absolute; top: 0; right: 0; width: 0; height: 0;
+  border-style: solid; border-width: 0 15px 15px 0;
+  border-color: transparent rgba(0,194,255,0.35) transparent transparent;
+}
+.sheet-lines { position: absolute; left: 13px; right: 13px; top: 24px; display: flex; flex-direction: column; gap: 7px; }
+.sheet-lines span { display: block; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.16); }
+.sheet-lines span:nth-child(2) { width: 68%; }
+.sheet-lines span:nth-child(3) { width: 84%; }
+
+/* Checkmark flies in from depth on success, replacing the sheet stack */
+.export-check-fly {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: translateZ(-40px) scale(0.7);
+  color: var(--green);
+  transition: transform 0.5s cubic-bezier(.2,.8,.2,1), opacity 0.5s ease;
+}
+.export-check-fly svg { width: 40px; height: 40px; filter: drop-shadow(0 0 10px rgba(16,185,129,0.5)); }
+.export-overlay.success .export-check-fly { opacity: 1; transform: translateZ(20px) scale(1); }
+
+.export-pct-row { font-family: 'Syne', sans-serif; font-size: 21px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; margin-bottom: 10px; }
+.export-overlay.success .export-pct-row { display: none; }
+.export-bar-track {
+  width: 130px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08);
+  overflow: hidden; margin-bottom: 18px;
+}
+.export-overlay.success .export-bar-track { display: none; }
+.export-bar-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  box-shadow: 0 0 8px rgba(0,194,255,0.5);
+  transition: width 0.5s cubic-bezier(.3,.6,.3,1);
+}
+
+.export-overlay-title { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 5px; }
+.export-overlay-sub {
+  font-size: 12px; color: var(--text2); min-height: 16px;
+  transition: opacity 0.15s ease; max-width: 260px;
+}

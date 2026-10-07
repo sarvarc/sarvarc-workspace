@@ -1,0 +1,1726 @@
+/* ─── PDF EDITOR ─── */
+/* ─── PDF EDITOR: distinct desktop-app chrome ─── */
+.pdfeditor-section {
+  padding: 0;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--topnav-h)); /* subtract topnav (tracks its live/compact height) */
+}
+
+/* App-style titlebar that replaces the generic page-header */
+.pdfed-appbar {
+  display: flex;
+  flex-direction: column;
+  background: var(--pdfed-toolbar-bg);
+  border-bottom: 2px solid #0073E6;
+  flex-shrink: 0;
+}
+/* Row 1: title + action buttons */
+.pdfed-appbar-row1 {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  border-bottom: 1px solid var(--pdfed-toolbar-border);
+  transition: height 0.28s cubic-bezier(.4,0,.2,1);
+}
+/* Row 2: ribbon tools */
+.pdfed-appbar-row2 {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  overflow: hidden;
+  transition: height 0.28s cubic-bezier(.4,0,.2,1);
+}
+
+/* Compact state, same auto-shrink logic as the top logo bar: kicks in after
+   idle, restores instantly on hover. Flexbox sibling (.pdfeditor-layout is
+   flex:1) reflows automatically, so the canvas always stays flush, no gap.
+   Only row1 (title/actions) shrinks, the ribbon (row2) is where the user
+   selects tools/features, so it stays full size at all times. */
+.pdfed-appbar.compact .pdfed-appbar-row1 { height: 30px; }
+.pdfed-appbar.compact .pdfed-appbar-title { font-size: 10px; padding: 0 12px; }
+.pdfed-appbar.compact .pdfed-appbar-btn { padding: 4px 9px; font-size: 10px; }
+.pdfed-appbar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-right: 1px solid var(--border);
+  height: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+  min-width: 160px;
+}
+.pdfed-appbar-title svg { opacity: 0.8; }
+.pdfed-appbar-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--pdfed-btn-bg);
+  color: var(--text2);
+  letter-spacing: 0.3px;
+}
+
+/* ─── RIBBON COLLAPSE — "premium minimal" mode for users who don't want ───
+   ─── every tool group on screen at once. Row2 (the ribbon) can be pinned  ───
+   ─── shut via the header toggle; a slim hover strip takes its place and   ───
+   ─── reveals the full ribbon as a floating overlay on hover, so the canvas ───
+   ─── never jumps just to peek at a tool. Preference persists per browser. ─── */
+.pdfed-appbar { position: relative; }
+.pdfed-appbar-row2 {
+  border-bottom: 1px solid transparent; /* animatable stand-in for the visible 1px border below, so it fades in/out in step with height/opacity instead of vanishing the instant collapse starts */
+  /* OPENING (this rule governs the transition back to normal, i.e. the target
+     state when the .ribbon-collapsed class is removed). 0s — no transition,
+     no delay. People open the ribbon because they need a tool right now;
+     it's there and clickable the same frame as the click. */
+  transition: height 0s, opacity 0s, border-color 0s, box-shadow 0s;
+}
+.pdfed-appbar.ribbon-collapsed .pdfed-appbar-row2 {
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-bottom-color: transparent;
+  /* COLLAPSING (this rule governs the transition into this state, i.e. when
+     .ribbon-collapsed is added). This is the "premium" side — 0.75s, slow and
+     deliberate, because closing/hiding something is the motion people
+     actually watch (opening they just want done; closing they want to feel
+     graceful). Opacity clears early (0.3s, no delay) so the icons are long
+     gone before the container finishes shrinking — nothing looks squashed.
+     Height then follows a steep ease-in (almost all the motion happens in the
+     final third) so the ribbon holds its shape, then tucks itself away with a
+     slow, confident close instead of shrinking at a constant rate. */
+  transition: height 0.75s cubic-bezier(.7,0,.84,0),
+              opacity 0.3s ease-in,
+              border-color 0.3s ease-in,
+              box-shadow 0.3s ease-in;
+}
+.pdfed-appbar.ribbon-collapsed .pdfed-appbar-row2.ribbon-peek {
+  position: absolute;
+  left: 0; right: 0;
+  height: 52px;
+  opacity: 1;
+  pointer-events: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 40;
+  background: var(--pdfed-toolbar-bg);
+  border-bottom-color: var(--pdfed-toolbar-border);
+  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.35);
+}
+.pdfed-ribbon-peek-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 9px;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--pdfed-toolbar-bg), transparent);
+  border-bottom: 1px solid var(--pdfed-toolbar-border);
+  color: var(--text3);
+}
+.pdfed-appbar.ribbon-collapsed .pdfed-ribbon-peek-handle { display: flex; }
+.pdfed-ribbon-peek-handle:hover { color: var(--pdfed-accent); }
+.pdfed-ribbon-toggle-btn svg { transition: transform 0.32s cubic-bezier(.25,.1,.25,1); }
+.pdfed-appbar.ribbon-collapsed .pdfed-ribbon-toggle-btn svg { transform: rotate(180deg); }
+.pdfed-appbar.ribbon-collapsed .pdfed-ribbon-toggle-btn { color: var(--pdfed-accent); }
+
+/* Toolbar ribbon, icon + label buttons in a row */
+.pdfed-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 12px;
+  flex: 1;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.pdfed-ribbon::-webkit-scrollbar { height: 3px; }
+.pdfed-ribbon::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+/* Labeled toolbar groups (Annotate / Edit / Insert / Page) */
+.pdfed-rbn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px 5px 3px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.pdfed-rbn-group:hover { background: rgba(255,255,255,0.025); }
+.pdfed-rbn-group-btns {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.pdfed-rbn-group-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--text3);
+  text-align: center;
+  line-height: 1;
+  opacity: 0.65;
+  user-select: none;
+  transition: opacity 0.2s, height 0.2s, margin 0.2s;
+}
+.pdfed-rbn-group:hover .pdfed-rbn-group-label { opacity: 0.9; color: var(--text2); }
+.pdfed-rbn-standalone {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.pdfed-rbn-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+  min-width: 42px;
+}
+.pdfed-rbn-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+.pdfed-rbn-btn.active { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); }
+.pdfed-rbn-btn svg { flex-shrink: 0; }
+.pdfed-rbn-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; margin: 0 5px; align-self: center; }
+
+/* ─── SARVARC EYE — one-click premium canvas refine ───
+   Kept deliberately small and quiet: an icon-only button, same footprint as
+   the other compact ribbon controls, with just a faint gradient tint so it
+   reads as "the special one" without shouting. */
+.sarvarc-eye-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(0,194,255,0.10), rgba(168,85,247,0.10));
+  border: 1px solid rgba(0,194,255,0.18);
+  color: var(--cyan);
+}
+.sarvarc-eye-btn:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.18), rgba(168,85,247,0.18));
+  border-color: rgba(0,194,255,0.32);
+  color: var(--text);
+}
+.sarvarc-eye-btn svg { flex-shrink: 0; }
+.sarvarc-eye-btn.sarvarc-eye-busy { pointer-events: none; opacity: 0.65; }
+.sarvarc-eye-btn.sarvarc-eye-busy svg { animation: sarvarcEyeSpin 0.9s linear infinite; }
+@keyframes sarvarcEyeSpin { to { transform: rotate(360deg); } }
+
+/* Round variant when SARVARC Eye sits in the floating page-actions pill,
+   right beside the Duplicate icon — same 28px circular footprint as its
+   neighbours, just keeping its own quiet gradient tint. */
+.pdfed-page-actions .sarvarc-eye-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, rgba(0,194,255,0.22), rgba(168,85,247,0.22));
+}
+.pdfed-page-actions .sarvarc-eye-btn:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.32), rgba(168,85,247,0.32));
+  color: var(--cyan);
+  box-shadow: 0 0 10px rgba(0,194,255,0.35);
+}
+
+/* ─── Refine-connected group (SARVARC Eye + pull-up/push-down) ───
+   One shared capsule ties these three together visually as the same
+   family as Refine Report — same cyan→purple gradient language, just
+   quieter, since this is a one-page manual nudge rather than a whole-
+   document pass. Eye keeps its own stronger tint (it's the primary,
+   one-click action); the two flow buttons sit at a lighter tint so the
+   group reads as "Eye, plus two related tools" rather than three equals. */
+.pdfed-pgact-refine-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(0,194,255,0.08), rgba(168,85,247,0.08));
+  border: 1px solid rgba(0,194,255,0.16);
+}
+.theme-light .pdfed-pgact-refine-group {
+  background: linear-gradient(135deg, rgba(0,115,230,0.06), rgba(147,51,234,0.06));
+  border-color: rgba(0,115,230,0.16);
+}
+.pdfed-pgact-refine-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(0,194,255,0.2);
+  flex-shrink: 0;
+}
+.theme-light .pdfed-pgact-refine-divider { background: rgba(0,115,230,0.18); }
+.pdfed-pgact-flow-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--cyan);
+}
+.pdfed-pgact-flow-btn:hover {
+  background: linear-gradient(135deg, rgba(0,194,255,0.20), rgba(168,85,247,0.20));
+  color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,194,255,0.28);
+}
+.pdfed-pgact-flow-btn:disabled {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text3);
+}
+.pdfed-pgact-flow-btn:disabled:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text3);
+}
+
+/* Quiet, single-pass shimmer across the canvas — confirms SARVARC Eye did
+   something without any confetti/sparkle theatrics. A thin, low-opacity
+   diagonal band sweeps once and is gone; nothing repeats, nothing loops. */
+.sarvarc-eye-shimmer {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(115deg,
+    rgba(255,255,255,0) 42%,
+    rgba(255,255,255,0.16) 50%,
+    rgba(0,194,255,0.10) 53%,
+    rgba(255,255,255,0) 62%);
+  background-size: 240% 240%;
+  background-position: -40% -40%;
+  z-index: 6;
+}
+.sarvarc-eye-shimmer.play {
+  animation: sarvarcEyeShimmerSweep 1.1s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes sarvarcEyeShimmerSweep {
+  0%   { opacity: 0;    background-position: -40% -40%; }
+  12%  { opacity: 0.9; }
+  55%  { opacity: 0.9;  background-position: 60% 60%; }
+  100% { opacity: 0;    background-position: 140% 140%; }
+}
+
+/* Zoom controls in ribbon */
+.pdfed-rbn-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.pdfed-rbn-zoom-btn {
+  background: var(--pdfed-ribbon-btn-bg);
+  border: none;
+  color: var(--text2);
+  font-size: 14px;
+  width: 26px; height: 26px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.12s;
+}
+.pdfed-rbn-zoom-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+.pdfed-rbn-zoom-val {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  width: 42px;
+  text-align: center;
+  cursor: default;
+}
+
+/* Page label in ribbon */
+.pdfed-rbn-page-label {
+  font-size: 10px;
+  color: var(--text3);
+  padding: 0 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Export + file buttons in appbar right */
+.pdfed-appbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 100%;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.pdfed-appbar-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--pdfed-btn-bg);
+  color: var(--text2);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.pdfed-appbar-btn:hover { background: var(--pdfed-btn-hover); color: var(--text); border-color: var(--border2); }
+/* Icon-only app bar buttons: name slides out on hover / keyboard focus */
+.pdfed-appbar-btn[data-icon-only] { padding: 6px 9px; gap: 0; }
+.pdfed-appbar-btn[data-icon-only] > svg:first-child { width: 16px; height: 16px; flex-shrink: 0; }
+.pdfed-reveal { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+  transition: max-width .25s ease, opacity .2s ease, margin .25s ease; margin-left: 0; }
+.pdfed-appbar-btn[data-icon-only]:hover .pdfed-reveal,
+.pdfed-appbar-btn[data-icon-only]:focus-visible .pdfed-reveal { max-width: 140px; opacity: 1; margin-left: 6px; }
+
+.pdfed-appbar-btn.primary {
+  background: #0073E6;
+  border-color: #0073E6;
+  color: #fff;
+}
+.pdfed-appbar-btn.primary:hover { background: #0060cc; }
+.pdfed-appbar-btn.danger { color: #f87171; border-color: rgba(248,113,113,0.3); }
+.pdfed-appbar-btn.danger:hover { background: rgba(248,113,113,0.1); }
+
+/* Compact page-info pill, sits beside the Export button, driven by the
+   exact same prrPageNum/prrTotalPages/prrEdits elements the right panel
+   used to own, so every existing update call keeps working untouched. */
+.pdfed-pageinfo-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--pdfed-btn-bg);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pdfed-pageinfo-pill svg { opacity: 0.7; flex-shrink: 0; }
+.pdfed-pageinfo-pill b { color: var(--text); font-weight: 700; }
+.pdfed-pageinfo-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.pdfed-pageinfo-edits { color: var(--text3); font-size: 10.5px; }
+@media (max-width: 980px) { .pdfed-pageinfo-edits, .pdfed-pageinfo-dot { display: none; } }
+
+
+/* ══ PRESENTER (tiny appbar button + fullscreen stage) ══ */
+.pdfed-presenter-btn{width:26px;height:26px;padding:0;border-radius:6px;border:1px solid var(--border);background:var(--pdfed-btn-bg);color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.pdfed-presenter-btn:hover{background:var(--pdfed-btn-hover);color:var(--text);border-color:var(--border2)}
+.pdfed-presenter-btn svg{display:block}
+#pdfedPresenter{position:fixed;inset:0;z-index:2147483000;display:none;background:#000;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+#pdfedPresenter.open{display:block}
+#pdfedPresenter.hide-cursor{cursor:none}
+#pdfedPresImg{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;max-width:none;background:#fff;opacity:0;transition:opacity .18s ease;-webkit-user-drag:none;image-rendering:auto}
+#pdfedPresImg.on{opacity:1}
+#pdfedPresenter.zoomed{cursor:grab}
+#pdfedPresenter.zoomed.dragging{cursor:grabbing}
+#pdfedPresHud{position:absolute;right:14px;bottom:12px;display:flex;gap:8px;color:rgba(255,255,255,.65);font:500 11px/1 'Inter',sans-serif;transition:opacity .35s ease;pointer-events:none}
+#pdfedPresHud.faded{opacity:0}
+#pdfedPresSpin{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:#fff;animation:pdfedPresSpin .8s linear infinite;display:none}
+#pdfedPresSpin.on{display:block}
+@keyframes pdfedPresSpin{to{transform:rotate(360deg)}}
+#pdfedPresLive,#pdfedPresLinks{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none}
+#pdfedPresLive{opacity:0;background:#fff;pointer-events:none;transition:opacity .18s ease}
+#pdfedPresLive.on{opacity:1}
+#pdfedPresLive canvas{display:block;width:100%;height:100%}
+#pdfedPresLinks{visibility:hidden}
+#pdfedPresLinks.on{visibility:visible}
+.pdfed-pres-link{position:absolute;display:block;cursor:pointer;border-radius:3px;outline:2px solid transparent;transition:outline-color .12s,background .12s}
+.pdfed-pres-link:hover{outline-color:rgba(0,194,255,.95);background:rgba(0,194,255,.14)}
+.pdfed-pres-fx{position:absolute;left:0;top:0;width:100%;height:100%;z-index:3;pointer-events:none}
+#pdfedPresHud,#pdfedPresSpin{z-index:5}
+
+/* ── Slide-to-reveal label buttons (Close / Export): collapse to a tiny
+   icon-only pill by default, expand to show the label on hover. ── */
+.pdfed-slide-btn { gap: 0; padding: 7px 8px; }
+.pdfed-slide-btn .pdfed-slide-label {
+  display: inline-block;
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.25s ease, margin-left 0.25s ease, opacity 0.18s ease;
+}
+.pdfed-slide-btn:hover { padding: 7px 14px; }
+.pdfed-slide-btn:hover .pdfed-slide-label {
+  max-width: 70px;
+  margin-left: 6px;
+  opacity: 1;
+  transition: max-width 0.25s ease, margin-left 0.25s ease, opacity 0.25s ease 0.05s;
+}
+
+.pdfeditor-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  gap: 0;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-top: none;
+  transition: grid-template-columns 0.32s cubic-bezier(0.16,1,0.3,1);
+}
+.pdfeditor-layout.right-collapsed {
+  grid-template-columns: 200px 1fr 0px;
+}
+.pdfeditor-layout.left-collapsed {
+  grid-template-columns: 0px 1fr 280px;
+}
+.pdfeditor-layout.left-collapsed.right-collapsed {
+  grid-template-columns: 0px 1fr 0px;
+}
+
+/* Right panel toggle button, attached to left edge of right panel */
+#pdfedRightToggleBtn {
+  position: absolute;
+  top: 50%;
+  left: -22px;
+  transform: translateY(-50%);
+  z-index: 20;
+  width: 22px;
+  height: 64px;
+  background: linear-gradient(180deg, rgba(0,194,255,0.13) 0%, rgba(139,92,246,0.13) 100%);
+  border: 1px solid rgba(0,194,255,0.28);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--cyan);
+  transition: left 0.22s ease, color 0.15s, background 0.15s, box-shadow 0.15s, width 0.15s;
+  box-shadow: -3px 0 16px rgba(0,194,255,0.18), inset 1px 0 0 rgba(255,255,255,0.04);
+  backdrop-filter: blur(6px);
+}
+#pdfedRightToggleBtn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(180deg, rgba(0,194,255,0.06) 0%, rgba(139,92,246,0.08) 100%);
+  pointer-events: none;
+}
+#pdfedRightToggleBtn:hover {
+  color: #fff;
+  width: 26px;
+  left: -26px;
+  background: linear-gradient(180deg, rgba(0,194,255,0.28) 0%, rgba(139,92,246,0.28) 100%);
+  box-shadow: -4px 0 24px rgba(0,194,255,0.35), inset 1px 0 0 rgba(255,255,255,0.08);
+}
+.right-collapsed #pdfedRightToggleBtn {
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(180deg, rgba(0,194,255,0.2) 0%, rgba(139,92,246,0.2) 100%);
+  border-color: rgba(0,194,255,0.4);
+  box-shadow: -3px 0 20px rgba(0,194,255,0.25);
+}
+/* Hide right panel content when collapsed */
+.pdfeditor-layout.right-collapsed .pdfed-right-panel {
+  overflow: visible;
+  width: 0;
+  min-width: 0;
+  border: none;
+}
+.pdfeditor-layout.right-collapsed .pdfed-right-scroll,
+.pdfeditor-layout.right-collapsed .pdfed-right-tabbar {
+  display: none;
+}
+
+/* Left panel toggle button, attached to right edge of page strip (mirrors right toggle) */
+#pdfedLeftToggleBtn {
+  position: absolute;
+  top: 50%;
+  right: -22px;
+  transform: translateY(-50%);
+  z-index: 20;
+  width: 22px;
+  height: 64px;
+  background: linear-gradient(180deg, rgba(0,194,255,0.13) 0%, rgba(139,92,246,0.13) 100%);
+  border: 1px solid rgba(0,194,255,0.28);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--cyan);
+  transition: right 0.22s ease, color 0.15s, background 0.15s, box-shadow 0.15s, width 0.15s;
+  box-shadow: 3px 0 16px rgba(0,194,255,0.18), inset -1px 0 0 rgba(255,255,255,0.04);
+  backdrop-filter: blur(6px);
+}
+#pdfedLeftToggleBtn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(180deg, rgba(0,194,255,0.06) 0%, rgba(139,92,246,0.08) 100%);
+  pointer-events: none;
+}
+#pdfedLeftToggleBtn:hover {
+  color: #fff;
+  width: 26px;
+  right: -26px;
+  background: linear-gradient(180deg, rgba(0,194,255,0.28) 0%, rgba(139,92,246,0.28) 100%);
+  box-shadow: 4px 0 24px rgba(0,194,255,0.35), inset -1px 0 0 rgba(255,255,255,0.08);
+}
+.left-collapsed #pdfedLeftToggleBtn {
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(180deg, rgba(0,194,255,0.2) 0%, rgba(139,92,246,0.2) 100%);
+  border-color: rgba(0,194,255,0.4);
+  box-shadow: 3px 0 20px rgba(0,194,255,0.25);
+}
+/* Left pages panel content, fades and gently slides out as the column
+   collapses instead of snapping away with display:none, so the whole
+   collapse reads as one smooth motion rather than a width tween plus an
+   abrupt content pop. Kept interactive-inert while hidden via
+   pointer-events + visibility so nothing behind it is clickable. */
+.pdfed-strip-header,
+.pdfed-strip-scroll {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.16s ease, transform 0.2s ease;
+}
+.pdfeditor-layout.left-collapsed .pdfed-page-strip {
+  overflow: visible;
+  width: 0;
+  min-width: 0;
+  border: none;
+}
+.pdfeditor-layout.left-collapsed .pdfed-strip-header,
+.pdfeditor-layout.left-collapsed .pdfed-strip-scroll {
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+  visibility: hidden;
+  transition-property: opacity, transform, visibility;
+  transition-delay: 0s, 0s, 0.12s;
+}
+
+
+/* Left: page strip */
+.pdfed-page-strip {
+  background: var(--pdfed-strip-bg);
+  border-right: 1px solid var(--pdfed-strip-border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
+  position: relative;
+}
+.pdfed-strip-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--pdfed-strip-border);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--pdfed-strip-header-color);
+  flex-shrink: 0;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pdfed-strip-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  opacity: 0;
+  transform: translateX(2px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+.pdfed-strip-live.on { opacity: 1; transform: translateX(0); }
+.pdfed-strip-live .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16,185,129,0.7);
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+.pdfed-strip-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,194,255,0.25) transparent;
+}
+.pdfed-strip-scroll::-webkit-scrollbar { width: 6px; }
+.pdfed-strip-scroll::-webkit-scrollbar-track { background: transparent; }
+.pdfed-strip-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0,194,255,0.22);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+.pdfed-strip-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,194,255,0.45); }
+.pdfed-thumb {
+  position: relative;
+  border: 2px solid var(--border);
+  border-radius: 9px;
+  overflow: visible;
+  cursor: pointer;
+  transition: border-color 0.22s cubic-bezier(.4,0,.2,1),
+              box-shadow 0.22s cubic-bezier(.4,0,.2,1),
+              transform 0.18s cubic-bezier(.4,0,.2,1);
+  background: var(--bg3);
+  flex-shrink: 0;
+  animation: pdfedThumbIn 0.32s cubic-bezier(.16,1,.3,1) backwards;
+}
+@keyframes pdfedThumbIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pdfed-thumb:hover {
+  border-color: var(--border2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+}
+.pdfed-thumb.active {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0,194,255,0.18), 0 6px 18px rgba(0,194,255,0.15);
+}
+/* Brief glow ring while a live edit is being composed into this thumb, gives instant feedback the moment an edit lands, before the new pixels
+   have finished rendering a beat later. */
+.pdfed-thumb.refreshing {
+  border-color: rgba(0,194,255,0.55);
+  box-shadow: 0 0 0 3px rgba(0,194,255,0.14), 0 0 14px rgba(0,194,255,0.35);
+}
+.pdfed-thumb canvas, .pdfed-thumb img {
+  width: 100%; display: block; border-radius: 6px;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+.pdfed-thumb-num {
+  position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text3); font-size: 9px; font-weight: 700;
+  padding: 1px 6px; border-radius: 8px; white-space: nowrap;
+  z-index: 2;
+}
+.pdfed-thumb.active .pdfed-thumb-num { background: var(--blue); color: white; border-color: var(--blue); }
+.pdfed-thumb-badge {
+  position: absolute; top: 3px; right: 3px;
+  background: var(--green); color: white;
+  font-size: 8px; padding: 1px 4px; border-radius: 4px;
+  font-weight: 700;
+}
+.pdfed-thumb-del {
+  position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(239,68,68,0.85); color: white;
+  font-size: 9px; display: none; align-items: center; justify-content: center;
+  cursor: pointer; border: none;
+}
+.pdfed-thumb:hover .pdfed-thumb-del { display: flex; }
+
+/* Insert zone between pages */
+.pdfed-insert-zone {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s, height 0.18s;
+  position: relative;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.pdfed-insert-zone:hover { opacity: 1; height: 36px; }
+/* Also show adjacent insert zones when hovering a thumb */
+.pdfed-thumb:hover + .pdfed-insert-zone,
+.pdfed-insert-zone:has(+ .pdfed-thumb:hover) { opacity: 0.6; }
+.pdfed-insert-line {
+  height: 2px;
+  flex: 1;
+  min-width: 6px;
+  background: linear-gradient(90deg, transparent, var(--blue), transparent);
+  border-radius: 1px;
+  transition: background 0.2s;
+}
+.pdfed-insert-zone:hover .pdfed-insert-line {
+  background: linear-gradient(90deg, transparent, var(--purple), var(--blue), var(--purple), transparent);
+}
+/* Button + label are grouped into one pill so the lines on either side simply
+   shrink to make room, the label can never overlap the line or neighboring
+   thumbnails since it's part of normal flex flow, not absolutely positioned. */
+.pdfed-insert-chip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  max-width: 22px;
+  background: rgba(0,194,255,0.12);
+  border-radius: 999px;
+  transition: max-width 0.2s, background 0.2s, padding 0.2s;
+  overflow: hidden;
+}
+.pdfed-insert-zone:hover .pdfed-insert-chip {
+  max-width: 220px;
+  background: rgba(0,194,255,0.16);
+  padding-right: 8px;
+}
+.pdfed-insert-btn {
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(0,194,255,0.6);
+  line-height: 1;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.pdfed-insert-btn:hover { transform: scale(1.2); box-shadow: 0 4px 16px rgba(0,194,255,0.8); }
+.pdfed-insert-label {
+  font-size: 9px; color: var(--blue); font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  margin-left: 6px;
+  pointer-events: none;
+}
+
+/* Drag-reorder for thumb */
+.pdfed-thumb[draggable="true"] { cursor: grab; }
+.pdfed-thumb.drag-over-top { border-top: 3px solid var(--blue); }
+.pdfed-thumb.drag-over-bot { border-bottom: 3px solid var(--blue); }
+.pdfed-thumb.dragging { opacity: 0.35; transform: scale(0.94); }
+
+/* Centre: page canvas */
+.pdfed-canvas-area {
+  background: var(--pdfed-canvas-area-bg);
+  border-left: 1px solid var(--pdfed-canvas-area-border);
+  border-right: 1px solid var(--pdfed-canvas-area-border);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pdfed-canvas-toolbar {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--pdfed-toolbar-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  background: var(--pdfed-toolbar-bg);
+}
+.pdfed-tool-btn {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  color: var(--text2);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.pdfed-tool-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+.pdfed-tool-btn.active { background: rgba(0,194,255,0.12); color: var(--blue); border-color: rgba(0,194,255,0.3); }
+.pdfed-tool-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+
+/* ── TEXT EDIT OVERLAY ── */
+.pdfed-text-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  transform-origin: top left;
+  transition: transform 0.12s ease-out, width 0.12s ease-out, height 0.12s ease-out, opacity 0.1s ease-out;
+}
+.pdfed-text-overlay.active { pointer-events: all; }
+.pdfed-text-block {
+  position: absolute;
+  cursor: text;
+  outline: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 1px 3px;
+  box-sizing: border-box;
+  line-height: 1.15;
+  white-space: pre;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 20px;
+  min-height: 10px;
+}
+.pdfed-text-block:hover {
+  border-color: rgba(0,194,255,0.5);
+  background: rgba(0,194,255,0.06);
+}
+.pdfed-text-block:focus {
+  border-color: var(--blue);
+  background: rgba(0,194,255,0.10);
+  box-shadow: 0 0 0 2px rgba(0,194,255,0.2);
+  z-index: 10;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pdfed-text-block.modified {
+  border-color: rgba(16,185,129,0.5);
+}
+.pdfed-text-block.locked {
+  cursor: not-allowed;
+  border-style: dashed;
+  border-color: rgba(255,255,255,0.25);
+}
+.pdfed-text-block.locked:hover {
+  border-color: rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.04);
+}
+.pdfed-text-block.selected {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(0,194,255,0.25);
+}
+.pdfed-text-block.readonly {
+  cursor: default;
+  pointer-events: none;
+}
+/* All four handles below use --pdfed-inv-zoom (set on the overlay whenever
+   zoom changes; inherited down to every block/handle) to counter-scale their
+   own size AND their outward offset together. Without this, a handle sized
+   for 100% canvas zoom would shrink into the box at low zoom or balloon out
+   over the text at high zoom, that's what was covering letters like the "&"
+   in "& OPERATED". This keeps every handle a small, constant on-screen size,
+   sitting fully clear of the box's interior (offset >= size, so there's
+   always a visible gap and zero overlap with the text underneath). */
+.te-resize-handle {
+  position: absolute;
+  width:  calc(12px * var(--pdfed-inv-zoom, 1));
+  height: calc(12px * var(--pdfed-inv-zoom, 1));
+  bottom: calc(-16px * var(--pdfed-inv-zoom, 1));
+  right:  calc(-16px * var(--pdfed-inv-zoom, 1));
+  background: var(--blue);
+  border: 1.5px solid #fff;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  cursor: nwse-resize;
+  display: none;
+  z-index: 11;
+}
+.te-move-handle {
+  position: absolute;
+  width:  calc(16px * var(--pdfed-inv-zoom, 1));
+  height: calc(16px * var(--pdfed-inv-zoom, 1));
+  top:  calc(-20px * var(--pdfed-inv-zoom, 1));
+  left: calc(-20px * var(--pdfed-inv-zoom, 1));
+  background: var(--blue);
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  cursor: move;
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 11;
+}
+.te-move-handle svg { pointer-events: none; width: 60%; height: 60%; }
+.te-width-handle {
+  position: absolute;
+  top: 50%;
+  width:  calc(7px * var(--pdfed-inv-zoom, 1));
+  height: calc(22px * var(--pdfed-inv-zoom, 1));
+  margin-top: calc(-11px * var(--pdfed-inv-zoom, 1));
+  background: var(--blue);
+  border: 1.5px solid #fff;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  cursor: ew-resize;
+  display: none;
+  z-index: 11;
+}
+.te-width-handle.right { right: calc(-11px * var(--pdfed-inv-zoom, 1)); }
+.te-width-handle.left  { left:  calc(-11px * var(--pdfed-inv-zoom, 1)); }
+.pdfed-text-block.selected .te-width-handle { display: block; }
+.pdfed-text-block.locked .te-width-handle { display: none; }
+.pdfed-text-block.selected .te-resize-handle { display: block; }
+.pdfed-text-block.selected .te-move-handle { display: flex; }
+.pdfed-text-block.locked .te-resize-handle,
+.pdfed-text-block.locked .te-move-handle { display: none; }
+/* Small × handle, quick one-click delete for a single block (OCR-extracted
+   or free text), sitting top-right so it doesn't collide with the move
+   handle (top-left) or resize handle (bottom-right). Same show/hide rules
+   as the other handles: only visible once selected, hidden while locked. */
+.te-delete-handle {
+  position: absolute;
+  width:  calc(14px * var(--pdfed-inv-zoom, 1));
+  height: calc(14px * var(--pdfed-inv-zoom, 1));
+  top:   calc(-18px * var(--pdfed-inv-zoom, 1));
+  right: calc(-18px * var(--pdfed-inv-zoom, 1));
+  background: #dc2626;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  cursor: pointer;
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 12;
+}
+.te-delete-handle svg { pointer-events: none; width: 62%; height: 62%; }
+.pdfed-text-block.selected .te-delete-handle { display: flex; }
+.pdfed-text-block.locked .te-delete-handle { display: none; }
+
+/* ── PLACED TEXT (Canva-style) — clean by default, chrome only on hover/select ──
+   so clicking anywhere else shows exactly how the text will look with nothing
+   covering it. */
+.pdfed-placed-text {
+  border-style: dashed;
+  border-color: transparent;
+  background: transparent;
+  transition: border-color 0.12s, background 0.12s;
+}
+.pdfed-placed-text:not(.locked):hover {
+  border-color: rgba(0,194,255,0.35);
+  background: rgba(0,194,255,0.04);
+}
+.pdfed-placed-text:not(.locked).selected,
+.pdfed-placed-text:not(.locked).editing {
+  border-color: var(--blue);
+  background: rgba(0,194,255,0.06);
+}
+.pdfed-placed-text.locked {
+  border-style: solid;
+  border-color: rgba(255,255,255,0.2);
+}
+/* Delete button / resize handles: invisible until the box is selected or being edited */
+.pdfed-placed-text .ptxt-chrome {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.pdfed-placed-text.selected .ptxt-chrome,
+.pdfed-placed-text.editing .ptxt-chrome {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* .ptxt-badge-row (the text-box action strip) uses inset:0 so its fade
+   transition covers the same box as the other chrome, but that meant it was
+   also intercepting every click meant for the actual text underneath the
+   instant the box became selected/editing. These overrides must match (or
+   beat) the specificity of the ".selected .ptxt-chrome" / ".editing
+   .ptxt-chrome" rule above — a plain ".ptxt-badge-row { pointer-events:none }"
+   rule is LESS specific than that rule and gets silently outranked by it even
+   though it appears later in the file, which is why an earlier attempt at
+   this same fix had no effect. The row itself must stay click-through in
+   both states; only its individual badge buttons should ever be clickable. */
+.pdfed-placed-text.selected .ptxt-badge-row,
+.pdfed-placed-text.editing .ptxt-badge-row {
+  pointer-events: none !important;
+}
+.pdfed-placed-text.selected .ptxt-badge-row .pdfed-badge-btn,
+.pdfed-placed-text.editing .ptxt-badge-row .pdfed-badge-btn {
+  pointer-events: auto !important;
+}
+/* Text action badges (fwd/back/arrange/delete/lock): same "dim until
+   hovered" toolbar feel as placed shapes/images (.pdfed-badge-row), with the
+   identical asymmetric timing — quick brighten on hover, a touch slower
+   (with a brief grace delay) to dim back down on leave, so all three object
+   types (text/image/shape) feel like one consistent, polished toolbar.
+   Still fully hidden while not selected/editing (inherits that from
+   .ptxt-chrome above); once selected/editing it settles to a dim 0.42 and
+   the WHOLE row brightens to full opacity together as soon as the pointer
+   reaches any badge in it. */
+.pdfed-placed-text.selected .ptxt-badge-row,
+.pdfed-placed-text.editing .ptxt-badge-row {
+  opacity: 0.42;
+  transition: opacity 0.32s cubic-bezier(0.4,0,0.2,1) 0.12s;
+}
+.pdfed-placed-text.selected .ptxt-badge-row:hover,
+.pdfed-placed-text.editing .ptxt-badge-row:hover {
+  opacity: 1;
+  transition: opacity 0.12s cubic-bezier(0,0,0.2,1);
+}
+
+/* ── Placed tables (Excel-style insert, Canva-style move/resize) ── */
+.pdfed-placed-table {
+  border: 1px dashed transparent;
+  transition: border-color .12s, background .12s;
+}
+.pdfed-placed-table:not(.locked):hover {
+  border-color: rgba(0,194,255,0.35);
+}
+.pdfed-placed-table:not(.locked).selected {
+  border-color: var(--blue);
+}
+.pdfed-placed-table.locked { border-style: solid; border-color: rgba(255,255,255,0.2); }
+/* Canva-style click-and-drag marquee/rubber-band selection box drawn on the
+   PDF Editor canvas: click empty page space and drag to select every placed
+   text box, image and table whose box intersects the dragged rectangle. */
+.pdfed-marquee-box {
+  position: absolute;
+  border: 1.5px solid var(--blue);
+  background: rgba(0,150,255,0.12);
+  pointer-events: none;
+  z-index: 50;
+  display: none;
+  border-radius: 2px;
+}
+.pdfed-placed-table .table-chrome {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.pdfed-placed-table:hover .table-chrome,
+.pdfed-placed-table.selected .table-chrome {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pdfed-table-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+}
+.pdfed-table-cell {
+  border: 1px solid rgba(0,0,0,0.4);
+  padding: 3px 7px;
+  outline: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.94);
+  color: #101820;
+  cursor: text;
+}
+.pdfed-table-cell.pdfed-table-head {
+  font-weight: 700;
+  background: rgba(0,194,255,0.16);
+}
+.pdfed-table-cell.pdfed-th-has-icon {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.pdfed-th-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.pdfed-th-icon svg { display: block; }
+.pdfed-table-resize {
+  position: absolute; bottom: -4px; right: -4px; width: 9px; height: 9px;
+  background: #fff; border: 1.5px solid #0073E6; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  border-radius: 2px; cursor: nwse-resize; z-index: 3;
+}
+.pdfed-table-dragbar {
+  position: absolute; top: -20px; left: 0; height: 18px; min-width: 84px;
+  display: flex; align-items: center; gap: 5px; padding: 0 8px;
+  background: rgba(13,18,30,0.72); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px; color: rgba(255,255,255,0.85); font-size: 10px; font-weight: 500;
+  white-space: nowrap; cursor: move; z-index: 2;
+  opacity: 0; pointer-events: none; transition: opacity 0.1s, background 0.12s;
+}
+.pdfed-placed-table:hover .pdfed-table-dragbar,
+.pdfed-placed-table.selected .pdfed-table-dragbar {
+  opacity: 1; pointer-events: auto;
+}
+.pdfed-table-dragbar:hover { background: rgba(0,194,255,0.85); }
+.pdfed-table-dragbar.locked { cursor: default; pointer-events: none; }
+.pdfed-table-dragbar svg { flex-shrink: 0; }
+/* Per-column / per-row stretch dividers, thin invisible-until-hover strips
+   that sit on a column's right edge or a row's bottom edge; dragging one
+   resizes just that column/row rather than the whole table uniformly. */
+.pdfed-table-coldiv {
+  position: absolute; top: 0; width: 7px; height: 100%;
+  cursor: col-resize; z-index: 2; background: transparent;
+}
+.pdfed-table-coldiv:hover { background: rgba(0,194,255,0.45); }
+.pdfed-table-rowdiv {
+  position: absolute; left: 0; height: 7px; width: 100%;
+  cursor: row-resize; z-index: 2; background: transparent;
+}
+.pdfed-table-rowdiv:hover { background: rgba(0,194,255,0.45); }
+/* Add-row / add-column shortcut buttons, riding the same badge style as
+   lock/delete but parked at the bottom-center / right-center edges. */
+.pdfed-table-addbtn-row { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); z-index: 2; }
+.pdfed-table-addbtn-col { position: absolute; top: 50%; right: -9px; transform: translateY(-50%); z-index: 2; }
+/* Right-click cell menu for insert/delete row or column at an exact position */
+.pdfed-table-ctxmenu {
+  position: fixed; z-index: 9999; min-width: 170px; padding: 5px;
+  background: var(--surface2, #16202e); border: 1px solid var(--border, rgba(255,255,255,0.12));
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  font-size: 12.5px; color: var(--text, #e6ecf5);
+}
+.pdfed-table-ctxmenu-item {
+  padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.pdfed-table-ctxmenu-item:hover { background: rgba(0,194,255,0.16); }
+.pdfed-table-ctxmenu-item.is-danger { color: #f87171; }
+.pdfed-table-ctxmenu-item.is-danger:hover { background: rgba(239,68,68,0.16); }
+.pdfed-table-ctxmenu-sep { height: 1px; background: var(--border, rgba(255,255,255,0.12)); margin: 4px 2px; }
+/* Excel-style grid picker used by the Table insert dropdown */
+.pdfed-tgrid-picker { padding: 10px; }
+.pdfed-tgrid-label { font-size: 11px; color: var(--text2); margin-bottom: 8px; text-align: center; }
+.pdfed-tgrid-cells { display: grid; grid-template-columns: repeat(10, 16px); grid-gap: 2px; }
+.pdfed-tgrid-cell { width: 16px; height: 16px; border: 1px solid var(--border2); border-radius: 2px; background: var(--surface); }
+.pdfed-tgrid-cell.on { background: var(--blue); border-color: var(--blue); }
+.pdfed-tgrid-sep { height: 1px; background: var(--border); margin: 8px 0; }
+.pdfed-tgrid-preset {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  cursor: pointer; font-size: 11.5px; color: var(--text2);
+}
+.pdfed-tgrid-preset:hover { background: var(--surface2); color: var(--text); }
+.pdfed-tgrid-custom { display: flex; gap: 6px; align-items: center; padding: 0 8px; }
+.pdfed-tgrid-custom input {
+  width: 44px; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 4px 6px; font-size: 11px; text-align: center; outline: none;
+}
+.pdfed-tgrid-custom button {
+  flex: 1; background: var(--pdfed-ribbon-btn-bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 5px 8px; font-size: 11px; cursor: pointer; font-weight: 500;
+}
+
+/* Canva-style alignment grid, faint dot grid behind placed text/images,
+   scaled/positioned as one unit alongside pdfedPlacedTextsLayer so it always
+   lines up with raw canvas-px coordinates regardless of zoom. */
+#pdfedGridOverlay {
+  background-image: radial-gradient(rgba(0,194,255,0.35) 1px, transparent 1px);
+  background-position: 0 0;
+}
+#pdfedGridBtn.active { color: var(--blue); }
+#pdfedGridBtn.active svg { stroke: var(--blue); }
+
+/* ── Lock/delete badges (placed text + placed images) — small, circular,
+   translucent glass so they read as available controls without shouting for
+   attention over the actual content. ── */
+.pdfed-badge-btn {
+  width: 24px; height: 24px; border: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(13,18,30,0.68);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 1px 5px rgba(0,0,0,0.28);
+  color: rgba(255,255,255,0.8);
+  opacity: 0.88;
+  cursor: pointer;
+  transition: opacity 0.12s, transform 0.12s, background 0.12s, border-color 0.12s;
+}
+.pdfed-badge-btn svg { width: 13px; height: 13px; }
+.pdfed-badge-btn:hover { opacity: 1; transform: scale(1.1); }
+/* Badge row: groups every action badge (lock/arrange/opacity/reshape/fill/
+   delete/etc) for a placed image or shape into one non-rotating strip. It
+   sits dim/translucent by default so it doesn't compete with the content,
+   and the WHOLE row (not just whichever icon the cursor happens to be over)
+   comes up to full opacity as soon as the pointer re-enters it, then fades
+   back down once the pointer leaves without picking an action — the same
+   "toolbar recedes until you reach for it" feel Canva/Figma use.
+   The fade is deliberately asymmetric: brightening on hover is near-instant
+   (nothing should feel laggy to reach for), while dimming back down on
+   leave is a touch slower with a brief grace delay, so a cursor that just
+   grazes past the row on its way somewhere else doesn't cause a visible
+   flicker. */
+.pdfed-badge-row {
+  position: absolute; top: 4px; right: 4px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+  opacity: 0.42;
+  transition: opacity 0.32s cubic-bezier(0.4,0,0.2,1) 0.12s;
+  pointer-events: auto;
+}
+.pdfed-badge-row:hover {
+  opacity: 1;
+  transition: opacity 0.12s cubic-bezier(0,0,0.2,1);
+}
+.pdfed-badge-btn.is-locked {
+  background: rgba(0,194,255,0.85);
+  border-color: rgba(0,194,255,0.5);
+  color: #fff;
+}
+.pdfed-badge-btn.is-danger:hover {
+  background: rgba(239,68,68,0.88);
+  border-color: rgba(239,68,68,0.6);
+  color: #fff;
+}
+/* Reshape badge, same gold "premium" treatment as the gallery quick-action,
+   so this control reads as a distinct, higher-value action rather than
+   blending into the neutral lock/delete/arrange icons around it. */
+.pdfed-badge-btn.is-premium {
+  background: linear-gradient(135deg,#f7e29a,#c9962f 55%,#8a6100);
+  border-color: #c9962f; color: #1a1206;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(201,150,47,0.5), 0 0 0 1px rgba(255,255,255,0.15) inset;
+}
+.pdfed-badge-btn.is-premium:hover {
+  background: linear-gradient(135deg,#fff2c0,#e0a83a 55%,#a06f00);
+  border-color: #e0a83a;
+  transform: scale(1.12);
+}
+
+/* Text edit panel in right sidebar, compact, icon-driven toolbar instead
+   of paragraphs of instructional copy. */
+.te-panel-head { display:flex; align-items:center; justify-content:space-between; }
+.te-info-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:18px; height:18px; border-radius:50%; flex-shrink:0;
+  color: var(--text3); cursor: help; background:none; border:none; padding:0;
+}
+.te-info-btn:hover { color: var(--text2); }
+.te-toolbar-group {
+  display:flex; align-items:center; gap:3px; flex-wrap:wrap;
+  background: var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:4px; margin-bottom:10px;
+}
+.te-toolbar-sep { width:1px; align-self:stretch; background:var(--border); margin:2px 3px; flex-shrink:0; }
+.te-icon-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border-radius:6px; border:1px solid transparent;
+  background:transparent; color:var(--text2); cursor:pointer; font-size:12px;
+  flex-shrink:0;
+  font-family:'Inter', sans-serif;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.te-icon-btn:hover { background: var(--surface2); color: var(--text); }
+.te-icon-btn:active { transform: translateY(1px); }
+.te-icon-btn.danger:hover { background: rgba(229,72,77,0.10); color: #E5484D; border-color: rgba(229,72,77,0.35); }
+.te-icon-btn.on { background: rgba(0,194,255,0.12); color: var(--blue); border-color: rgba(0,194,255,0.3); }
+
+/* ── Side-by-side compare view ──
+   When active, the canvas scroll area lays out two panes: a static
+   snapshot of the original (before any text edits) on the left, and the
+   real, still-fully-interactive canvas+overlay on the right so edits stay
+   live while both are visible at once. Entry/exit is animated (fade + slide
+   + a drawn-in divider) rather than an instant display toggle, so the
+   transition feels intentional and premium instead of a jarring pop. */
+.pdfed-canvas-scroll.compare-split {
+  gap: 24px;
+}
+.pdfed-canvas-inner.compare-split {
+  gap: 28px;
+}
+.pdfed-compare-before {
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  border-radius: 2px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-36px) scale(0.965);
+  transform-origin: center right;
+  transition: opacity 0.42s cubic-bezier(0.16,1,0.3,1),
+              transform 0.5s cubic-bezier(0.16,1,0.3,1);
+  will-change: opacity, transform;
+}
+.pdfed-compare-before.pdfed-compare-visible {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+.pdfed-compare-before img {
+  display: block;
+  transition: filter 0.5s ease;
+}
+/* Divider drawn between the two panes on entry, a soft vertical line with
+   a small "compare" pip in the middle, giving the split a deliberate,
+   designed feel rather than the panes just appearing side by side. */
+.pdfed-compare-divider {
+  position: relative;
+  flex-shrink: 0;
+  width: 1px;
+  align-self: stretch;
+  min-height: 120px;
+  background: linear-gradient(to bottom, transparent, rgba(0,194,255,0.55) 18%, rgba(0,194,255,0.55) 82%, transparent);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transform-origin: center;
+  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.16,1,0.3,1);
+  will-change: opacity, transform;
+}
+.pdfed-compare-divider.pdfed-compare-visible {
+  opacity: 1;
+  transform: scaleY(1);
+}
+.pdfed-compare-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 25px; height: 25px;
+  transform: translate(-50%,-50%);
+  border-radius: 50%;
+  background: var(--pdfed-scroll-bg, #14161d);
+  border: 1px solid rgba(0,194,255,0.45);
+  box-shadow: 0 0 14px rgba(0,194,255,0.4);
+}
+.pdfed-compare-divider::after {
+  content: '⇄';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-54%);
+  font-size: 11px;
+  color: var(--blue, #00C2FF);
+  line-height: 1;
+}
+.pdfed-compare-tag {
+  position: absolute;
+  top: 10px; left: 10px;
+  padding: 4px 11px;
+  background: rgba(15,17,23,0.85);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.35s ease, transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  will-change: opacity, transform;
+}
+.pdfed-compare-tag.pdfed-compare-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.pdfed-compare-tag.after { background: rgba(0,194,255,0.85); }
+/* "Style specific text" — type a word/phrase and style just that, instead of
+   manually selecting it on the canvas then clicking Bold/Italic/colour. */
+.te-faf-box {
+  background: var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:10px; margin-bottom:12px;
+}
+.te-faf-title {
+  display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+  color:var(--text2); text-transform:uppercase; letter-spacing:.4px; margin-bottom:8px;
+}
+/* Premium redesign of the "Style Specific Text" panel: a soft brand-tinted
+   card frame, an icon-anchored search field, and a status pill that only
+   asserts itself once there's something to report. */
+.te-faf-premium {
+  position: relative;
+  background: linear-gradient(165deg, rgba(0,194,255,0.055), rgba(124,58,237,0.03) 55%, var(--pdfed-section-bg));
+  border: 1px solid rgba(0,194,255,0.16);
+  overflow: hidden;
+  max-width: 100%;
+}
+.te-faf-premium::before {
+  content: '';
+  position: absolute; top:0; left:0; right:0; height:1px;
+  background: linear-gradient(90deg, transparent, rgba(0,194,255,0.45), transparent);
+  pointer-events: none;
+}
+.te-faf-heading { gap: 7px !important; }
+.te-faf-heading-icon {
+  width: 19px; height: 19px; border-radius: 6px; flex-shrink:0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(0,194,255,0.20), rgba(124,58,237,0.20));
+  border: 1px solid rgba(0,194,255,0.28); color: var(--blue);
+}
+.te-faf-search-wrap { position: relative; margin-bottom: 8px; }
+.te-faf-search-wrap .te-faf-search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); pointer-events: none; transition: color .15s ease;
+}
+.te-faf-search-wrap:focus-within .te-faf-search-icon { color: var(--blue); }
+.te-faf-input {
+  width:100%; box-sizing:border-box; background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent), var(--bg3);
+  border:1px solid var(--border);
+  color:var(--text); padding:8px 9px 8px 29px; border-radius:8px; font-family:'Inter', sans-serif;
+  font-size:12px; outline:none; transition:border-color .15s, box-shadow .15s;
+}
+.te-faf-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,194,255,0.12); }
+.te-faf-input::placeholder { color: var(--text3); }
+/* Status pill — invisible chrome at idle (just a quiet dot + line), but once
+   there's a result it becomes a soft tinted capsule so the eye catches the
+   count at a glance without a loud badge shouting over the rest of the panel. */
+.te-faf-status {
+  display:flex; align-items:center; gap:6px; margin:0 0 10px 1px;
+  padding: 3px 9px 3px 7px; border-radius: 999px; width: fit-content; max-width: 100%;
+  font-size:10.5px; font-weight:600; letter-spacing:.1px;
+  color:var(--text3); background: transparent; border: 1px solid transparent;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
+  overflow: hidden;
+}
+.te-faf-status span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.te-faf-status-dot {
+  width:5px; height:5px; border-radius:50%; flex-shrink:0; background:var(--text3);
+  transition:background .15s ease;
+}
+.te-faf-status.scanning { color:var(--text2); background: rgba(0,194,255,0.07); border-color: rgba(0,194,255,0.18); }
+.te-faf-status.scanning .te-faf-status-dot { background:var(--blue); box-shadow: 0 0 6px rgba(0,194,255,0.7); }
+.te-faf-status.match { color:var(--text); background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.28); }
+.te-faf-status.match .te-faf-status-dot { background:var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.6); }
+.te-faf-status.none { color:var(--text2); background: rgba(229,72,77,0.07); border-color: rgba(229,72,77,0.2); }
+.te-faf-status.none .te-faf-status-dot { background:#E5484D; }
+/* Clone-based highlight: we duplicate the actual on-page text element (same
+   font, same position, same padding/line-height), make its own text
+   invisible, and only paint a background behind the matched substring. Since
+   it's a literal clone of the real element, the browser lays it out
+   identically to the original — the highlight can't drift out of place. */
+.te-faf-hl-clone {
+  color: transparent !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+.te-faf-hl-mark {
+  background: rgba(255,183,3,0.55);
+  color: transparent;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255,150,0,0.55);
+  animation: teFafHlIn .12s ease-out;
+}
+@keyframes teFafHlIn { from{ opacity:0; } to{ opacity:1; } }
+.pdfed-ctint-apply-btn.busy { opacity:.65; pointer-events:none; }
+.pdfed-ctint-apply-btn.busy svg { animation:teFafSpin .8s linear infinite; transform-origin:center; }
+@keyframes teFafSpin { to{ transform:rotate(360deg); } }
+/* Style controls (bold/italic/font + colour) grouped into one quiet card so
+   they read as a single "styling" unit, distinct from the search field above
+   and the primary action below. */
+.te-faf-style-card {
+  background: rgba(255,255,255,0.025); border: 1px solid var(--border);
+  border-radius: 9px; padding: 8px 8px 7px; margin-bottom: 10px;
+}
+.te-faf-style-card .te-faf-row:last-child { margin-bottom: 0; }
+.te-faf-row { display:flex; align-items:center; gap:5px; margin-bottom:8px; }
+.te-faf-select {
+  flex:1; min-width:0; height:28px; box-sizing:border-box; background:var(--bg3); border:1px solid var(--border);
+  color:var(--text2); padding:0 8px; border-radius:7px; font-family:'Inter', sans-serif; font-size:11.5px;
+  outline:none; cursor:pointer; transition:border-color .15s;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+}
+.te-faf-select:hover { border-color: var(--border2); }
+.te-faf-check {
+  display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2);
+  cursor:pointer; margin:2px 0 2px;
+}
+.te-faf-check input { accent-color:var(--blue); cursor:pointer; }
+/* Colour row: every tile (clear / swatch / custom) shares the same size,
+   radius and border so the row reads as one cohesive grid instead of a mix
+   of button shapes. */
+.te-faf-clear-btn {
+  width:18px; height:18px; border-radius:50%; border:1px solid var(--border);
+  background:var(--bg3); color:var(--text3); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  transition:border-color .15s, color .15s, transform .15s;
+}
+.te-faf-clear-btn:hover { color:var(--text2); border-color:var(--border2); transform: translateY(-1px); }
+.te-faf-clear-btn.on { color:var(--blue); border-color:var(--blue); background:rgba(0,194,255,0.08); }
+.te-faf-hint { font-size:10px; color:var(--text3); line-height:1.5; margin-top:6px; }
+.te-control-row { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+.te-control-label { font-size:11px; color:var(--text2); flex-shrink:0; width:34px; }
+.te-color-row { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+/* Jewel-tone dots: a soft inner rim gives each colour a bit of polish at
+   rest, and the lift-on-hover is small and quick so it reads as responsive
+   rather than flashy — nothing here should compete for attention until the
+   person actually reaches for it. Sized to fit the ~240px right panel on one
+   line (5 swatches + custom + clear, with margin to spare). */
+.te-color-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  cursor: pointer; border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 1px 2px rgba(0,0,0,0.30);
+  transition: transform 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  flex-shrink:0;
+}
+.te-color-swatch:hover { transform: translateY(-1px) scale(1.07); }
+.te-color-swatch.sel {
+  border-color: var(--pdfed-section-bg, var(--bg2));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14), 0 0 0 2px var(--blue), 0 2px 8px rgba(0,194,255,0.35);
+}
+/* Custom-colour tile: the real <input type="color"> is functional but its
+   native chrome looks different in every browser, so it sits invisible on
+   top of a small swatch styled to match the others (a soft gradient stands
+   in for "pick any colour"), keeping the whole row one consistent grid. */
+.te-faf-custom-swatch {
+  position:relative; width:18px; height:18px; border-radius:50%; flex-shrink:0;
+  background:conic-gradient(from 180deg,#ff5e5e,#ffd23f,#3ddc84,#3fa9ff,#a855f7,#ff5e5e);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 1px 3px rgba(0,0,0,0.35);
+  border:2px solid transparent; cursor:pointer; overflow:hidden;
+  transition: transform 0.12s ease;
+}
+.te-faf-custom-swatch:hover { transform: translateY(-1px) scale(1.07); }
+.te-faf-custom-swatch input[type="color"] {
+  position:absolute; inset:-4px; width:calc(100% + 8px); height:calc(100% + 8px);
+  border:none; padding:0; margin:0; opacity:0; cursor:pointer;
+}
+.te-size-row { display:flex; gap:6px; align-items:center; flex:1; }
+.te-size-row input { flex:1; accent-color:var(--blue); }
+.te-size-val { font-size:11px; color:var(--text); min-width:24px; text-align:right; }
+.te-footer-stat {
+  display:flex; align-items:center; gap:6px;
+  font-size:10.5px; color:var(--text3);
+  border-top:1px solid var(--pdfed-section-border); padding-top:8px; margin-top:2px;
+}
+.te-footer-stat svg { flex-shrink:0; opacity:.7; }
+
+/* "No extractable text" notice, a persistent, clearly-worded status box instead
+   of a toast that fades away, so users don't sit there waiting/hoping when there's
+   simply nothing left to find. */
+.te-alert-box {
+  display: flex; align-items: flex-start; gap: 9px;
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 9px; padding: 11px 12px; margin-bottom: 12px;
+}
+.te-alert-box svg { flex-shrink: 0; margin-top: 1px; color: #f59e0b; }
+.te-alert-box-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.te-alert-box-msg { font-size: 11px; line-height: 1.55; color: var(--text2); }
+.te-alert-box-action {
+  margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--blue);
+  background: none; border: none; padding: 0; cursor: pointer;
+}
+.te-alert-box-action:hover { text-decoration: underline; }
+
+
+.pdfed-page-label {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+.pdfed-canvas-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  background: var(--pdfed-scroll-bg);
+  background-image:
+    radial-gradient(circle, var(--pdfed-scroll-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: default;
+}
+/* inner centering shim, lets the wrap be centered when smaller than scroll area */
+.pdfed-canvas-inner {
+  min-width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  box-sizing: border-box;
+}
+.pdfed-canvas-wrap {
+  position: relative;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  flex-shrink: 0;
+  transition: width 0.12s ease-out, height 0.12s ease-out;
+}
+.pdfed-canvas-wrap canvas {
+  display: block;
+  transition: width 0.12s ease-out, height 0.12s ease-out;
+  /* size is driven by JS width/height attributes; CSS width/height scales display */
+}
+/* The placed-text layer scales as one unit with the canvas, giving it the
+   exact same transition timing/easing as the canvas's own width/height
+   transition above means text glides in perfect lockstep with the page
+   during zoom, and never has to recompute anything on a per-box basis. */
+#pdfedPlacedZoomWrap {
+  transition: transform 0.12s ease-out !important;
+}
+
+/* Crop overlay on page canvas */
+.pdfed-crop-box {
+  position: absolute;
+  border: 2px solid var(--cyan);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+  cursor: move;
+  display: none;
+  z-index: 9; /* stay above the annotation canvas (z-index:8) so cropping is still visible/usable */
+}
+.pdfed-crop-box.active { display: block; }
+.pdfed-crop-handle {
+  position: absolute; width: 10px; height: 10px;
+  background: white; border: 2px solid var(--cyan);
+  border-radius: 2px;
+}
+.pdfed-crop-handle.nw { top:-5px; left:-5px; cursor:nw-resize; }
+.pdfed-crop-handle.ne { top:-5px; right:-5px; cursor:ne-resize; }
+.pdfed-crop-handle.sw { bottom:-5px; left:-5px; cursor:sw-resize; }
+.pdfed-crop-handle.se { bottom:-5px; right:-5px; cursor:se-resize; }
+.pdfed-crop-handle.n  { top:-5px; left:50%; transform:translateX(-50%); cursor:n-resize; }
+.pdfed-crop-handle.s  { bottom:-5px; left:50%; transform:translateX(-50%); cursor:s-resize; }
+.pdfed-crop-handle.w  { top:50%; left:-5px; transform:translateY(-50%); cursor:w-resize; }
+.pdfed-crop-handle.e  { top:50%; right:-5px; transform:translateY(-50%); cursor:e-resize; }
+
+/* Right panel */
+.pdfed-right-panel {
+  background: var(--pdfed-panel-bg);
+  border-left: 1px solid var(--pdfed-panel-border);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  position: relative;
+}
+.pdfed-right-panel .pdfed-right-scroll {
+  overflow-y: auto;
+  height: 100%;
+  min-height: 0;
+}
+.pdfed-right-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pdfed-panel-section {
+  background: var(--pdfed-section-bg);
+  border: 1px solid var(--pdfed-section-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.pdfed-panel-section h5 {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--pdfed-section-label);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
