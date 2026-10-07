@@ -582,6 +582,7 @@
   // signal for when a person is already looking at the panel.
   let kadessaClaimTimer = null;
   function kadessaSetActing(on){
+    kadessaSetStatus(on ? 'Working' : 'Ready', on ? 'acting' : 'idle');
     launcher.classList.toggle('kadessa-acting', on);
     actingBadge.classList.toggle('show', on);
     if (!on){
@@ -1003,7 +1004,7 @@
     panel.classList.toggle('open');
     if(panel.classList.contains('open')){
       if(thread.children.length === 0){
-        addMsg('kadessa', "Hi, I'm Kadessa. Ask me about redacting a file, tidying a messy chart, or refining a report into your letterhead.");
+        kadessaShowWelcome();
       }
       // Flush anything the background watcher noticed while the panel was
       // closed -- it was held back rather than dropped, so opening the
@@ -1017,7 +1018,241 @@
   });
   closeBtn.addEventListener('click', function(){ panel.classList.remove('open'); });
 
+  // ===== KADESSA PANEL REDESIGN (build 280) =================================
+  // Status line, expand toggle, new-chat, welcome state, light reply
+  // formatting, and live action cards with Undo. Everything here is UI only:
+  // it reads what KADESSA_ACTIONS already does and never changes what runs.
+  let kadessaLastCancelled = false;
+
+  (function kadessaPaintAvatars(){
+    try{
+      const core = document.getElementById('kadessa-launcher-core');
+      const a = document.getElementById('kadessa-avatar-img');
+      if (core && a) a.src = core.src;
+    } catch(e){}
+  })();
+
+  function kadessaSetStatus(text, mode){
+    const el = document.getElementById('kadessa-status');
+    if (!el) return;
+    el.textContent = '';
+    const s = document.createElement('span');
+    s.textContent = text;
+    el.appendChild(s);
+    el.title = text;
+    el.setAttribute('data-mode', mode || 'idle');
+  }
+
+  // Expand / compact, remembered between visits.
+  const kadessaExpandBtn = document.getElementById('kadessa-expand');
+  function kadessaApplySize(big){
+    panel.classList.toggle('kadessa-big', big);
+    if (kadessaExpandBtn) kadessaExpandBtn.title = big ? 'Make smaller' : 'Make bigger';
+    try{ localStorage.setItem('kadessaPanelBig', big ? '1' : '0'); } catch(e){}
+  }
+  try{ if (localStorage.getItem('kadessaPanelBig') === '1') kadessaApplySize(true); } catch(e){}
+  if (kadessaExpandBtn) kadessaExpandBtn.addEventListener('click', function(){
+    kadessaApplySize(!panel.classList.contains('kadessa-big'));
+    thread.scrollTop = thread.scrollHeight;
+  });
+
+  // Fresh start.
+  const kadessaNewBtn = document.getElementById('kadessa-new');
+  if (kadessaNewBtn) kadessaNewBtn.addEventListener('click', function(){
+    if (sendBtn.disabled) return; // she is mid-turn, do not pull the thread out from under her
+    thread.innerHTML = '';
+    history = [];
+    kadessaShowWelcome();
+  });
+
+  // Welcome state with starter chips.
+  const KADESSA_STARTERS = [
+    'What can you do here?',
+    'Tidy up my chart',
+    'Refine my report into my letterhead',
+    'Help me redact a file'
+  ];
+  function kadessaShowWelcome(){
+    const wrap = document.createElement('div');
+    wrap.className = 'kadessa-welcome';
+    const av = document.createElement('div');
+    av.className = 'kadessa-welcome-avatar';
+    const img = document.createElement('img');
+    img.alt = '';
+    try{ img.src = document.getElementById('kadessa-launcher-core').src; } catch(e){}
+    av.appendChild(img);
+    const h = document.createElement('h4');
+    h.textContent = "Hi, I'm Kadessa";
+    const p = document.createElement('p');
+    p.textContent = 'I do more than chat. Tell me what you want and I will make the change in your workspace, and you can undo anything I do.';
+    const chips = document.createElement('div');
+    chips.className = 'kadessa-chips';
+    KADESSA_STARTERS.forEach(function(t){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'kadessa-chip';
+      b.textContent = t;
+      b.addEventListener('click', function(){
+        if (sendBtn.disabled) return;
+        input.value = t;
+        form.requestSubmit();
+      });
+      chips.appendChild(b);
+    });
+    wrap.appendChild(av); wrap.appendChild(h); wrap.appendChild(p); wrap.appendChild(chips);
+    thread.appendChild(wrap);
+  }
+  function kadessaClearWelcome(){
+    const w = thread.querySelector('.kadessa-welcome');
+    if (w) w.remove();
+  }
+
+  // Light formatting for replies: **bold**, `code`, bullet and numbered lists.
+  // Text is escaped first, so nothing a reply contains can inject markup.
+  function kadessaInline(s){
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+?)`/g, '<code>$1</code>');
+  }
+  function kadessaFormatInto(el, text){
+    el.textContent = '';
+    let list = null, listKind = '';
+    String(text == null ? '' : text).split('\n').forEach(function(line){
+      const bullet = line.match(/^\s*[-*\u2022]\s+(.*)$/);
+      const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (bullet || numbered){
+        const kind = bullet ? 'ul' : 'ol';
+        if (!list || listKind !== kind){
+          list = document.createElement(kind); listKind = kind; el.appendChild(list);
+        }
+        const li = document.createElement('li');
+        li.innerHTML = kadessaInline((bullet || numbered)[1]);
+        list.appendChild(li);
+      } else if (line.trim()){
+        list = null; listKind = '';
+        const p = document.createElement('div');
+        p.className = 'kr-p';
+        p.innerHTML = kadessaInline(line);
+        el.appendChild(p);
+      } else {
+        list = null; listKind = '';
+      }
+    });
+  }
+
+  // Action cards.
+  const KADESSA_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const KADESSA_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const KADESSA_ICON_DASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 12h12"/></svg>';
+
+  function kadessaLogTop(){
+    try{
+      if (typeof kadessaActionLog !== 'undefined' && kadessaActionLog.length) return kadessaActionLog[kadessaActionLog.length - 1];
+    } catch(e){}
+    return null;
+  }
+  function kadessaClockNow(){
+    try{ return typeof historyClock !== 'undefined' ? historyClock : null; } catch(e){ return null; }
+  }
+  function kadessaSectionNow(){
+    try{ return typeof unifiedActiveSection === 'function' ? unifiedActiveSection() : null; } catch(e){ return null; }
+  }
+  // What an action left behind in the app's undo history. Any change that landed in
+  // ANY history stack (her own log, or a module's snapshot history such as Data
+  // Arrangement) advances the shared clock, so a moved clock means "can undo".
+  function kadessaUndoSnapshot(before){
+    const clock = kadessaClockNow();
+    const top = kadessaLogTop();
+    if (before.clock === null || clock === null || clock === before.clock) return null;
+    return { logChanged: top !== before.top, logAction: top, clock: clock, section: kadessaSectionNow() };
+  }
+  function kadessaActTitle(action){
+    let t = '';
+    try{
+      const entry = KADESSA_ACTIONS[action.type];
+      if (entry && typeof entry.label === 'function') t = String(entry.label(action.params || {}) || '');
+    } catch(e){}
+    if (!t){
+      t = String((action && action.type) || 'Working').replace(/^[a-z]{1,4}_/, '').replace(/_/g, ' ');
+      t = t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    t = t.replace(/\s*This can be undone with Ctrl\+Z\.?/i, '').trim();
+    try{ t = sarvarcKadessaStripEmDash(t); } catch(e){}
+    return t.length > 140 ? t.slice(0, 137) + '...' : t;
+  }
+  function kadessaActCardStart(action, box){
+    if (!box){
+      box = document.createElement('div');
+      box.className = 'kadessa-acts';
+      thread.appendChild(box);
+    }
+    const el = document.createElement('div');
+    el.className = 'kadessa-act running';
+    const icon = document.createElement('span');
+    icon.className = 'kadessa-act-icon';
+    const body = document.createElement('div');
+    body.className = 'kadessa-act-body';
+    const kicker = document.createElement('div');
+    kicker.className = 'kadessa-act-kicker';
+    kicker.textContent = 'Working';
+    const title = document.createElement('div');
+    title.className = 'kadessa-act-title';
+    const label = kadessaActTitle(action);
+    title.textContent = label;
+    body.appendChild(kicker); body.appendChild(title);
+    el.appendChild(icon); el.appendChild(body);
+    box.appendChild(el);
+    thread.scrollTop = thread.scrollHeight;
+    kadessaSetStatus('Working: ' + label, 'acting');
+    return { box: box, el: el, icon: icon, kicker: kicker, label: label };
+  }
+  function kadessaActCardFinish(card, state, undoable){
+    card.el.classList.remove('running');
+    card.el.classList.add(state);
+    if (state === 'done'){ card.kicker.textContent = 'Done'; card.icon.innerHTML = KADESSA_ICON_CHECK; }
+    else if (state === 'fail'){ card.kicker.textContent = "Couldn't finish"; card.icon.innerHTML = KADESSA_ICON_X; }
+    else { card.kicker.textContent = 'Skipped'; card.icon.innerHTML = KADESSA_ICON_DASH; }
+    if (state === 'done' && undoable){
+      // Only the newest change can be undone cleanly, so older Undo buttons go away.
+      thread.querySelectorAll('.kadessa-act-undo').forEach(function(b){ b.remove(); });
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'kadessa-act-undo';
+      btn.textContent = 'Undo';
+      btn.addEventListener('click', async function(){
+        const u = undoable;
+        let ok = false;
+        btn.disabled = true;
+        try{
+          if (u.logChanged){
+            // She registered this one herself: reverse exactly that action.
+            if (kadessaLogTop() === u.logAction){ const r = kadessaUndoLastAction(); ok = !!(r && r.undone); }
+          } else if (kadessaClockNow() === u.clock && kadessaSectionNow() === u.section){
+            // A module's own history (e.g. a table edit). Nothing else has been
+            // recorded since and the person is still in the same area, so the
+            // app's own undo will reverse exactly this change, same as Ctrl+Z.
+            await unifiedUndo();
+            ok = true;
+          }
+        } catch(e){ ok = false; }
+        btn.remove();
+        if (ok){
+          card.el.classList.remove('done');
+          card.el.classList.add('undone');
+          card.kicker.textContent = 'Undone';
+          card.icon.innerHTML = KADESSA_ICON_DASH;
+        } else {
+          addMsg('kadessa', "I can't undo that one from here. It may already be undone, or something changed after it. Ctrl+Z steps back through it.");
+        }
+      });
+      card.el.appendChild(btn);
+    }
+    thread.scrollTop = thread.scrollHeight;
+  }
+
   function addMsg(who, text, attachments){
+    kadessaClearWelcome();
     const div = document.createElement('div');
     div.className = 'kadessa-msg ' + who;
     // When this turn carried files, show what was actually sent/received as
@@ -1042,7 +1277,8 @@
     if (text){
       const textEl = document.createElement('span');
       textEl.className = 'kadessa-msg-text';
-      textEl.textContent = text;
+      if (who === 'kadessa'){ textEl.classList.add('kadessa-rich'); kadessaFormatInto(textEl, text); }
+      else textEl.textContent = text;
       div.appendChild(textEl);
     }
     thread.appendChild(div);
@@ -1130,7 +1366,8 @@
     if (div._kadessaLabelTimer) clearInterval(div._kadessaLabelTimer);
     div.classList.remove('kadessa-thinking');
     div.innerHTML = '';
-    div.textContent = text;
+    div.classList.add('kadessa-rich');
+    kadessaFormatInto(div, text);
   }
 
   // -----------------------------------------------------------------
@@ -3514,6 +3751,409 @@
     }
   };
 
+  // ===========================================================================
+  // KADESSA ON-PAGE ANIMATION LAYER (build 309)
+  // Every action she runs goes through kfxRun(): she MARKS the spot (a ring and
+  // a small Kadessa label on whatever she is about to touch), MAKES the change,
+  // then SETTLES (the ring glides to the new position, a dashed ghost is left at
+  // the old one, new things reveal). Purely visual: it never edits the page, it
+  // only reads element positions and adds short-lived overlay nodes / classes,
+  // and any hiccup here falls straight through to the plain action.
+  // ===========================================================================
+  const kfxSleep = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
+  function kfxReduced(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }catch(e){ return false; } }
+  let kfxLayerEl = null;
+  function kfxLayer(){
+    if (!kfxLayerEl || !kfxLayerEl.isConnected){
+      kfxLayerEl = document.createElement('div');
+      kfxLayerEl.id = 'kadessa-fx-layer';
+      document.body.appendChild(kfxLayerEl);
+    }
+    return kfxLayerEl;
+  }
+  function kfxValid(b){ return !!b && b.w > 2 && b.h > 2; }
+  function kfxBoxOf(el){ const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }
+  // One box around a set of elements, optionally trimmed to a scroll container
+  // and always trimmed to the window, so a tall column never draws off-screen.
+  function kfxUnion(els, clipEl){
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity, n = 0;
+    (els || []).forEach(function(el){
+      if (!el || !el.getBoundingClientRect) return;
+      const b = kfxBoxOf(el);
+      if (b.w < 1 || b.h < 1) return;
+      n++; x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y); x2 = Math.max(x2, b.x + b.w); y2 = Math.max(y2, b.y + b.h);
+    });
+    if (!n) return null;
+    if (clipEl && clipEl.getBoundingClientRect){
+      const c = kfxBoxOf(clipEl);
+      x1 = Math.max(x1, c.x); y1 = Math.max(y1, c.y); x2 = Math.min(x2, c.x + c.w); y2 = Math.min(y2, c.y + c.h);
+    }
+    x1 = Math.max(x1, 0); y1 = Math.max(y1, 0); x2 = Math.min(x2, window.innerWidth); y2 = Math.min(y2, window.innerHeight);
+    if (x2 <= x1 || y2 <= y1) return null;
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
+  function kfxPlace(node, b){
+    const pad = 4;
+    node.style.left = (b.x - pad) + 'px'; node.style.top = (b.y - pad) + 'px';
+    node.style.width = (b.w + pad * 2) + 'px'; node.style.height = (b.h + pad * 2) + 'px';
+    node.classList.toggle('below', b.y < 34);
+  }
+  function kfxMakeRing(b){
+    const d = document.createElement('div');
+    d.className = 'kfx-ring';
+    const t = document.createElement('span');
+    t.className = 'kfx-tag'; t.textContent = 'Kadessa';
+    const sw = document.createElement('span');
+    sw.className = 'kfx-sw';
+    d.appendChild(sw);
+    d.appendChild(t);
+    kfxPlace(d, b);
+    kfxLayer().appendChild(d);
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ d.classList.add('on'); }); });
+    return d;
+  }
+  function kfxMakeGhost(b){
+    const g = document.createElement('div');
+    g.className = 'kfx-ghost';
+    g.style.left = (b.x - 4) + 'px'; g.style.top = (b.y - 4) + 'px';
+    g.style.width = (b.w + 8) + 'px'; g.style.height = (b.h + 8) + 'px';
+    kfxLayer().appendChild(g);
+    return g;
+  }
+  function kfxDropGhost(g){
+    setTimeout(function(){ g.classList.add('gone'); }, 500);
+    setTimeout(function(){ if (g.parentNode) g.parentNode.removeChild(g); }, 1300);
+  }
+  function kfxDismiss(ring){
+    if (!ring) return;
+    try{ (ring._spots || []).forEach(function(el){ el.classList.remove('kfx-spot'); }); }catch(e){}
+    ring.classList.remove('on');
+    setTimeout(function(){ if (ring.parentNode) ring.parentNode.removeChild(ring); }, 320);
+  }
+  function kfxClearAll(){
+    try{ const l = document.getElementById('kadessa-fx-layer'); if (l) l.innerHTML = ''; }catch(e){}
+    try{ document.querySelectorAll('.kfx-spot').forEach(function(el){ el.classList.remove('kfx-spot'); }); }catch(e){}
+  }
+  async function kfxEnsureVisible(els){
+    const el = els && els[0];
+    if (!el || !el.getBoundingClientRect) return;
+    const r = el.getBoundingClientRect();
+    const out = r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth;
+    if (out){
+      try{ el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }); }catch(e){}
+      await kfxSleep(420);
+    }
+  }
+  function kfxMoved(a, b){ return Math.abs(a.x - b.x) > 3 || Math.abs(a.y - b.y) > 3 || Math.abs(a.w - b.w) > 3 || Math.abs(a.h - b.h) > 3; }
+  function kfxTimedClass(el, cls, ms){ el.classList.add(cls); setTimeout(function(){ el.classList.remove(cls); }, ms); }
+
+  // ---- where she is: scope strip + divider + per-card location line ----------
+  const KFX_AREA_NAMES = { pdfeditor: 'PDF Editor', dataarrange: 'Data Arrangement', makeforms: 'Make Forms', diagrams: 'Diagrams & Graphs', redact: 'Redaction', dashboard: 'Dashboard', extract: 'Extract', savedsessions: 'Saved sessions' };
+  function kfxAreaInfo(){
+    let sec = '';
+    try{ sec = kadessaSectionNow() || ''; }catch(e){}
+    let area = KFX_AREA_NAMES[sec] || 'Workspace';
+    let obj = '';
+    try{
+      if (window.sppKadessa && window.sppKadessa.isOpen && window.sppKadessa.isOpen()) area = 'Showcase';
+      else if (sec === 'dataarrange' && typeof daGetActive === 'function'){ const ds = daGetActive(); obj = ds && ds.name ? String(ds.name) : ''; }
+      else if (sec === 'pdfeditor' && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length){
+        const nm = (pdfed.file && pdfed.file.name) ? String(pdfed.file.name).replace(/\.(pdf|docx?|xlsx?|csv)$/i, '') : 'Document';
+        obj = nm + ', page ' + (pdfed.active + 1);
+      }
+      else if (sec === 'makeforms'){ const ti = document.getElementById('mfFormTitleInput'); obj = ti && ti.value ? String(ti.value) : ''; }
+    }catch(e){}
+    return { sec: sec, area: area, obj: obj };
+  }
+  let kfxScopeText = '';
+  function kadessaUpdateScope(){
+    const el = document.getElementById('kadessa-scope-area');
+    if (!el) return;
+    const i = kfxAreaInfo();
+    const key = i.area + '|' + i.obj;
+    if (key === kfxScopeText) return;
+    kfxScopeText = key;
+    el.style.opacity = 0;
+    setTimeout(function(){
+      el.textContent = '';
+      el.appendChild(document.createTextNode('In '));
+      const a = document.createElement('b'); a.textContent = i.area; el.appendChild(a);
+      if (i.obj){ el.appendChild(document.createTextNode(' on ')); const o = document.createElement('b'); o.textContent = i.obj; el.appendChild(o); }
+      el.style.opacity = 1;
+    }, 180);
+  }
+  setInterval(function(){ try{ kadessaUpdateScope(); }catch(e){} }, 700);
+  setTimeout(function(){ try{ kadessaUpdateScope(); }catch(e){} }, 150);
+  function kfxAddDivider(text){
+    const d = document.createElement('div');
+    d.className = 'kadessa-divider';
+    d.textContent = text;
+    thread.appendChild(d);
+    thread.scrollTop = thread.scrollHeight;
+  }
+  function kfxLoc(action){
+    const t = action.type, p = action.params || {};
+    const n1 = function(v){ return (typeof v === 'number' && isFinite(v)) ? v + 1 : null; };
+    try{
+      if (/^da_/.test(t)){
+        const ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+        const head = function(ci){ return (ds && ds.headers && ds.headers[ci] != null) ? String(ds.headers[ci]) : ('column ' + (ci + 1)); };
+        if (t === 'da_add_row') return 'bottom row';
+        if (t === 'da_add_column') return 'new column on the right';
+        if (t === 'da_update_cell' && n1(p.rowIdx) && n1(p.colIdx) != null) return 'row ' + n1(p.rowIdx) + ', ' + head(p.colIdx);
+        if (t === 'da_delete_row' && n1(p.rowIdx)) return 'row ' + n1(p.rowIdx);
+        if (t === 'da_delete_column' && n1(p.colIdx)) return head(p.colIdx) + ' column';
+        if (t === 'da_highlight_rows' && Array.isArray(p.rowIdxs)) return p.rowIdxs.length === 1 ? 'row ' + (p.rowIdxs[0] + 1) : p.rowIdxs.length + ' rows';
+        if (t === 'da_highlight_columns' && Array.isArray(p.colIdxs)) return p.colIdxs.length === 1 ? head(p.colIdxs[0]) + ' column' : p.colIdxs.length + ' columns';
+        if (t === 'da_highlight_cells' && Array.isArray(p.cells)) return p.cells.length + ' cell' + (p.cells.length === 1 ? '' : 's');
+        return '';
+      }
+      if (/^pdfed_|^bp_|^bk_/.test(t) && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length){
+        const tg = kfxPdfTarget(p, kfxPdfPref(t));
+        return 'page ' + (pdfed.active + 1) + (tg ? ', ' + tg.kind : '');
+      }
+    }catch(e){}
+    return '';
+  }
+  function kfxWhereText(action){
+    const i = kfxAreaInfo();
+    if (action.type === 'navigate_to_panel') return 'Moving from ' + i.area;
+    if (/^pipeline_/.test(action.type)) return 'Moving from ' + i.area;
+    const loc = kfxLoc(action);
+    if (/^pdfed_|^bp_|^bk_/.test(action.type)) return loc ? loc.charAt(0).toUpperCase() + loc.slice(1) : (i.obj || i.area);
+    const base = i.obj || i.area;
+    return loc ? base + ', ' + loc : base;
+  }
+  function kfxAddWhere(card, action){
+    try{
+      const w = document.createElement('div');
+      w.className = 'kadessa-act-where';
+      w.textContent = kfxWhereText(action);
+      if (!w.textContent) return;
+      card.el.querySelector('.kadessa-act-body').appendChild(w);
+    }catch(e){}
+  }
+
+  // ---- target finders --------------------------------------------------------
+  const KFX_PDF_SEL = { image: '.pdfed-placed-img', text: '.pdfed-placed-text', table: '.pdfed-placed-table' };
+  const KFX_PDF_ALL = '.pdfed-placed-img, .pdfed-placed-text, .pdfed-placed-table, .pdfed-placed-shape';
+  function kfxPdfOpen(){ return typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length && pdfed.active >= 0; }
+  function kfxPdfPref(t){
+    if (/image|reshape|clear_live|opacity|arrange/.test(t)) return 'image';
+    if (/table/.test(t)) return 'table';
+    if (/text/.test(t)) return 'text';
+    return '';
+  }
+  // Which placed item she means, using the same finders the action itself uses.
+  function kfxPdfTarget(p, pref){
+    if (!kfxPdfOpen()) return null;
+    let ap = null;
+    try{ ap = pdfedKadessaActivePage(p); }catch(e){ return null; }
+    if (!ap || ap.idx !== pdfed.active) return null;
+    try{ const c = pdfedKadessaFindPlaced(ap.pg, p); if (c && c.item) return { kind: c.kind, id: c.item.id }; }catch(e){}
+    try{ if (pref === 'image'){ const it = pdfedKadessaFindImage(ap.pg, p); if (it) return { kind: 'image', id: it.id }; } }catch(e){}
+    try{ if (pref === 'text'){ const it = pdfedKadessaFindPlacedText(ap.pg, p); if (it) return { kind: 'text', id: it.id }; } }catch(e){}
+    try{ if (pref === 'table'){ const it = pdfedKadessaFindPlacedTable(ap.pg, p); if (it) return { kind: 'table', id: it.id }; } }catch(e){}
+    return null;
+  }
+  function kfxPdfEl(tg){
+    if (!tg || !KFX_PDF_SEL[tg.kind] || tg.id == null) return null;
+    const id = (window.CSS && CSS.escape) ? CSS.escape(String(tg.id)) : String(tg.id).replace(/"/g, '');
+    return document.querySelector(KFX_PDF_SEL[tg.kind] + '[data-id="' + id + '"]');
+  }
+  function kfxPdfCanvas(){ const c = document.getElementById('pdfedPageCanvas'); return c && c.offsetWidth > 0 ? [c] : []; }
+  function kfxPdfAllIds(){
+    const s = {};
+    document.querySelectorAll(KFX_PDF_ALL).forEach(function(el){ if (el.dataset && el.dataset.id) s[el.dataset.id] = 1; });
+    return s;
+  }
+  function kfxDaWrap(){ return document.getElementById('daGridWrap'); }
+  function kfxDaCells(rows, cols, withHead){
+    const w = kfxDaWrap(); if (!w) return [];
+    const rs = rows ? new Set(rows.map(String)) : null, cs = cols ? new Set(cols.map(String)) : null;
+    const out = [];
+    w.querySelectorAll('td[data-r][data-c]').forEach(function(td){
+      if (rs && !rs.has(td.dataset.r)) return;
+      if (cs && !cs.has(td.dataset.c)) return;
+      out.push(td);
+    });
+    if (withHead && cols){
+      const tr = w.querySelector('thead tr:nth-child(2)');
+      if (tr) cols.forEach(function(ci){ const th = tr.children[ci + 1]; if (th) out.unshift(th); });
+    }
+    return out;
+  }
+  function kfxDaTable(){ const w = kfxDaWrap(); return w ? w.querySelector('table.da-table') : null; }
+  function kfxDaSnapshot(){
+    const w = kfxDaWrap(), snap = {};
+    if (!w) return snap;
+    const tds = w.querySelectorAll('td[data-r][data-c]');
+    if (tds.length > 4000) return null;
+    tds.forEach(function(td){ snap[td.dataset.r + '_' + td.dataset.c] = td.outerHTML; });
+    return snap;
+  }
+  function kfxMainEl(sec){
+    const sel = { pdfeditor: '#pdfedPageCanvas', dataarrange: '#daGridWrap table.da-table', diagrams: '#dgCanvasHolder', makeforms: '#mfPreviewPage' }[sec];
+    const el = sel ? document.querySelector(sel) : null;
+    return el && el.offsetWidth > 0 ? [el] : [];
+  }
+
+  // ---- plans: what to mark before, what to mark after, and how -------------------
+  // plan = { pre(ctx) -> els, after(ctx) -> els, before() -> ctx, sweep, reveal, spot, clip }
+  function kfxPlan(action){
+    const t = action.type, p = action.params || {};
+    const sec = (function(){ try{ return kadessaSectionNow() || ''; }catch(e){ return ''; } })();
+
+    // ----- Data Arrangement -----
+    if (/^da_/.test(t)){
+      if (sec !== 'dataarrange' && t !== 'da_create_table' && t !== 'da_create_table_from_template') {
+        // daEnsureVisible() will bring her there; mark after.
+      }
+      const clip = function(){ return kfxDaWrap(); };
+      const rowsOf = function(arr){ return Array.isArray(arr) ? arr : []; };
+      if (t === 'da_add_row') return { sweep: true, rowin: true, clipFn: clip,
+        before: function(){ const w = kfxDaWrap(); return { n: w ? w.querySelectorAll('tbody tr').length : 0 }; },
+        after: function(c){ const w = kfxDaWrap(); if (!w) return []; const trs = w.querySelectorAll('tbody tr'); if (!trs.length) return []; const from = Math.min(c.n, trs.length - 1); return Array.prototype.slice.call(trs, from); } };
+      if (t === 'da_add_column') return { sweep: true, clipFn: clip,
+        before: function(){ const w = kfxDaWrap(); const tr = w && w.querySelector('thead tr:nth-child(2)'); return { n: tr ? tr.children.length : 0 }; },
+        after: function(){ const w = kfxDaWrap(); const tr = w && w.querySelector('thead tr:nth-child(2)'); if (!tr || tr.children.length < 2) return []; const ci = tr.children.length - 2; return kfxDaCells(null, [ci], true); } };
+      if (t === 'da_update_cell') return { spot: true, clipFn: clip,
+        pre: function(){ return kfxDaCells([p.rowIdx], [p.colIdx], false); },
+        after: function(){ return kfxDaCells([p.rowIdx], [p.colIdx], false); } };
+      if (t === 'da_delete_row') return { clipFn: clip, gone: true, pre: function(){ return kfxDaCells([p.rowIdx], null, false); }, after: function(){ return []; } };
+      if (t === 'da_delete_column') return { clipFn: clip, gone: true, pre: function(){ return kfxDaCells(null, [p.colIdx], true); }, after: function(){ return []; } };
+      if (t === 'da_highlight_rows') return { spot: true, clipFn: clip,
+        pre: function(){ return kfxDaCells(rowsOf(p.rowIdxs), null, false); },
+        after: function(){ return kfxDaCells(rowsOf(p.rowIdxs), null, false); } };
+      if (t === 'da_highlight_columns') return { spot: true, clipFn: clip,
+        pre: function(){ return kfxDaCells(null, rowsOf(p.colIdxs), true); },
+        after: function(){ return kfxDaCells(null, rowsOf(p.colIdxs), true); } };
+      if (t === 'da_highlight_cells'){
+        const cells = rowsOf(p.cells);
+        const pick = function(){ const w = kfxDaWrap(); if (!w) return []; const keys = new Set(cells.map(function(c){ return c.rowIdx + '_' + c.colIdx; })); return Array.prototype.filter.call(w.querySelectorAll('td[data-r][data-c]'), function(td){ return keys.has(td.dataset.r + '_' + td.dataset.c); }); };
+        return { spot: true, clipFn: clip, pre: pick, after: pick };
+      }
+      if (t === 'da_highlight_by_condition' || t === 'da_highlight_top_bottom' || t === 'da_remove_highlight') return { spot: true, clipFn: clip,
+        before: function(){ return { snap: kfxDaSnapshot() }; },
+        after: function(c){
+          const w = kfxDaWrap(); if (!w) return [];
+          if (!c.snap) return kfxDaTable() ? [kfxDaTable()] : [];
+          const out = [];
+          w.querySelectorAll('td[data-r][data-c]').forEach(function(td){ if (c.snap[td.dataset.r + '_' + td.dataset.c] !== td.outerHTML) out.push(td); });
+          return out.length ? out : (kfxDaTable() ? [kfxDaTable()] : []);
+        } };
+      if (t === 'da_create_table' || t === 'da_create_table_from_template') return { sweep: true, rowin: true, clipFn: clip, after: function(){ const tb = kfxDaTable(); return tb ? [tb] : []; } };
+      if (t === 'da_set_filter' || t === 'da_clear_filter' || t === 'da_set_dropdown' || t === 'da_remove_dropdown' || t === 'da_link_tables') return { clipFn: clip, after: function(){ const tb = kfxDaTable(); return tb ? [tb] : []; } };
+      return null;
+    }
+
+    // ----- PDF Editor -----
+    if (/^pdfed_|^bp_|^bk_/.test(t)){
+      const itemMove = /^pdfed_(move_item|resize_image|resize_text|resize_table|set_opacity|arrange_layer|reshape_image|apply_image_design|clear_live_look|style_specific_text|set_text_fill|resolve_overlaps)$/;
+      if (itemMove.test(t)){
+        const pref = kfxPdfPref(t);
+        const wantAll = (t === 'pdfed_resolve_overlaps') || ((t === 'pdfed_apply_image_design' || t === 'pdfed_reshape_image') && (p.target === 'all' || p.target === undefined) && !p.id && (p.which === undefined || p.which === null || p.which === ''));
+        const find = function(){
+          if (!kfxPdfOpen()) return [];
+          if (wantAll){ const sel = t === 'pdfed_resolve_overlaps' ? KFX_PDF_ALL : KFX_PDF_SEL.image; return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+          const tg = kfxPdfTarget(p, pref); const el = kfxPdfEl(tg); return el ? [el] : [];
+        };
+        return { before: function(){ return {}; }, pre: find, after: function(){ const f = find(); return f.length ? f : kfxPdfCanvas(); } };
+      }
+      if (/^pdfed_(insert_table|create_table|add_text_to_page|insert_attached_image|insert_stock_photo)$/.test(t)) return { sweep: true, reveal: true,
+        before: function(){ return { ids: kfxPdfAllIds() }; },
+        after: function(c){ const out = []; document.querySelectorAll(KFX_PDF_ALL).forEach(function(el){ if (el.dataset && el.dataset.id && !c.ids[el.dataset.id]) out.push(el); }); return out.length ? out : kfxPdfCanvas(); } };
+      if (/^pdfed_(rotate_page|remove_page|resize_canvas|set_canvas_gradient|translate_pages|revert_page|set_page_transition)$/.test(t)) return { sweep: true, pre: kfxPdfCanvas, after: kfxPdfCanvas };
+      if (/^pdfed_(insert_page|duplicate_page|auto_refine_report|create_letterhead|make_editable)$/.test(t) || /^bp_/.test(t)) return { sweep: true, after: kfxPdfCanvas };
+      return null;
+    }
+
+    // ----- Diagrams & Graphs, Make Forms -----
+    if (/^dg_/.test(t)){
+      if (t === 'dg_export') return null;
+      const holder = function(){ const h = document.getElementById('dgCanvasHolder'); return h && h.offsetWidth > 0 ? [h] : []; };
+      const builds = /^dg_(build_chart|build_diagram|build_map|chart_from_table|load_template|flow_template|set_mode)$/.test(t);
+      return builds ? { sweep: true, after: holder } : { pre: holder, after: holder };
+    }
+    if (/^mf_/.test(t)){
+      if (/^mf_(publish_form|sync_responses|export_responses_to_da)$/.test(t)) return null;
+      const prev = function(){ const h = document.getElementById('mfPreviewPage') || document.getElementById('mfPreviewPanel'); return h && h.offsetWidth > 0 ? [h] : []; };
+      const makes = /^mf_(create_form|create_from_template|add_field)$/.test(t);
+      return makes ? { sweep: true, after: prev } : { pre: prev, after: prev };
+    }
+    if (/^pipeline_/.test(t)) return { sweep: true, afterNewArea: true, after: function(){ let s = ''; try{ s = kadessaSectionNow() || ''; }catch(e){} return kfxMainEl(s); } };
+    return null;
+  }
+
+  // ---- the three beats -----------------------------------------------------------
+  async function kfxRun(action, runner, fast){
+    let plan = null;
+    try{ plan = kfxPlan(action); }catch(e){ plan = null; }
+    if (!plan || kfxReduced()) return await runner();
+    let ring = null, beforeBox = null, ctx = {};
+    try{
+      if (plan.before) ctx = plan.before() || {};
+      const pre = plan.pre ? plan.pre(ctx) : [];
+      if (pre && pre.length){
+        await kfxEnsureVisible(pre);
+        const clipEl = plan.clipFn ? plan.clipFn() : null;
+        beforeBox = kfxUnion(pre, clipEl);
+        if (kfxValid(beforeBox)){
+          ring = kfxMakeRing(beforeBox);
+          ring._spots = [];
+          await kfxSleep(fast ? 160 : 420);
+        }
+      }
+    }catch(e){ ring = null; beforeBox = null; }
+    const result = await runner();
+    try{
+      const failed = (typeof result === 'string' && /^Couldn't complete that/.test(result)) || kadessaLastCancelled;
+      if (failed){ kfxDismiss(ring); return result; }
+      await kfxSleep(70); // let the module redraw
+      await kfxSettle(plan, ctx, ring, beforeBox, fast);
+    }catch(e){
+      kfxDismiss(ring);
+    }
+    return result;
+  }
+  async function kfxSettle(plan, ctx, ring, beforeBox, fast){
+    const hold = fast ? 320 : 520;
+    const afterEls = plan.after ? (plan.after(ctx) || []) : [];
+    if (plan.gone || !afterEls.length){
+      // Something was removed: let the ring close over the spot where it was.
+      if (ring){ await kfxSleep(fast ? 160 : 300); kfxDismiss(ring); }
+      return;
+    }
+    await kfxEnsureVisible(afterEls);
+    const clipEl = plan.clipFn ? plan.clipFn() : null;
+    const afterBox = kfxUnion(afterEls, clipEl);
+    if (!kfxValid(afterBox)){ kfxDismiss(ring); return; }
+    if (plan.reveal) afterEls.forEach(function(el){ kfxTimedClass(el, 'kfx-reveal', 900); });
+    if (plan.rowin){
+      const rows = [];
+      afterEls.forEach(function(el){ if (el.tagName === 'TR') rows.push(el); else if (el.querySelectorAll) el.querySelectorAll('tbody tr').forEach(function(r){ rows.push(r); }); });
+      rows.forEach(function(r, i){ r.style.setProperty('--kfx-d', Math.min(i, 24) * 45 + 'ms'); kfxTimedClass(r, 'kfx-rowin', 1700); });
+    }
+    if (!ring){
+      ring = kfxMakeRing(afterBox);
+      ring._spots = [];
+      if (plan.sweep) ring.classList.add('sweep');
+      await kfxSleep(fast ? 380 : 760);
+    } else if (beforeBox && kfxMoved(beforeBox, afterBox)){
+      const g = kfxMakeGhost(beforeBox);
+      kfxPlace(ring, afterBox);
+      await kfxSleep(fast ? 300 : 600);
+      kfxDropGhost(g);
+    } else {
+      await kfxSleep(fast ? 160 : 380);
+    }
+    if (plan.spot){
+      afterEls.forEach(function(el){ if (el.tagName === 'TD' || el.tagName === 'TH'){ el.classList.add('kfx-spot'); ring._spots.push(el); } });
+    }
+    await kfxSleep(hold);
+    kfxDismiss(ring);
+  }
+
   async function kadessaExecuteAction(action){
     if (!action || !action.type) return null;
     const entry = KADESSA_ACTIONS[action.type];
@@ -3521,7 +4161,7 @@
     try{
       if (entry.risk === 'confirm'){
         const ok = await sarvarcModalConfirm('Let Kadessa do this?', entry.label(action.params || {}), 'Do it');
-        if (!ok) return null; // silent cancel, no need to narrate a no-op
+        if (!ok){ kadessaLastCancelled = true; return null; } // silent cancel, the card shows it as Skipped
       }
       const ran = await entry.run(action.params || {});
       // Build 278: move / layer / overlap actions make choices the reply could not know in
@@ -3966,6 +4606,7 @@
     let ctx = kadessaDecorateContext(getKadessaContext(), attachmentSummary, recentFilesCtx);
     kadessaRememberAttachments(sentAttachments);
     const thinking = addThinkingMsg(ctx);
+    kadessaSetStatus('Thinking', 'thinking');
 
     try{
       let reply, actions = [];
@@ -3979,6 +4620,7 @@
       }
       reply = sarvarcKadessaStripEmDash(reply);
       resolveThinkingMsg(thinking, reply);
+      kadessaSetStatus('Ready', 'idle');
       history.push({ role: 'assistant', content: reply });
       // Run every action the model asked for, in order (e.g. set X-axis,
       // then Y-axis, then chart type all in one turn) rather than only
@@ -3995,15 +4637,31 @@
         if (!list || !list.length) return switched;
         kadessaSetActing(true);
         try{
+          let actsBox = null;
+          const kfxFast = list.length > 3;
           for (const action of list){
             kadessaPulseActing();
+            const kfxAreaBefore = kfxAreaInfo().area;
+            const card = kadessaActCardStart(action, actsBox);
+            actsBox = card.box;
+            kfxAddWhere(card, action);
+            const undoBefore = { top: kadessaLogTop(), clock: kadessaClockNow() };
+            kadessaLastCancelled = false;
             const mismatch = kadessa_tableFormMismatch(action && action.type, userText);
-            const problem = mismatch || await kadessaExecuteAction(action);
+            const problem = mismatch || await kfxRun(action, function(){ return kadessaExecuteAction(action); }, kfxFast);
+            const failed = !!mismatch || (typeof problem === 'string' && /^Couldn't complete that/.test(problem));
+            kadessaActCardFinish(card, failed ? 'fail' : (kadessaLastCancelled ? 'skip' : 'done'), (failed || kadessaLastCancelled) ? null : kadessaUndoSnapshot(undoBefore));
             if (problem) addMsg('kadessa', sarvarcKadessaStripEmDash(problem));
             else if (action && action.type === 'navigate_to_panel') switched = true;
+            try{
+              kadessaUpdateScope();
+              const kfxAreaAfter = kfxAreaInfo().area;
+              if (kfxAreaAfter !== kfxAreaBefore && !failed && !kadessaLastCancelled){ kfxAddDivider('Now working in ' + kfxAreaAfter); actsBox = null; }
+            }catch(e){}
           }
         } finally {
           kadessaSetActing(false);
+          setTimeout(kfxClearAll, 1600);
         }
         return switched;
       }
@@ -4036,6 +4694,7 @@
     } catch(err){
       resolveThinkingMsg(thinking, "Couldn't reach the server just now. Mind trying again?");
     } finally {
+      kadessaSetStatus('Ready', 'idle');
       sendBtn.disabled = false;
       input.focus();
       // One-shot: this batch traveled with this message only. Whatever it
