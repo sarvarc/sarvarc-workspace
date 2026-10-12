@@ -1396,7 +1396,10 @@ function daFillHandleMouseUp() {
   for (let r = seedR1; r <= seedR2; r++) seedVals.push(ds.rows[r][col]);
   const count = hoverRow - seedR2;
   const filled = daFillGenerateSeries(seedVals, count);
-  for (let i = 0; i < count; i++) ds.rows[seedR2 + 1 + i][col] = filled[i];
+  for (let i = 0; i < count; i++) {
+    daLogCellEdit(ds, seedR2 + 1 + i, col, ds.rows[seedR2 + 1 + i][col], filled[i]);
+    ds.rows[seedR2 + 1 + i][col] = filled[i];
+  }
   daFillSeedRange = { col, r1: seedR1, r2: hoverRow }; // lets the user keep dragging further
   daRecalcColumnOps(ds);
   daRenderTable();
@@ -2532,6 +2535,7 @@ function daClearTitle() {
 function daUpdateCell(rowIdx, colIdx, newVal) {
   const ds = daGetActive(); if (!ds) return;
   const val = newVal === '—' ? '' : newVal.trim();
+  daLogCellEdit(ds, rowIdx, colIdx, ds.rows[rowIdx][colIdx], val);
   ds.rows[rowIdx][colIdx] = val;
   daRecalcColumnOps(ds);
   daRenderTable();
@@ -2628,6 +2632,16 @@ function daDeleteRow(rowIdx) {
     shiftedCellHl[(r > rowIdx ? r - 1 : r) + '_' + c] = ds.cellHighlights[k];
   });
   ds.cellHighlights = shiftedCellHl;
+  if (ds.cellHistory) {
+    const shiftedHist = {};
+    Object.keys(ds.cellHistory).forEach(k => {
+      const [rStr, cStr] = k.split('_');
+      const r = Number(rStr), c = Number(cStr);
+      if (r === rowIdx) return;
+      shiftedHist[(r > rowIdx ? r - 1 : r) + '_' + c] = ds.cellHistory[k];
+    });
+    ds.cellHistory = shiftedHist;
+  }
   daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
   daRowAnchor = null; daColAnchor = null;
   daRecalcColumnOps(ds);
@@ -2697,6 +2711,16 @@ function daDeleteColumn(colIdx) {
     shiftedCellHl2[r + '_' + (c > colIdx ? c - 1 : c)] = ds.cellHighlights[k];
   });
   ds.cellHighlights = shiftedCellHl2;
+  if (ds.cellHistory) {
+    const shiftedHist2 = {};
+    Object.keys(ds.cellHistory).forEach(k => {
+      const [rStr, cStr] = k.split('_');
+      const r = Number(rStr), c = Number(cStr);
+      if (c === colIdx) return;
+      shiftedHist2[r + '_' + (c > colIdx ? c - 1 : c)] = ds.cellHistory[k];
+    });
+    ds.cellHistory = shiftedHist2;
+  }
   daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
   daRowAnchor = null; daColAnchor = null;
   daRecalcColumnOps(ds);
@@ -2909,6 +2933,57 @@ function daGetEffectiveDropdownColors(ds, ri, ci) {
   return null;
 }
 
+// ─── Per-cell edit history ───
+// ds.cellHistory["r_c"] = [{ t: timestamp, from, to }, ...] oldest first.
+// Keyed by "row_col" like links/highlights, and shifted the same way when a
+// row/column is deleted. Capped per cell so a long-lived sheet can't bloat
+// localStorage; older datasets simply have no cellHistory until first edit.
+const DA_CELL_HISTORY_MAX = 25;
+function daLogCellEdit(ds, ri, ci, oldVal, newVal) {
+  const from = oldVal == null ? '' : String(oldVal);
+  const to = newVal == null ? '' : String(newVal);
+  if (from === to) return;
+  if (!ds.cellHistory) ds.cellHistory = {};
+  const key = ri + '_' + ci;
+  const list = ds.cellHistory[key] || (ds.cellHistory[key] = []);
+  list.push({ t: Date.now(), from, to });
+  if (list.length > DA_CELL_HISTORY_MAX) list.splice(0, list.length - DA_CELL_HISTORY_MAX);
+}
+
+function daCellHistFmtTime(t) {
+  const d = new Date(t);
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' +
+         d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+
+function daShowCellHistory(ri, ci, x, y) {
+  const ds = daGetActive(); if (!ds) return;
+  daCloseCellHistory();
+  const list = ((ds.cellHistory && ds.cellHistory[ri + '_' + ci]) || []).slice().reverse();
+  const shown = v => v === '' ? '<em class="da-hist-empty">empty</em>' : daEsc(v.length > 80 ? v.slice(0, 80) + '…' : v);
+  const body = list.length
+    ? list.map(h => `<div class="da-hist-row"><div class="da-hist-time">${daCellHistFmtTime(h.t)}</div><div class="da-hist-change"><span class="da-hist-from">${shown(h.from)}</span><span class="da-hist-arrow">→</span><span class="da-hist-to">${shown(h.to)}</span></div></div>`).join('')
+    : '<div class="da-hist-none">No edits recorded for this cell yet. Changes you make from now on will show up here.</div>';
+  const pop = document.createElement('div');
+  pop.id = 'daCellHistoryPop';
+  pop.className = 'da-hist-pop';
+  pop.innerHTML = `<div class="da-hist-head"><span>Edit history · ${daColToLetters(ci)}${ri + 1}</span><button class="da-hist-close" onclick="daCloseCellHistory()" title="Close">×</button></div><div class="da-hist-body">${body}</div>`;
+  document.body.appendChild(pop);
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+  pop.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + 'px';
+}
+
+function daCloseCellHistory() {
+  const pop = document.getElementById('daCellHistoryPop');
+  if (pop) pop.remove();
+}
+document.addEventListener('mousedown', function (e) {
+  const pop = document.getElementById('daCellHistoryPop');
+  if (pop && !pop.contains(e.target)) daCloseCellHistory();
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') daCloseCellHistory(); });
+
 let daDropdownCtx = null;   // { row, col } the modal is currently editing (row -1 = whole column, opened from the header)
 let daDropdownScope = 'cell'; // 'cell' | 'column', which the modal will save to
 
@@ -2959,9 +3034,13 @@ function daCellContextMenu(e, ri, ci) {
       ${isHeader ? 'Highlight Column…' : 'Highlight Cell…'}
     </div>
     ${linkItems}
+    ${isHeader ? '' : `<div class="da-ctx-item" onclick="daCloseCellCtxMenu();daShowCellHistory(${ri}, ${ci}, ${Math.round(e.clientX)}, ${Math.round(e.clientY)})">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+      Edit History
+    </div>`}
   `;
   menu.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
-  menu.style.top = Math.min(e.clientY, window.innerHeight - 130) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 270) + 'px';
   menu.style.display = 'block';
 }
 
@@ -3127,6 +3206,7 @@ function daSaveLinkModal() {
   // display text and its target are edited together.
   const displayText = document.getElementById('daLinkTextInput').value.trim();
   if (displayText && displayText !== String(ds.rows[ri][ci] ?? '')) {
+    daLogCellEdit(ds, ri, ci, ds.rows[ri][ci], displayText);
     ds.rows[ri][ci] = displayText;
   }
 
