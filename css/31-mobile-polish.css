@@ -1,0 +1,254 @@
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE POLISH — phones (<= 768px).
+   Loads LAST, so it only overrides; desktop layouts are untouched because
+   every rule below lives inside a max-width media query.
+
+   What changes on a phone:
+   - PDF Editor: the 3-column layout (pages | canvas | panel) becomes a full
+     width canvas. The page strip is a slide-in drawer from the left and the
+     Panel / Assets / Notes area is a bottom sheet. Both start closed.
+   - Data Arrangement: toolbar + tabs scroll sideways in ONE row, the grid
+     gets more height, the filter / fx popovers become bottom sheets.
+   - Diagrams & Graphs: mode tabs scroll, the chart preview hugs a 16:9 box,
+     preview toolbar scrolls, all ribbon dropdowns open as bottom sheets.
+   - Shared: no iOS input zoom, 40px touch targets, dvh heights, modals fit.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Shell fixes ─────────────────────────────────────────────────── */
+  /* The closed drawer was still casting its shadow onto the left edge. */
+  .sidebar-collapsed .sidebar { box-shadow: none; }
+
+  /* Real phone height (URL bar aware) instead of 100vh. */
+  .app { height: 100vh; height: 100dvh; }
+
+  /* iOS Safari zooms the whole page when a focused field is under 16px.
+     That zoom is what makes the editors feel "broken" on a phone. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select, textarea { font-size: 16px; }
+
+  /* Shared modals: use the screen instead of a centred desktop card. */
+  .modal { width: calc(100% - 20px); max-width: none; padding: 20px 16px; max-height: 90vh; max-height: 90dvh; border-radius: 18px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions > button { flex: 1 1 140px; }
+
+  /* Dropdowns / popovers from the three tools become bottom sheets so they
+     can never open half off-screen. !important is needed because the
+     scripts position them with inline top/left. */
+  .pdfed-shapes-dropdown.open,
+  .dg-dropdown-panel.open {
+    position: fixed !important;
+    left: 8px !important; right: 8px !important; top: auto !important;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important; min-width: 0 !important; max-width: none !important;
+    max-height: 62vh !important; max-height: 62dvh !important;
+    overflow-y: auto; overscroll-behavior: contain;
+    border-radius: 16px; padding: 10px;
+    z-index: 10000;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.38);
+  }
+
+  /* ══════════════ PDF EDITOR ══════════════ */
+  .pdfeditor-section { height: calc(100vh - var(--topnav-h)); height: calc(100dvh - var(--topnav-h)); }
+
+  /* Row 1 (file name, PDF Tools, Business Proposals, Export…) scrolls
+     sideways in a single line instead of being squeezed. */
+  .pdfed-appbar-row1 {
+    height: 46px; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .pdfed-appbar-row1::-webkit-scrollbar { display: none; }
+  .pdfed-appbar-title { min-width: 0; padding: 0 10px; gap: 6px; border-right: none; }
+  #pdfedFileName { max-width: 92px !important; }
+  .pdfed-appbar-tag { display: none; }
+  .pdfed-appbar-actions { padding: 0 10px 0 4px; gap: 6px; }
+  .pdfed-ribbon-toggle-btn span { display: none; }
+  .pdfed-appbar-btn { min-height: 34px; white-space: nowrap; flex-shrink: 0; }
+
+  /* Ribbon: smooth finger scrolling, no accidental vertical drag. */
+  .pdfed-ribbon { padding: 0 8px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .pdfed-ribbon::-webkit-scrollbar { display: none; }
+
+  /* Layout: canvas takes the whole area. */
+  .pdfeditor-layout,
+  .pdfeditor-layout.left-collapsed,
+  .pdfeditor-layout.right-collapsed {
+    display: block; position: relative; transition: none;
+  }
+  .pdfed-canvas-area {
+    position: absolute !important; inset: 0; height: auto;
+    border-left: none; border-right: none;
+  }
+  .pdfed-canvas-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+  /* Page strip → left drawer */
+  .pdfed-page-strip {
+    position: fixed; top: var(--topnav-h); bottom: 0; left: 0; height: auto;
+    width: min(78vw, 250px); z-index: 260;
+    box-shadow: 14px 0 34px rgba(0,0,0,0.38);
+    transition: left .28s cubic-bezier(.4,0,.2,1), box-shadow .28s;
+  }
+  .left-collapsed .pdfed-page-strip { left: calc(-1 * min(78vw, 250px) - 40px); box-shadow: none; }
+
+  /* Right panel → bottom sheet */
+  .pdfed-right-panel {
+    position: fixed; left: 0; right: 0; top: auto; width: auto;
+    bottom: 0; height: min(64vh, 540px); height: min(64dvh, 540px);
+    z-index: 260; border-left: none; border-top: 1px solid var(--pdfed-panel-border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -14px 40px rgba(0,0,0,0.38);
+    transition: bottom .3s cubic-bezier(.4,0,.2,1), box-shadow .3s;
+  }
+  .right-collapsed .pdfed-right-panel { bottom: -75vh; bottom: -75dvh; box-shadow: none; }
+  .pdfed-right-tabbar { padding: 10px 14px 0; }
+  .pdfed-right-scroll { padding: 12px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Edge toggles become two small floating tabs the thumb can reach. */
+  #pdfedLeftToggleBtn, #pdfedRightToggleBtn {
+    position: fixed; top: auto; transform: none; z-index: 270;
+    width: 38px; height: 46px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  }
+  #pdfedLeftToggleBtn {
+    left: 0; right: auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0 12px 12px 0; transition: left .28s cubic-bezier(.4,0,.2,1);
+  }
+  .pdfeditor-layout:not(.left-collapsed) #pdfedLeftToggleBtn { left: min(78vw, 250px); }
+  #pdfedRightToggleBtn {
+    right: 0; left: auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    border-radius: 12px 0 0 12px; transition: bottom .3s cubic-bezier(.4,0,.2,1);
+  }
+  .pdfeditor-layout:not(.right-collapsed) #pdfedRightToggleBtn { bottom: calc(min(64vh, 540px) + 10px); bottom: calc(min(64dvh, 540px) + 10px); }
+  #pdfedRightToggleBtn svg { transform: rotate(90deg); }
+  #pdfedRightToggleBtn::before, #pdfedLeftToggleBtn::before { display: none; }
+
+  /* Dim the canvas while a drawer / sheet is open. Tapping the dimmed area
+     closes it (handled in js/05-mobile-sidebar-init.js). */
+  .pdfeditor-layout:not(.left-collapsed)::after,
+  .pdfeditor-layout:not(.right-collapsed)::after {
+    content: ''; position: fixed; inset: var(--topnav-h) 0 0 0;
+    background: rgba(0,0,0,0.42); z-index: 255;
+  }
+  .pdfed-strip-scroll { -webkit-overflow-scrolling: touch; }
+  .pdfed-page-strip .pdfed-strip-header + div { display: none; } /* "hover between pages" hint is meaningless on touch */
+
+  /* ══════════════ DATA ARRANGEMENT ══════════════ */
+  .da-section { padding: 12px 10px 16px; gap: 10px; }
+  .da-header-card { padding: 14px; overflow-wrap: anywhere; }
+  .da-header-card code { white-space: normal; word-break: break-all; }
+  .da-header-card h1, .da-header-card h2 { font-size: 20px; }
+  .upload-zone { padding: 22px 14px; }
+  .upload-types { gap: 6px; }
+
+  /* Tabs + toolbar: one scrollable row each, spreadsheet-app style. */
+  .da-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .da-tabs::-webkit-scrollbar { display: none; }
+  .da-tab { flex-shrink: 0; padding: 9px 12px; }
+  .da-toolbar {
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+    padding: 5px 6px;
+  }
+  .da-toolbar::-webkit-scrollbar { display: none; }
+  .da-toolbar > * { flex-shrink: 0; }
+  .da-toolbar-spacer { display: none; }
+  .da-icon-btn { width: 38px; height: 38px; }
+  .da-toolbar .da-search { min-width: 120px; flex: 0 0 120px; min-height: 38px; }
+  /* "Press Ctrl+C / Ctrl+V" hint is about a keyboard the phone doesn't have. */
+  .da-empty-hint-banner { display: none; }
+  .da-toolbar .da-toolbar-cta, .da-toolbar .btn-secondary, .da-toolbar .btn-primary { min-height: 38px; }
+  .da-toolbar .da-toolbar-group + .da-toolbar-group { margin-left: 4px; padding-left: 4px; }
+  .da-toolbar-chip:not(:empty) { white-space: nowrap; }
+
+  /* Popovers → bottom sheets (they live inside the now-scrolling toolbar,
+     so they must be fixed, not absolute, or they would be clipped). */
+  .da-filter-wrap.open .da-filter-pop,
+  .da-fx-popover.open {
+    position: fixed !important; left: 8px !important; right: 8px !important; top: auto !important;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important; max-width: none !important; max-height: 62vh; max-height: 62dvh;
+    z-index: 10000; border-radius: 16px; box-shadow: 0 -10px 40px rgba(0,0,0,0.38);
+  }
+  .da-filter-pop select, .da-filter-pop input { height: 38px; }
+  .da-filter-rules { max-height: 40vh; }
+  .da-hist-pop { left: 8px !important; right: 8px !important; width: auto !important; top: auto !important; bottom: 8px !important; }
+
+  /* Formula bar: compact, input keeps the room. */
+  .da-formula-bar { gap: 6px; padding: 5px 7px; }
+  .da-fb-ref { min-width: 36px; padding: 5px 6px; }
+  .da-fb-divider { display: none; }
+  .da-fb-autosum-btn { padding: 5px 8px; }
+  .da-formula-bar input { font-size: 16px; }
+
+  /* Grid: more height, bigger tap area, smoother touch scrolling. */
+  .da-working .da-grid-wrap { max-height: calc(100vh - var(--topnav-h, 56px) - 170px); max-height: calc(100dvh - var(--topnav-h, 56px) - 170px); }
+  .da-grid-wrap { max-height: 70vh; max-height: 70dvh; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; border-radius: 10px; }
+  .da-rownum { min-width: 34px; width: 34px; font-size: 10px; }
+  .da-table td, .da-table th { font-size: 13px; }
+  .da-table td input, .da-table td textarea, .da-table th input { font-size: 16px; }
+  /* Cells, header names and the title are contenteditable divs, not inputs,
+     so the rule above misses them. Under 16px, iPhones zoom the page on every
+     tap into a cell, which makes filling data feel jumpy. */
+  .da-td-cell, .da-th-name, .da-title-banner-text { font-size: 16px; }
+  .da-title-banner { padding: 8px 10px; }
+
+  /* ══════════════ DIAGRAMS & GRAPHS ══════════════ */
+  .dg-section { padding: 6px 8px 14px; gap: 6px; }
+
+  /* Mode tabs: one row that scrolls; labels never wrap. */
+  .dg-mode-tabs {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin-right: 40px; /* gutter for the floating info button, so it never covers a tab */
+  }
+  .dg-mode-tabs::-webkit-scrollbar { display: none; }
+  .dg-mode-tabs > button { flex-shrink: 0; white-space: nowrap; min-height: 36px; }
+  .dg-info-btn { top: 4px; right: 6px; }
+
+  .dg-ribbon-bar { height: 58px; border-radius: 10px; scrollbar-width: none; }
+  .dg-ribbon-bar::-webkit-scrollbar { display: none; }
+
+  /* Preview card: toolbar scrolls, canvas hugs a 16:9 box instead of a
+     tall empty area, so the chart is as large as the screen allows. */
+  .dg-preview-wrap { padding: 8px; border-radius: 12px; }
+  .dg-preview-toolbar {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .dg-preview-toolbar::-webkit-scrollbar { display: none; }
+  .dg-preview-toolbar > * { flex-shrink: 0; }
+  .dg-preview-toolbar-spacer { display: none; }
+  .dg-show-chip { padding: 7px 12px; }
+  .dg-quick-axis-select { max-width: 110px; font-size: 16px; padding: 6px 5px; }
+  .dg-zoom-btn { width: 36px; height: 36px; }
+  .dg-zoom-label { height: 36px; }
+  .dg-canvas-holder { flex: none; width: 100%; aspect-ratio: 16 / 9; min-height: 190px; padding: 6px; touch-action: pan-x pan-y pinch-zoom; }
+  .dg-main-row { gap: 10px; }
+  .dg-insights-panel { border-radius: 12px; max-height: none; }
+  .dg-insights-panel .dg-stat-strip { overflow-x: auto; scrollbar-width: none; }
+  .dg-insights-scroll { max-height: 46vh; max-height: 46dvh; }
+  .dg-insights-panel { position: relative; }
+  #dgInsightsToggleBtn {
+    left: 50% !important; right: auto !important; top: -12px !important;
+    transform: translateX(-50%) !important; width: 56px !important; height: 24px !important;
+    border-radius: 12px !important;
+  }
+  #dgInsightsToggleBtn svg { transform: rotate(90deg); }
+
+  /* ══════════════ OTHER TOOLS: light-touch fixes ══════════════ */
+  .mf-fill-body, .mf-editor-body { gap: 14px; }
+  .rdx-thumbs { width: 56px; }
+}
+
+/* Very small phones */
+@media (max-width: 380px) {
+  .pdfed-right-panel { height: 70vh; height: 70dvh; }
+  .da-toolbar .da-search { flex-basis: 108px; min-width: 108px; }
+  .dg-mode-tabs > button { padding-left: 10px !important; padding-right: 10px !important; }
+}
+
+/* Landscape phones: sheets must not swallow the whole screen */
+@media (max-width: 900px) and (max-height: 480px) and (orientation: landscape) {
+  .pdfed-right-panel { height: 78vh; height: 78dvh; }
+  .dg-canvas-holder { aspect-ratio: auto; height: 62vh; height: 62dvh; }
+}
