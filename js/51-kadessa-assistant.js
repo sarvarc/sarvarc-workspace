@@ -154,7 +154,7 @@
   //   mf_add_field {type}                    mf_update_title {title}
   //   mf_update_description {description}    mf_toggle_required {fieldId, required}
   //   mf_remove_field {fieldId}
-  //   mf_create_form {title?, description?, fields?: [{type, label?, required?}]}
+  //   mf_create_form {title?, description?, fields?: [{type, label?, required?, stars?}]}   (stars: 3-10, only for type 'rating')
   //     -- Builds a BLANK form (optionally titled/described, optionally
   //     with custom fields) from scratch. Use this when the user describes
   //     the fields they want themselves, or asks for something no template
@@ -2720,6 +2720,7 @@
             const field = mfNewField(spec.type);
             if (spec.label) field.label = spec.label;
             if (spec.required) field.required = true;
+            if (spec.type === 'rating' && spec.stars) field.max = Math.min(10, Math.max(3, parseInt(spec.stars, 10) || 5));
             f.fields.push(field);
           });
         }
