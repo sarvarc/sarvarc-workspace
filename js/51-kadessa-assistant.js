@@ -4137,7 +4137,6 @@
     if (!ring){
       ring = kfxMakeRing(afterBox);
       ring._spots = [];
-      if (plan.sweep) ring.classList.add('sweep');
       await kfxSleep(fast ? 380 : 760);
     } else if (beforeBox && kfxMoved(beforeBox, afterBox)){
       const g = kfxMakeGhost(beforeBox);
@@ -4150,6 +4149,7 @@
     if (plan.spot){
       afterEls.forEach(function(el){ if (el.tagName === 'TD' || el.tagName === 'TH'){ el.classList.add('kfx-spot'); ring._spots.push(el); } });
     }
+    ring.classList.add('done');
     await kfxSleep(hold);
     kfxDismiss(ring);
   }
@@ -4561,8 +4561,43 @@
     return out;
   }
 
+  // One-time consent: Kadessa sends the user's messages, the data they are
+  // working on, and screenshots to our AI provider. Ask once before the
+  // first message ever leaves the browser (Privacy Policy section 4.6).
+  function kadessaHasConsent(){
+    try { return localStorage.getItem('sarvarcKadessaConsent') === '1'; } catch(err){ return true; }
+  }
+  function kadessaAskConsent(onAccept){
+    if (document.getElementById('kadessaConsentOverlay')) return;
+    const ov = document.createElement('div');
+    ov.id = 'kadessaConsentOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+      '<div style="background:var(--bg2,#0F1628);border:1px solid var(--border2,rgba(43,110,245,0.24));border-radius:16px;padding:24px;max-width:400px;width:100%;color:var(--text,#E8EDF8);font-family:inherit;">' +
+        '<h3 style="font-size:16px;font-weight:700;margin:0 0 10px;">Before you chat with Kadessa</h3>' +
+        '<p style="font-size:13px;line-height:1.6;color:var(--text2,#8B9CC0);margin:0 0 10px;">Kadessa is an AI assistant. To reply, it sends your messages, the data you are working on (such as column headers and sample rows), and screenshots of your chart or page to our AI provider.</p>' +
+        '<p style="font-size:13px;line-height:1.6;color:var(--text2,#8B9CC0);margin:0 0 10px;">Do not share anything you are not allowed to share, and avoid highly sensitive data like ID numbers or card numbers. AI can make mistakes, so check its work.</p>' +
+        '<p style="font-size:12px;line-height:1.6;color:var(--text3,#8896B0);margin:0 0 16px;">Read our <a href="https://sarvarc.com/privacy" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Privacy Policy</a> and <a href="https://sarvarc.com/terms" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Terms</a>.</p>' +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
+          '<button type="button" id="kadessaConsentNo" style="padding:9px 16px;border-radius:8px;border:1px solid var(--border2,rgba(43,110,245,0.24));background:transparent;color:var(--text2,#8B9CC0);font-size:13px;cursor:pointer;">Not now</button>' +
+          '<button type="button" id="kadessaConsentYes" style="padding:9px 18px;border-radius:8px;border:none;background:var(--blue,#1A4FD8);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">I understand, continue</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#kadessaConsentNo').onclick = function(){ ov.remove(); };
+    ov.querySelector('#kadessaConsentYes').onclick = function(){
+      try { localStorage.setItem('sarvarcKadessaConsent', '1'); } catch(err){}
+      ov.remove();
+      onAccept();
+    };
+  }
+
   form.addEventListener('submit', async function(e){
     e.preventDefault();
+    if (!kadessaHasConsent()){
+      kadessaAskConsent(function(){ form.requestSubmit(); });
+      return;
+    }
     let text = input.value.trim();
     if(!text && !kadessaPendingAttachments.length) return;
     if(!text && kadessaPendingAttachments.length){
