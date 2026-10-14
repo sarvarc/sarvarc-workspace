@@ -506,6 +506,7 @@ function pdfedOpenCoffeeModal() {
         Pay ₹${pdfedCoffee.amount}
       </button>
       <div id="pdfedCoffeeStatus" style="font-size:11px;color:var(--text2);text-align:center;min-height:14px;"></div>
+      <div style="font-size:10.5px;color:var(--text3);text-align:center;line-height:1.5;">Payments are voluntary contributions. See our <a href="https://sarvarc.com/refund" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Refund Policy</a> and <a href="https://sarvarc.com/terms" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Terms</a>.</div>
     </div>
   `;
   document.body.appendChild(modal);
