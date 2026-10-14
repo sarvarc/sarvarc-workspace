@@ -246,10 +246,11 @@ function mfNewField(type) {
     case 'select':    return { ...base, label: 'Dropdown', options: ['Option 1', 'Option 2'] };
     case 'heading':   return { ...base, label: 'Section Heading' };
     case 'signature': return { ...base, label: 'Signature' };
+    case 'rating':    return { ...base, label: 'Rating', max: 5 };
     default:          return { ...base, label: 'Field' };
   }
 }
-const MF_TYPE_NAMES = { text:'Text', paragraph:'Paragraph', number:'Number', date:'Date', checkbox:'Checkbox', mcq:'MCQ', select:'Dropdown', heading:'Section', signature:'Signature' };
+const MF_TYPE_NAMES = { text:'Text', paragraph:'Paragraph', number:'Number', date:'Date', checkbox:'Checkbox', mcq:'MCQ', select:'Dropdown', heading:'Section', signature:'Signature', rating:'Rating' };
 const MF_ACCENT_PRESETS = ['#0073E6', '#00C2FF', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#1a1a1a'];
 const MF_LOGO_MAX_DIM = 240; // px, longest side after resize
 const MF_BANNER_MAX_DIM = 1000; // px, longest side after resize — a full-width header backdrop needs more resolution than a small logo
@@ -1078,6 +1079,31 @@ function mfAddField(type) {
   const list = document.getElementById('mfFieldList');
   if (list) list.scrollTop = list.scrollHeight;
 }
+// Quick-add presets: one tap adds a ready-labelled field so people don't
+// have to add a generic Text field and retype the label every time.
+const MF_FIELD_PRESETS = {
+  name:    () => ({ ...mfNewField('text'), label: 'Full Name', required: true }),
+  email:   () => ({ ...mfNewField('text'), label: 'Email' }),
+  phone:   () => ({ ...mfNewField('text'), label: 'Phone' }),
+  address: () => ({ ...mfNewField('paragraph'), label: 'Address' }),
+  rate:    () => ({ ...mfNewField('rating'), label: 'How would you rate us?' })
+};
+function mfAddPreset(key) {
+  const f = mfGetCurrentForm(); if (!f || !MF_FIELD_PRESETS[key]) return;
+  f.fields.push(MF_FIELD_PRESETS[key]());
+  mfTouch(f);
+  mfRenderFieldList();
+  mfRenderPreview();
+  const list = document.getElementById('mfFieldList');
+  if (list) list.scrollTop = list.scrollHeight;
+}
+function mfSetRatingMax(fieldId, val) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const fl = f.fields.find(x => x.id === fieldId); if (!fl) return;
+  fl.max = Math.min(10, Math.max(3, parseInt(val, 10) || 5));
+  mfTouch(f);
+  mfRenderPreview();
+}
 function mfRemoveField(fieldId) {
   const f = mfGetCurrentForm(); if (!f) return;
   f.fields = f.fields.filter(fl => fl.id !== fieldId);
@@ -1141,6 +1167,10 @@ function mfRenderFieldList() {
           placeholder="Options, comma separated" oninput="mfUpdateFieldOptions('${fl.id}',this.value)">
       </div>` : ''}
       ${fl.type === 'signature' ? `<div class="mf-field-row2"><span style="font-size:10.5px;color:var(--text3)">Signers can draw, type, or upload an image or PDF.</span></div>` : ''}
+      ${fl.type === 'rating' ? `<div class="mf-field-row2"><label style="display:flex;align-items:center;gap:8px">Stars
+        <select class="mf-field-input" style="width:auto" onchange="mfSetRatingMax('${fl.id}',this.value)">
+          ${[3,4,5,6,7,8,9,10].map(n => `<option value="${n}" ${(fl.max||5)===n?'selected':''}>${n}</option>`).join('')}
+        </select></label><span style="font-size:10.5px;color:var(--text3)">Respondents tap a star to rate.</span></div>` : ''}
       ${canRequire ? `<div class="mf-field-row2">
         <label><input type="checkbox" ${fl.required?'checked':''} onchange="mfToggleFieldRequired('${fl.id}',this.checked)"> Required</label>
       </div>` : ''}
@@ -2006,6 +2036,20 @@ function mfRenderPreview() {
             return `<label class="mf-pv-mcq-opt" for="${oid}"><input type="radio" id="${oid}" name="${id}" data-fid="${fl.id}" value="${mfEsc(optVal)}" ${optVal === v ? 'checked' : ''}><span>${mfEsc(o)}</span></label>`;
           }).join('') + `</div></div>`;
         break;
+      case 'rating': {
+        const max = Math.min(10, Math.max(3, parseInt(fl.max, 10) || 5));
+        const cur = parseInt(v, 10) || 0;
+        // Radios in reverse DOM order + row-reverse flex = pure-CSS "fill every
+        // star up to the one I tapped" with no JS, and the value is read back
+        // from the checked radio exactly like MCQ.
+        let stars = '';
+        for (let n = max; n >= 1; n--) {
+          const oid = id + '_' + n;
+          stars += `<input type="radio" id="${oid}" name="${id}" data-fid="${fl.id}" value="${n}" ${n === cur ? 'checked' : ''}><label for="${oid}" title="${n} / ${max}" aria-label="${n} of ${max}">★</label>`;
+        }
+        html += `<div class="mf-pv-field mf-pv-ratingwrap"><label class="mf-pv-ratinglabel">${mfEsc(label)}${req}</label><div class="mf-pv-rating">${stars}</div></div>`;
+        break;
+      }
       case 'signature': {
         // Signed value (drawn / typed / uploaded image or PDF) or a blank line.
         // The blank line stays exactly as designed; the "click to sign" hint and
@@ -2550,7 +2594,7 @@ function mfCollectDraftFromDOM() {
     if (fl.type === 'heading') return;
     // Signatures aren't DOM inputs: their value lives in the draft itself.
     if (fl.type === 'signature') { values[fl.id] = (mfDraftValues && mfDraftValues[fl.id]) || ''; return; }
-    if (fl.type === 'mcq') {
+    if (fl.type === 'mcq' || fl.type === 'rating') {
       const checked = document.querySelector('input[name="mfin_' + fl.id + '"]:checked');
       values[fl.id] = checked ? checked.value : '';
       return;
@@ -2764,7 +2808,7 @@ async function mfSigDownloadResponse(id, ev) {
 function mfResponseSummary(f, r) {
   const parts = [];
   for (const fl of f.fields) {
-    if (fl.type === 'heading' || fl.type === 'signature' || fl.type === 'checkbox') continue;
+    if (fl.type === 'heading' || fl.type === 'signature' || fl.type === 'checkbox' || fl.type === 'rating') continue;
     const v = r.values[fl.id];
     if (v) { parts.push(String(v)); if (parts.length === 2) break; }
   }
@@ -3405,6 +3449,13 @@ async function mfRasterizeFormPageCanvasesWithFields() {
         });
         return;
       }
+      const ratingEl = fieldEl.querySelector('.mf-pv-rating');
+      if (ratingEl) {
+        const r = ratingEl.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        targets.push({ x: r.left - pageRect.left, y: r.top - pageRect.top, w: Math.max(20, r.width), h: Math.max(14, r.height), fontSize: 12 });
+        return;
+      }
       const checkInput = fieldEl.classList.contains('mf-pv-check') ? fieldEl.querySelector('input[type="checkbox"]') : null;
       if (checkInput) {
         const r = checkInput.getBoundingClientRect();
@@ -3809,6 +3860,13 @@ async function mfPushToWorkspace() {
             fontSize
           });
         });
+        return;
+      }
+      const ratingEl = fieldEl.querySelector('.mf-pv-rating');
+      if (ratingEl) {
+        const r = ratingEl.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        targets.push({ x: r.left - pageRect.left, y: r.top - pageRect.top, w: Math.max(20, r.width), fontSize: 12 });
         return;
       }
       const checkInput = fieldEl.classList.contains('mf-pv-check') ? fieldEl.querySelector('input[type="checkbox"]') : null;
@@ -4835,6 +4893,8 @@ window.mfBackToGallery = mfBackToGallery;
 window.mfUpdateTitle = mfUpdateTitle;
 window.mfUpdateDesc = mfUpdateDesc;
 window.mfAddField = mfAddField;
+window.mfAddPreset = mfAddPreset;
+window.mfSetRatingMax = mfSetRatingMax;
 window.mfRemoveField = mfRemoveField;
 window.mfMoveField = mfMoveField;
 window.mfUpdateFieldProp = mfUpdateFieldProp;
