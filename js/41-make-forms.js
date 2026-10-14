@@ -1076,8 +1076,24 @@ function mfAddField(type) {
   mfTouch(f);
   mfRenderFieldList();
   mfRenderPreview();
+  mfRevealNewField(f);
+}
+// After adding a field: scroll the list to it, put the cursor in its label
+// box ready to type, and bring it into view (with a flash) in the Live Preview.
+// With the picker now at the top, this is what keeps "add" a one-step action.
+function mfRevealNewField(f) {
+  const last = f.fields[f.fields.length - 1]; if (!last) return;
   const list = document.getElementById('mfFieldList');
-  if (list) list.scrollTop = list.scrollHeight;
+  if (list) {
+    list.scrollTop = list.scrollHeight;
+    const inp = list.lastElementChild && list.lastElementChild.querySelector('.mf-field-input');
+    if (inp) { try { inp.focus({ preventScroll: true }); inp.select(); } catch (e) {} }
+  }
+  const el = document.querySelector('#mfPreviewPage [data-mf-fid="' + last.id + '"]');
+  if (el) {
+    try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    el.classList.remove('mf-pv-moved'); void el.offsetWidth; el.classList.add('mf-pv-moved');
+  }
 }
 // Quick-add presets: one tap adds a ready-labelled field so people don't
 // have to add a generic Text field and retype the label every time.
@@ -1094,8 +1110,7 @@ function mfAddPreset(key) {
   mfTouch(f);
   mfRenderFieldList();
   mfRenderPreview();
-  const list = document.getElementById('mfFieldList');
-  if (list) list.scrollTop = list.scrollHeight;
+  mfRevealNewField(f);
 }
 function mfSetRatingMax(fieldId, val) {
   const f = mfGetCurrentForm(); if (!f) return;
@@ -1116,10 +1131,26 @@ function mfMoveField(fieldId, dir) {
   const i = f.fields.findIndex(fl => fl.id === fieldId);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= f.fields.length) return;
+  // Remember where the field sits on screen so that, after the preview is
+  // re-rendered, we can scroll it back under the cursor. That lets the
+  // arrows on a preview field be clicked several times in a row.
+  const prevEl = document.querySelector('#mfPreviewPage [data-mf-fid="' + fieldId + '"]');
+  const prevTop = prevEl ? prevEl.getBoundingClientRect().top : null;
   [f.fields[i], f.fields[j]] = [f.fields[j], f.fields[i]];
   mfTouch(f);
   mfRenderFieldList();
   mfRenderPreview();
+  const nextEl = document.querySelector('#mfPreviewPage [data-mf-fid="' + fieldId + '"]');
+  if (nextEl) {
+    if (prevTop != null) {
+      const host = nextEl.closest('.mf-preview-scroll');
+      const diff = nextEl.getBoundingClientRect().top - prevTop;
+      if (host && diff) host.scrollTop += diff;
+    }
+    nextEl.classList.remove('mf-pv-moved');
+    void nextEl.offsetWidth; // restart the flash animation
+    nextEl.classList.add('mf-pv-moved');
+  }
 }
 function mfUpdateFieldProp(fieldId, prop, val) {
   const f = mfGetCurrentForm(); if (!f) return;
@@ -1145,7 +1176,7 @@ function mfRenderFieldList() {
   const wrap = document.getElementById('mfFieldList');
   if (!f || !wrap) return;
   if (f.fields.length === 0) {
-    wrap.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0">No fields yet, add one below.</div>';
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0">No fields yet. Pick one from the list above.</div>';
     return;
   }
   wrap.innerHTML = f.fields.map((fl, idx) => {
@@ -1950,6 +1981,18 @@ function mixHex(hex1, pct, hex2) {
 }
 
 // ─── LIVE PREVIEW (real fillable inputs) ───
+// Up/down arrows drawn directly on each field of the Live Preview (Design
+// mode only). They sit in the page's left margin, so they never change the
+// layout, and carry data-html2canvas-ignore so Export / Push / Print never
+// capture them. They call the same mfMoveField the left-hand list uses.
+function mfPvMoveControls(fl, idx, total) {
+  if (typeof mfMode === 'undefined' || mfMode !== 'design') return '';
+  return `<div class="mf-pv-move" data-html2canvas-ignore="true">` +
+    `<button type="button" title="Move up" aria-label="Move field up" onclick="mfMoveField('${fl.id}',-1)" ${idx === 0 ? 'disabled' : ''}>&#8593;</button>` +
+    `<button type="button" title="Move down" aria-label="Move field down" onclick="mfMoveField('${fl.id}',1)" ${idx === total - 1 ? 'disabled' : ''}>&#8595;</button>` +
+    `</div>`;
+}
+
 function mfRenderPreview() {
   const f = mfGetCurrentForm();
   const page = document.getElementById('mfPreviewPage');
@@ -1998,8 +2041,9 @@ function mfRenderPreview() {
   if (f.fields.length === 0) {
     html += '<div style="font-size:12px;color:#999;padding:20px 0;text-align:center">Add fields on the left to see them appear here.</div>';
   }
-  f.fields.forEach(fl => {
+  f.fields.forEach((fl, fIdx) => {
     const fov = tr && tr.fields && tr.fields[fl.id];
+    const htmlStart = html.length;
     const label = (fov && fov.label) ? fov.label : fl.label;
     const options = (fl.options || []).map((o, i) => (fov && fov.options && fov.options[i] != null) ? fov.options[i] : o);
     const req = fl.required ? '<span class="mf-pv-req">*</span>' : '';
@@ -2072,6 +2116,13 @@ function mfRenderPreview() {
       default:
         html += `<div class="mf-pv-field"><label>${mfEsc(label)}</label><input type="text" id="${id}" data-fid="${fl.id}" class="mf-pv-input" value="${mfEsc(v||'')}"></div>`;
     }
+    // Tag the block this field just produced and give it its arrows. Every
+    // case above emits exactly one root .mf-pv-field / .mf-pv-heading div
+    // that starts at htmlStart and ends the chunk.
+    const chunk = html.slice(htmlStart);
+    const ctrl = mfPvMoveControls(fl, fIdx, f.fields.length);
+    html = html.slice(0, htmlStart) +
+      chunk.replace(/^<div /, '<div data-mf-fid="' + fl.id + '" ').replace(/<\/div>$/, ctrl + '</div>');
   });
   page.innerHTML = watermarkHtml + `<div class="mf-pv-content">${html}</div>`;
   mfUpdatePreviewPagination();
