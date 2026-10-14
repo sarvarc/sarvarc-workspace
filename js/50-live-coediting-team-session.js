@@ -899,6 +899,7 @@
     // jumps to real content a moment later.
     sarvarcTeamSetLoading(true);
     document.getElementById('sarvarcTeamOverlay').classList.add('open');
+    sarvarcTeamEnsureGoLiveBtn();
     try {
       await sarvarcTeamLoadMyInvites(user);
       await sarvarcTeamLoadMyTeams(user);
@@ -1323,7 +1324,8 @@
       channel.on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         sarvarcTeamOnlineIds = new Set(Object.keys(state));
-        sarvarcTeamLoadMembers(teamId);
+        const ov = document.getElementById('sarvarcTeamOverlay');
+        if (ov && ov.classList.contains('open')) sarvarcTeamLoadMembers(teamId); // only refetch while the Teams window is open (less lag)
       });
       channel.on('broadcast', { event: 'member-removed' }, ({ payload }) => {
         if (!payload) return;
@@ -1340,6 +1342,10 @@
       channel.on('broadcast', { event: 'team-project-push' }, ({ payload }) => {
         if (!payload) return;
         sarvarcTeamHandleProjectPush(payload.teamId, payload.rec);
+      });
+      channel.on('broadcast', { event: 'live-invite' }, ({ payload }) => {
+        if (!payload) return;
+        sarvarcTeamHandleLiveInvite(payload);
       });
       channel.on('broadcast', { event: 'team-project-request' }, ({ payload }) => {
         if (!payload) return;
@@ -1417,11 +1423,11 @@
     }
   }
 
-  async function sarvarcTeamProjectSave() {
+  async function sarvarcTeamProjectSave(opts) {
     if (!sarvarcTeamActiveId) return;
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
     if (!sarvarcTeamCan('save_version')) { sarvarcTeamShowError('Your role is view and comment only. Ask an owner or admin for editor access to save work to the team.'); return; }
-    const name = prompt('Name this project for your team:', (typeof smDefaultName === 'function' ? smDefaultName() : 'Project'));
+    const name = (opts && opts.name) || prompt('Name this project for your team:', (typeof smDefaultName === 'function' ? smDefaultName() : 'Project'));
     if (!name) return;
     try {
       const user = await sarvarcTeamGetUser();
@@ -1483,6 +1489,12 @@
       // Each of their browsers saves it locally AND mirrors it into THEIR
       // OWN Drive under their own login — this call is the "single click,
       // synced live to every online teammate" step.
+      // Live relay has a message size ceiling (about 250 KB on the free
+      // Supabase plan). Tell the person plainly instead of failing quietly.
+      try {
+        const kb = Math.round(JSON.stringify(rec).length / 1024);
+        if (kb > 240 && typeof toast === 'function') toast('This project is large (' + kb + ' KB). Teammates may not receive it live. If Join fails for them, send a .sw file instead.', 'error');
+      } catch (e) {}
       if (sarvarcTeamPresenceChannel) {
         try {
           await sarvarcTeamPresenceChannel.send({
@@ -1496,9 +1508,106 @@
       toast('Saved to team \u2014 synced live to whoever\u2019s online', 'success');
       if (document.getElementById('smSessionList')) smRenderList();
       await sarvarcTeamProjectsLoad(sarvarcTeamActiveId);
+      return rec;
     } catch (e) {
       sarvarcTeamShowError(e.message || 'Could not save to team.');
     }
+  }
+
+
+  // =========================================================
+  // ONE-CLICK SHARE + GO LIVE
+  // Person A presses "Share & go live": the project is saved to the team,
+  // pushed to everyone online, and a live invite pops up on their screens.
+  // Person B presses "Join" and lands inside the same live project.
+  // No exporting, no uploading, no picking from a list.
+  // =========================================================
+  async function sarvarcTeamGoLive() {
+    if (!sarvarcTeamActiveId) { sarvarcTeamShowError('Pick a team first.'); return; }
+    if (!sarvarcTeamCan('save_version')) { sarvarcTeamShowError('Your role is view and comment only. Ask an owner or admin for editor access to start a live session.'); return; }
+    if (localStorage.getItem('sarvarcLiveCollabTeamProjectId')) { sarvarcTeamShowError('You are already in a live session. Press Leave in the top bar first.'); return; }
+    const dflt = (typeof smDefaultName === 'function' ? smDefaultName() : 'Project');
+    const rec = await sarvarcTeamProjectSave({ name: dflt });
+    if (!rec) return; // save already showed its own error
+    const user = await sarvarcTeamGetUser();
+    const byName = (user && sarvarcTeamMembersCache[user.id] && sarvarcTeamMembersCache[user.id].full_name) || (user && user.email) || 'A teammate';
+    if (sarvarcTeamPresenceChannel) {
+      try {
+        await sarvarcTeamPresenceChannel.send({ type: 'broadcast', event: 'live-invite', payload: { teamId: sarvarcTeamActiveId, teamProjectId: rec.id, name: rec.name, byName: byName } });
+      } catch (e) { console.warn('[Team] could not send live invite', e); }
+    }
+    // Same proven path teammates use: mark live, then reload into the project.
+    localStorage.setItem('sarvarcLiveCollabTeamProjectId', rec.id);
+    localStorage.setItem('sarvarcLiveCollabTeamId', sarvarcTeamActiveId);
+    localStorage.setItem('sarvarcLiveCollabSessionId', rec.id);
+    sarvarcTeamCloseModal();
+    toast('Live session started. Teammates online can join now.', 'success');
+    await smLoadSession(rec.id);
+  }
+
+  // A teammate started a live session: show a Join banner on every online
+  // member's screen. Built with DOM calls (not HTML strings) so a project
+  // or person name can never inject markup.
+  function sarvarcTeamHandleLiveInvite(p) {
+    if (!p || !p.teamProjectId) return;
+    if (localStorage.getItem('sarvarcLiveCollabTeamProjectId') === p.teamProjectId) return;
+    const old = document.getElementById('sarvarcLiveInviteBar');
+    if (old) old.remove();
+    const bar = document.createElement('div');
+    bar.id = 'sarvarcLiveInviteBar';
+    bar.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:950;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--bg2,#1b2330);color:var(--text,#e6edf3);border:1px solid var(--accent,#00C2FF);box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px;max-width:92vw;';
+    const msg = document.createElement('span');
+    msg.textContent = (p.byName || 'A teammate') + ' started a live session: ' + (p.name || 'Project');
+    const join = document.createElement('button');
+    join.type = 'button'; join.textContent = 'Join';
+    join.style.cssText = 'padding:6px 14px;border-radius:8px;border:0;background:var(--accent,#00C2FF);color:#04202c;font-weight:700;cursor:pointer;';
+    join.addEventListener('click', () => sarvarcTeamJoinLive(p.teamId, p.teamProjectId));
+    const no = document.createElement('button');
+    no.type = 'button'; no.textContent = '\u00d7'; no.title = 'Dismiss';
+    no.style.cssText = 'background:none;border:0;color:inherit;font-size:18px;cursor:pointer;';
+    no.addEventListener('click', () => bar.remove());
+    bar.appendChild(msg); bar.appendChild(join); bar.appendChild(no);
+    document.body.appendChild(bar);
+  }
+
+  async function sarvarcTeamJoinLive(teamId, teamProjectId) {
+    const bar = document.getElementById('sarvarcLiveInviteBar');
+    if (bar) bar.remove();
+    if (localStorage.getItem('sarvarcLiveCollabTeamProjectId')) { toast('You are already in a live session. Press Leave first.', 'info'); return; }
+    sarvarcTeamActiveId = teamId;
+    toast('Joining the live session\u2026', 'info');
+    await sarvarcTeamProjectOpen(teamProjectId);
+  }
+
+  // Start listening to your team as soon as you are signed in, so live
+  // invites reach you without opening the Teams window first.
+  async function sarvarcTeamAutoStartPresence() {
+    try {
+      if (sarvarcTeamPresenceChannel) return;
+      const user = await sarvarcTeamGetUser();
+      if (!user) return;
+      const { data } = await sarvarcSupabase.from('team_members').select('team_id').eq('user_id', user.id).limit(1);
+      if (data && data[0] && !sarvarcTeamPresenceChannel) {
+        sarvarcTeamActiveId = sarvarcTeamActiveId || data[0].team_id;
+        sarvarcTeamStartPresence(sarvarcTeamActiveId);
+      }
+    } catch (e) { /* not signed in yet, or no team: nothing to do */ }
+  }
+  setTimeout(sarvarcTeamAutoStartPresence, 3000);
+  setTimeout(sarvarcTeamAutoStartPresence, 10000);
+
+  // Adds the one-click button next to "Save current work to team".
+  function sarvarcTeamEnsureGoLiveBtn() {
+    if (document.getElementById('sarvarcTeamGoLiveBtn')) return;
+    const head = document.querySelector('.sarvarc-team-projects-head');
+    if (!head) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.id = 'sarvarcTeamGoLiveBtn';
+    b.className = 'btn-primary sarvarc-team-tool-btn';
+    b.textContent = 'Share & go live';
+    b.title = 'Save this work to the team and invite everyone online to edit it together';
+    b.addEventListener('click', () => sarvarcTeamGoLive());
+    head.appendChild(b);
   }
 
   async function sarvarcTeamProjectOpen(projectId) {
