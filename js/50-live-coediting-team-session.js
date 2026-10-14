@@ -93,7 +93,7 @@
   // channels with a database rule (see supabase/02-realtime-auth.sql).
   // =========================================================
   const SARVARC_COLLAB_REQUIRE_SENDER = false; // flip to true once every open tab runs this build
-  const SARVARC_COLLAB_GUARD_SECTIONS = '#sec-dataarrange, #sec-diagrams, #sec-makeforms';
+  const SARVARC_COLLAB_GUARD_SECTIONS = '#sec-dataarrange, #sec-diagrams, #sec-makeforms, #sec-pdfeditor';
   let sarvarcCollabRoles = {};          // user_id -> normalized role (active team)
   let sarvarcCollabRolesLoaded = false; // false = we could not verify our own role
 
@@ -224,6 +224,16 @@
         sarvarcCollabSetHealthy(false);
       }
     });
+    // A late joiner asks "what have I missed?" with its state vector; any
+    // editor answers with only the missing part. Without this a person who
+    // joins mid-session would only see changes made AFTER they arrived.
+    channel.on('broadcast', { event: 'ysync-req' }, (msg) => {
+      try {
+        if (!sarvarcCollabMayEditNow()) return;
+        const diff = Y.encodeStateAsUpdate(doc, sarvarcCollabB64ToBytes(msg.payload.sv));
+        channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(diff), s: user.id } });
+      } catch (e) { console.warn('[Collab] could not answer sync request', e); }
+    });
     channel.on('broadcast', { event: 'yaware' }, (msg) => {
       try {
         const update = sarvarcCollabB64ToBytes(msg.payload.u);
@@ -270,6 +280,7 @@
           if (sarvarcCollabMayEditNow()) {
             channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(Y.encodeStateAsUpdate(doc)), s: user.id } });
           }
+          channel.send({ type: 'broadcast', event: 'ysync-req', payload: { sv: sarvarcCollabBytesToB64(Y.encodeStateVector(doc)), s: user.id } });
           resolve();
         }
       });
@@ -2201,3 +2212,307 @@
     // navigation, which is why some logins needed several attempts and the
     // welcome moment could get cut short or never visibly appear at all.
   });
+
+  // <PDFED-COLLAB-BEGIN>
+  // =========================================================
+  // PDF EDITOR LIVE CO-EDITING (Teams, Step 3)
+  //
+  // What syncs live, per ELEMENT (so two people can move different text
+  // boxes on the same page without overwriting each other):
+  //   placed texts, images, borders, tables, shapes
+  // What syncs per PAGE (last change wins): edited text blocks, filters
+  //   and other page edits, pen strokes, background, label
+  // Page order, added pages and deleted pages also sync.
+  // A page picture that changed (crop, rotate) syncs as one shared asset.
+  //
+  // Page ids: pages loaded from the same saved project get the same id on
+  // every machine (pg<index>_<pageNum>); pages added during the session
+  // get a random id. Big images are sent once and referenced by hash.
+  // Limit: one live message must stay under the Realtime size ceiling, so
+  // a huge new page picture may not reach teammates (the sync ring turns
+  // red).
+  // =========================================================
+  const SARVARC_PDFED_KINDS = ['placedTexts', 'placedImages', 'placedBorders', 'placedTables', 'placedShapes'];
+  const SARVARC_PDFED_META_KEYS = ['textBlocks', 'edits', 'annotStrokes', 'annotRedoStrokes', 'bgColor', 'modified', 'label'];
+  const SARVARC_PDFED_BASE_KEYS = ['type', 'pageNum', 'width', 'height', 'pageMM'];
+  const SARVARC_PDFED_ASSET_MIN = 2048;
+  let pdfedCollab = null;
+  let pdfedCollabPointerDown = false;
+
+  function pdfedCollabHash(s) {
+    if (!s || typeof s !== 'string') return '';
+    const n = s.length;
+    const step = Math.max(1, Math.floor(n / 512));
+    let h = n | 0;
+    for (let i = 0; i < n; i += step) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    // Also read the first and last 256 characters in full, so two pictures
+    // that differ only near the start or end can never share a hash.
+    const edge = Math.min(256, n);
+    for (let i = 0; i < edge; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    for (let i = n - edge; i < n; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    return n + '_' + (h >>> 0).toString(36);
+  }
+
+  function pdfedCollabEnsureCids(initial) {
+    pdfed.pages.forEach((pg, i) => {
+      if (initial) {
+        if (!pg._cid) pg._cid = 'pg' + i + '_' + (pg.pageNum || 0);
+        pg._cNew = false;
+        pg._cBase = pdfedCollabHash(pg.dataUrl);
+      } else if (!pg._cid) {
+        pg._cid = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        pg._cNew = true;
+      }
+    });
+  }
+
+  // JSON with big pictures swapped for short "@asset:<hash>" references.
+  function pdfedCollabSer(obj, assets) {
+    return JSON.stringify(obj, function (k, v) {
+      if (k && k.charAt(0) === '_') return undefined;
+      if (k === 'dataUrl' && typeof v === 'string' && v.length > SARVARC_PDFED_ASSET_MIN) {
+        const h = pdfedCollabHash(v);
+        if (assets) assets[h] = v;
+        return '@asset:' + h;
+      }
+      return v;
+    });
+  }
+
+  // Everything that should be shared, as { key: jsonString }.
+  function pdfedCollabSnapshot() {
+    const out = {}; const assets = {}; const order = [];
+    pdfed.pages.forEach((pg) => {
+      const cid = pg._cid; order.push(cid);
+      const b = {};
+      SARVARC_PDFED_BASE_KEYS.forEach((k) => { if (pg[k] !== undefined) b[k] = pg[k]; });
+      const h = pdfedCollabHash(pg.dataUrl);
+      if (pg.dataUrl && (pg._cNew || h !== pg._cBase || pg._cShared === h)) { b.dataUrl = '@asset:' + h; assets[h] = pg.dataUrl; }
+      else b.dataUrl = '@local';
+      out[cid + '|b'] = JSON.stringify(b);
+      const m = {};
+      SARVARC_PDFED_META_KEYS.forEach((k) => { if (pg[k] !== undefined) m[k] = pg[k]; });
+      out[cid + '|m'] = pdfedCollabSer(m, assets);
+      SARVARC_PDFED_KINDS.forEach((kind) => {
+        (pg[kind] || []).forEach((it) => {
+          if (!it.id && !it._cid) it._cid = 'i' + Math.random().toString(36).slice(2, 10);
+          out[cid + '|i|' + kind + '|' + (it.id || it._cid)] = pdfedCollabSer(it, assets);
+        });
+      });
+    });
+    out.o = JSON.stringify(order);
+    return { data: out, assets: assets };
+  }
+
+  function pdfedCollabPushNow() {
+    const C = pdfedCollab;
+    if (!C || !C.ready || C.applying || !sarvarcCollabMayEditNow()) return;
+    if (C.dirty.size) { pdfedCollabScheduleApply(); return; } // take in teammates' changes first, never overwrite them
+    pdfedCollabEnsureCids(false);
+    const snap = pdfedCollabSnapshot();
+    C.doc.transact(() => {
+      Object.keys(snap.data).forEach((k) => { if (C.map.get(k) !== snap.data[k]) C.map.set(k, snap.data[k]); });
+      // Remove only things we knew about and no longer have (deleted by us).
+      C.known.forEach((k) => { if (!(k in snap.data) && C.map.has(k)) C.map.delete(k); });
+      Object.keys(snap.assets).forEach((h) => { if (!C.assets.has(h)) C.assets.set(h, snap.assets[h]); });
+      C.assets.forEach((v, h) => { if (!(h in snap.assets)) C.assets.delete(h); });
+    }, 'local');
+    C.known = new Set(Object.keys(snap.data));
+  }
+
+  function pdfedCollabSchedulePush() {
+    const C = pdfedCollab;
+    if (!C || !C.ready || C.applying) return;
+    clearTimeout(C.pushTimer);
+    C.pushTimer = setTimeout(pdfedCollabPushNow, 250);
+  }
+
+  function pdfedCollabBusy() {
+    if (pdfedCollabPointerDown) return true;
+    if (typeof teState !== 'undefined' && teState && teState.active) return true;
+    const w = document.getElementById('pdfedCanvasWrap');
+    const a = document.activeElement;
+    return !!(a && w && w.contains(a) && (a.isContentEditable || /^(INPUT|TEXTAREA)$/.test(a.tagName)));
+  }
+
+  function pdfedCollabScheduleApply() {
+    const C = pdfedCollab;
+    if (!C) return;
+    clearTimeout(C.applyTimer);
+    C.applyTimer = setTimeout(function tick() {
+      if (pdfedCollab !== C) return;
+      if (pdfedCollabBusy()) { C.applyTimer = setTimeout(tick, 400); return; } // do not yank things from under someone mid-drag or mid-typing
+      pdfedCollabApplyRemote();
+    }, 120);
+  }
+
+  async function pdfedCollabApplyRemote() {
+    const C = pdfedCollab;
+    if (!C || C.applying) return;
+    C.applying = true;
+    try {
+      const D = C.map;
+      if (!D.has('o')) return;
+      const order = JSON.parse(D.get('o'));
+      const dirty = C.dirty; C.dirty = new Set();
+      const all = dirty.has('*');
+      if (all) D.forEach((v, k) => dirty.add(k));
+      const revive = (json) => JSON.parse(json, (k, v) => {
+        if (typeof v === 'string' && v.indexOf('@asset:') === 0) { const a = C.assets.get(v.slice(7)); return a === undefined ? v : a; }
+        return v;
+      });
+
+      const activeCid = pdfed.pages[pdfed.active] && pdfed.pages[pdfed.active]._cid;
+      const byCid = {}; pdfed.pages.forEach((p) => { if (p._cid) byCid[p._cid] = p; });
+      const changed = new Set(); const rasterChanged = new Set();
+      let structure = false;
+
+      // Page list: follow the shared order. A page we have that is not in the
+      // shared order is either brand new here (not pushed yet: keep it) or
+      // was deleted by a teammate (we had seen it before: drop it).
+      // Follow the shared order only when a teammate actually changed it; otherwise keep ours (we may have a reorder not sent yet).
+      const orderChanged = all || dirty.has('o');
+      const next = [];
+      if (!orderChanged) pdfed.pages.forEach((p) => next.push(p));
+      (orderChanged ? order : []).forEach((cid) => {
+        let pg = byCid[cid];
+        if (!pg) {
+          pg = { _cid: cid, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedBorders: [], placedTables: [], placedShapes: [], modified: false, dataUrl: null, _cNew: false };
+          byCid[cid] = pg; structure = true; changed.add(cid);
+          dirty.add(cid + '|b'); dirty.add(cid + '|m');
+        }
+        next.push(pg);
+      });
+      if (orderChanged) pdfed.pages.forEach((p) => {
+        if (order.indexOf(p._cid) === -1 && !C.known.has(p._cid + '|b')) next.push(p);
+        else if (order.indexOf(p._cid) === -1) structure = true;
+      });
+      if (next.length !== pdfed.pages.length || next.some((p, i) => pdfed.pages[i] !== p)) structure = true;
+
+      // Apply ONLY the keys that changed, so a teammate's change to one
+      // element never overwrites something we are still editing elsewhere.
+      dirty.forEach((k) => {
+        if (k === 'o') return;
+        const parts = k.split('|');
+        const pg = byCid[parts[0]];
+        if (!pg) return;
+        const json = D.get(k);
+        if (parts[1] === 'b') {
+          if (json === undefined) return;
+          const b = revive(json);
+          if (changed.has(parts[0])) SARVARC_PDFED_BASE_KEYS.forEach((f) => { if (b[f] !== undefined) pg[f] = b[f]; });
+          if (typeof b.dataUrl === 'string' && b.dataUrl.charAt(0) !== '@' && b.dataUrl !== pg.dataUrl) {
+            pg.dataUrl = b.dataUrl; pg._cBase = pdfedCollabHash(pg.dataUrl); pg._cShared = pg._cBase; rasterChanged.add(parts[0]); changed.add(parts[0]);
+          }
+        } else if (parts[1] === 'm') {
+          if (json === undefined) return;
+          const m = revive(json);
+          SARVARC_PDFED_META_KEYS.forEach((f) => { if (m[f] !== undefined) pg[f] = m[f]; });
+          changed.add(parts[0]);
+        } else if (parts[1] === 'i') {
+          const kind = parts[2]; const id = parts.slice(3).join('|');
+          const arr = pg[kind] || (pg[kind] = []);
+          const at = arr.findIndex((it) => (it.id || it._cid) === id);
+          if (json === undefined) { if (at > -1) arr.splice(at, 1); }
+          else {
+            const obj = revive(json);
+            if (at > -1) {
+              const it = arr[at];
+              Object.keys(it).forEach((f) => { if (f.charAt(0) !== '_') delete it[f]; });
+              Object.assign(it, obj);
+            } else { if (!obj.id) obj._cid = id; arr.push(obj); }
+          }
+          changed.add(parts[0]);
+        }
+      });
+
+      pdfed.pages.length = 0;
+      next.forEach((p) => pdfed.pages.push(p));
+      let ai = activeCid ? next.findIndex((p) => p._cid === activeCid) : -1;
+      if (ai < 0) ai = Math.min(Math.max(pdfed.active, 0), next.length - 1);
+      C.known = new Set(); D.forEach((v, k) => C.known.add(k));
+
+      if (structure) {
+        pdfed.active = ai;
+        if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
+        if (typeof pdfedGoto === 'function' && next.length) await pdfedGoto(Math.max(0, ai));
+      } else {
+        const cur = pdfed.pages[pdfed.active];
+        if (cur && changed.has(cur._cid)) {
+          if (rasterChanged.has(cur._cid) && typeof pdfedGoto === 'function') await pdfedGoto(pdfed.active);
+          else {
+            if (typeof pdfedRenderAllPlaced === 'function') pdfedRenderAllPlaced(pdfed.active);
+            if (typeof pdfedRenderTextLayer === 'function') pdfedRenderTextLayer(cur, false);
+          }
+        }
+        if (changed.size && typeof pdfedBuildStrip === 'function') {
+          clearTimeout(C.stripTimer);
+          C.stripTimer = setTimeout(() => { if (pdfedCollab === C) pdfedBuildStrip(); }, 800);
+        }
+      }
+    } catch (e) {
+      console.warn('[Collab] PDF Editor apply failed', e);
+      sarvarcCollabSetHealthy(false);
+    } finally {
+      C.applying = false;
+      // Anything we changed locally while waiting for this apply still needs sending.
+      if (pdfedCollab === C) pdfedCollabSchedulePush();
+    }
+  }
+
+  function pdfedCollabPointerDownHandler() { pdfedCollabPointerDown = true; }
+  function pdfedCollabPointerUpHandler() { pdfedCollabPointerDown = false; if (pdfedCollab && pdfedCollab.dirty.size) pdfedCollabScheduleApply(); }
+
+  (function pdfedCollabWrapPersist() {
+    const orig = window.pdfedPersist;
+    if (typeof orig !== 'function' || orig.__collabWrapped) return;
+    const wrapped = function () {
+      const r = orig.apply(this, arguments);
+      try { pdfedCollabSchedulePush(); } catch (e) {}
+      return r;
+    };
+    wrapped.__collabWrapped = true;
+    window.pdfedPersist = wrapped;
+  })();
+
+  sarvarcCollabRegisterModule('pdfeditor', {
+    attach(doc, awareness) {
+      const C = pdfedCollab = {
+        doc: doc, map: doc.getMap('pdfedDoc'), assets: doc.getMap('pdfedAssets'),
+        ready: false, applying: false, known: new Set(), dirty: new Set(),
+        pushTimer: null, applyTimer: null, stripTimer: null, seedTimer: null
+      };
+      pdfedCollabEnsureCids(true);
+      C.map.observe((event, tx) => {
+        if (tx.origin !== 'remote') return;
+        event.changes.keys.forEach((v, k) => C.dirty.add(k));
+        pdfedCollabScheduleApply();
+      });
+      document.addEventListener('pointerdown', pdfedCollabPointerDownHandler, true);
+      document.addEventListener('pointerup', pdfedCollabPointerUpHandler, true);
+      // Give teammates ~1.5 s to hand us their state before we decide whether
+      // WE are the first person here (then we share ours) or a joiner (then we
+      // take theirs). Seeding earlier could overwrite a teammate's newer work.
+      C.seedTimer = setTimeout(() => {
+        if (pdfedCollab !== C) return;
+        pdfedCollabEnsureCids(true);
+        if (C.map.has('o')) {
+          C.dirty.add('*');
+          C.ready = true;
+          pdfedCollabApplyRemote();
+        } else {
+          C.ready = true;
+          if (pdfed.pages.length) pdfedCollabPushNow();
+        }
+      }, 1500);
+    },
+    detach() {
+      const C = pdfedCollab;
+      if (C) { clearTimeout(C.pushTimer); clearTimeout(C.applyTimer); clearTimeout(C.stripTimer); clearTimeout(C.seedTimer); }
+      document.removeEventListener('pointerdown', pdfedCollabPointerDownHandler, true);
+      document.removeEventListener('pointerup', pdfedCollabPointerUpHandler, true);
+      pdfedCollabPointerDown = false;
+      pdfedCollab = null;
+    }
+  });
+  // <PDFED-COLLAB-END>
