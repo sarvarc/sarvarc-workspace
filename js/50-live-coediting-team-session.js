@@ -73,6 +73,125 @@
     });
   }
 
+
+  // =========================================================
+  // LIVE ROLE ENFORCEMENT (Teams, Step 2)
+  //
+  // Viewers and reviewers may WATCH a live session but not change shared
+  // work. Three layers:
+  //   1. SEND: a person whose role cannot edit never broadcasts document
+  //      updates (their local changes stay on their own screen only).
+  //   2. RECEIVE: every update carries the sender's id. We look the sender
+  //      up in team_members and drop updates from anyone who may not edit
+  //      (or who is not on the team at all).
+  //   3. SCREEN: typing / delete / paste / drop inside the live modules is
+  //      blocked for read-only roles, with a "View only" pill so it is
+  //      clear why.
+  // Layers 1-3 protect against accidents and the normal app. A person
+  // running a hand-modified copy of the app could still try to send
+  // packets; stopping that completely needs Supabase Realtime private
+  // channels with a database rule (see supabase/02-realtime-auth.sql).
+  // =========================================================
+  const SARVARC_COLLAB_REQUIRE_SENDER = false; // flip to true once every open tab runs this build
+  const SARVARC_COLLAB_GUARD_SECTIONS = '#sec-dataarrange, #sec-diagrams, #sec-makeforms';
+  let sarvarcCollabRoles = {};          // user_id -> normalized role (active team)
+  let sarvarcCollabRolesLoaded = false; // false = we could not verify our own role
+
+  async function sarvarcCollabLoadRoles(teamId) {
+    if (!teamId) return false;
+    try {
+      const user = await sarvarcTeamGetUser();
+      const { data, error } = await sarvarcSupabase.from('team_members').select('user_id, role').eq('team_id', teamId);
+      if (error) throw error;
+      const map = {};
+      (data || []).forEach(m => { map[m.user_id] = sarvarcTeamNormalizeRole(m.role); });
+      sarvarcCollabRoles = map;
+      if (user && map[user.id]) { sarvarcTeamMyRole = map[user.id]; sarvarcCollabRolesLoaded = true; }
+      else sarvarcCollabRolesLoaded = false;
+      return sarvarcCollabRolesLoaded;
+    } catch (e) {
+      console.warn('[Collab] could not load roles', e);
+      return sarvarcCollabRolesLoaded; // keep what we already knew
+    }
+  }
+
+  // Fails closed: if we could not verify our role we do not send edits.
+  function sarvarcCollabMayEditNow() {
+    return sarvarcCollabRolesLoaded && sarvarcTeamCan('edit');
+  }
+
+  async function sarvarcCollabSenderMayEdit(senderId) {
+    if (!senderId) return !SARVARC_COLLAB_REQUIRE_SENDER;
+    if (!(senderId in sarvarcCollabRoles)) {
+      await sarvarcCollabLoadRoles(sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId'));
+    }
+    const role = sarvarcCollabRoles[senderId];
+    return !!role && sarvarcTeamCan('edit', role);
+  }
+
+  let sarvarcCollabRoleTimer = null; // re-checks roles so a role change mid-session takes effect within a minute
+  let sarvarcCollabGuardOn = false;
+  let sarvarcCollabGuardLastToast = 0;
+  function sarvarcCollabGuardNotify() {
+    const now = Date.now();
+    if (now - sarvarcCollabGuardLastToast < 3000) return;
+    sarvarcCollabGuardLastToast = now;
+    if (typeof toast === 'function') toast('View only: your role cannot change this live project.', 'info');
+  }
+  function sarvarcCollabGuardHandler(e) {
+    if (sarvarcCollabMayEditNow()) return;
+    const t = e.target;
+    if (!t || !t.closest || !t.closest(SARVARC_COLLAB_GUARD_SECTIONS)) return;
+    const editable = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+    if (e.type === 'keydown') {
+      const k = e.key;
+      const mod = e.ctrlKey || e.metaKey;
+      const isDelete = k === 'Delete' || k === 'Backspace';
+      const isMutatingShortcut = mod && /^[xvyz]$/i.test(k);
+      const isTyping = editable && !mod && k.length === 1;
+      const isEnter = editable && k === 'Enter';
+      if (!(isDelete || isMutatingShortcut || isTyping || isEnter)) return;
+    } else if (!editable && e.type !== 'drop') {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    sarvarcCollabGuardNotify();
+  }
+  function sarvarcCollabGuardApply() {
+    const needed = !sarvarcCollabMayEditNow();
+    document.body.classList.toggle('sarvarc-readonly', needed);
+    let pill = document.getElementById('sarvarcReadOnlyPill');
+    if (needed) {
+      if (!pill) {
+        pill = document.createElement('div');
+        pill.id = 'sarvarcReadOnlyPill';
+        pill.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:900;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;background:var(--bg2,#1b2330);color:var(--text,#e6edf3);border:1px solid var(--border2,#344055);box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none;';
+        document.body.appendChild(pill);
+      }
+      pill.textContent = sarvarcCollabRolesLoaded
+        ? 'View only (' + sarvarcTeamNormalizeRole(sarvarcTeamMyRole) + '): you can watch, not edit'
+        : 'View only: could not verify your team role';
+    } else if (pill) {
+      pill.remove();
+    }
+    if (needed && !sarvarcCollabGuardOn) {
+      ['keydown', 'beforeinput', 'paste', 'cut', 'drop'].forEach(ev => document.addEventListener(ev, sarvarcCollabGuardHandler, true));
+      sarvarcCollabGuardOn = true;
+    } else if (!needed && sarvarcCollabGuardOn) {
+      sarvarcCollabGuardRemove(true);
+    }
+  }
+  function sarvarcCollabGuardRemove(keepPill) {
+    ['keydown', 'beforeinput', 'paste', 'cut', 'drop'].forEach(ev => document.removeEventListener(ev, sarvarcCollabGuardHandler, true));
+    sarvarcCollabGuardOn = false;
+    if (!keepPill) {
+      document.body.classList.remove('sarvarc-readonly');
+      const pill = document.getElementById('sarvarcReadOnlyPill');
+      if (pill) pill.remove();
+    }
+  }
+
   async function sarvarcCollabConnect(teamProjectId) {
     await sarvarcCollabWaitForYjs();
     if (sarvarcCollabProjectId === teamProjectId && sarvarcCollabDoc) return; // already connected to this one
@@ -81,6 +200,7 @@
     const Y = window.Yjs;
     const user = await sarvarcTeamGetUser();
     if (!user) return;
+    await sarvarcCollabLoadRoles(sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId'));
 
     const doc = new Y.Doc();
     const awareness = new window.YAwareness.Awareness(doc);
@@ -90,8 +210,12 @@
     // transaction origin 'remote' so module attach() observers can tell
     // "this came from a teammate, just re-render" apart from "this is my
     // own edit, also push it out" and avoid an echo loop.
-    channel.on('broadcast', { event: 'yupdate' }, (msg) => {
+    channel.on('broadcast', { event: 'yupdate' }, async (msg) => {
       try {
+        if (!(await sarvarcCollabSenderMayEdit(msg.payload.s))) {
+          console.warn('[Collab] dropped update from a sender who cannot edit');
+          return;
+        }
         const update = sarvarcCollabB64ToBytes(msg.payload.u);
         Y.applyUpdate(doc, update, 'remote');
         sarvarcCollabSetHealthy(true);
@@ -116,7 +240,8 @@
     // failed completely silently. Now it drives the sync-health spinner.
     doc.on('update', (update, origin) => {
       if (origin === 'remote') return;
-      channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(update) } })
+      if (!sarvarcCollabMayEditNow()) { sarvarcCollabGuardNotify(); return; } // read-only roles never broadcast edits
+      channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(update), s: user.id } })
         .then((status) => {
           if (status !== 'ok') console.warn('[Collab] send status:', status);
           sarvarcCollabSetHealthy(status === 'ok');
@@ -142,7 +267,9 @@
           // idempotent/mergeable, so re-sending our full state is safe).
           const m = sarvarcTeamMembersCache[user.id];
           awareness.setLocalState({ userId: user.id, name: (m && m.full_name) || user.email, avatar: (m && m.avatar_url) || null, color: sarvarcCollabColorFor(user.id) });
-          channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(Y.encodeStateAsUpdate(doc)) } });
+          if (sarvarcCollabMayEditNow()) {
+            channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(Y.encodeStateAsUpdate(doc)), s: user.id } });
+          }
           resolve();
         }
       });
@@ -161,9 +288,18 @@
     // Start showing who's here + live cursors + field presence now that
     // we're actually connected (see LIVE PRESENCE UI block above).
     sarvarcPresenceAttachInputListeners(awareness);
+    sarvarcCollabGuardApply();
+    if (sarvarcCollabRoleTimer) clearInterval(sarvarcCollabRoleTimer);
+    sarvarcCollabRoleTimer = setInterval(async () => {
+      if (!sarvarcCollabDoc) return;
+      await sarvarcCollabLoadRoles(sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId'));
+      sarvarcCollabGuardApply();
+    }, 60000);
   }
 
   function sarvarcCollabDisconnect() {
+    if (sarvarcCollabRoleTimer) { clearInterval(sarvarcCollabRoleTimer); sarvarcCollabRoleTimer = null; }
+    sarvarcCollabGuardRemove(false);
     sarvarcPresenceDetachInputListeners();
     Object.keys(sarvarcCollabModules).forEach(key => {
       if (sarvarcCollabAttached.has(key)) {
@@ -355,7 +491,7 @@
     // right before others join, or to stop a stray auto-reconnect) is
     // still a valid owner action either way.
     const isOwner = sarvarcTeamMyRole === 'owner';
-    if (remoteByUser.size > 0 || isOwner) {
+    if (remoteByUser.size > 0 || isOwner || sarvarcCollabIsLive()) {
       bar.style.display = 'flex';
       const MAX_SHOWN = 5;
       const people = Array.from(remoteByUser.values());
@@ -387,6 +523,9 @@
           html += '<span class="sarvarc-presence-overflow" title="' + overflow + ' more live now">+' + overflow + '</span>';
         }
         html += '</span>';
+      }
+      if (sarvarcCollabIsLive()) {
+        html += '<button type="button" class="sarvarc-end-live-btn" onclick="sarvarcTeamLeaveLiveSession()" title="Leave this live session. Your own copy stays on your screen and the others keep working.">Leave</button>';
       }
       if (isOwner) {
         html += '<button type="button" class="sarvarc-end-live-btn" onclick="sarvarcTeamEndLiveSession()" title="End this live session for everyone — they\'ll fall back to their own separate workspace">End Live Session</button>';
@@ -927,6 +1066,7 @@
       // Session" control — which can render while the Team modal is closed —
       // knows whether the current person is allowed to use it.
       sarvarcTeamMyRole = myRole;
+      if (sarvarcCollabDoc) { sarvarcCollabRoles[user.id] = myRole; sarvarcCollabRolesLoaded = true; sarvarcCollabGuardApply(); }
       const roleSel = document.getElementById('sarvarcTeamInviteRole');
       if (roleSel) {
         const ok = sarvarcTeamAssignableRoles();
@@ -975,8 +1115,19 @@
       const teamName = (sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId) || {}).name || 'this team';
       if (!confirm(`Leave ${teamName}? You'll lose access to its shared projects unless you're invited back.`)) return;
 
-      const { error: delErr } = await sarvarcSupabase.from('team_members').delete().eq('id', me.id);
+      // .select() returns the rows actually deleted. Without it, a database
+      // rule that blocks the delete fails SILENTLY (no error, nothing
+      // deleted) and the person is stuck in the team with no message.
+      const { data: gone, error: delErr } = await sarvarcSupabase.from('team_members').delete().eq('id', me.id).select('id');
       if (delErr) throw delErr;
+      if (!gone || !gone.length) {
+        sarvarcTeamShowError('Could not leave the team: the database did not allow it. Ask the team owner to remove you, and tell the SARVARC developer (the team rules may need updating).');
+        return;
+      }
+      // Also drop out of any live session and stop listening to this team.
+      if (localStorage.getItem('sarvarcLiveCollabTeamId') === sarvarcTeamActiveId || sarvarcCollabIsLive()) sarvarcCollabDisconnect();
+      if (sarvarcTeamPresenceChannel) { try { sarvarcSupabase.removeChannel(sarvarcTeamPresenceChannel); } catch (e) {} sarvarcTeamPresenceChannel = null; }
+      sarvarcTeamOnlineIds = new Set();
       // Sole owner leaving a team with nobody else in it — nothing left to
       // orphan, so clean up the now-empty team row too.
       if (me.role === 'owner' && members.length === 1) {
@@ -1100,6 +1251,20 @@
   // workspace. Note this does not save anything to the team's stored copy
   // first — if there are unsaved live edits, "Save to Team" before ending
   // is the way to keep them. ----
+  // Anyone (any role) can step out of a live session for THEMSELVES. The
+  // others keep working. Your copy stays on your screen as a normal,
+  // separate workspace. Clearing the flags also stops the auto-reconnect
+  // that would otherwise pull you back in on the next reload.
+  function sarvarcTeamLeaveLiveSession() {
+    if (!localStorage.getItem('sarvarcLiveCollabTeamProjectId') && !sarvarcCollabIsLive()) {
+      toast('You are not in a live session.', 'info');
+      return;
+    }
+    if (!confirm('Leave this live session?\n\nYou will stop seeing teammates\' changes and they will stop seeing yours. Your copy stays on your screen as your own workspace.')) return;
+    sarvarcCollabDisconnect();
+    toast('You left the live session. You are on your own workspace.', 'info');
+  }
+
   async function sarvarcTeamEndLiveSession() {
     const teamProjectId = localStorage.getItem('sarvarcLiveCollabTeamProjectId');
     if (!teamProjectId) { toast('No live session is currently open.', 'info'); return; }
