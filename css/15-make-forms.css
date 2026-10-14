@@ -105,14 +105,23 @@
 .mf-editor-actions .btn-pill:hover { background:rgba(0,194,255,0.14); }
 .mf-editor-actions .btn-secondary { background:var(--surface); }
 
-.mf-editor-body { display:grid; grid-template-columns: 1fr 380px; gap:28px; align-items:start; }
+.mf-editor-body { display:grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 850px); gap:28px; align-items:start; }
 @media (max-width: 980px) { .mf-editor-body { grid-template-columns: 1fr; gap:20px; } }
 .mf-design-preview-col { display:flex; flex-direction:column; gap:12px; position:sticky; top:0; }
 .mf-design-preview-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 2px; }
 .mf-design-preview-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; }
 .mf-design-preview-size { font-size:10.5px; font-weight:600; color:var(--text3); background:var(--surface2); border:1px solid var(--border); padding:3px 9px; border-radius:999px; letter-spacing:0.2px; }
-.mf-design-preview-col .mf-preview-scroll { max-height:78vh; }
-@media (max-width: 980px) { .mf-design-preview-col { position:static; } }
+/* Design mode: show the sheet at its TRUE size, 210mm wide (= 793.7px at
+   96dpi), the exact width Export PDF / Push to Workspace capture at, so the
+   preview matches the output instead of being a shrunken stand-in. If the
+   column is ever narrower than the sheet, the scroll area scrolls sideways. */
+.mf-design-preview-col { min-width:0; }
+.mf-design-preview-col .mf-preview-scroll { max-height:78vh; overflow-x:auto; justify-content:flex-start; padding:16px; }
+.mf-design-preview-col .mf-preview-page-stack { width:210mm; max-width:none; flex:none; margin:0 auto; }
+@media (max-width: 980px) {
+  .mf-design-preview-col { position:static; }
+  .mf-design-preview-col .mf-preview-page-stack { width:100%; max-width:794px; }
+}
 
 .mf-fields-panel {
   background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
@@ -240,7 +249,18 @@
 .mf-field-row2 label { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:4px; }
 .mf-field-options-hint { font-size:10px; color:var(--text3); }
 
-.mf-add-field-row { display:flex; flex-direction:column; gap:10px; padding-top:18px; border-top:1px solid var(--border); }
+.mf-add-field-row { display:flex; flex-direction:column; gap:8px; padding-bottom:14px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; background:var(--bg2); }
+.mf-add-label em { font-style:normal; font-weight:500; text-transform:none; letter-spacing:0; color:var(--text3); }
+/* Compact picker: every field type is a one-line chip, so the whole picker is
+   about three short rows and the field list stays visible right below it. */
+.mf-add-field-row .mf-pick-group { flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 8px; }
+.mf-add-field-row .mf-pick-title { flex:0 0 100%; font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; }
+.mf-add-field-row .mf-pick-grid { display:flex; flex-wrap:wrap; gap:6px; }
+.mf-add-field-row .mf-pick-grid button { display:inline-flex; align-items:center; gap:6px; padding:5px 10px 5px 6px; border-radius:999px; }
+.mf-add-field-row .mf-pick-grid i { display:none; }
+.mf-add-field-row .mf-pick-grid b { grid-column:auto; font-size:11.5px; }
+.mf-add-field-row .mf-pick-ico { width:20px; height:20px; border-radius:50%; font-size:11px; grid-row:auto; }
+.mf-add-field-row .mf-pick-star { font-size:13px; }
 .mf-add-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; }
 .mf-add-btns { display:flex; flex-wrap:wrap; gap:8px; }
 .mf-add-btns button {
@@ -427,10 +447,38 @@
 .mf-pv-sig-tools button { background:#fff; border:1px solid #d6dbe4; border-radius:6px; padding:3px 9px; font-size:10.5px; font-weight:600; color:#3a4456; cursor:pointer; }
 .mf-pv-sig-tools button:hover { border-color:var(--mf-accent,#0073E6); color:var(--mf-accent,#0073E6); }
 
+/* Move up / down arrows on each field of the Live Preview (Design mode). They
+   live in the page's left margin (inside the sheet's own padding, so they are
+   never clipped and never shift the layout). Hidden for print and for export
+   (the buttons also carry data-html2canvas-ignore). */
+.mf-pv-field, .mf-pv-heading { position:relative; }
+.mf-pv-move {
+  position:absolute; left:-46px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:4px; opacity:.5; transition:opacity .15s;
+}
+.mf-pv-field:hover > .mf-pv-move, .mf-pv-heading:hover > .mf-pv-move,
+.mf-pv-field:focus-within > .mf-pv-move, .mf-pv-move:hover { opacity:1; }
+.mf-pv-move button {
+  width:28px; height:28px; padding:0; border-radius:8px; cursor:pointer;
+  background:#fff; color:#3a4456; border:1px solid #d6dbe4; font-size:15px; line-height:1;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(15,23,42,.08);
+  transition:border-color .12s, color .12s, background .12s;
+}
+.mf-pv-move button:hover:not(:disabled) { border-color:var(--mf-accent); color:var(--mf-accent); background:var(--mf-accent-mcq-hover-bg); }
+.mf-pv-move button:disabled { opacity:.35; cursor:default; }
+.mf-pv-moved { animation: mfPvMoved .9s ease; }
+@keyframes mfPvMoved {
+  0%   { box-shadow:0 0 0 0 rgba(var(--mf-accent-rgb), .55); }
+  40%  { box-shadow:0 0 0 5px rgba(var(--mf-accent-rgb), .25); }
+  100% { box-shadow:0 0 0 0 rgba(var(--mf-accent-rgb), 0); }
+}
+@media (max-width: 700px) { .mf-pv-move { left:-34px; } .mf-pv-move button { width:24px; height:24px; } }
+
 @media print {
   @page { size: A4; margin: 0; }
   body * { visibility: hidden; }
   .mf-preview-page, .mf-preview-page * { visibility: visible; }
+  .mf-pv-move { display:none !important; }
   .mf-preview-panel { position:fixed; top:0; left:0; }
   .mf-preview-page {
     position:fixed; inset:0; margin:0; max-width:none; width:210mm; aspect-ratio:auto; height:auto;
