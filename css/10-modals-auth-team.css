@@ -863,7 +863,7 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 .sarvarc-pw-modal-body { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
 
 /* ─── TEAM MODAL — enterprise-grade member cards, avatars, role badges ─── */
-.sarvarc-team-modal { max-width: 520px; }
+
 /* Loading skeleton — shimmering placeholder shown while the modal's first
    network round-trip (invites + teams) is in flight. */
 .sarvarc-team-skel-bar, .sarvarc-team-skel-row {
@@ -880,23 +880,12 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
 @media (prefers-reduced-motion: reduce) {
   .sarvarc-team-skel-bar, .sarvarc-team-skel-row { animation: none; background: var(--surface2); }
 }
-.sarvarc-team-count-pill {
-  font-size: 10.5px; font-weight: 700; color: var(--text2);
-  background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: 999px; padding: 2px 9px; margin-left: 8px; letter-spacing: .02em;
-}
-.sarvarc-team-section-label {
-  font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em;
-  font-weight: 700; margin: 4px 0 9px; display: flex; align-items: center; justify-content: space-between;
-}
-.sarvarc-team-members-list { display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; padding-right: 2px; }
-.sarvarc-team-member-card {
-  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
-  border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
-  transition: border-color .15s, background .15s, transform .15s;
-}
-.sarvarc-team-member-card:hover { border-color: var(--border2); background: var(--surface2); }
-.sarvarc-team-member-card.is-you { border-color: rgba(0,194,255,0.35); background: rgba(0,194,255,0.05); }
+
+
+
+
+
+
 .sarvarc-team-avatar-wrap { position: relative; flex: none; }
 .sarvarc-team-avatar {
   width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
@@ -917,14 +906,157 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
   70% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
   100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
 }
-.sarvarc-team-member-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
-.sarvarc-team-member-name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
-.sarvarc-team-member-you-tag { font-size: 9.5px; font-weight: 700; color: var(--cyan); background: rgba(0,194,255,0.12); border-radius: 5px; padding: 1px 5px; letter-spacing: .02em; }
-.sarvarc-team-member-email { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sarvarc-team-role-badge {
-  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
-  padding: 3px 8px; border-radius: 999px; flex: none; white-space: nowrap;
+
+
+
+
+
+
+/* ─── TEAM — enterprise layout (members table, invite card, projects) ─── */
+.sarvarc-team-modal { max-width: 720px; width: 94%; max-height: 90vh; }
+.sarvarc-team-modal .sarvarc-pw-modal-body { overflow-y: auto; gap: 0; padding: 20px 24px 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.sarvarc-team-head-main { display: flex; align-items: center; gap: 12px; }
+.sarvarc-team-head-icon {
+  width: 38px; height: 38px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center;
+  color: var(--blue); background: rgba(0,194,255,0.10); border: 1px solid var(--border2);
 }
+.sarvarc-team-count-pill {
+  font-size: 11px; font-weight: 600; color: var(--text2); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; margin-left: 10px; letter-spacing: 0;
+}
+
+/* messages */
+.sarvarc-team-msg { font-size: 12.5px; line-height: 1.45; padding: 10px 12px; border-radius: 9px; margin-bottom: 14px; border: 1px solid transparent; }
+.sarvarc-team-msg.is-error { color: #f87171; background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.28); }
+.sarvarc-team-msg.is-note { color: var(--text2); background: var(--surface2); border-color: var(--border); }
+.sarvarc-team-invites-box { margin-bottom: 14px; padding: 10px 12px; border-radius: 10px; background: rgba(0,194,255,0.06); border: 1px solid var(--border2); }
+
+/* empty state */
+.sarvarc-team-emptystate { text-align: center; padding: 26px 8px 22px; }
+.sarvarc-team-emptystate-icon { width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: var(--blue); background: rgba(0,194,255,0.10); border: 1px solid var(--border2); }
+.sarvarc-team-emptystate-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.sarvarc-team-emptystate-text { font-size: 12.5px; color: var(--text2); max-width: 380px; margin: 0 auto 16px; line-height: 1.5; }
+
+/* toolbar */
+.sarvarc-team-switcher-row { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.sarvarc-team-switcher-select {
+  flex: 1; min-width: 0; height: 36px; padding: 0 12px; font-size: 13px; font-weight: 600; border-radius: 9px;
+  background: var(--surface2); border: 1px solid var(--border2); color: var(--text); font-family: 'Inter', sans-serif;
+}
+.sarvarc-team-tool-btn { padding: 0 14px !important; height: 36px; font-size: 12px !important; }
+.sarvarc-team-switcher-row .sarvarc-team-action-btn { height: 36px; padding: 0 14px; }
+
+/* section headings */
+.sarvarc-team-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.sarvarc-team-section-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: -0.005em; font-family: 'Inter', sans-serif; }
+.sarvarc-team-projects-head { margin-top: 24px; }
+
+/* members table */
+.sarvarc-team-table { border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.sarvarc-team-table-head, .sarvarc-team-member-card {
+  display: grid; grid-template-columns: minmax(0, 1.7fr) 150px 84px 78px; gap: 14px; align-items: center; padding: 0 16px;
+}
+.sarvarc-team-table-head {
+  height: 34px; font-size: 11px; font-weight: 600; color: var(--text2); background: var(--surface2);
+  border-bottom: 1px solid var(--border2); letter-spacing: .01em;
+}
+.sarvarc-team-members-list { display: flex; flex-direction: column; max-height: 340px; overflow-y: auto; }
+.sarvarc-team-member-card { flex: none; min-height: 58px; padding-top: 9px; padding-bottom: 9px; border-bottom: 1px solid var(--border); transition: background .12s; }
+.sarvarc-team-member-card:last-child { border-bottom: 0; }
+.sarvarc-team-member-card:hover { background: var(--surface2); }
+.sarvarc-team-member-card.is-you { box-shadow: inset 3px 0 0 var(--cyan); background: rgba(0,194,255,0.04); }
+.sarvarc-team-cell-member { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sarvarc-team-avatar-wrap { flex: none; }
+.sarvarc-team-avatar, .sarvarc-team-avatar-fallback { width: 34px; height: 34px; border-radius: 50%; border: 0; }
+.sarvarc-team-avatar-fallback { font-size: 12px; letter-spacing: .02em; }
+.sarvarc-team-member-info { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sarvarc-team-member-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.sarvarc-team-member-you-tag { flex: none; font-size: 10.5px; font-weight: 600; color: var(--cyan); background: rgba(0,194,255,0.12); border-radius: 5px; padding: 1px 6px; }
+.sarvarc-team-member-email { font-size: 11.5px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sarvarc-team-cell-role { min-width: 0; }
+.sarvarc-team-cell-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text2); }
+.sarvarc-team-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); flex: none; }
+.sarvarc-team-cell-status.is-online { color: #34d399; }
+.sarvarc-team-cell-status.is-online .sarvarc-team-status-dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+.sarvarc-team-member-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* role badge and role dropdown share one size so the column stays aligned */
+.sarvarc-team-role-badge {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 11px; border-radius: 7px; flex: none; white-space: nowrap;
+  font-size: 12px; font-weight: 600; text-transform: capitalize; letter-spacing: 0;
+}
+.sarvarc-team-role-select {
+  width: 100%; height: 30px; padding: 0 8px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text); text-transform: capitalize; font-family: 'Inter', sans-serif;
+}
+.sarvarc-team-role-select:hover { border-color: var(--blue); }
+.sarvarc-team-role-select:focus-visible, .sarvarc-team-switcher-select:focus-visible, .sarvarc-team-action-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+.sarvarc-team-action-btn {
+  height: 28px; padding: 0 11px; font-size: 12px; font-weight: 600; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--border2); background: transparent; color: var(--text2); font-family: 'Inter', sans-serif;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.sarvarc-team-action-btn:hover { background: var(--surface2); color: var(--text); }
+
+/* roles help */
+.sarvarc-team-roles-help { margin-top: 10px; }
+.sarvarc-team-roles-help summary { font-size: 12px; font-weight: 600; color: var(--blue); cursor: pointer; padding: 4px 0; list-style: none; }
+.sarvarc-team-roles-help summary::-webkit-details-marker { display: none; }
+.sarvarc-team-roles-help summary::before { content: '\25B8'; display: inline-block; margin-right: 6px; transition: transform .15s; }
+.sarvarc-team-roles-help[open] summary::before { transform: rotate(90deg); }
+.sarvarc-team-matrix-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; }
+.sarvarc-team-matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sarvarc-team-matrix th { font-weight: 600; color: var(--text2); text-align: center; padding: 8px 10px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.sarvarc-team-matrix td { padding: 8px 10px; text-align: center; color: var(--text); border-bottom: 1px solid var(--border); }
+.sarvarc-team-matrix tr:last-child td { border-bottom: 0; }
+.sarvarc-team-matrix td:first-child, .sarvarc-team-matrix th:first-child { text-align: left; }
+.sarvarc-team-matrix td:first-child em { color: var(--text3); font-style: normal; font-size: 11px; margin-left: 4px; }
+.sarvarc-team-matrix td.y { color: #34d399; font-weight: 700; }
+.sarvarc-team-matrix td.n { color: var(--text3); }
+
+/* invite card */
+.sarvarc-team-invite-card { margin-top: 22px; padding: 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border2); }
+.sarvarc-team-invite-fields { display: flex; gap: 8px; margin-top: 12px; }
+.sarvarc-team-field { margin-top: 0 !important; height: 38px; font-size: 13px !important; min-width: 0; }
+.sarvarc-team-invite-fields input.sarvarc-team-field { flex: 1; }
+.sarvarc-team-field-role { flex: 0 0 130px; width: 130px !important; }
+.sarvarc-team-invite-btn { flex: none; height: 38px; padding: 0 18px !important; font-size: 13px !important; box-shadow: none !important; }
+.sarvarc-team-invite-btn:hover { transform: none; box-shadow: 0 4px 14px rgba(0,194,255,0.3) !important; }
+.sarvarc-team-invite-help { font-size: 12px; color: var(--text2); margin-top: 10px; min-height: 18px; }
+
+/* projects */
+.sarvarc-team-projects-list { display: flex; flex-direction: column; gap: 8px; max-height: 190px; overflow-y: auto; padding-bottom: 6px; }
+.sarvarc-team-project-row { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.sarvarc-team-project-row:hover { border-color: var(--border2); }
+.sarvarc-team-project-icon { width: 32px; height: 32px; border-radius: 8px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--blue); background: rgba(0,194,255,0.10); }
+.sarvarc-team-project-info { min-width: 0; flex: 1; }
+.sarvarc-team-project-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.sarvarc-team-project-flag { flex: none; font-size: 10.5px; font-weight: 600; color: #fbbf24; background: rgba(245,158,11,0.12); border-radius: 5px; padding: 1px 6px; }
+.sarvarc-team-project-meta { font-size: 11.5px; color: var(--text2); }
+.sarvarc-team-project-open { flex: none; height: 30px; padding: 0 14px !important; font-size: 12px !important; }
+.sarvarc-team-empty { font-size: 12.5px; color: var(--text2); text-align: center; padding: 18px 12px; border: 1px dashed var(--border2); border-radius: 10px; }
+
+/* phones: stack each member row instead of squeezing four columns */
+@media (max-width: 640px) {
+  .sarvarc-team-table-head { display: none; }
+  .sarvarc-team-member-card { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; padding-top: 12px; padding-bottom: 12px; }
+  .sarvarc-team-cell-member { grid-column: 1 / -1; }
+  .sarvarc-team-cell-role { grid-column: 1; }
+  .sarvarc-team-cell-status { grid-column: 2; }
+  .sarvarc-team-member-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .sarvarc-team-member-actions:empty { display: none; }
+  .sarvarc-team-invite-fields { flex-wrap: wrap; }
+  .sarvarc-team-invite-fields input.sarvarc-team-field { flex: 1 1 100%; }
+  .sarvarc-team-field-role { flex: 1 1 auto; }
+  .sarvarc-team-invite-btn { flex: 1 1 auto; }
+  .sarvarc-team-switcher-row { flex-wrap: wrap; }
+  .sarvarc-team-switcher-select { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .sarvarc-team-roles-help summary::before, .sarvarc-team-member-card { transition: none; } }
+
 /* Owner badge — same "restrained gold" language used for premium accents
    elsewhere in the app (slim ring / soft glow, never a flat painted chip):
    a translucent gold tint + border, matching the glass treatment every
@@ -932,21 +1064,17 @@ details[open] > .pdfed-refine-formatting-toggle svg { transform: rotate(90deg); 
    that reads out of place against the navy/cyan surfaces around it. */
 .sarvarc-team-role-owner { color: #b8860b; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.4); }
 [data-theme="dark"] .sarvarc-team-role-owner { color: #f0cf6a; background: rgba(212,175,55,0.14); border: 1px solid rgba(212,175,55,0.35); }
-.sarvarc-team-role-admin { color: #fff; background: linear-gradient(135deg, var(--blue), var(--cyan)); }
+.sarvarc-team-role-admin { color: var(--blue); background: rgba(0,194,255,0.12); border: 1px solid rgba(0,194,255,0.35); }
 .sarvarc-team-role-member { color: var(--text2); background: var(--surface2); border: 1px solid var(--border2); }
-.sarvarc-team-member-actions { flex: none; display: flex; gap: 6px; }
-.sarvarc-team-action-btn {
-  padding: 5px 10px; font-size: 10.5px; font-weight: 600; border-radius: 7px; cursor: pointer;
-  border: 1px solid var(--border2); background: var(--surface2); color: var(--text2);
-  transition: background .15s, color .15s, border-color .15s;
-}
+.sarvarc-team-role-editor { color: var(--text2); background: var(--surface2); border: 1px solid var(--border2); }
+.sarvarc-team-role-reviewer { color: #0f766e; background: rgba(20,184,166,0.12); border: 1px solid rgba(20,184,166,0.38); }
+[data-theme="dark"] .sarvarc-team-role-reviewer { color: #5eead4; }
+.sarvarc-team-role-viewer { color: var(--text2); background: transparent; border: 1px dashed var(--text3); }
+
+
+
 .sarvarc-team-action-btn:hover { background: var(--surface); }
 .sarvarc-team-action-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.35); }
 .sarvarc-team-action-btn.danger:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
 .sarvarc-team-action-btn.leave { color: #f59e0b; border-color: rgba(245,158,11,0.35); }
 .sarvarc-team-action-btn.leave:hover { background: rgba(245,158,11,0.1); border-color: #f59e0b; }
-.sarvarc-team-switcher-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-.sarvarc-team-switcher-select {
-  flex: 1; padding: 8px 10px; font-size: 12.5px; font-weight: 600; border-radius: 9px;
-  background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
-}
