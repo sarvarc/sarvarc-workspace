@@ -2188,6 +2188,15 @@ const mfWait = (ms) => new Promise(r => setTimeout(r, ms));
 async function mfPublishForm() {
   const f = mfGetCurrentForm();
   if (!f) return;
+  // One-time Form Owner notice: the person who publishes a form is responsible
+  // for the data they collect (see Terms of Service, section 7).
+  try {
+    if (!localStorage.getItem('sarvarcFormOwnerAck')) {
+      const ok = confirm('Before you publish:\n\nYou are the Form Owner. You are responsible for the data you collect with this form, including telling respondents how you will use it and having any consent the law requires. Do not collect data from children under 18 without parental consent.\n\nSee the Terms of Service (sarvarc.com/terms, section 7) and Privacy Policy (sarvarc.com/privacy).\n\nPublish this form?');
+      if (!ok) return;
+      localStorage.setItem('sarvarcFormOwnerAck', '1');
+    }
+  } catch (e) { /* storage blocked: publish anyway */ }
   // Guard against a stale local state (e.g. an old Session snapshot was
   // just loaded and wiped f.publishedId) making Publish think this form has
   // never gone live before. If the session-proof registry remembers a link
