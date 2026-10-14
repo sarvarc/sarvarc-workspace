@@ -1,4 +1,4 @@
-  // =========================================================
+// =========================================================
   // LIVE CO-EDITING CORE — one reusable engine, shared by every module.
   //
   // How it works: each live team project gets one Yjs document (a CRDT —
@@ -568,6 +568,156 @@
   // now declared at the very top of this script — see the comment there.
   // =========================================================
 
+  // =========================================================
+  // TEAM ROLES — who is allowed to do what inside a team.
+  // Five roles: owner, admin, editor, reviewer, viewer.
+  // Old teams may still hold the legacy role "member"; it is treated
+  // as "editor" so nobody loses access when this ships.
+  // NOTE: these checks only decide what the screen SHOWS. The real
+  // enforcement lives in the database (see supabase/01-team-roles.sql).
+  // =========================================================
+  function sarvarcTeamNormalizeRole(role) {
+    const r = String(role || '').toLowerCase();
+    if (r === 'member') return 'editor';
+    return ['owner', 'admin', 'editor', 'reviewer', 'viewer'].indexOf(r) > -1 ? r : 'viewer';
+  }
+
+  function sarvarcTeamCan(action, role) {
+    const r = sarvarcTeamNormalizeRole(role === undefined ? sarvarcTeamMyRole : role);
+    const allowed = {
+      manage_members: ['owner', 'admin'],
+      edit: ['owner', 'admin', 'editor'],
+      save_version: ['owner', 'admin', 'editor'],
+      comment: ['owner', 'admin', 'editor', 'reviewer'],
+      approve: ['owner', 'admin', 'reviewer'],
+      view: ['owner', 'admin', 'editor', 'reviewer', 'viewer']
+    };
+    return (allowed[action] || []).indexOf(r) > -1;
+  }
+
+  // Roles the current person may hand out when inviting or changing a role.
+  function sarvarcTeamAssignableRoles() {
+    const mine = sarvarcTeamNormalizeRole(sarvarcTeamMyRole);
+    if (mine === 'owner') return ['admin', 'editor', 'reviewer', 'viewer'];
+    if (mine === 'admin') return ['editor', 'reviewer', 'viewer'];
+    return [];
+  }
+
+  // Can I manage THIS person? Owners manage everyone else; admins manage
+  // everyone except owners and other admins.
+  function sarvarcTeamCanManageMember(targetRole) {
+    const mine = sarvarcTeamNormalizeRole(sarvarcTeamMyRole);
+    const theirs = sarvarcTeamNormalizeRole(targetRole);
+    if (theirs === 'owner') return false;
+    if (mine === 'owner') return true;
+    return mine === 'admin' && theirs !== 'admin';
+  }
+
+  // Escapes text before it goes into HTML. Names, emails and project names
+  // come from other people, so they must never be inserted as raw markup.
+  function sarvarcTeamEsc(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // One-line plain-English description of each role (shown under the invite box).
+  function sarvarcTeamRoleBlurb(role) {
+    const blurbs = {
+      admin: 'Can edit work, and invite or manage editors, reviewers and viewers.',
+      editor: 'Can open projects and save new versions. Cannot manage people.',
+      reviewer: 'Can open projects and, soon, comment and approve. Cannot save over the team\u2019s work.',
+      viewer: 'Can open projects only. Good for clients and managers who just need to look.'
+    };
+    return blurbs[role] || '';
+  }
+
+  function sarvarcTeamInviteRoleHint() {
+    const sel = document.getElementById('sarvarcTeamInviteRole');
+    const el = document.getElementById('sarvarcTeamInviteHelp');
+    if (sel && el) el.textContent = sarvarcTeamRoleBlurb(sel.value);
+  }
+
+  // Builds ONE row of the members table. Pure: it only reads what it is given
+  // (m = the member, ctx = {youId, onlineIds, avatars}) so it is easy to test
+  // and to preview. Uses sarvarcTeamMyRole to decide which controls to show.
+  function sarvarcTeamMemberRowHtml(m, ctx) {
+    const label = m.full_name || m.email || 'Member';
+    const online = ctx.onlineIds.has(m.user_id);
+    const isYou = m.user_id === ctx.youId;
+    const avatarUrl = ctx.avatars[m.user_id];
+    const color = sarvarcCollabColorFor(m.user_id);
+    const initials = sarvarcPresenceInitials(label);
+    const avatarHtml = avatarUrl
+      ? `<img class="sarvarc-team-avatar" src="${sarvarcTeamEsc(avatarUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'sarvarc-team-avatar-fallback',style:'background:${color}',textContent:'${sarvarcTeamEsc(initials)}'}));">`
+      : `<div class="sarvarc-team-avatar-fallback" style="background:${color}">${sarvarcTeamEsc(initials)}</div>`;
+    const shownRole = sarvarcTeamNormalizeRole(m.role);
+    const canManageThis = !isYou && sarvarcTeamCanManageMember(m.role);
+    const assignable = sarvarcTeamAssignableRoles();
+    const roleCell = canManageThis
+      ? `<select class="sarvarc-team-role-select" aria-label="Role for ${sarvarcTeamEsc(label)}" onchange="sarvarcTeamChangeRole('${sarvarcTeamEsc(m.id)}','${sarvarcTeamEsc(m.user_id)}',this.value)">${['admin', 'editor', 'reviewer', 'viewer'].filter(r => assignable.indexOf(r) > -1 || r === shownRole).map(r => `<option value="${r}"${r === shownRole ? ' selected' : ''}${assignable.indexOf(r) === -1 ? ' disabled' : ''}>${r}</option>`).join('')}</select>`
+      : `<span class="sarvarc-team-role-badge sarvarc-team-role-${shownRole}">${shownRole}</span>`;
+    const actions = canManageThis
+      ? `<button type="button" class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${sarvarcTeamEsc(m.id)}','${sarvarcTeamEsc(m.user_id)}')">Remove</button>`
+      : (isYou ? `<button type="button" class="sarvarc-team-action-btn leave" onclick="sarvarcTeamLeave()">Leave</button>` : '');
+    return `<div class="sarvarc-team-member-card${isYou ? ' is-you' : ''}" role="row" data-member-user="${sarvarcTeamEsc(m.user_id)}">
+      <div class="sarvarc-team-cell-member" role="cell">
+        <div class="sarvarc-team-avatar-wrap">${avatarHtml}</div>
+        <div class="sarvarc-team-member-info">
+          <div class="sarvarc-team-member-name">${sarvarcTeamEsc(label)}${isYou ? '<span class="sarvarc-team-member-you-tag">You</span>' : ''}</div>
+          <div class="sarvarc-team-member-email">${sarvarcTeamEsc(m.email || '')}</div>
+        </div>
+      </div>
+      <div class="sarvarc-team-cell-role" role="cell">${roleCell}</div>
+      <div class="sarvarc-team-cell-status${online ? ' is-online' : ''}" role="cell"><span class="sarvarc-team-status-dot"></span>${online ? 'Online' : 'Offline'}</div>
+      <div class="sarvarc-team-member-actions" role="cell">${actions}</div>
+    </div>`;
+  }
+
+  // One row of the Team Projects list.
+  function sarvarcTeamProjectRowHtml(p, who, when, haveIt) {
+    return `<div class="sarvarc-team-project-row">
+      <div class="sarvarc-team-project-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div class="sarvarc-team-project-info">
+        <div class="sarvarc-team-project-name">${sarvarcTeamEsc(p.name)}${haveIt ? '' : '<span class="sarvarc-team-project-flag">Not on this device yet</span>'}</div>
+        <div class="sarvarc-team-project-meta">Last saved by ${sarvarcTeamEsc(who)}${when ? ' \u00b7 ' + sarvarcTeamEsc(when) : ''}</div>
+      </div>
+      <button type="button" class="btn-secondary sarvarc-team-project-open" onclick="sarvarcTeamProjectOpen('${sarvarcTeamEsc(p.id)}')">${haveIt ? 'Open' : 'Sync &amp; open'}</button>
+    </div>`;
+  }
+
+  // Team diary: records who did what. Best-effort only — if the audit_log
+  // table has not been created yet, this silently does nothing so the
+  // feature the person is using never breaks because of it.
+  async function sarvarcTeamAudit(action, details) {
+    try {
+      if (!sarvarcTeamActiveId) return;
+      const user = await sarvarcTeamGetUser();
+      if (!user) return;
+      await sarvarcSupabase.from('audit_log').insert({
+        team_id: sarvarcTeamActiveId, user_id: user.id, action: action, details: details || {}
+      });
+    } catch (e) { /* diary is a nice-to-have */ }
+  }
+
+  async function sarvarcTeamChangeRole(memberRowId, targetUserId, newRole) {
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    try {
+      if (sarvarcTeamAssignableRoles().indexOf(newRole) === -1) {
+        sarvarcTeamShowError('You are not allowed to give that role.');
+        await sarvarcTeamLoadMembers(sarvarcTeamActiveId);
+        return;
+      }
+      const { error } = await sarvarcSupabase.from('team_members')
+        .update({ role: newRole }).eq('id', memberRowId).eq('team_id', sarvarcTeamActiveId);
+      if (error) throw error;
+      sarvarcTeamAudit('role_changed', { member_user_id: targetUserId, new_role: newRole });
+      toast('Role updated', 'success');
+      await sarvarcTeamLoadMembers(sarvarcTeamActiveId);
+    } catch (e) {
+      sarvarcTeamShowError(e.message || 'Could not change role.');
+      await sarvarcTeamLoadMembers(sarvarcTeamActiveId);
+    }
+  }
+
   async function sarvarcTeamGetUser() {
     const { data: { user } } = await sarvarcSupabase.auth.getUser();
     return user || null;
@@ -660,7 +810,7 @@
       const user = await sarvarcTeamGetUser();
       const { data: profile } = await sarvarcSupabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
       const { error: joinErr } = await sarvarcSupabase.from('team_members').insert({
-        team_id: teamId, user_id: user.id, role: role === 'admin' ? 'admin' : 'member',
+        team_id: teamId, user_id: user.id, role: (function (r) { r = sarvarcTeamNormalizeRole(r); return r === 'owner' ? 'viewer' : r; })(role),
         email: user.email, full_name: (profile && profile.full_name) || null
       });
       if (joinErr) throw joinErr;
@@ -748,7 +898,7 @@
 
   async function sarvarcTeamLoadMembers(teamId) {
     const listEl = document.getElementById('sarvarcTeamMembersList');
-    listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">Loading…</div>';
+    listEl.innerHTML = '<div class="sarvarc-team-empty">Loading…</div>';
     try {
       const user = await sarvarcTeamGetUser();
       const { data: members, error } = await sarvarcSupabase
@@ -769,13 +919,20 @@
       } catch (e) { /* avatars are a nice-to-have — initials fallback covers this */ }
 
       members.forEach(m => { sarvarcTeamMembersCache[m.user_id] = { full_name: m.full_name, email: m.email, avatar_url: avatarsById[m.user_id] || null }; });
-      const myRole = (members.find(m => m.user_id === user.id) || {}).role || 'member';
+      const myRole = sarvarcTeamNormalizeRole((members.find(m => m.user_id === user.id) || {}).role || 'member');
       const canManage = myRole === 'owner' || myRole === 'admin';
-      document.getElementById('sarvarcTeamInviteRow').style.display = canManage ? 'flex' : 'none';
+      document.getElementById('sarvarcTeamInviteRow').style.display = canManage ? 'block' : 'none';
+      sarvarcTeamInviteRoleHint();
       // Cached at module scope (not just this modal) so the top-bar "End Live
       // Session" control — which can render while the Team modal is closed —
       // knows whether the current person is allowed to use it.
       sarvarcTeamMyRole = myRole;
+      const roleSel = document.getElementById('sarvarcTeamInviteRole');
+      if (roleSel) {
+        const ok = sarvarcTeamAssignableRoles();
+        Array.prototype.forEach.call(roleSel.options, o => { o.hidden = ok.indexOf(o.value) === -1; o.disabled = ok.indexOf(o.value) === -1; });
+        if (ok.indexOf(roleSel.value) === -1) roleSel.value = 'editor';
+      }
 
       const countPill = document.getElementById('sarvarcTeamCountPill');
       if (countPill) { countPill.style.display = 'inline-block'; countPill.textContent = members.length + (members.length === 1 ? ' member' : ' members'); }
@@ -787,32 +944,8 @@
         leaveBtn.title = soleOwner ? 'Transfer ownership or remove other members before leaving' : 'Leave this team';
       }
 
-      listEl.innerHTML = members.map(m => {
-        const label = m.full_name || m.email || 'Member';
-        const online = sarvarcTeamOnlineIds.has(m.user_id);
-        const isYou = m.user_id === user.id;
-        const avatarUrl = avatarsById[m.user_id];
-        const color = (typeof sarvarcCollabColorFor === 'function') ? sarvarcCollabColorFor(m.user_id) : '#3b82f6';
-        const avatarHtml = avatarUrl
-          ? `<img class="sarvarc-team-avatar" src="${avatarUrl.replace(/"/g,'&quot;')}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'sarvarc-team-avatar-fallback',style:'background:${color}',textContent:'${sarvarcPresenceInitials(label).replace(/'/g, "\\'")}'}));">`
-          : `<div class="sarvarc-team-avatar-fallback" style="background:${color}">${sarvarcPresenceInitials(label)}</div>`;
-        const roleClass = m.role === 'owner' ? 'sarvarc-team-role-owner' : (m.role === 'admin' ? 'sarvarc-team-role-admin' : 'sarvarc-team-role-member');
-        const removeBtn = (canManage && !isYou)
-          ? `<button class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${m.id}','${m.user_id}')">Remove</button>` : '';
-        const leaveInline = isYou ? `<button class="sarvarc-team-action-btn leave" onclick="sarvarcTeamLeave()">Leave</button>` : '';
-        return `<div class="sarvarc-team-member-card${isYou ? ' is-you' : ''}" data-member-user="${m.user_id}">
-          <div class="sarvarc-team-avatar-wrap">
-            ${avatarHtml}
-            <span class="sarvarc-team-online-dot${online ? '' : ' offline'}" title="${online ? 'Online now' : 'Offline'}"></span>
-          </div>
-          <div class="sarvarc-team-member-info">
-            <div class="sarvarc-team-member-name">${label}${isYou ? '<span class="sarvarc-team-member-you-tag">YOU</span>' : ''}</div>
-            <div class="sarvarc-team-member-email">${m.email || ''}</div>
-          </div>
-          <span class="sarvarc-team-role-badge ${roleClass}">${m.role}</span>
-          <div class="sarvarc-team-member-actions">${removeBtn}${leaveInline}</div>
-        </div>`;
-      }).join('');
+      const rowCtx = { youId: user.id, onlineIds: sarvarcTeamOnlineIds, avatars: avatarsById };
+      listEl.innerHTML = members.map(m => sarvarcTeamMemberRowHtml(m, rowCtx)).join('');
     } catch (e) {
       listEl.innerHTML = '';
       sarvarcTeamShowError(e.message || 'Could not load members.');
@@ -862,17 +995,22 @@
     const email = (emailEl.value || '').trim().toLowerCase();
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
     if (!email || !email.includes('@')) { sarvarcTeamShowError('Enter a valid email.'); return; }
+    if (!sarvarcTeamCan('manage_members')) { sarvarcTeamShowError('Only owners and admins can invite people.'); return; }
+    const roleEl = document.getElementById('sarvarcTeamInviteRole');
+    const inviteRole = roleEl ? roleEl.value : 'editor';
+    if (sarvarcTeamAssignableRoles().indexOf(inviteRole) === -1) { sarvarcTeamShowError('You are not allowed to invite with that role.'); return; }
     try {
       const user = await sarvarcTeamGetUser();
       const { error } = await sarvarcSupabase.from('team_invites').insert({
-        team_id: sarvarcTeamActiveId, email, invited_by: user.id
+        team_id: sarvarcTeamActiveId, email, invited_by: user.id, role: inviteRole
       });
       if (error) throw error;
+      sarvarcTeamAudit('member_invited', { email: email, role: inviteRole });
       emailEl.value = '';
       // No email-sending service wired up yet: the invite shows up
       // automatically next time that person logs into SARVARC with
       // this Google account and opens Team.
-      sarvarcTeamShowNote(`Invite added for ${email} — they'll see it next time they log in.`);
+      sarvarcTeamShowNote(`Invite added for ${email} as ${inviteRole} — they'll see it next time they log in.`);
     } catch (e) {
       if ((e.message || '').includes('duplicate')) sarvarcTeamShowError('Already invited.');
       else sarvarcTeamShowError(e.message || 'Could not send invite.');
@@ -885,6 +1023,7 @@
     try {
       const { error } = await sarvarcSupabase.from('team_members').delete().eq('id', memberRowId);
       if (error) throw error;
+      sarvarcTeamAudit('member_removed', { member_user_id: removedUserId });
       // Tell everyone currently connected — including the removed person's
       // own tab(s) — right now, over the same realtime channel already
       // used for "who's online". Without this, the removed user's browser
@@ -1084,7 +1223,7 @@
   async function sarvarcTeamProjectsLoad(teamId) {
     const listEl = document.getElementById('sarvarcTeamProjectsList');
     if (!listEl) return;
-    listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">Loading…</div>';
+    listEl.innerHTML = '<div class="sarvarc-team-empty">Loading…</div>';
     try {
       const { data: rows, error } = await sarvarcSupabase
         .from('team_projects')
@@ -1093,7 +1232,7 @@
         .order('updated_at', { ascending: false });
       if (error) throw error;
       if (!rows || rows.length === 0) {
-        listEl.innerHTML = '<div style="font-size:11px;color:var(--text3)">No shared projects yet.</div>';
+        listEl.innerHTML = '<div class="sarvarc-team-empty">No shared projects yet. Save your current work to share it with the team.</div>';
         return;
       }
       // Which of these already have a local (and thus Drive-mirrored) copy
@@ -1105,14 +1244,7 @@
         const m = sarvarcTeamMembersCache[p.updated_by];
         const who = (m && (m.full_name || m.email)) || 'a teammate';
         const when = p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '';
-        const haveIt = localIds.has(p.id);
-        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface2)">
-          <div style="min-width:0">
-            <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}${haveIt ? '' : ' <span style="color:var(--text3);font-weight:400">(not synced to this device yet)</span>'}</div>
-            <div style="font-size:10px;color:var(--text3)">Last saved by ${who}${when ? ' · ' + when : ''}</div>
-          </div>
-          <button class="btn-secondary" style="padding:5px 10px;font-size:11px;flex:none" onclick="sarvarcTeamProjectOpen('${p.id}')">${haveIt ? 'Open' : 'Sync &amp; Open'}</button>
-        </div>`;
+        return sarvarcTeamProjectRowHtml(p, who, when, localIds.has(p.id));
       }).join('');
     } catch (e) {
       listEl.innerHTML = '';
@@ -1123,6 +1255,7 @@
   async function sarvarcTeamProjectSave() {
     if (!sarvarcTeamActiveId) return;
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    if (!sarvarcTeamCan('save_version')) { sarvarcTeamShowError('Your role is view and comment only. Ask an owner or admin for editor access to save work to the team.'); return; }
     const name = prompt('Name this project for your team:', (typeof smDefaultName === 'function' ? smDefaultName() : 'Project'));
     if (!name) return;
     try {
