@@ -3235,6 +3235,29 @@
     }, 120);
   }
 
+  // If pages arrive from a teammate while this person still sees the empty
+  // "Open a PDF, Word or Excel file" screen (no document open yet), bring up
+  // the editor exactly as opening a document would. Without this the page
+  // thumbnail appears in the left strip but the main canvas stays on the
+  // empty screen. Does nothing when a document is already open.
+  function pdfedCollabShowEditor() {
+    if (!pdfed.pages.length) return false;
+    const ph = document.getElementById('pdfedPlaceholder');
+    const emptyShowing = !!ph && ph.style.display !== 'none';
+    if (!emptyShowing) return false;
+    if (!pdfed.file) pdfed.file = { name: 'Untitled Document' };
+    ['pdfedExportBtn', 'pdfedRefineBtn', 'pdfedExportBtn2', 'pdfedCloseBtn', 'pdfedPageInfoPill'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    const upBtn = document.getElementById('pdfedUploadBtn'); if (upBtn) upBtn.style.display = 'none';
+    const fnEl = document.getElementById('pdfedFileName'); if (fnEl) fnEl.textContent = pdfed.file.name || 'Untitled Document';
+    ph.style.display = 'none';
+    const cw = document.getElementById('pdfedCanvasWrap'); if (cw) cw.style.display = 'inline-block';
+    const tb = document.getElementById('pdfedToolbar'); if (tb) tb.style.visibility = 'visible';
+    return true;
+  }
+
   // "Aman added a chart to page 2". Quiet for the first few seconds after
   // joining (the whole project arrives then) and for ordinary text/shapes.
   function pdfedCollabAnnounceArrivals(C, arrivals) {
@@ -3355,11 +3378,14 @@
       let ai = activeCid ? next.findIndex((p) => p._cid === activeCid) : -1;
       if (ai < 0) ai = Math.min(Math.max(pdfed.active, 0), next.length - 1);
       C.known = new Set(); D.forEach((v, k) => C.known.add(k));
+      const editorJustOpened = pdfedCollabShowEditor();
+      if (editorJustOpened) structure = true; // first page(s) from a teammate: build the strip and open page 1
 
       if (structure) {
         pdfed.active = ai;
         if (typeof pdfedBuildStrip === 'function') await pdfedBuildStrip();
         if (typeof pdfedGoto === 'function' && next.length) await pdfedGoto(Math.max(0, ai));
+        if (editorJustOpened && typeof pdfedZoomFit === 'function') setTimeout(pdfedZoomFit, 60);
       } else {
         const cur = pdfed.pages[pdfed.active];
         if (cur && changed.has(cur._cid)) {
