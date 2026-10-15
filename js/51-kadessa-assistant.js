@@ -2231,6 +2231,7 @@
       if (!c || typeof c !== 'object') return c;
       c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
       c.daSummaries = true; // tells the Worker this client can add summary columns (da_add_summary)
+      c.workstyle = true; // tells the Worker this client can save work styles (workstyle_save, workstyle_list)
       try { var dsT = (typeof daGetActive === 'function') ? daGetActive() : null; if (dsT && dsT.headers && dsT.headers.length) c.openTable = { name: dsT.name, rowCount: (dsT.rows || []).length, columns: kadessaProfileColumns(dsT).slice(0, 30) }; } catch (e) {}
       if (c.activePanel === 'Diagrams & Graphs') c.diagram = kdgSnapshot();
       if (c.activePanel === 'Data Arrangement' && typeof daSelection !== 'undefined' && typeof daGetActive === 'function'){
@@ -3132,6 +3133,25 @@
         const rows = (Array.isArray(p.rows) ? p.rows.length : 0) + 1; // +1 for the header row
         return 'Create a ' + rows + ' x ' + cols + ' table on this page, sized to fit its content.';
       }
+    },
+    // Workstyle, step 1: learn the look of a finished piece of work and keep it
+    // under a name (see js/59-workstyle.js). Measuring is done by plain code,
+    // so nothing here depends on the model guessing fonts or sizes. The model
+    // only picks the name and whether it means one page or the whole document.
+    // Worker tools: workstyle_save {name: string, scope?: 'all'|'current'}
+    //               workstyle_list {}
+    workstyle_save: {
+      risk: 'safe',
+      run: async function(p){ return await wstyleSaveFromEditor(p && p.name, { scope: p && p.scope }); },
+      label: function(p){
+        p = p || {};
+        return 'Save the look of this ' + (p.scope === 'current' ? 'page' : 'document') + ' as the work style "' + (p.name || 'My style') + '".';
+      }
+    },
+    workstyle_list: {
+      risk: 'safe',
+      run: async function(){ return { say: wstyleListSay() }; },
+      label: function(){ return 'List your saved work styles.'; }
     },
     // Lets a plain chat instruction ("undo that", "bring it back") reverse
     // whichever action Kadessa herself performed most recently, without the
