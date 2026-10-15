@@ -1,16 +1,19 @@
 // ─── WORKSTYLE: THE BUTTON AND PANEL ─────────────────────────────────────────
 // The "Workstyle" button sits right after Showcase in the PDF Editor app bar.
-// It opens a small panel with everything the person needs, no chat required:
-//   1. Save the document that is open in the editor as a work style
-//      (whole document or just this page).
-//   2. Learn a style straight from any PDF file (js/60-workstyle-pdf.js).
-//   3. See the saved styles, build an identical copy of one (split screen with
-//      Kadessa's cursor, js/62-workstyle-build.js), and delete one.
-// All measuring is done by js/59-workstyle.js and js/60-workstyle-pdf.js. This file
-// only draws the panel and calls them. Kadessa's chat commands still work and
-// share the same store, so a style saved from chat shows up here when the panel opens.
+// The panel does one simple thing:
+//   1. REFERENCE   a PDF file, or the document open in the editor
+//   2. YOUR CONTENT  typed, pasted, or a text file
+//   3. Build       Kadessa reads both (js/63-workstyle-fill.js) and builds the same
+//                  format with your content, live in the editor with the reference
+//                  docked beside it (js/62-workstyle-build.js)
+// A reference is kept on this device (js/59-workstyle.js) so it can be used again;
+// the list under the button shows them. The panel has no categories and no styles
+// to name: the reference you give is the template.
+// Kadessa's chat commands (save, list, build as a copy) share the same store.
 
 let wsBusy = false;
+let wsRefId = null;      // the reference chosen for the next build
+let wsContentFile = '';  // name of an attached text file, for the label only
 
 function wsEl(id) { return document.getElementById(id); }
 
@@ -23,35 +26,41 @@ function wsEnsurePanel() {
   panel.className = 'ws-panel';
   panel.id = 'wsPanel';
   panel.innerHTML =
-    '<h4>Workstyle <span class="ws-badge">LEARNS YOUR LOOK</span></h4>' +
-    '<p class="ws-sub">Save the fonts, sizes, colors, margins, tables and background of finished work, measured exactly, under a name.</p>' +
-    '<input type="text" id="wsNameInput" maxlength="60" placeholder="Style name (e.g. Cafe menu)" autocomplete="off">' +
-    '<div class="ws-scope" id="wsScope">' +
-      '<label class="on"><input type="radio" name="wsScope" value="all" checked> Whole document</label>' +
-      '<label><input type="radio" name="wsScope" value="current"> This page only</label>' +
+    '<h4>Workstyle <span class="ws-badge">REFERENCE + YOUR CONTENT</span></h4>' +
+    '<p class="ws-sub">Give a reference and your own content. Kadessa builds the same format with your content, side by side.</p>' +
+
+    '<div class="ws-step"><span class="ws-num">1</span> Reference</div>' +
+    '<div class="ws-actions">' +
+      '<button type="button" id="wsPdfBtn">Attach a PDF</button>' +
+      '<button type="button" id="wsDocBtn">Use the open document</button>' +
     '</div>' +
-    '<div class="ws-actions"><button type="button" class="primary" id="wsSaveBtn">Save open document</button></div>' +
-    '<div class="ws-or">OR</div>' +
-    '<div class="ws-actions"><button type="button" id="wsPdfBtn">Learn from a PDF file</button></div>' +
     '<input type="file" id="wsPdfInput" accept="application/pdf,.pdf" style="display:none">' +
-    '<div class="ws-status" id="wsStatus"></div>' +
     '<div class="ws-list" id="wsList"></div>' +
-    '<div class="ws-soon">Press Build on a style and watch Kadessa make an identical copy, side by side. To use new words in the same look, tell her in chat, for example: make a menu for Chai Point in my Cafe menu style.</div>';
+
+    '<div class="ws-step"><span class="ws-num">2</span> Your content</div>' +
+    '<textarea id="wsContent" rows="6" maxlength="24000" spellcheck="false" placeholder="Type or paste your content here: names, lines, items, prices, rows. Kadessa matches it to the reference."></textarea>' +
+    '<div class="ws-row"><button type="button" class="ws-link" id="wsFileBtn">Attach a text file</button><span class="ws-fname" id="wsFileName"></span></div>' +
+    '<input type="file" id="wsContentInput" accept=".txt,.csv,.tsv,.md,text/plain,text/csv" style="display:none">' +
+
+    '<div class="ws-actions"><button type="button" class="primary" id="wsBuildBtn">Build with Kadessa</button></div>' +
+    '<div class="ws-status" id="wsStatus"></div>' +
+    '<div class="ws-soon">When you press Build, the words of your reference and your content are sent to Kadessa for that one request. Nothing is stored there.</div>';
   group.appendChild(panel);
 
-  wsEl('wsSaveBtn').addEventListener('click', wsSaveOpenDocument);
   wsEl('wsPdfBtn').addEventListener('click', function () { if (!wsBusy) wsEl('wsPdfInput').click(); });
   wsEl('wsPdfInput').addEventListener('change', function () {
     const f = this.files && this.files[0];
     this.value = '';
-    if (f) wsLearnFromPdf(f);
+    if (f) wsAddPdfReference(f);
   });
-  wsEl('wsNameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') wsSaveOpenDocument(); });
-  wsEl('wsScope').addEventListener('change', function () {
-    Array.prototype.forEach.call(this.querySelectorAll('label'), function (l) {
-      l.classList.toggle('on', !!l.querySelector('input:checked'));
-    });
+  wsEl('wsDocBtn').addEventListener('click', wsAddOpenDocument);
+  wsEl('wsFileBtn').addEventListener('click', function () { if (!wsBusy) wsEl('wsContentInput').click(); });
+  wsEl('wsContentInput').addEventListener('change', function () {
+    const f = this.files && this.files[0];
+    this.value = '';
+    if (f) wsReadContentFile(f);
   });
+  wsEl('wsBuildBtn').addEventListener('click', wsBuild);
   return panel;
 }
 
@@ -77,13 +86,10 @@ function wsStatus(msg, kind) {
 
 function wsSetBusy(on, msg) {
   wsBusy = on;
-  ['wsSaveBtn', 'wsPdfBtn'].forEach(function (id) { const b = wsEl(id); if (b) b.disabled = on; });
+  ['wsPdfBtn', 'wsDocBtn', 'wsBuildBtn', 'wsFileBtn'].forEach(function (id) { const b = wsEl(id); if (b) b.disabled = on; });
+  const bb = wsEl('wsBuildBtn');
+  if (bb) bb.textContent = on ? 'Working…' : 'Build with Kadessa';
   if (on) wsStatus(msg || 'Working…', '');
-}
-
-function wsScopeValue() {
-  const r = document.querySelector('#wsScope input:checked');
-  return r && r.value === 'current' ? 'current' : 'all';
 }
 
 function wsErrText(e) {
@@ -91,39 +97,30 @@ function wsErrText(e) {
   return m.charAt(0).toUpperCase() + m.slice(1) + (/[.!?]$/.test(m) ? '' : '.');
 }
 
-async function wsSaveOpenDocument() {
+// ─── 1. the reference ────────────────────────────────────────────────────────
+async function wsAddPdfReference(file) {
   if (wsBusy) return;
-  const name = (wsEl('wsNameInput').value || '').trim();
-  if (!name) { wsStatus('Give the style a name first.', 'err'); wsEl('wsNameInput').focus(); return; }
-  wsSetBusy(true, 'Measuring the open document…');
+  if (!/\.pdf$/i.test(file.name || '') && file.type !== 'application/pdf') { wsStatus('That is not a PDF file.', 'err'); return; }
+  wsSetBusy(true, 'Reading ' + (file.name || 'the PDF') + '…');
   try {
-    const r = await wstyleSaveFromEditor(name, { scope: wsScopeValue() });
-    wsStatus(r.say, 'ok');
-    if (typeof toast === 'function') toast('Work style saved', 'success');
-    wsEl('wsNameInput').value = '';
-  } catch (e) {
-    wsStatus(wsErrText(e), 'err');
-  }
+    const r = await wstyleSaveFromPdfFile(file);
+    wsRefId = r.id;
+    wsStatus('Reference ready. Now add your content.', 'ok');
+  } catch (e) { wsStatus(wsErrText(e), 'err'); }
   wsSetBusy(false);
   wsRenderList();
 }
 
-async function wsLearnFromPdf(file) {
+async function wsAddOpenDocument() {
   if (wsBusy) return;
-  if (!/\.pdf$/i.test(file.name || '') && file.type !== 'application/pdf') {
-    wsStatus('That is not a PDF file.', 'err');
-    return;
-  }
-  const typed = (wsEl('wsNameInput').value || '').trim();
-  wsSetBusy(true, 'Reading ' + (file.name || 'the PDF') + '…');
+  const raw = (typeof pdfed !== 'undefined' && pdfed.file && pdfed.file.name) ? String(pdfed.file.name) : '';
+  const name = raw.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || 'Open document';
+  wsSetBusy(true, 'Measuring the open document…');
   try {
-    const r = await wstyleSaveFromPdfFile(file, typed || undefined);
-    wsStatus(r.say, 'ok');
-    if (typeof toast === 'function') toast('Work style saved', 'success');
-    wsEl('wsNameInput').value = '';
-  } catch (e) {
-    wsStatus(wsErrText(e), 'err');
-  }
+    const r = await wstyleSaveFromEditor(name, { scope: 'all' });
+    wsRefId = r.id;
+    wsStatus('Reference ready. Now add your content.', 'ok');
+  } catch (e) { wsStatus(wsErrText(e), 'err'); }
   wsSetBusy(false);
   wsRenderList();
 }
@@ -143,31 +140,30 @@ function wsRenderList() {
   if (!box) return;
   box.textContent = '';
   const list = wstyleList().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
-  const title = document.createElement('div');
-  title.className = 'ws-list-title';
-  title.textContent = 'Saved styles (' + list.length + ')';
-  box.appendChild(title);
+  if (wsRefId && !list.some(function (s) { return s.id === wsRefId; })) wsRefId = null;
   if (!list.length) {
     const e = document.createElement('div');
     e.className = 'ws-empty';
-    e.textContent = 'None yet. Finish a piece of work and save it above, or learn from a PDF.';
+    e.textContent = 'No reference yet. Attach a PDF, or open your finished work in the editor and use it.';
     box.appendChild(e);
     return;
   }
   list.forEach(function (s) {
     const row = document.createElement('div');
-    row.className = 'ws-item';
-    const main = document.createElement('div');
-    main.className = 'ws-item-main';
+    row.className = 'ws-item' + (s.id === wsRefId ? ' on' : '');
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'ws-pick';
+    pick.setAttribute('aria-pressed', s.id === wsRefId ? 'true' : 'false');
     const nm = document.createElement('div');
     nm.className = 'ws-item-name';
     nm.textContent = s.name;
     nm.title = s.name;
     const meta = document.createElement('div');
     meta.className = 'ws-item-meta';
-    const src = s.source && s.source.docName ? ' · ' + s.source.docName : '';
-    meta.textContent = s.pages + ' page' + (s.pages === 1 ? '' : 's') + src + ' · ' + wsAgo(s.updatedAt);
-    main.appendChild(nm); main.appendChild(meta);
+    meta.textContent = s.pages + ' page' + (s.pages === 1 ? '' : 's') + ' · ' + wsAgo(s.updatedAt);
+    pick.appendChild(nm); pick.appendChild(meta);
+    pick.addEventListener('click', function () { wsRefId = s.id; wsRenderList(); });
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'ws-del';
@@ -180,29 +176,45 @@ function wsRenderList() {
         return;
       }
       clearTimeout(timer);
-      try { wstyleDelete(s.id); wsStatus('Deleted "' + s.name + '".', 'ok'); }
+      try { wstyleDelete(s.id); if (wsRefId === s.id) wsRefId = null; wsStatus('Removed "' + s.name + '".', 'ok'); }
       catch (e) { wsStatus(wsErrText(e), 'err'); }
       wsRenderList();
     });
-    const build = document.createElement('button');
-    build.type = 'button';
-    build.className = 'ws-build';
-    build.textContent = 'Build';
-    build.title = 'Kadessa builds an identical copy of this style, side by side with the reference';
-    build.addEventListener('click', async function () {
-      if (wsBusy) return;
-      wsSetBusy(true, 'Kadessa is getting ready…');
-      try {
-        const r = await wstyleBuild(s.id);
-        wsClose();
-        if (typeof toast === 'function') toast('Built from "' + s.name + '"', 'success');
-        wsStatus(r.say, 'ok');
-      } catch (e) { wsStatus(wsErrText(e), 'err'); }
-      wsSetBusy(false);
-    });
-    row.appendChild(main); row.appendChild(build); row.appendChild(del);
+    row.appendChild(pick); row.appendChild(del);
     box.appendChild(row);
   });
+}
+
+// ─── 2. the content ──────────────────────────────────────────────────────────
+function wsReadContentFile(file) {
+  if (file.size > 400000) { wsStatus('That file is too big. Use a text file under 400 KB.', 'err'); return; }
+  const rd = new FileReader();
+  rd.onload = function () {
+    const box = wsEl('wsContent');
+    const add = String(rd.result || '').replace(/\r\n?/g, '\n').trim();
+    box.value = (box.value.trim() ? box.value.replace(/\s+$/, '') + '\n\n' : '') + add;
+    wsContentFile = file.name || '';
+    wsEl('wsFileName').textContent = wsContentFile ? 'Added ' + wsContentFile : '';
+    wsStatus('', '');
+  };
+  rd.onerror = function () { wsStatus('Could not read that file.', 'err'); };
+  rd.readAsText(file);
+}
+
+// ─── 3. build ────────────────────────────────────────────────────────────────
+async function wsBuild() {
+  if (wsBusy) return;
+  if (!wsRefId) { wsStatus('Add a reference first: attach a PDF or use the open document.', 'err'); return; }
+  const text = (wsEl('wsContent').value || '').trim();
+  if (!text) { wsStatus('Add your content first.', 'err'); wsEl('wsContent').focus(); return; }
+  wsSetBusy(true, 'Kadessa is getting ready…');
+  try {
+    const r = await wstyleBuildFromContent(wsRefId, text, { onStage: function (m) { wsStatus(m, ''); } });
+    wsClose();
+    if (typeof toast === 'function') toast('Built from your reference', 'success');
+    wsStatus(r.say, r.via === 'basic' ? '' : 'ok');
+  } catch (e) { wsStatus(wsErrText(e), 'err'); }
+  wsSetBusy(false);
 }
 
 // Close when the person clicks anywhere outside the panel and its button, or presses Escape.
