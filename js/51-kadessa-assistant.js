@@ -3153,6 +3153,18 @@
       run: async function(){ return { say: wstyleListSay() }; },
       label: function(){ return 'List your saved work styles.'; }
     },
+    // Workstyle, steps 2 and 3: build in a saved style while the person watches
+    // (split screen with her cursor, see js/62-workstyle-build.js). Without
+    // `content` it is an identical copy, with `content` it is new words in the
+    // same look. Worker tool: workstyle_build {name, content?: [{role, text | headers+rows}]}
+    workstyle_build: {
+      risk: 'safe',
+      run: async function(p){ return await wstyleBuild(p && p.name, { fill: p && p.content }); },
+      label: function(p){
+        p = p || {};
+        return (Array.isArray(p.content) && p.content.length ? 'Build new content in the work style \"' : 'Build an identical copy of the work style \"') + (p.name || '') + '\", side by side.';
+      }
+    },
     // Lets a plain chat instruction ("undo that", "bring it back") reverse
     // whichever action Kadessa herself performed most recently, without the
     // person needing to reach for Ctrl+Z. See kadessaUndoLastAction above for
