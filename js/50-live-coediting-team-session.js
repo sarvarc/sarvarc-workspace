@@ -3277,17 +3277,34 @@
 
   function pdfedCollabPushNow() {
     const C = pdfedCollab;
-    if (!C || !C.ready || C.applying || !sarvarcCollabMayEditNow()) return;
+    if (!C || !C.ready || C.applying || C.paused || C.unshared || C.srcBusy > 0 || Date.now() < (C.openingUntil || 0) || !sarvarcCollabMayEditNow()) return;
     if (C.dirty.size) { pdfedCollabScheduleApply(); return; } // take in teammates' changes first, never overwrite them
     pdfedCollabEnsureCids(false);
     const snap = pdfedCollabSnapshot();
-    C.doc.transact(() => {
-      Object.keys(snap.data).forEach((k) => { if (C.map.get(k) !== snap.data[k]) C.map.set(k, snap.data[k]); });
-      // Remove only things we knew about and no longer have (deleted by us).
-      C.known.forEach((k) => { if (!(k in snap.data) && C.map.has(k)) C.map.delete(k); });
-      Object.keys(snap.assets).forEach((h) => { if (!C.assets.has(h)) C.assets.set(h, snap.assets[h]); });
-      C.assets.forEach((v, h) => { if (!(h in snap.assets)) C.assets.delete(h); });
-    }, 'local');
+    // Build the list of changes first, then send them in small groups. One
+    // group = one live message, and a message must stay under the Realtime
+    // size ceiling, so a big Word / Excel file is spread over several.
+    // Pictures go first so they are already there when the page that uses
+    // them arrives.
+    const ops = [];
+    Object.keys(snap.assets).forEach((h) => { if (!C.assets.has(h)) ops.push([C.assets, 's', h, snap.assets[h]]); });
+    Object.keys(snap.data).forEach((k) => { if (C.map.get(k) !== snap.data[k]) ops.push([C.map, 's', k, snap.data[k]]); });
+    // Remove only things we knew about and no longer have (deleted by us).
+    C.known.forEach((k) => { if (!(k in snap.data) && C.map.has(k)) ops.push([C.map, 'd', k]); });
+    C.assets.forEach((v, h) => { if (!(h in snap.assets)) ops.push([C.assets, 'd', h]); });
+    const GROUP_MAX = 90000;
+    let i = 0;
+    while (i < ops.length) {
+      const group = []; let size = 0;
+      while (i < ops.length) {
+        const len = ops[i][3] ? ops[i][3].length : 0;
+        if (group.length && size + len > GROUP_MAX) break;
+        group.push(ops[i]); size += len; i++;
+      }
+      C.doc.transact(() => {
+        group.forEach((op) => { if (op[1] === 's') op[0].set(op[2], op[3]); else op[0].delete(op[2]); });
+      }, 'local');
+    }
     C.known = new Set(Object.keys(snap.data));
   }
 
@@ -3312,7 +3329,7 @@
     clearTimeout(C.applyTimer);
     C.applyTimer = setTimeout(function tick() {
       if (pdfedCollab !== C) return;
-      if (pdfedCollabBusy()) { C.applyTimer = setTimeout(tick, 400); return; } // do not yank things from under someone mid-drag or mid-typing
+      if (C.srcBusy > 0 || pdfedCollabBusy()) { C.applyTimer = setTimeout(tick, 400); return; } // do not yank things from under someone mid-drag or mid-typing
       pdfedCollabApplyRemote();
     }, 120);
   }
@@ -3374,7 +3391,7 @@
 
   async function pdfedCollabApplyRemote() {
     const C = pdfedCollab;
-    if (!C || C.applying) return;
+    if (!C || C.applying || C.paused) return;
     C.applying = true;
     try {
       const D = C.map;
@@ -3509,11 +3526,151 @@
     window.pdfedPersist = wrapped;
   })();
 
+  // ---------------------------------------------------------------------
+  // SHARING A FILE OPENED DURING A LIVE SESSION
+  //
+  // The rest of this block syncs the EDITS made on pages. It does not carry the
+  // file itself, so a PDF / Word / Excel file opened by one person used to stay
+  // on that person's screen only.
+  //   PDF         the file is uploaded to the team's private storage bucket and
+  //               a short note (who, name, where) is put in the shared doc.
+  //               Teammates download it and open the very same pages.
+  //   Word/Excel  the pages are real editable boxes and tables, so they travel
+  //               through the normal live sync (in small groups, see
+  //               pdfedCollabPushNow). The note only tells teammates to start
+  //               from a clean slate and take the new pages.
+  // Set the storage bucket up once with supabase/05-live-files.sql.
+  // ---------------------------------------------------------------------
+  const SARVARC_PDFED_FILE_BUCKET = 'team-live-files';
+  const SARVARC_PDFED_FILE_MAX = 45 * 1024 * 1024; // stays under the 50 MB Supabase free-plan file limit
+  const SARVARC_PDFED_TAB = Math.random().toString(36).slice(2, 10); // tells "my own note" from a teammate's
+
+  function pdfedCollabLocalHasWork() {
+    return pdfed.pages.some((p) => p.modified || SARVARC_PDFED_KINDS.some((k) => (p[k] || []).length));
+  }
+
+  // Page pictures of a PDF are drawn on demand from the file, so the first
+  // draw is NOT an edit. Without this, that first draw looked like a changed
+  // picture and a full-size page image was queued for sending.
+  function pdfedCollabNoteRender(pg) {
+    if (pg && pg._cid && !pg._cNew && !pg.srcDoc && pg.type === 'pdf') pg._cBase = pdfedCollabHash(pg.dataUrl);
+  }
+
+  // Called by the file loaders the instant a new file replaces the pages
+  // (before any slow drawing starts), so the new pages get their shared ids
+  // and nothing is sent half-ready.
+  function pdfedCollabDocumentOpening() {
+    const C = pdfedCollab;
+    if (!C || !C.ready) return;
+    C.openingUntil = Date.now() + 60000; // safety: pushing resumes by itself if the load fails
+    pdfed.pages.forEach((p) => { delete p._cid; });
+    pdfedCollabEnsureCids(true);
+  }
+
+  async function pdfedCollabUploadSource(file, id) {
+    const teamId = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
+    try {
+      if (!file || !teamId) throw new Error('no file or team');
+      if (file.size > SARVARC_PDFED_FILE_MAX) {
+        toast('This PDF is too big to share live (limit 45 MB). Your teammates will not see it.', 'error');
+        return null;
+      }
+      toast('Sharing this PDF with your team...', 'info');
+      const path = teamId + '/' + id + '/source.pdf';
+      const res = await sarvarcSupabase.storage.from(SARVARC_PDFED_FILE_BUCKET).upload(path, file, { contentType: 'application/pdf', upsert: false });
+      if (res.error) throw res.error;
+      return path;
+    } catch (e) {
+      console.warn('[Collab] could not share the PDF', e);
+      toast('Could not share this PDF with your team. The team file storage may not be set up yet (run supabase/05-live-files.sql).', 'error');
+      return null;
+    }
+  }
+
+  // Called by the loaders once the new file is fully open on THIS screen.
+  async function pdfedCollabDocumentOpened(kind, file) {
+    const C = pdfedCollab;
+    if (!C || !C.ready) return;
+    try {
+      if (!sarvarcCollabMayEditNow()) return; // view-only roles never publish
+      const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      let path = null;
+      if (kind === 'pdf') {
+        path = await pdfedCollabUploadSource(file, id);
+        if (!path) { C.unshared = true; return; } // do not send pages teammates cannot draw
+      }
+      if (pdfedCollab !== C) return;
+      let who = null; try { who = await sarvarcTeamGetUser(); } catch (e) {}
+      const mem = who && typeof sarvarcTeamMembersCache !== 'undefined' ? sarvarcTeamMembersCache[who.id] : null;
+      C.unshared = false;
+      C.srcId = id;
+      // Everything of the old document is removed from the shared doc by the push below.
+      C.map.forEach((v, k) => C.known.add(k));
+      C.src.set('cur', JSON.stringify({ id: id, kind: kind, name: (file && file.name) || 'Untitled', path: path, tab: SARVARC_PDFED_TAB, byName: (mem && mem.full_name) || (who && who.email) || null, at: Date.now() }));
+      C.openingUntil = 0;
+      pdfedCollabPrepareAndPush();
+    } catch (e) {
+      console.warn('[Collab] could not share the opened file', e);
+    } finally {
+      if (pdfedCollab === C) C.openingUntil = 0;
+    }
+  }
+
+  // A teammate opened (or replaced) a file: open the same one here.
+  async function pdfedCollabSyncSource(C) {
+    let s = null;
+    try { s = JSON.parse(C.src.get('cur') || 'null'); } catch (e) {}
+    if (!s || !s.id || s.id === C.srcId || s.id === C.srcLoading) return false;
+    if (s.tab === SARVARC_PDFED_TAB) { C.srcId = s.id; return false; } // our own note
+    if (C.paused) return false;
+    C.srcLoading = s.id;
+    C.srcBusy = (C.srcBusy || 0) + 1;
+    try {
+      if (pdfed.pages.length && pdfedCollabLocalHasWork()) {
+        const ok = window.confirm((s.byName || 'A teammate') + ' opened "' + (s.name || 'a file') + '".\n\nOpen it here too? This replaces the document you have open now (save it first if you need it).');
+        if (!ok) {
+          C.srcId = s.id; C.paused = true;
+          toast('Your PDF Editor is not synced with the team now. Leave live and join again to see the shared file.', 'info');
+          return false;
+        }
+      }
+      let file = null, doc = null;
+      if (s.kind === 'pdf') {
+        toast('Opening ' + (s.name || 'the shared PDF') + '...', 'info');
+        const dl = await sarvarcSupabase.storage.from(SARVARC_PDFED_FILE_BUCKET).download(s.path);
+        if (dl.error || !dl.data) throw (dl.error || new Error('download failed'));
+        const buf = await dl.data.arrayBuffer();
+        file = new File([buf], s.name || 'shared.pdf', { type: 'application/pdf' });
+        doc = await sarvarcOpenPdfDocument(buf);
+      }
+      if (pdfedCollab !== C) return false;
+      pdfed.pdfDoc = doc;
+      pdfed.file = file || { name: String(s.name || 'Untitled Document').replace(/\.[^.]+$/, '') || 'Untitled Document' };
+      pdfed.pages.length = 0;
+      pdfed.active = -1;
+      C.known = new Set();
+      C.dirty = new Set(['*']); // take the teammate's whole page set
+      C.srcId = s.id;
+      C.unshared = false;
+      toast((s.byName || 'A teammate') + ' opened ' + (s.name || 'a file'), 'success');
+      return true;
+    } catch (e) {
+      console.warn('[Collab] could not open the shared file', e);
+      C.srcId = s.id; // do not retry in a loop
+      toast('Could not open the file your teammate shared. Ask them to open it again.', 'error');
+      return false;
+    } finally {
+      C.srcLoading = null;
+      C.srcBusy = Math.max(0, (C.srcBusy || 1) - 1);
+    }
+  }
+
   sarvarcCollabRegisterModule('pdfeditor', {
     attach(doc, awareness) {
       const C = pdfedCollab = {
-        doc: doc, map: doc.getMap('pdfedDoc'), assets: doc.getMap('pdfedAssets'),
+        doc: doc, map: doc.getMap('pdfedDoc'), assets: doc.getMap('pdfedAssets'), src: doc.getMap('pdfedSource'),
         ready: false, applying: false, known: new Set(), dirty: new Set(),
+        srcBusy: 0, srcId: null, srcLoading: null, paused: false, unshared: false, openingUntil: 0,
         pushTimer: null, applyTimer: null, stripTimer: null, seedTimer: null,
         senderByKey: {}, attachedAt: Date.now()
       };
@@ -3524,12 +3681,29 @@
         event.changes.keys.forEach((v, k) => { C.dirty.add(k); if (from) C.senderByKey[k] = from; });
         pdfedCollabScheduleApply();
       });
+      // A teammate opened a file: open it here too, then take its pages.
+      C.src.observe((event, tx) => {
+        if (tx.origin !== 'remote') return;
+        pdfedCollabSyncSource(C).then(() => { if (pdfedCollab === C) pdfedCollabScheduleApply(); });
+      });
+      // A picture arrived after the page that uses it: redo just that page.
+      C.assets.observe((event, tx) => {
+        if (tx.origin !== 'remote') return;
+        event.changes.keys.forEach((chg, h) => {
+          if (chg.action === 'delete') return;
+          C.map.forEach((v, k) => { if (typeof v === 'string' && v.indexOf('@asset:' + h) > -1) C.dirty.add(k); });
+        });
+        if (C.dirty.size) pdfedCollabScheduleApply();
+      });
       document.addEventListener('pointerdown', pdfedCollabPointerDownHandler, true);
       document.addEventListener('pointerup', pdfedCollabPointerUpHandler, true);
       // Give teammates ~1.5 s to hand us their state before we decide whether
       // WE are the first person here (then we share ours) or a joiner (then we
       // take theirs). Seeding earlier could overwrite a teammate's newer work.
-      C.seedTimer = setTimeout(() => {
+      C.seedTimer = setTimeout(async () => {
+        if (pdfedCollab !== C) return;
+        // Someone already opened a file in this room: open the same one first.
+        try { await pdfedCollabSyncSource(C); } catch (e) {}
         if (pdfedCollab !== C) return;
         pdfedCollabEnsureCids(true);
         if (C.map.has('o')) {
@@ -3538,7 +3712,11 @@
           pdfedCollabApplyRemote();
         } else {
           C.ready = true;
-          if (pdfed.pages.length) pdfedCollabPrepareAndPush();
+          if (pdfed.pages.length) {
+            // First person here with a PDF already open: share the file itself too.
+            if (pdfed.pdfDoc && typeof File !== 'undefined' && pdfed.file instanceof File && sarvarcCollabMayEditNow()) pdfedCollabDocumentOpened('pdf', pdfed.file);
+            else pdfedCollabPrepareAndPush();
+          }
         }
       }, 1500);
     },
