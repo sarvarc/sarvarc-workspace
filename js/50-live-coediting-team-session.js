@@ -1088,8 +1088,10 @@
     const roleCell = canManageThis
       ? `<select class="sarvarc-team-role-select" aria-label="Role for ${sarvarcTeamEsc(label)}" onchange="sarvarcTeamChangeRole('${sarvarcTeamEsc(m.id)}','${sarvarcTeamEsc(m.user_id)}',this.value)">${['admin', 'editor', 'reviewer', 'viewer'].filter(r => assignable.indexOf(r) > -1 || r === shownRole).map(r => `<option value="${r}"${r === shownRole ? ' selected' : ''}${assignable.indexOf(r) === -1 ? ' disabled' : ''}>${r}</option>`).join('')}</select>`
       : `<span class="sarvarc-team-role-badge sarvarc-team-role-${shownRole}">${shownRole}</span>`;
+    const ownerBtn = (canManageThis && sarvarcTeamMyRole === 'owner')
+      ? `<button type="button" class="sarvarc-team-action-btn" title="Hand the team over to this person" onclick="sarvarcTeamTransferOwner('${sarvarcTeamEsc(m.user_id)}', ${JSON.stringify(label).replace(/"/g, '&quot;')})">Make owner</button>` : '';
     const actions = canManageThis
-      ? `<button type="button" class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${sarvarcTeamEsc(m.id)}','${sarvarcTeamEsc(m.user_id)}')">Remove</button>`
+      ? ownerBtn + `<button type="button" class="sarvarc-team-action-btn danger" onclick="sarvarcTeamRemoveMember('${sarvarcTeamEsc(m.id)}','${sarvarcTeamEsc(m.user_id)}')">Remove</button>`
       : (isYou ? `<button type="button" class="sarvarc-team-action-btn leave" onclick="sarvarcTeamLeave()">Leave</button>` : '');
     return `<div class="sarvarc-team-member-card${isYou ? ' is-you' : ''}" role="row" data-member-user="${sarvarcTeamEsc(m.user_id)}">
       <div class="sarvarc-team-cell-member" role="cell">
@@ -1107,14 +1109,19 @@
 
   // One row of the Team Projects list.
   function sarvarcTeamProjectRowHtml(p, who, when, haveIt) {
-    return `<div class="sarvarc-team-project-row">
+    const pid = sarvarcTeamEsc(p.id);
+    return `<div class="tm-proj-wrap"><div class="sarvarc-team-project-row">
       <div class="sarvarc-team-project-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
       <div class="sarvarc-team-project-info">
         <div class="sarvarc-team-project-name">${sarvarcTeamEsc(p.name)}${haveIt ? '' : '<span class="sarvarc-team-project-flag">Not on this device yet</span>'}</div>
         <div class="sarvarc-team-project-meta">Last saved by ${sarvarcTeamEsc(who)}${when ? ' \u00b7 ' + sarvarcTeamEsc(when) : ''}</div>
       </div>
-      <button type="button" class="btn-secondary sarvarc-team-project-open" onclick="sarvarcTeamProjectOpen('${sarvarcTeamEsc(p.id)}')">${haveIt ? 'Open' : 'Sync &amp; open'}</button>
-    </div>`;
+      <div class="tm-proj-actions">
+        <button type="button" class="tm-btn tm-btn-quiet" title="Earlier versions you can restore" onclick="sarvarcTeamHistToggle('${pid}')">History</button>
+        ${haveIt ? `<button type="button" class="tm-btn tm-btn-quiet" title="Download a .sw backup file" onclick="sarvarcTeamBackupProject('${pid}')">Backup</button>` : ''}
+        <button type="button" class="tm-btn sarvarc-team-project-open" onclick="sarvarcTeamProjectOpen('${pid}')">${haveIt ? 'Open' : 'Sync &amp; open'}</button>
+      </div>
+    </div><div class="tm-hist" id="tmHist_${pid}" hidden></div></div>`;
   }
 
   // Team diary: records who did what. Best-effort only — if the audit_log
@@ -1407,7 +1414,7 @@
       const me = members.find(m => m.user_id === user.id);
       if (!me) return;
       if (me.role === 'owner' && members.length > 1) {
-        sarvarcTeamShowError('You\'re the owner — remove every other member first, or ask an admin to take over, before you can leave.');
+        sarvarcTeamShowError('You\'re the owner — press Make owner on a teammate (or remove everyone else) before you can leave.');
         return;
       }
       const teamName = (sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId) || {}).name || 'this team';
@@ -1643,6 +1650,7 @@
     if (!confirm('End this live session for everyone?\n\nEveryone currently connected will be dropped back to their own separate workspace. Nothing is deleted, but any edits not yet saved to the team won\'t be kept in the shared copy.')) return;
 
     const teamId = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
+    sarvarcTeamAudit('live_ended', { project_id: teamProjectId });
     try {
       if (sarvarcTeamPresenceChannel) {
         try {
@@ -1830,9 +1838,11 @@
       });
       // Re-mirror to Drive now that the team tags above are set (the
       // smSaveSession() mirror ran before those existed).
+      window.sarvarcLastDriveMirror = null;
       try {
         if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
           rec.driveFileId = await sarvarcDriveSaveSession(rec);
+          window.sarvarcLastDriveMirror = { ok: true, at: Date.now() };
           await new Promise((resolve) => {
             const tx2 = db.transaction('sessions', 'readwrite');
             tx2.objectStore('sessions').put(rec);
@@ -1840,7 +1850,7 @@
             tx2.onerror = () => resolve();
           });
         }
-      } catch (e) { console.warn('[Team] Drive mirror (tagged) skipped', e); }
+      } catch (e) { console.warn('[Team] Drive mirror (tagged) skipped', e); window.sarvarcLastDriveMirror = { ok: false, at: Date.now() }; }
 
       // Pointer only — id/name/who/when — never file content.
       // `module` is a NOT NULL column on team_projects (used to pick the
@@ -1874,8 +1884,14 @@
         } catch (e) { console.warn('[Team] could not live-push project', e); }
       }
 
+      const dm = window.sarvarcLastDriveMirror;
+      if (dm && dm.ok) toast('Saved to team and backed up to your Google Drive', 'success');
+      else if (dm && !dm.ok) toast('Saved to team, but the Google Drive backup failed. Your work is safe on this device. Try again in a minute.', 'error');
+      else toast('Saved to team on this device. Connect Google Drive to keep a backup.', 'info');
       sarvarcTeamShowNote('Saved to team.');
-      toast('Saved to team \u2014 synced live to whoever\u2019s online', 'success');
+      sarvarcTeamAudit('project_saved', { project_id: rec.id, name: name });
+      await sarvarcTeamVersionSave(rec, 'saved', true);
+      sarvarcTeamRenderHero();
       if (document.getElementById('smSessionList')) smRenderList();
       await sarvarcTeamProjectsLoad(sarvarcTeamActiveId);
       return rec;
@@ -1910,6 +1926,7 @@
     localStorage.setItem('sarvarcLiveCollabTeamProjectId', rec.id);
     localStorage.setItem('sarvarcLiveCollabTeamId', sarvarcTeamActiveId);
     localStorage.setItem('sarvarcLiveCollabSessionId', rec.id);
+    sarvarcTeamAudit('live_started', { project_id: rec.id, name: rec.name });
     sarvarcTeamCloseModal();
     toast('Live session started. Teammates online can join now.', 'success');
     await smLoadSession(rec.id);
@@ -1998,7 +2015,12 @@
     }
     if (goBtn) { goBtn.style.display = live ? 'none' : ''; goBtn.disabled = !canGoLive; goBtn.title = canGoLive ? 'Saves your current work to the team and invites everyone online' : 'Ask an owner or admin for editor access'; }
     if (leaveBtn) leaveBtn.style.display = live ? '' : 'none';
+    const bk = document.getElementById('sarvarcTeamBackupBtn');
+    if (bk) bk.style.display = live ? '' : 'none';
+    const act = document.getElementById('sarvarcTeamActivityBox');
+    if (act) act.style.display = (sarvarcTeamMyRole === 'owner' || sarvarcTeamMyRole === 'admin') ? '' : 'none';
     if (endBtn) endBtn.style.display = (live && sarvarcTeamMyRole === 'owner') ? '' : 'none';
+    sarvarcTeamRenderSaveLine(live);
     if (onl) {
       // Small stack of who is online right now (initials only, no colour fuss).
       const ids = Array.from(sarvarcTeamOnlineIds || []).slice(0, 5);
@@ -2009,6 +2031,45 @@
       onl.style.display = ids.length ? 'flex' : 'none';
     }
   }
+
+  // One calm line: when the work was last saved and whether Drive has a copy.
+  let sarvarcTeamLastSaveAt = 0;
+  async function sarvarcTeamRenderSaveLine(live) {
+    const el = document.getElementById('sarvarcTeamHeroSave');
+    if (!el) return;
+    const dm = window.sarvarcLastDriveMirror;
+    let drive = false;
+    try { drive = typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable(); } catch (e) {}
+    let text = '', warn = false;
+    if (!drive) { text = 'Google Drive is not connected. Work is saved on this device only.'; warn = true; }
+    else if (dm && dm.ok === false) { text = 'Drive backup failed. Your work is safe on this device and will retry.'; warn = true; }
+    else if (live && sarvarcTeamLastSaveAt) { text = 'Saved ' + new Date(sarvarcTeamLastSaveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' and backed up to Drive.'; }
+    else if (live) { text = 'Saves automatically every 3 minutes and when you leave.'; }
+    else { text = ''; }
+    el.textContent = text;
+    el.classList.toggle('is-warn', warn);
+    el.style.display = text ? 'flex' : 'none';
+  }
+
+  // Autosave while live: every 3 minutes, when the tab is hidden, and when the
+  // page closes. Updates the SAME project in place (no pile of copies) and
+  // mirrors it to the member's own Drive. Skipped for roles that cannot save.
+  let sarvarcTeamAutosaveBusy = false;
+  async function sarvarcTeamAutosaveNow() {
+    const sid = localStorage.getItem('sarvarcLiveCollabSessionId');
+    if (!sid || !localStorage.getItem('sarvarcLiveCollabTeamProjectId')) return;
+    if (sarvarcTeamAutosaveBusy || typeof smUpdateSessionSnapshot !== 'function') return;
+    try { if (!sarvarcTeamCan('save_version')) return; } catch (e) { return; }
+    sarvarcTeamAutosaveBusy = true;
+    try {
+      const rec = await smUpdateSessionSnapshot(sid);
+      if (rec) { sarvarcTeamLastSaveAt = Date.now(); sarvarcTeamRenderSaveLine(true); sarvarcTeamVersionSave(rec, 'autosave', false); }
+    } catch (e) { console.warn('[Team] autosave skipped', e); }
+    finally { sarvarcTeamAutosaveBusy = false; }
+  }
+  setInterval(() => { if (document.visibilityState === 'visible') sarvarcTeamAutosaveNow(); }, 180000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sarvarcTeamAutosaveNow(); });
+  window.addEventListener('pagehide', () => { sarvarcTeamAutosaveNow(); });
 
   // Share: one tap to send teammates a link. Uses the phone/desktop share
   // sheet when there is one, otherwise copies the message to the clipboard.
@@ -2058,6 +2119,280 @@
     } catch (e) { box.style.display = 'none'; }
   }
 
+  // =========================================================
+  // SAFETY NET: restore points, activity log, backups, ownership.
+  // Restore points live in their own small browser database (kept apart from
+  // the app's normal storage so they never end up inside saved projects) and
+  // are mirrored to the member's OWN Google Drive. Nothing is stored on a
+  // SARVARC server except short activity lines (who did what, when).
+  // =========================================================
+  const SARVARC_VERSIONS_KEEP = 10;
+  const SARVARC_VERSION_MIN_GAP_MS = 5 * 60 * 1000;
+  const SARVARC_VERSIONS_FOLDER = 'SARVARC Versions';
+  let sarvarcVersionsDriveFolderId = null;
+
+  function sarvarcVerDbOpen() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      const req = indexedDB.open('sarvarcVersions__' + (window.__sarvarcUid || 'guest'), 1);
+      req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('v')) req.result.createObjectStore('v'); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function sarvarcVerGet(key) {
+    const db = await sarvarcVerDbOpen();
+    return new Promise((res, rej) => { const r = db.transaction('v', 'readonly').objectStore('v').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  }
+  async function sarvarcVerPut(key, val) {
+    const db = await sarvarcVerDbOpen();
+    return new Promise((res, rej) => { const tx = db.transaction('v', 'readwrite'); tx.objectStore('v').put(val, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  }
+  async function sarvarcVerDel(key) {
+    const db = await sarvarcVerDbOpen();
+    return new Promise((res) => { const tx = db.transaction('v', 'readwrite'); tx.objectStore('v').delete(key); tx.oncomplete = res; tx.onerror = res; });
+  }
+
+  async function sarvarcDriveEnsureVersionsFolder() {
+    if (sarvarcVersionsDriveFolderId) return sarvarcVersionsDriveFolderId;
+    const parentId = await sarvarcDriveEnsureFolder();
+    const q = encodeURIComponent("name='" + SARVARC_VERSIONS_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and '" + parentId + "' in parents and trashed=false");
+    const listRes = await sarvarcDriveFetch('files?q=' + q + '&fields=files(id,name)&spaces=drive');
+    const listData = await listRes.json();
+    if (listData.files && listData.files.length) { sarvarcVersionsDriveFolderId = listData.files[0].id; return sarvarcVersionsDriveFolderId; }
+    const token = await sarvarcDriveGetToken();
+    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: SARVARC_VERSIONS_FOLDER, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
+    });
+    if (!createRes.ok) throw new Error('DRIVE_VERSIONS_FOLDER_' + createRes.status);
+    sarvarcVersionsDriveFolderId = (await createRes.json()).id;
+    return sarvarcVersionsDriveFolderId;
+  }
+
+  async function sarvarcDriveSaveVersionFile(pid, at, rec) {
+    const folderId = await sarvarcDriveEnsureVersionsFolder();
+    const token = await sarvarcDriveGetToken();
+    if (!token) throw new Error('NO_DRIVE_TOKEN');
+    const meta = { name: pid + '__' + at + '.json', parents: [folderId], appProperties: { sarvarcVersionOf: pid, sarvarcVersionAt: String(at) } };
+    const start = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/json' },
+      body: JSON.stringify(meta)
+    });
+    if (!start.ok) throw new Error('DRIVE_VERSION_START_' + start.status);
+    const url = start.headers.get('Location');
+    if (!url) throw new Error('DRIVE_VERSION_NO_URL');
+    const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) });
+    if (!put.ok) throw new Error('DRIVE_VERSION_' + put.status);
+    return (await put.json()).id;
+  }
+
+  // Keep a restore point of a team project. reason: 'saved' | 'autosave' | 'before_restore'.
+  // Autosaves are spaced at least 5 minutes apart; everything else is always kept.
+  // Only the newest 10 are kept (older ones are removed here and from Drive).
+  async function sarvarcTeamVersionSave(rec, reason, force) {
+    try {
+      if (!rec || !rec.id) return;
+      const pid = rec.id;
+      const idx = (await sarvarcVerGet('idx:' + pid)) || [];
+      const now = Date.now();
+      if (!force && idx[0] && now - idx[0].at < SARVARC_VERSION_MIN_GAP_MS) return;
+      const user = await sarvarcTeamGetUser();
+      const m = user && sarvarcTeamMembersCache[user.id];
+      const byName = (m && (m.full_name || m.email)) || (user && user.email) || 'Someone';
+      await sarvarcVerPut('body:' + pid + ':' + now, rec);
+      const meta = { at: now, byName: byName, reason: reason || 'saved', name: rec.name || 'Project', size: rec.size || 0, driveFileId: null };
+      idx.unshift(meta);
+      while (idx.length > SARVARC_VERSIONS_KEEP) {
+        const old = idx.pop();
+        await sarvarcVerDel('body:' + pid + ':' + old.at);
+        if (old.driveFileId) { try { await sarvarcDriveFetch('files/' + old.driveFileId, { method: 'DELETE' }); } catch (e) {} }
+      }
+      await sarvarcVerPut('idx:' + pid, idx);
+      // Drive copy (best effort). Failure never blocks the save.
+      try {
+        if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+          meta.driveFileId = await sarvarcDriveSaveVersionFile(pid, now, rec);
+          await sarvarcVerPut('idx:' + pid, idx);
+        }
+      } catch (e) { console.warn('[Team] version Drive copy skipped', e); }
+      if (reason !== 'autosave') sarvarcTeamAudit('version_saved', { project_id: pid, name: rec.name });
+    } catch (e) { console.warn('[Team] version save skipped', e); }
+  }
+
+  // Restore points for one project: this device's list, plus any extra ones
+  // found in the member's own Drive (covers a wiped browser).
+  async function sarvarcTeamVersionList(pid) {
+    const local = (await sarvarcVerGet('idx:' + pid).catch(() => null)) || [];
+    const out = local.map(v => Object.assign({ source: 'device' }, v));
+    try {
+      if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+        const folderId = await sarvarcDriveEnsureVersionsFolder();
+        const q = encodeURIComponent("'" + folderId + "' in parents and trashed=false and appProperties has { key='sarvarcVersionOf' and value='" + pid + "' }");
+        const r = await sarvarcDriveFetch('files?q=' + q + '&fields=files(id,appProperties)&pageSize=50&spaces=drive');
+        const d = await r.json();
+        (d.files || []).forEach(f => {
+          const at = Number(f.appProperties && f.appProperties.sarvarcVersionAt);
+          if (!at || out.some(v => v.at === at)) return;
+          out.push({ at: at, byName: '', reason: 'saved', name: '', source: 'drive', driveFileId: f.id });
+        });
+      }
+    } catch (e) { /* Drive optional */ }
+    return out.sort((a, b) => b.at - a.at).slice(0, SARVARC_VERSIONS_KEEP);
+  }
+
+  async function sarvarcTeamVersionLoadRec(pid, v) {
+    const body = await sarvarcVerGet('body:' + pid + ':' + v.at).catch(() => null);
+    if (body) return body;
+    if (v.driveFileId) return await sarvarcDriveLoadSession(v.driveFileId);
+    return null;
+  }
+
+  function sarvarcTeamVersionLabel(v) {
+    const d = new Date(v.at);
+    const day = d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const why = v.reason === 'autosave' ? 'Autosave' : (v.reason === 'before_restore' ? 'Before a restore' : 'Saved');
+    return day + ' ' + t + ' \u00b7 ' + why + (v.byName ? ' \u00b7 ' + v.byName : '');
+  }
+
+  async function sarvarcTeamHistToggle(pid) {
+    const el = document.getElementById('tmHist_' + pid);
+    if (!el) return;
+    if (!el.hidden) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = '<div class="tm-hist-empty">Loading restore points\u2026</div>';
+    const list = await sarvarcTeamVersionList(pid);
+    const canRestore = sarvarcTeamMyRole === 'owner' || sarvarcTeamMyRole === 'admin';
+    if (!list.length) { el.innerHTML = '<div class="tm-hist-empty">No restore points yet. One is kept every time you save, and every few minutes while you are live.</div>'; return; }
+    el.innerHTML = list.map(v =>
+      '<div class="tm-hist-row"><span class="tm-hist-label">' + sarvarcTeamEsc(sarvarcTeamVersionLabel(v)) + '</span><span class="tm-hist-actions">' +
+      (canRestore ? '<button type="button" class="tm-btn tm-btn-quiet" onclick="sarvarcTeamVersionRestore(\'' + sarvarcTeamEsc(pid) + '\',' + v.at + ')">Restore</button>' : '') +
+      '<button type="button" class="tm-btn tm-btn-quiet" onclick="sarvarcTeamVersionDownload(\'' + sarvarcTeamEsc(pid) + '\',' + v.at + ')">Download .sw</button></span></div>'
+    ).join('') + (canRestore ? '' : '<div class="tm-hist-empty">Only owners and admins can restore.</div>');
+  }
+
+  async function sarvarcTeamVersionRestore(pid, at) {
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    try {
+      if (sarvarcTeamMyRole !== 'owner' && sarvarcTeamMyRole !== 'admin') { sarvarcTeamShowError('Only owners and admins can restore a version.'); return; }
+      if (localStorage.getItem('sarvarcLiveCollabTeamProjectId') === pid) { sarvarcTeamShowError('Press Leave live first, then restore. Restoring while the project is live would be overwritten by everyone still in it.'); return; }
+      const list = await sarvarcTeamVersionList(pid);
+      const v = list.find(x => x.at === at);
+      if (!v) { sarvarcTeamShowError('That restore point is no longer available.'); return; }
+      if (!confirm('Restore the version from ' + sarvarcTeamVersionLabel(v) + '?\n\nThe current copy on this device is replaced. A safety copy of it is kept in the history first.\nDo this when nobody else is live in this project.')) return;
+      const verRec = await sarvarcTeamVersionLoadRec(pid, v);
+      if (!verRec || !verRec.snapshot) { sarvarcTeamShowError('Could not read that restore point.'); return; }
+      const current = (typeof smGetSession === 'function') ? await smGetSession(pid) : null;
+      if (current) await sarvarcTeamVersionSave(current, 'before_restore', true);
+      const restored = Object.assign({}, verRec, { id: pid, savedAt: Date.now(), driveFileId: (current && current.driveFileId) || undefined });
+      const db = await idbKvOpen();
+      await new Promise((resolve, reject) => { const tx = db.transaction('sessions', 'readwrite'); tx.objectStore('sessions').put(restored); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+      try {
+        if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+          restored.driveFileId = await sarvarcDriveSaveSession(restored);
+          await new Promise((resolve) => { const tx = db.transaction('sessions', 'readwrite'); tx.objectStore('sessions').put(restored); tx.oncomplete = resolve; tx.onerror = () => resolve(); });
+        }
+      } catch (e) { console.warn('[Team] restore Drive mirror skipped', e); }
+      sarvarcTeamAudit('version_restored', { project_id: pid, name: restored.name, version_at: at });
+      sarvarcTeamShowNote('Restored. Press Open on the project to continue from that version.');
+      toast('Version restored on this device', 'success');
+      if (document.getElementById('smSessionList') && typeof smRenderList === 'function') smRenderList();
+      sarvarcTeamHistToggle(pid); sarvarcTeamHistToggle(pid);
+    } catch (e) { sarvarcTeamShowError(e.message || 'Could not restore that version.'); }
+  }
+
+  async function sarvarcTeamDownloadRecAsSW(rec) {
+    const bytes = await smBuildSWBytes(rec);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = sarvarcBrandFilename(smSanitizeFileNamePart(rec.name || 'project') + '.sw');
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+  }
+
+  async function sarvarcTeamVersionDownload(pid, at) {
+    try {
+      const list = await sarvarcTeamVersionList(pid);
+      const v = list.find(x => x.at === at);
+      const rec = v && await sarvarcTeamVersionLoadRec(pid, v);
+      if (!rec) { sarvarcTeamShowError('Could not read that restore point.'); return; }
+      await sarvarcTeamDownloadRecAsSW(Object.assign({}, rec, { name: (rec.name || 'project') + ' ' + new Date(at).toISOString().slice(0, 16).replace('T', ' ') }));
+      sarvarcTeamAudit('backup_downloaded', { project_id: pid, name: rec.name, version_at: at });
+    } catch (e) { sarvarcTeamShowError('Could not create the .sw file.'); }
+  }
+
+  // Download backup of a project (refreshes it first if you are live in it).
+  async function sarvarcTeamBackupProject(pid) {
+    sarvarcTeamShowError('');
+    try {
+      pid = pid || localStorage.getItem('sarvarcLiveCollabSessionId');
+      if (!pid) { sarvarcTeamShowError('Open or start a project first.'); return; }
+      if (pid === localStorage.getItem('sarvarcLiveCollabSessionId') && typeof smUpdateSessionSnapshot === 'function') { try { await smUpdateSessionSnapshot(pid); } catch (e) {} }
+      const rec = await smGetSession(pid);
+      if (!rec) { sarvarcTeamShowError('This project is not on this device yet. Open it first.'); return; }
+      await sarvarcTeamDownloadRecAsSW(rec);
+      toast('Backup downloaded as a .sw file', 'success');
+      sarvarcTeamAudit('backup_downloaded', { project_id: pid, name: rec.name });
+    } catch (e) { sarvarcTeamShowError('Could not create the backup file.'); }
+  }
+
+  // Activity log: only owners and admins can read it (database rule).
+  const SARVARC_ACTIVITY_TEXT = {
+    member_invited: d => 'invited ' + (d.email || 'someone') + ' as ' + (d.role || 'member'),
+    role_changed: d => 'changed ' + sarvarcTeamWho(d.member_user_id, 'a member') + '\u2019s role to ' + (d.new_role || '?'),
+    member_removed: d => 'removed ' + sarvarcTeamWho(d.member_user_id, 'a member'),
+    project_saved: d => 'saved \u201c' + (d.name || 'a project') + '\u201d',
+    project_opened: d => 'opened \u201c' + (d.name || 'a project') + '\u201d',
+    live_started: d => 'went live with \u201c' + (d.name || 'a project') + '\u201d',
+    live_ended: d => 'ended the live session',
+    version_saved: d => 'kept a restore point of \u201c' + (d.name || 'a project') + '\u201d',
+    version_restored: d => 'restored \u201c' + (d.name || 'a project') + '\u201d to an earlier version',
+    backup_downloaded: d => 'downloaded a backup of \u201c' + (d.name || 'a project') + '\u201d',
+    owner_transferred: d => 'made ' + sarvarcTeamWho(d.new_owner, 'someone') + ' the new owner'
+  };
+  function sarvarcTeamWho(uid, fallback) {
+    const m = uid && sarvarcTeamMembersCache[uid];
+    return (m && (m.full_name || m.email)) || fallback;
+  }
+  async function sarvarcTeamActivityLoad() {
+    const box = document.getElementById('sarvarcTeamActivityList');
+    if (!box || !sarvarcTeamActiveId) return;
+    box.innerHTML = '<div class="tm-hist-empty">Loading\u2026</div>';
+    try {
+      const { data, error } = await sarvarcSupabase.from('audit_log').select('user_id, action, details, created_at').eq('team_id', sarvarcTeamActiveId).order('created_at', { ascending: false }).limit(40);
+      if (error) throw error;
+      if (!data || !data.length) { box.innerHTML = '<div class="tm-hist-empty">Nothing yet. Activity appears here as your team works.</div>'; return; }
+      box.innerHTML = data.map(r => {
+        const fn = SARVARC_ACTIVITY_TEXT[r.action];
+        const what = fn ? fn(r.details || {}) : r.action.replace(/_/g, ' ');
+        const d = new Date(r.created_at);
+        return '<div class="tm-hist-row"><span class="tm-hist-label"><b>' + sarvarcTeamEsc(sarvarcTeamWho(r.user_id, 'Someone')) + '</b> ' + sarvarcTeamEsc(what) + '</span><span class="tm-hist-when">' + sarvarcTeamEsc(d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</span></div>';
+      }).join('');
+    } catch (e) { box.innerHTML = '<div class="tm-hist-empty">Could not load the activity log.</div>'; }
+  }
+
+  // Hand the team to someone else. Needs supabase/03-transfer-ownership.sql.
+  async function sarvarcTeamTransferOwner(targetUserId, targetName) {
+    sarvarcTeamShowError(''); sarvarcTeamShowNote('');
+    try {
+      if (sarvarcTeamMyRole !== 'owner') { sarvarcTeamShowError('Only the owner can transfer ownership.'); return; }
+      if (!confirm('Make ' + targetName + ' the owner of this team?\n\nThey get full control. You become an admin. Only they can change this back.')) return;
+      const { error } = await sarvarcSupabase.rpc('sarvarc_transfer_ownership', { p_team: sarvarcTeamActiveId, p_new_owner: targetUserId });
+      if (error) {
+        const msg = String(error.message || '');
+        if (error.code === 'PGRST202' || /function .*(not found|does not exist)|schema cache/i.test(msg)) sarvarcTeamShowError('Ownership transfer is not switched on yet. Run the file 03-transfer-ownership.sql in Supabase once, then try again.');
+        else sarvarcTeamShowError(msg || 'Could not transfer ownership.');
+        return;
+      }
+      toast(targetName + ' is now the owner', 'success');
+      const user = await sarvarcTeamGetUser();
+      if (user) await sarvarcTeamLoadMyTeams(user);
+      await sarvarcTeamLoadMembers(sarvarcTeamActiveId);
+    } catch (e) { sarvarcTeamShowError(e.message || 'Could not transfer ownership.'); }
+  }
+
   async function sarvarcTeamProjectOpen(projectId) {
     sarvarcTeamShowError(''); sarvarcTeamShowNote('');
     try {
@@ -2080,6 +2415,7 @@
       localStorage.setItem('sarvarcLiveCollabTeamProjectId', projectId);
       localStorage.setItem('sarvarcLiveCollabTeamId', sarvarcTeamActiveId);
       localStorage.setItem('sarvarcLiveCollabSessionId', rec.id);
+      sarvarcTeamAudit('project_opened', { project_id: rec.id, name: rec.name });
       sarvarcTeamCloseModal();
       await smLoadSession(rec.id);
       toast('Opened "' + rec.name + '" from the team — live with teammates', 'success');
