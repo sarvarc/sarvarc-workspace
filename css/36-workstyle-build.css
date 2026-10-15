@@ -1,0 +1,34 @@
+/* The split screen is always dark, whatever theme the app is in, so it uses fixed colors.
+   Workstyle build: split screen (reference left, Kadessa's copy right) + her cursor.
+   Prefix "wsb". Logic in js/62-workstyle-build.js. */
+.wsb{ position:fixed; inset:0; z-index:100000; display:flex; flex-direction:column; background:#080c12; color:#e8edf2; padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0); font-family:inherit; }
+.wsb-top{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid #2a323d; flex-wrap:wrap; }
+.wsb-title{ font-size:14px; font-weight:700; flex:1 1 220px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wsb-prog{ flex:0 0 120px; height:5px; border-radius:99px; background:#2a323d; overflow:hidden; }
+.wsb-prog i{ display:block; height:100%; width:0; background:#00c2ff; transition:width .3s; }
+.wsb-btn{ font:inherit; font-size:12px; font-weight:700; padding:7px 12px; border-radius:8px; border:1px solid #3a4452; background:#1c232c; color:#a9b4c0; cursor:pointer; }
+.wsb-btn.primary{ background:#00c2ff; border-color:#00c2ff; color:#001018; }
+.wsb-panes{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:minmax(0,1fr); gap:16px; padding:14px 16px 6px; }
+.wsb-pane{ overflow:hidden; display:flex; flex-direction:column; align-items:center; min-width:0; min-height:0; }
+.wsb-pane h5{ margin:0 0 8px; font-size:12px; font-weight:700; color:#7d8998; }
+.wsb-page{ position:relative; container-type:inline-size; box-shadow:0 10px 30px rgba(0,0,0,.5); border-radius:3px; flex:none; width:300px; height:420px; }
+.wsb-el{ position:absolute; box-sizing:border-box; }
+.wsb-t{ white-space:pre-wrap; word-break:break-word; line-height:1.25; }
+.wsb-tb{ display:grid; overflow:hidden; }
+.wsb-c{ display:flex; align-items:center; padding:0 1.2cqw; min-width:0; overflow:hidden; }
+.wsb-im{ display:flex; align-items:center; justify-content:center; border:1.5px dashed #9aa7b5; background:#eef2f6; color:#6b7a89; font:600 2.6cqw sans-serif; border-radius:3px; }
+.wsb-im.brand{ border:0; background:none; }
+.wsb-im img{ width:100%; height:100%; object-fit:contain; }
+.wsb-im.pop{ animation:wsbPop .28s ease-out; }
+@keyframes wsbPop{ from{ transform:scale(.85); opacity:0; } to{ transform:none; opacity:1; } }
+.wsb-ref .hot{ outline:2px solid #00c2ff; outline-offset:2px; background-color:rgba(0,194,255,.10); }
+.wsb-cursor{ position:absolute; z-index:5; left:50%; top:-6%; transition:left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1), opacity .4s; pointer-events:none; filter:drop-shadow(0 2px 4px rgba(0,0,0,.45)); }
+.wsb-cursor svg{ display:block; margin:-2px 0 0 -3px; }
+.wsb-cursor span{ position:absolute; left:16px; top:16px; font:700 10px/1 sans-serif; background:#00c2ff; color:#001018; padding:3px 6px; border-radius:5px; white-space:nowrap; }
+.wsb-foot{ padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px)); text-align:center; font-size:12.5px; color:#a9b4c0; min-height:40px; }
+@media (max-width:760px){
+  .wsb-panes{ grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) minmax(0,1fr); gap:8px; padding:8px 12px 4px; }
+  .wsb-pane h5{ margin-bottom:4px; }
+  .wsb-prog{ display:none; }
+}
+@media (prefers-reduced-motion:reduce){ .wsb-cursor{ transition:none; } .wsb-im.pop{ animation:none; } }
