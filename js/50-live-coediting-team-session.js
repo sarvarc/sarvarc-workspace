@@ -2047,8 +2047,26 @@
     else if (live) { text = 'Saves automatically every 3 minutes and when you leave.'; }
     else { text = ''; }
     el.textContent = text;
+    if (!drive) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tm-link-btn'; b.textContent = 'Reconnect Drive';
+      b.onclick = sarvarcTeamReconnectDrive;
+      el.appendChild(b);
+    }
     el.classList.toggle('is-warn', warn);
     el.style.display = text ? 'flex' : 'none';
+  }
+
+  // Google hands out the Drive key for about an hour and the browser drops it
+  // on reload, even though you stay signed in. One click asks Google for a new one.
+  async function sarvarcTeamReconnectDrive() {
+    try {
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      const email = session && session.user && session.user.email;
+      const tok = await sarvarcSilentDriveTokenRefresh(email, { userInitiated: true });
+      if (tok) { toast('Google Drive reconnected', 'success'); sarvarcTeamRenderHero(); return; }
+    } catch (e) { console.warn('[Team] Drive reconnect failed', e); }
+    toast('Could not reconnect. Sign out, then sign in with Google again and allow Drive access.', 'error');
   }
 
   // Autosave while live: every 3 minutes, when the tab is hidden, and when the
