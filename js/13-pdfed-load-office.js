@@ -69,6 +69,8 @@ async function pdfedLoadFileObject(file) {
     for (let i = 1; i <= doc.numPages; i++) {
       pdfed.pages.push({type:'pdf', pageNum:i, dataUrl:null, modified:false, edits:{}, textBlocks:[], label:'Page '+i});
     }
+    // Live session: give the new pages their shared ids before any slow drawing starts.
+    if (typeof pdfedCollabDocumentOpening === 'function') pdfedCollabDocumentOpening();
     // show UI
     ['pdfedExportBtn','pdfedRefineBtn','pdfedExportBtn2','pdfedCloseBtn','pdfedPageInfoPill'].forEach(id => {
       const el = document.getElementById(id);
@@ -92,6 +94,8 @@ async function pdfedLoadFileObject(file) {
     setTimeout(pdfedZoomFit, 50);
     pdfedScheduleAutoCollapse();
     toast('Loaded ' + doc.numPages + ' pages', 'success');
+    // Live session: share this PDF with the team.
+    if (typeof pdfedCollabDocumentOpened === 'function') pdfedCollabDocumentOpened('pdf', file);
     return true;
   } catch(err) {
     if (err && err.message === 'Password entry cancelled') { toast('Unlock cancelled', 'info'); return false; }
@@ -1301,6 +1305,8 @@ async function pdfedLoadOfficeFile(file, kind) {
     pdfed.pdfDoc = null;
     pdfed.file = { name: file.name.replace(/\.[^.]+$/, '') || 'Untitled Document' };
     pdfed.pages = pages;
+    // Live session: give the new pages their shared ids before any slow drawing starts.
+    if (typeof pdfedCollabDocumentOpening === 'function') pdfedCollabDocumentOpening();
     pdfed.active = -1;
     pdfed.refineReportUsed = false;
     pdfedSearchClose();
@@ -1326,6 +1332,8 @@ async function pdfedLoadOfficeFile(file, kind) {
     await pdfedGoto(0);
     setTimeout(pdfedZoomFit, 50);
     pdfedScheduleAutoCollapse();
+    // Live session: share the new pages with the team.
+    if (typeof pdfedCollabDocumentOpened === 'function') pdfedCollabDocumentOpened(kind, file);
     toast((kind === 'word' ? 'Word file opened' : 'Spreadsheet opened') + ' as ' + pages.length + ' editable page' + (pages.length === 1 ? '' : 's') + '.' + extra, extra ? 'info' : 'success');
     return true;
   } catch (err) {
