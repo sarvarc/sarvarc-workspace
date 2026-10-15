@@ -1080,8 +1080,8 @@
   function sarvarcTeamRoleBlurb(role) {
     const blurbs = {
       admin: 'Can edit work, and invite or manage editors, reviewers and viewers.',
-      editor: 'Can open projects and save new versions. Cannot manage people.',
-      reviewer: 'Can open projects and, soon, comment and approve. Cannot save over the team\u2019s work.',
+      editor: 'Can open projects, save new versions and comment. Cannot manage people.',
+      reviewer: 'Can open projects, comment, and approve or request changes. Cannot save over the team\u2019s work.',
       viewer: 'Can open projects only. Good for clients and managers who just need to look.'
     };
     return blurbs[role] || '';
@@ -1138,15 +1138,16 @@
     return `<div class="tm-proj-wrap"><div class="sarvarc-team-project-row">
       <div class="sarvarc-team-project-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
       <div class="sarvarc-team-project-info">
-        <div class="sarvarc-team-project-name">${sarvarcTeamEsc(p.name)}${haveIt ? '' : '<span class="sarvarc-team-project-flag">Not on this device yet</span>'}</div>
+        <div class="sarvarc-team-project-name">${sarvarcTeamEsc(p.name)}${haveIt ? '' : '<span class="sarvarc-team-project-flag">Not on this device yet</span>'}<span class="tm-rev-badge" id="tmRevBadge_${pid}" style="display:none"></span></div>
         <div class="sarvarc-team-project-meta">Last saved by ${sarvarcTeamEsc(who)}${when ? ' \u00b7 ' + sarvarcTeamEsc(when) : ''}</div>
       </div>
       <div class="tm-proj-actions">
+        <button type="button" class="tm-btn tm-btn-quiet" title="Comments and approval for this project" onclick="sarvarcRevToggle('${pid}')">Review</button>
         <button type="button" class="tm-btn tm-btn-quiet" title="Earlier versions you can restore" onclick="sarvarcTeamHistToggle('${pid}')">History</button>
         ${haveIt ? `<button type="button" class="tm-btn tm-btn-quiet" title="Download a .sw backup file" onclick="sarvarcTeamBackupProject('${pid}')">Backup</button>` : ''}
         <button type="button" class="tm-btn sarvarc-team-project-open" onclick="sarvarcTeamProjectOpen('${pid}')">${haveIt ? 'Open' : 'Sync &amp; open'}</button>
       </div>
-    </div><div class="tm-hist" id="tmHist_${pid}" hidden></div></div>`;
+    </div><div class="tm-hist" id="tmHist_${pid}" hidden></div><div class="tm-rev" id="tmRev_${pid}" hidden></div></div>`;
   }
 
   // Team diary: records who did what. Best-effort only — if the audit_log
@@ -1879,6 +1880,7 @@
         const when = p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '';
         return sarvarcTeamProjectRowHtml(p, who, when, localIds.has(p.id));
       }).join('');
+      if (typeof sarvarcRevPaintBadges === 'function') sarvarcRevPaintBadges(teamId, rows);
     } catch (e) {
       listEl.innerHTML = '';
       sarvarcTeamShowError(e.message || 'Could not load team projects.');
@@ -2456,7 +2458,10 @@
     version_saved: d => 'kept a restore point of \u201c' + (d.name || 'a project') + '\u201d',
     version_restored: d => 'restored \u201c' + (d.name || 'a project') + '\u201d to an earlier version',
     backup_downloaded: d => 'downloaded a backup of \u201c' + (d.name || 'a project') + '\u201d',
-    owner_transferred: d => 'made ' + sarvarcTeamWho(d.new_owner, 'someone') + ' the new owner'
+    owner_transferred: d => 'made ' + sarvarcTeamWho(d.new_owner, 'someone') + ' the new owner',
+    review_comment: d => 'commented on \u201c' + (d.name || 'a project') + '\u201d',
+    project_approved: d => 'approved \u201c' + (d.name || 'a project') + '\u201d',
+    changes_requested: d => 'requested changes on \u201c' + (d.name || 'a project') + '\u201d'
   };
   function sarvarcTeamWho(uid, fallback) {
     const m = uid && sarvarcTeamMembersCache[uid];
