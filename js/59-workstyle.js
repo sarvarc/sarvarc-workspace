@@ -193,6 +193,7 @@ async function wstyleSampleBackground(pg) {
 // text is measured with the same font stack, wrapping and padding.
 function wstyleTextHeight(pg, idx, t, W) {
   try {
+    if (t._hOverride) return t._hOverride;
     if (idx === pdfed.active) {
       const el = document.querySelector('.pdfed-placed-text[data-id="' + t.id + '"]');
       if (el && el.offsetHeight) return el.offsetHeight;
@@ -367,6 +368,15 @@ async function wstyleSaveFromEditor(name, opts) {
     pages.push(await wstyleMeasurePage(pdfed.pages[idxs[k]], idxs[k]));
   }
 
+  return wstyleStoreMeasured(cleanName, pages, {
+    docName: (pdfed.file && pdfed.file.name) || '',
+    scope: scope
+  });
+}
+
+// Shared by the editor path above and the PDF file reader (js/60-workstyle-pdf.js):
+// checks there is something to learn from, then saves (or updates) under the name.
+function wstyleStoreMeasured(cleanName, pages, source) {
   let nText = 0, nTable = 0, nImage = 0;
   pages.forEach(function (p) {
     p.items.forEach(function (it) {
@@ -390,11 +400,7 @@ async function wstyleSaveFromEditor(name, opts) {
     name: cleanName,
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
-    source: {
-      docName: (pdfed.file && pdfed.file.name) || '',
-      pageCount: pages.length,
-      scope: scope
-    },
+    source: Object.assign({ pageCount: pages.length }, source || {}),
     pages: pages
   };
 
