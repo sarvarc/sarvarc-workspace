@@ -96,6 +96,15 @@
   const SARVARC_COLLAB_GUARD_SECTIONS = '#sec-dataarrange, #sec-diagrams, #sec-makeforms, #sec-pdfeditor';
   let sarvarcCollabRoles = {};          // user_id -> normalized role (active team)
   let sarvarcCollabRolesLoaded = false; // false = we could not verify our own role
+  // Authoritative answer from the database about OUR OWN membership:
+  // 'member' | 'removed' | 'unknown'. 'unknown' (network error, expired
+  // sign-in) never evicts anyone; only a confirmed 'removed' does.
+  let sarvarcCollabMembership = 'unknown';
+  let sarvarcCollabConnectSeq = 0;      // bumped by every connect/disconnect so a slow connect can't resurrect a closed session
+  let sarvarcCollabEvicting = false;    // re-entrancy guard for sarvarcTeamEvictSelf
+  let sarvarcCollabRolesRefreshAt = 0;  // throttle for the unknown-teammate role refresh in the presence bar
+  const SARVARC_LIVE_FLAGS = ['sarvarcLiveCollabTeamProjectId', 'sarvarcLiveCollabTeamId', 'sarvarcLiveCollabSessionId'];
+  const sarvarcTeamRecentDepartures = new Map(); // userId -> time handled (the same news arrives on two channels)
 
   async function sarvarcCollabLoadRoles(teamId) {
     if (!teamId) return false;
@@ -106,8 +115,13 @@
       const map = {};
       (data || []).forEach(m => { map[m.user_id] = sarvarcTeamNormalizeRole(m.role); });
       sarvarcCollabRoles = map;
-      if (user && map[user.id]) { sarvarcTeamMyRole = map[user.id]; sarvarcCollabRolesLoaded = true; }
-      else sarvarcCollabRolesLoaded = false;
+      if (user && map[user.id]) { sarvarcTeamMyRole = map[user.id]; sarvarcCollabRolesLoaded = true; sarvarcCollabMembership = 'member'; }
+      else {
+        sarvarcCollabRolesLoaded = false;
+        // A signed-in person whose own row is gone from a successful query
+        // has been removed. No user object = sign-in problem, not removal.
+        sarvarcCollabMembership = user ? 'removed' : 'unknown';
+      }
       return sarvarcCollabRolesLoaded;
     } catch (e) {
       console.warn('[Collab] could not load roles', e);
@@ -196,11 +210,22 @@
     await sarvarcCollabWaitForYjs();
     if (sarvarcCollabProjectId === teamProjectId && sarvarcCollabDoc) return; // already connected to this one
     if (sarvarcCollabDoc) sarvarcCollabDisconnect();
+    const seq = ++sarvarcCollabConnectSeq;
 
     const Y = window.Yjs;
     const user = await sarvarcTeamGetUser();
     if (!user) return;
-    await sarvarcCollabLoadRoles(sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId'));
+    const connectTeamId = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
+    await sarvarcCollabLoadRoles(connectTeamId);
+    if (seq !== sarvarcCollabConnectSeq) return; // closed while we were checking
+    // Membership gate: never join (or silently re-join after a reload) a live
+    // room of a team we no longer belong to. Previously only the role was
+    // checked, so a removed person still got the Live badge and everyone's
+    // cursors, just with editing switched off.
+    if (sarvarcCollabMembership === 'removed') {
+      sarvarcTeamEvictSelf(connectTeamId, 'removed');
+      return;
+    }
 
     const doc = new Y.Doc();
     const awareness = new window.YAwareness.Awareness(doc);
@@ -240,6 +265,13 @@
         window.YAwareness.applyAwarenessUpdate(awareness, update, 'remote');
       } catch (e) { console.warn('[Collab] bad awareness packet', e); }
     });
+    // Removal / leave is ALSO relayed on the live room itself. The team
+    // channel is only joined once the Teams window or auto-presence has
+    // started it, but everyone in a live session is certainly on this one.
+    channel.on('broadcast', { event: 'member-removed' }, ({ payload }) => {
+      if (!payload || !payload.userId) return;
+      sarvarcTeamHandleMemberRemoved(payload.teamId, payload.userId, payload.reason);
+    });
 
     // Any local change (from us, in this tab) gets broadcast out. Yjs
     // fires this for both local and applied-remote updates, so we skip
@@ -276,7 +308,7 @@
           // already in the room converges with us (Yjs updates are
           // idempotent/mergeable, so re-sending our full state is safe).
           const m = sarvarcTeamMembersCache[user.id];
-          awareness.setLocalState({ userId: user.id, name: (m && m.full_name) || user.email, avatar: (m && m.avatar_url) || null, color: sarvarcCollabColorFor(user.id) });
+          awareness.setLocalState({ userId: user.id, name: (m && m.full_name) || user.email, avatar: (m && m.avatar_url) || null, color: sarvarcCollabColorFor(user.id), hb: Date.now() });
           if (sarvarcCollabMayEditNow()) {
             channel.send({ type: 'broadcast', event: 'yupdate', payload: { u: sarvarcCollabBytesToB64(Y.encodeStateAsUpdate(doc)), s: user.id } });
           }
@@ -286,6 +318,13 @@
       });
     });
 
+    if (seq !== sarvarcCollabConnectSeq) {
+      // We were evicted / left while the channel was still subscribing.
+      try { awareness.setLocalState(null); } catch (e) {}
+      try { sarvarcSupabase.removeChannel(channel); } catch (e) {}
+      try { doc.destroy(); } catch (e) {}
+      return;
+    }
     sarvarcCollabDoc = doc;
     sarvarcCollabAwareness = awareness;
     sarvarcCollabChannel = channel;
@@ -301,16 +340,50 @@
     sarvarcPresenceAttachInputListeners(awareness);
     sarvarcCollabGuardApply();
     if (sarvarcCollabRoleTimer) clearInterval(sarvarcCollabRoleTimer);
-    sarvarcCollabRoleTimer = setInterval(async () => {
+    // Membership watchdog (also refreshes roles). The removal broadcast is
+    // the fast path; this is the safety net for anyone who missed it (tab
+    // asleep, flaky network, channel not up yet). It also re-checks the
+    // moment the tab wakes up or the network comes back.
+    sarvarcCollabRoleTimer = setInterval(() => sarvarcCollabWatchdogTick(), 15000);
+    document.addEventListener('visibilitychange', sarvarcCollabWakeHandler);
+    window.addEventListener('online', sarvarcCollabWakeHandler);
+    window.addEventListener('pagehide', sarvarcCollabPageHideHandler);
+  }
+
+  // One watchdog pass: refresh roles, and if the database says we are no
+  // longer on the team (twice in a row, to ride out a one-off blip), leave.
+  async function sarvarcCollabWatchdogTick() {
+    if (!sarvarcCollabDoc) return;
+    const tid = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
+    await sarvarcCollabLoadRoles(tid);
+    if (!sarvarcCollabDoc) return;
+    if (sarvarcCollabMembership === 'removed') {
+      // Never act on a single answer: look once more a moment later.
+      await new Promise(r => setTimeout(r, 1500));
       if (!sarvarcCollabDoc) return;
-      await sarvarcCollabLoadRoles(sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId'));
-      sarvarcCollabGuardApply();
-    }, 60000);
+      await sarvarcCollabLoadRoles(tid);
+      if (sarvarcCollabDoc && sarvarcCollabMembership === 'removed') { sarvarcTeamEvictSelf(tid, 'removed'); return; }
+    }
+    sarvarcCollabGuardApply();
+    sarvarcPresenceRender();
+  }
+  function sarvarcCollabWakeHandler() {
+    if (document.visibilityState === 'hidden') return;
+    sarvarcCollabWatchdogTick();
+  }
+  // Tab closing: say goodbye so teammates drop our cursor and avatar at
+  // once instead of waiting for the 30-second awareness timeout.
+  function sarvarcCollabPageHideHandler() {
+    try { if (sarvarcCollabAwareness) sarvarcCollabAwareness.setLocalState(null); } catch (e) {}
   }
 
   function sarvarcCollabDisconnect() {
     if (sarvarcCollabRoleTimer) { clearInterval(sarvarcCollabRoleTimer); sarvarcCollabRoleTimer = null; }
     sarvarcCollabGuardRemove(false);
+    sarvarcCollabConnectSeq++; // invalidates any connect still in flight
+    document.removeEventListener('visibilitychange', sarvarcCollabWakeHandler);
+    window.removeEventListener('online', sarvarcCollabWakeHandler);
+    window.removeEventListener('pagehide', sarvarcCollabPageHideHandler);
     sarvarcPresenceDetachInputListeners();
     Object.keys(sarvarcCollabModules).forEach(key => {
       if (sarvarcCollabAttached.has(key)) {
@@ -318,12 +391,22 @@
       }
     });
     sarvarcCollabAttached.clear();
-    if (sarvarcCollabChannel) { try { sarvarcSupabase.removeChannel(sarvarcCollabChannel); } catch (e) {} }
-    if (sarvarcCollabDoc) { try { sarvarcCollabDoc.destroy(); } catch (e) {} }
+    const oldChannel = sarvarcCollabChannel, oldAwareness = sarvarcCollabAwareness, oldDoc = sarvarcCollabDoc;
     sarvarcCollabDoc = null;
     sarvarcCollabAwareness = null;
     sarvarcCollabChannel = null;
     sarvarcCollabProjectId = null;
+    // Say goodbye: clearing our awareness state makes the existing 'update'
+    // handler broadcast "this client is gone", so teammates drop our cursor
+    // and avatar immediately. This runs AFTER the globals above are cleared
+    // so the presence bar can never be re-drawn by it, and the channel is
+    // closed a moment later so that last packet actually leaves the browser.
+    if (oldAwareness) { try { oldAwareness.setLocalState(null); } catch (e) {} }
+    setTimeout(() => {
+      if (oldChannel) { try { sarvarcSupabase.removeChannel(oldChannel); } catch (e) {} }
+      if (oldAwareness) { try { oldAwareness.destroy(); } catch (e) {} } // stops its 30s housekeeping timer
+      if (oldDoc) { try { oldDoc.destroy(); } catch (e) {} }
+    }, 400);
     localStorage.removeItem('sarvarcLiveCollabTeamProjectId');
     localStorage.removeItem('sarvarcLiveCollabTeamId');
     localStorage.removeItem('sarvarcLiveCollabSessionId');
@@ -371,6 +454,14 @@
   // depends on the sender's and viewer's system clocks agreeing (see the
   // "Live mouse cursors" block in sarvarcPresenceRender for why).
   const sarvarcPresenceCursorSeenAt = new Map();
+  // userId -> { hb, localSeenAt }: heartbeat tracking (same local-clock idea).
+  // Every connected client bumps `hb` every 5s; a teammate whose heartbeat
+  // has not changed for 20s is treated as gone (crashed tab, lost network),
+  // instead of lingering for the full 30s awareness timeout.
+  const sarvarcPresenceBeatSeenAt = new Map();
+  let sarvarcPresenceBeatTimer = null;
+  const SARVARC_PRESENCE_BEAT_MS = 5000;
+  const SARVARC_PRESENCE_GONE_MS = 20000;
 
   function sarvarcPresenceEnsureDom() {
     const cursorsLayer0 = document.getElementById('sarvarcCollabCursorsLayer');
@@ -485,13 +576,34 @@
     // Dedupe by userId (same person could theoretically have >1 tab open);
     // keep whichever state has the freshest cursor timestamp.
     const remoteByUser = new Map();
+    let unknownTeammate = false;
     states.forEach((state, clientId) => {
       if (clientId === localId || !state || !state.userId) return;
+      // 1) Membership gate. Presence used to be trusted blindly while edits
+      //    were role-checked, so a removed person's cursor and avatar kept
+      //    showing even after their edits stopped. If we know the team's
+      //    roster and this person is not on it, they are not shown.
+      if (sarvarcCollabRolesLoaded && !(state.userId in sarvarcCollabRoles)) { unknownTeammate = true; return; }
+      // 2) Liveness gate (heartbeat). Older tabs without a heartbeat are
+      //    left to the normal awareness timeout.
+      if (typeof state.hb === 'number') {
+        const seen = sarvarcPresenceBeatSeenAt.get(state.userId);
+        if (!seen || seen.hb !== state.hb) sarvarcPresenceBeatSeenAt.set(state.userId, { hb: state.hb, localSeenAt: now });
+        else if ((now - seen.localSeenAt) > SARVARC_PRESENCE_GONE_MS) return;
+      }
       const existing = remoteByUser.get(state.userId);
       const existingT = (existing && existing.cursor && existing.cursor.t) || 0;
       const stateT = (state.cursor && state.cursor.t) || 0;
       if (!existing || stateT >= existingT) remoteByUser.set(state.userId, state);
     });
+
+    // Someone we do not recognise might simply have joined the team a minute
+    // ago: refresh the roster (at most every 10s) and re-render. If they are
+    // really not on the team they stay hidden.
+    if (unknownTeammate && (now - sarvarcCollabRolesRefreshAt) > 10000) {
+      sarvarcCollabRolesRefreshAt = now;
+      sarvarcCollabLoadRoles(sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId')).then(() => sarvarcPresenceRender());
+    }
 
     // ---- "Who's here" box, embedded in the top bar ----
     // Real profile photos where we have them, round and gently "breathing"
@@ -621,6 +733,7 @@
   // starts rendering everyone else's presence. Called once per live
   // connection from sarvarcCollabConnect.
   function sarvarcPresenceAttachInputListeners(awareness) {
+    sarvarcPresenceDetachInputListeners(); // never stack a second set of listeners/timers
     let lastSent = 0;
     sarvarcPresenceMouseHandler = function (e) {
       const t = Date.now();
@@ -661,6 +774,9 @@
     // periodic re-render keeps them lined up, and doubles as cleanup for
     // cursors from a teammate whose tab closed without a clean disconnect.
     sarvarcPresenceStaleTimer = setInterval(sarvarcPresenceRender, 2000);
+    sarvarcPresenceBeatTimer = setInterval(() => {
+      try { if (awareness.getLocalState()) awareness.setLocalStateField('hb', Date.now()); } catch (e) {}
+    }, SARVARC_PRESENCE_BEAT_MS);
     sarvarcPresenceRender();
   }
 
@@ -669,8 +785,10 @@
     if (sarvarcPresenceFocusHandler) document.removeEventListener('focusin', sarvarcPresenceFocusHandler);
     if (sarvarcPresenceBlurHandler) document.removeEventListener('focusout', sarvarcPresenceBlurHandler);
     if (sarvarcPresenceStaleTimer) clearInterval(sarvarcPresenceStaleTimer);
-    sarvarcPresenceMouseHandler = sarvarcPresenceFocusHandler = sarvarcPresenceBlurHandler = sarvarcPresenceStaleTimer = null;
+    if (sarvarcPresenceBeatTimer) clearInterval(sarvarcPresenceBeatTimer);
+    sarvarcPresenceMouseHandler = sarvarcPresenceFocusHandler = sarvarcPresenceBlurHandler = sarvarcPresenceStaleTimer = sarvarcPresenceBeatTimer = null;
     sarvarcPresenceCursorSeenAt.clear();
+    sarvarcPresenceBeatSeenAt.clear();
     const bar = document.getElementById('sarvarcPresenceBox');
     if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
     const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
@@ -1136,10 +1254,15 @@
         sarvarcTeamShowError('Could not leave the team: the database did not allow it. Ask the team owner to remove you, and tell the SARVARC developer (the team rules may need updating).');
         return;
       }
-      // Also drop out of any live session and stop listening to this team.
+      // Tell teammates first (team channel + live room) so our cursor and
+      // avatar vanish from their screens at once, then drop out of any live
+      // session and stop listening to this team. Nothing of ours is left
+      // behind: no live flags, no cached role, no stale "owner" button.
+      await sarvarcTeamAnnounceDeparture(sarvarcTeamActiveId, user.id, 'left');
       if (localStorage.getItem('sarvarcLiveCollabTeamId') === sarvarcTeamActiveId || sarvarcCollabIsLive()) sarvarcCollabDisconnect();
       if (sarvarcTeamPresenceChannel) { try { sarvarcSupabase.removeChannel(sarvarcTeamPresenceChannel); } catch (e) {} sarvarcTeamPresenceChannel = null; }
       sarvarcTeamOnlineIds = new Set();
+      sarvarcCollabRoles = {}; sarvarcCollabRolesLoaded = false; sarvarcCollabMembership = 'unknown'; sarvarcTeamMyRole = null;
       // Sole owner leaving a team with nobody else in it — nothing left to
       // orphan, so clean up the now-empty team row too.
       if (me.role === 'owner' && members.length === 1) {
@@ -1188,20 +1311,16 @@
       if (error) throw error;
       sarvarcTeamAudit('member_removed', { member_user_id: removedUserId });
       // Tell everyone currently connected — including the removed person's
-      // own tab(s) — right now, over the same realtime channel already
-      // used for "who's online". Without this, the removed user's browser
-      // has no idea it was kicked: it keeps polling nothing, keeps
-      // broadcasting mouse-move/awareness updates into the live session,
-      // and their cursor just sits there on every teammate's screen until
-      // the Yjs awareness protocol's own ~30s stale-client timeout finally
-      // prunes it. Broadcasting makes the cutoff instant on both ends.
-      if (sarvarcTeamPresenceChannel && removedUserId) {
-        try {
-          await sarvarcTeamPresenceChannel.send({
-            type: 'broadcast', event: 'member-removed',
-            payload: { teamId, userId: removedUserId }
-          });
-        } catch (e) { console.warn('[Team] could not broadcast removal', e); }
+      // own tab(s) — right now. Sent on the team channel AND on the live
+      // room, because everyone inside a live session is certainly on the
+      // latter while the team channel may not be up yet for them. The
+      // removed person's own browser double-checks with the database before
+      // it acts, and a watchdog covers anyone who misses the broadcast.
+      if (removedUserId) {
+        await sarvarcTeamAnnounceDeparture(teamId, removedUserId, 'removed');
+        // Broadcasts never echo back to the sender, so clean OUR screen too:
+        // the owner used to keep seeing the removed person's cursor.
+        await sarvarcTeamHandleMemberRemoved(teamId, removedUserId, 'removed');
       }
       await sarvarcTeamLoadMembers(teamId);
     } catch (e) {
@@ -1209,47 +1328,118 @@
     }
   }
 
-  // Reacts to a 'member-removed' broadcast on the team channel. Fires on
-  // EVERY currently-connected client for that team, including the removed
-  // person's own tab — that's the point: no polling, no waiting.
-  async function sarvarcTeamHandleMemberRemoved(teamId, removedUserId) {
-    const user = await sarvarcTeamGetUser();
-    if (!user) return;
+  // Sends 'member-removed' (reason 'removed' by an owner/admin, or 'left' when
+  // the person leaves on their own) on every channel teammates may be on.
+  async function sarvarcTeamAnnounceDeparture(teamId, userId, reason) {
+    const payload = { teamId: teamId, userId: userId, reason: reason };
+    const channels = [sarvarcTeamPresenceChannel, sarvarcCollabChannel].filter(Boolean);
+    await Promise.all(channels.map(async (ch) => {
+      try { await ch.send({ type: 'broadcast', event: 'member-removed', payload: payload }); }
+      catch (e) { console.warn('[Team] could not broadcast departure', e); }
+    }));
+  }
 
-    if (user.id === removedUserId) {
-      // This is the removed person's own client. Cut them off from the
-      // live session immediately — stop broadcasting our cursor, leave
-      // the Yjs doc/awareness channel — rather than leaving it connected
-      // until an idle timeout eventually notices.
-      if (typeof sarvarcCollabIsLive === 'function' && sarvarcCollabIsLive()) {
-        sarvarcCollabDisconnect();
+  // Asks the database (never trusts a broadcast on its own) whether we are
+  // still on the team. 'removed' only after two empty answers, so a database
+  // that is a moment behind the broadcast cannot throw anyone out.
+  async function sarvarcTeamConfirmRemoved(teamId) {
+    for (let i = 0; i < 2; i++) {
+      try {
+        const user = await sarvarcTeamGetUser();
+        if (!user) return 'unknown';
+        const { data, error } = await sarvarcSupabase.from('team_members')
+          .select('id').eq('team_id', teamId).eq('user_id', user.id).limit(1);
+        if (error) return 'unknown';
+        if (data && data.length) return 'member';
+      } catch (e) { return 'unknown'; }
+      if (i === 0) await new Promise(r => setTimeout(r, 1500));
+    }
+    return 'removed';
+  }
+
+  // The single exit path for "you are no longer on this team": used by the
+  // removal broadcast, the membership watchdog and the connect gate. It
+  // leaves the live room (with a goodbye so nobody keeps our cursor), forgets
+  // every live flag so a reload cannot rejoin, drops the team channel and
+  // every cached role, and refreshes the Teams window.
+  // The content already on screen stays as the person's own local copy —
+  // the same thing that happens when someone leaves a live session.
+  async function sarvarcTeamEvictSelf(teamId, reason) {
+    if (sarvarcCollabEvicting) return;
+    sarvarcCollabEvicting = true;
+    try {
+      const user = await sarvarcTeamGetUser();
+      const liveTeam = localStorage.getItem('sarvarcLiveCollabTeamId');
+      if (!teamId || !liveTeam || liveTeam === teamId) {
+        sarvarcCollabDisconnect(); // goodbye + clears the live flags
+        SARVARC_LIVE_FLAGS.forEach(k => localStorage.removeItem(k));
       }
+      sarvarcCollabRoles = {};
+      sarvarcCollabRolesLoaded = false;
+      sarvarcCollabMembership = 'unknown';
+      sarvarcTeamMyRole = null;
       if (sarvarcTeamPresenceChannel) {
         try { sarvarcSupabase.removeChannel(sarvarcTeamPresenceChannel); } catch (e) {}
         sarvarcTeamPresenceChannel = null;
       }
-      sarvarcTeamActiveId = null;
-      toast("You've been removed from this team", 'error');
+      sarvarcTeamOnlineIds = new Set();
+      const inviteBar = document.getElementById('sarvarcLiveInviteBar');
+      if (inviteBar) inviteBar.remove();
+      if (!teamId || teamId === sarvarcTeamActiveId) sarvarcTeamActiveId = null;
       sarvarcTeamCloseModal();
-      await sarvarcTeamLoadMyTeams(user);
+      toast(reason === 'removed' ? "You've been removed from this team. The live session was closed." : 'You left the team.', reason === 'removed' ? 'error' : 'info');
+      if (user) await sarvarcTeamLoadMyTeams(user); // restarts presence for any team you still belong to
+    } finally {
+      sarvarcCollabEvicting = false;
+    }
+  }
+
+  // Reacts to a 'member-removed' broadcast (team channel or live room).
+  // Fires on EVERY currently-connected client, including the removed
+  // person's own tab — that's the point: no polling, no waiting.
+  async function sarvarcTeamHandleMemberRemoved(teamId, removedUserId, reason) {
+    const user = await sarvarcTeamGetUser();
+    if (!user || !removedUserId) return;
+    const liveTeam = localStorage.getItem('sarvarcLiveCollabTeamId');
+    if (teamId && teamId !== sarvarcTeamActiveId && teamId !== liveTeam) return; // another team's news
+    const nowMs = Date.now();
+    const last = sarvarcTeamRecentDepartures.get(removedUserId) || 0;
+    if (nowMs - last < 3000) return;
+    sarvarcTeamRecentDepartures.set(removedUserId, nowMs);
+
+    if (user.id === removedUserId) {
+      // We are the one being removed. A broadcast alone cannot throw us out
+      // (any teammate could send one); the database has the last word.
+      const verdict = await sarvarcTeamConfirmRemoved(teamId || sarvarcTeamActiveId || liveTeam);
+      if (verdict === 'removed') await sarvarcTeamEvictSelf(teamId || sarvarcTeamActiveId || liveTeam, 'removed');
+      else sarvarcTeamRecentDepartures.delete(removedUserId);
       return;
     }
 
-    // Someone else was removed: don't wait for the awareness protocol's
-    // own timeout to quietly age their cursor out — find their live
-    // client (matched by the userId we already stamp into every
-    // awareness state, see sarvarcCollabConnect) and remove it from the
-    // shared doc's awareness right now, so their cursor disappears from
-    // every remaining teammate's screen this instant instead of drifting
-    // there for up to ~30 more seconds.
-    if (teamId === sarvarcTeamActiveId && sarvarcCollabAwareness && window.YAwareness) {
+    // Someone else left or was removed: wipe every trace of them right now —
+    // cached role (so a stale tab of theirs can no longer merge edits),
+    // heartbeat/cursor bookkeeping, their awareness state and cursor element —
+    // then let the database re-confirm the roster. If the broadcast was
+    // forged and they are still a member, the refresh puts them straight back.
+    delete sarvarcCollabRoles[removedUserId];
+    delete sarvarcTeamMembersCache[removedUserId];
+    sarvarcPresenceBeatSeenAt.delete(removedUserId);
+    sarvarcPresenceCursorSeenAt.delete(removedUserId);
+    if (sarvarcCollabAwareness && window.YAwareness) {
       const staleClientIds = [];
       sarvarcCollabAwareness.getStates().forEach((state, clientId) => {
         if (state && state.userId === removedUserId) staleClientIds.push(clientId);
       });
-      if (staleClientIds.length) {
-        window.YAwareness.removeAwarenessStates(sarvarcCollabAwareness, staleClientIds, 'removed-by-owner');
-      }
+      // Origin 'remote' on purpose: every teammate does this locally, so we
+      // must not re-broadcast it (that would be N identical packets).
+      if (staleClientIds.length) window.YAwareness.removeAwarenessStates(sarvarcCollabAwareness, staleClientIds, 'remote');
+    }
+    const cursorEl = document.getElementById('sarvarc-cursor-' + removedUserId);
+    if (cursorEl) cursorEl.remove();
+    sarvarcPresenceRender();
+    if (sarvarcCollabIsLive()) {
+      await sarvarcCollabLoadRoles(sarvarcTeamActiveId || liveTeam);
+      sarvarcPresenceRender();
     }
     if (teamId === sarvarcTeamActiveId) await sarvarcTeamLoadMembers(teamId);
   }
@@ -1340,7 +1530,7 @@
       });
       channel.on('broadcast', { event: 'member-removed' }, ({ payload }) => {
         if (!payload) return;
-        sarvarcTeamHandleMemberRemoved(payload.teamId, payload.userId);
+        sarvarcTeamHandleMemberRemoved(payload.teamId, payload.userId, payload.reason);
       });
       channel.on('broadcast', { event: 'session-ended' }, ({ payload }) => {
         if (!payload) return;
@@ -2159,6 +2349,16 @@
     // stale one can't make the status panel lie about being connected.
     if (event === 'SIGNED_OUT' && typeof sarvarcDriveClearCachedToken === 'function') {
       sarvarcDriveClearCachedToken();
+    }
+    // Signing out must also end any live session and team listening, or the
+    // Live badge and teammates' cursors would stay on screen for a person
+    // who is no longer signed in.
+    if (event === 'SIGNED_OUT') {
+      try { sarvarcCollabDisconnect(); } catch (e) {}
+      SARVARC_LIVE_FLAGS.forEach(k => localStorage.removeItem(k));
+      if (sarvarcTeamPresenceChannel) { try { sarvarcSupabase.removeChannel(sarvarcTeamPresenceChannel); } catch (e) {} sarvarcTeamPresenceChannel = null; }
+      sarvarcCollabRoles = {}; sarvarcCollabRolesLoaded = false; sarvarcCollabMembership = 'unknown';
+      sarvarcTeamMyRole = null; sarvarcTeamActiveId = null; sarvarcTeamOnlineIds = new Set();
     }
     // Keep the edit-lock overlay in sync too — logging in clears it
     // immediately; logging out re-applies it if the free export was
