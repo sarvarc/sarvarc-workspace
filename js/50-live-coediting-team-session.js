@@ -3279,8 +3279,10 @@
     const C = pdfedCollab;
     if (!C || !C.ready || C.applying || C.paused || C.unshared || C.srcBusy > 0 || Date.now() < (C.openingUntil || 0) || !sarvarcCollabMayEditNow()) return;
     if (C.dirty.size) { pdfedCollabScheduleApply(); return; } // take in teammates' changes first, never overwrite them
+    const t0 = Date.now();
     pdfedCollabEnsureCids(false);
     const snap = pdfedCollabSnapshot();
+    C.lastCost = Date.now() - t0; // how long checking for changes took (the safety timer backs off if it is slow)
     // Build the list of changes first, then send them in small groups. One
     // group = one live message, and a message must stay under the Realtime
     // size ceiling, so a big Word / Excel file is spread over several.
@@ -3713,6 +3715,20 @@
       });
       document.addEventListener('pointerdown', pdfedCollabPointerDownHandler, true);
       document.addEventListener('pointerup', pdfedCollabPointerUpHandler, true);
+      // The app's own autosave only runs after a few actions (placing something,
+      // refreshing thumbnails). Moving, resizing or editing a box that is already
+      // on the page never called it, so those changes were never sent. Send after
+      // ANY editing action in the PDF Editor, and re-check every few seconds as a
+      // safety net. Sending is cheap when nothing changed (the check is local).
+      C.kick = (e) => {
+        const sec = document.getElementById('sec-pdfeditor');
+        if (!sec || !sec.classList.contains('active')) return;
+        if (e && e.type === 'timer' && (C.lastCost || 0) > 150) return; // very large document: rely on edit events only
+        pdfedCollabSchedulePush();
+      };
+      C.kickEvents = ['pointerup', 'mouseup', 'keyup', 'input', 'change', 'drop'];
+      C.kickEvents.forEach((ev) => document.addEventListener(ev, C.kick, true));
+      C.kickTimer = setInterval(() => C.kick({ type: 'timer' }), 2000);
       // Give teammates ~1.5 s to hand us their state before we decide whether
       // WE are the first person here (then we share ours) or a joiner (then we
       // take theirs). Seeding earlier could overwrite a teammate's newer work.
@@ -3738,7 +3754,11 @@
     },
     detach() {
       const C = pdfedCollab;
-      if (C) { clearTimeout(C.pushTimer); clearTimeout(C.applyTimer); clearTimeout(C.stripTimer); clearTimeout(C.seedTimer); }
+      if (C) {
+        clearTimeout(C.pushTimer); clearTimeout(C.applyTimer); clearTimeout(C.stripTimer); clearTimeout(C.seedTimer);
+        clearInterval(C.kickTimer);
+        if (C.kick && C.kickEvents) C.kickEvents.forEach((ev) => document.removeEventListener(ev, C.kick, true));
+      }
       document.removeEventListener('pointerdown', pdfedCollabPointerDownHandler, true);
       document.removeEventListener('pointerup', pdfedCollabPointerUpHandler, true);
       pdfedCollabPointerDown = false;
