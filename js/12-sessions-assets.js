@@ -1068,6 +1068,7 @@ async function smSaveSession(name, forcedId) {
     if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
       const driveFileId = await sarvarcDriveSaveSession(rec);
       rec.driveFileId = driveFileId;
+      window.sarvarcLastDriveMirror = { ok: true, at: Date.now() };
       const db2 = await idbKvOpen();
       await new Promise((resolve) => {
         const tx = db2.transaction('sessions', 'readwrite');
@@ -1078,6 +1079,7 @@ async function smSaveSession(name, forcedId) {
     }
   } catch (e) {
     console.warn('[Sessions] Drive mirror save skipped', e);
+    window.sarvarcLastDriveMirror = { ok: false, at: Date.now() };
     if (ownerEmail && typeof toast === 'function') {
       toast('Saved on this device. Couldn\u2019t sync to your account yet \u2014 it\u2019ll retry next time you sign in.', 'info');
     }
@@ -1135,6 +1137,7 @@ async function smUpdateSessionSnapshot(id) {
   try {
     if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
       const driveFileId = await sarvarcDriveSaveSession(rec);
+      window.sarvarcLastDriveMirror = { ok: true, at: Date.now() };
       if (!rec.driveFileId) {
         rec.driveFileId = driveFileId;
         const db2 = await idbKvOpen();
@@ -1148,6 +1151,7 @@ async function smUpdateSessionSnapshot(id) {
     }
   } catch (e) {
     console.warn('[Sessions] Drive mirror update skipped', e);
+    window.sarvarcLastDriveMirror = { ok: false, at: Date.now() };
     if (existing.ownerEmail && typeof toast === 'function') {
       toast('Saved on this device. Couldn\u2019t sync to your account yet \u2014 it\u2019ll retry next time you sign in.', 'info');
     }
