@@ -3589,10 +3589,24 @@
 
   // Called by the loaders once the new file is fully open on THIS screen.
   async function pdfedCollabDocumentOpened(kind, file) {
-    const C = pdfedCollab;
-    if (!C || !C.ready) return;
+    let C = pdfedCollab;
+    if (!C) {
+      // Not live: nothing to do. Live but the editor is not connected: say so instead of failing silently.
+      if (typeof sarvarcCollabIsLive === 'function' && sarvarcCollabIsLive()) toast('Live session is on, but the PDF Editor is not connected to it, so your teammates cannot see this file. Press Leave, then join the live session again.', 'error');
+      return;
+    }
     try {
-      if (!sarvarcCollabMayEditNow()) return; // view-only roles never publish
+      console.info('[Collab] file opened during live session:', kind, file && file.name);
+      // The editor may still be finishing its join (about 1.5 s). Wait for it.
+      for (let i = 0; i < 40 && pdfedCollab === C && !C.ready; i++) await new Promise((r) => setTimeout(r, 200));
+      if (pdfedCollab !== C) return;
+      if (!C.ready) { toast('The live session is still connecting. Open the file again in a few seconds so your teammates see it.', 'error'); return; }
+      if (!sarvarcCollabMayEditNow()) {
+        toast('You can only watch in this team (view only), so this file stays on your screen only.', 'info');
+        return; // view-only roles never publish
+      }
+      // Make sure the new pages have their shared ids (a no-op when the loader already did it).
+      if (pdfed.pages.some((p) => !p._cid)) pdfedCollabDocumentOpening();
       const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       let path = null;
       if (kind === 'pdf') {
@@ -3609,8 +3623,10 @@
       C.src.set('cur', JSON.stringify({ id: id, kind: kind, name: (file && file.name) || 'Untitled', path: path, tab: SARVARC_PDFED_TAB, byName: (mem && mem.full_name) || (who && who.email) || null, at: Date.now() }));
       C.openingUntil = 0;
       pdfedCollabPrepareAndPush();
+      toast('Shared with your team', 'success');
     } catch (e) {
       console.warn('[Collab] could not share the opened file', e);
+      toast('Could not share this file with your team. Check your connection and open it again.', 'error');
     } finally {
       if (pdfedCollab === C) C.openingUntil = 0;
     }
