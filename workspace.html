@@ -1748,6 +1748,8 @@
                   <div id="teFafPlacedHighlightLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedTablesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <div id="pdfedPlacedShapesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+                  <!-- team sticky notes: drawn above everything else on the page, never exported -->
+                  <div id="pdfedPlacedNotesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
                   <!-- image insert draggable ghost, lives INSIDE the zoom wrap so it scales
                        together with the canvas on zoom in/out, exactly like a stamped image
                        would. All its coordinates are stored/used in raw canvas-px (unscaled
@@ -2343,6 +2345,30 @@
 
               <!-- MY NOTES, private task list, browser-only, NEVER included in exported PDF -->
               <div class="pdfed-panel-section" id="pdfedNotesPanel" style="display:none">
+                <div id="sarvarcTeamNotesBox" style="display:none">
+                  <h5 style="display:flex;align-items:center;gap:6px">Team notes <span class="sarvarc-live-pill">LIVE</span></h5>
+                  <div class="sarvarc-notes-hint">One list for everyone in this live session. Never included in your exported PDF.</div>
+                  <div class="pdfed-notes-input-row" id="sarvarcTeamNotesInputRow">
+                    <input type="text" id="sarvarcTeamNoteInput" placeholder="Add a note for the team (Enter to save)" maxlength="500" onkeydown="sarvarcTeamNotesKeydown(event)">
+                    <button onclick="sarvarcTeamNotesAdd()" title="Add team note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  </div>
+                  <div class="pdfed-notes-list" id="sarvarcTeamNotesList"></div>
+                  <div class="pdfed-notes-footer" id="sarvarcTeamNotesFooter" style="display:none">
+                    <span id="sarvarcTeamNotesCount">0 tasks</span>
+                    <span class="clickable" onclick="sarvarcTeamNotesClearDone()">Clear completed</span>
+                  </div>
+                </div>
+
+                <div id="sarvarcStickyBox">
+                  <h5>Sticky notes on this page</h5>
+                  <div class="sarvarc-notes-hint">Pin a note on the page itself. In a live session your teammates see it too. Never included in your exported PDF.</div>
+                  <div class="sarvarc-sticky-actions">
+                    <button class="primary" onclick="pdfedStickyAdd()">+ Add sticky note</button>
+                    <button id="pdfedStickyToggleBtn" onclick="pdfedStickyToggleVisible()" title="Show or hide the sticky notes on your screen">Hide</button>
+                  </div>
+                  <div id="pdfedStickyCount">No sticky notes on this page</div>
+                </div>
+
                 <h5 style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> My Notes</h5>
                 <div style="font-size:10.5px;color:var(--text3);margin:-6px 0 12px;line-height:1.6">A private space beside your work for reminders and thoughts you don't want to lose.</div>
 
@@ -6319,6 +6345,7 @@
 <link rel="stylesheet" href="css/30-showcase-bridge.css" id="dgShowcaseBridgeCss">
 <link rel="stylesheet" href="css/31-mobile-polish.css">
 <link rel="stylesheet" href="css/32-team-calm.css">
+<link rel="stylesheet" href="css/33-team-notes.css">
 
 
 <div id="pdfedPresenter" aria-hidden="true">
@@ -6329,6 +6356,7 @@
   <div id="pdfedPresHud"><span id="pdfedPresCount">1 / 1</span><span id="pdfedPresZoom">100%</span></div>
 </div>
 <script src="js/56-presenter.js"></script>
+<script src="js/57-team-notes.js"></script>
 
 </body>
 </html>
