@@ -3044,7 +3044,7 @@
   // a huge new page picture may not reach teammates (the sync ring turns
   // red).
   // =========================================================
-  const SARVARC_PDFED_KINDS = ['placedTexts', 'placedImages', 'placedBorders', 'placedTables', 'placedShapes'];
+  const SARVARC_PDFED_KINDS = ['placedTexts', 'placedImages', 'placedBorders', 'placedTables', 'placedShapes', 'placedNotes'];
   const SARVARC_PDFED_META_KEYS = ['textBlocks', 'edits', 'annotStrokes', 'annotRedoStrokes', 'bgColor', 'modified', 'label'];
   const SARVARC_PDFED_BASE_KEYS = ['type', 'pageNum', 'width', 'height', 'pageMM'];
   const SARVARC_PDFED_ASSET_MIN = 2048;
@@ -3265,6 +3265,7 @@
     if (Date.now() - C.attachedAt < 6000) return;
     const what = (a) => {
       if (a.kind === 'placedTables') return 'a table';
+      if (a.kind === 'placedNotes') return 'a sticky note';
       if (a.kind === 'placedImages') {
         if (a.itemKind === 'chart') return 'a chart';
         if (a.itemKind === 'map') return 'a map';
