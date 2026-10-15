@@ -5226,7 +5226,7 @@
         <span class="sarvarc-team-head-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <div>
           <h3 id="sarvarcTeamTitle">Team<span class="sarvarc-team-count-pill" id="sarvarcTeamCountPill" style="display:none">0 members</span></h3>
-          <div class="pdfed-export-sub" id="sarvarcTeamModalSub">Work on projects together with your team</div>
+          <div class="pdfed-export-sub" id="sarvarcTeamModalSub">Edit the same file together, live</div>
         </div>
       </div>
       <button type="button" class="pdfed-export-close" onclick="sarvarcTeamCloseModal()" aria-label="Close">
@@ -5252,31 +5252,55 @@
         <div class="sarvarc-team-skel-row"></div>
       </div>
 
-      <!-- No team yet -->
+      <!-- No team yet: one field, one button, three plain steps -->
       <div id="sarvarcTeamEmptyState" class="sarvarc-team-emptystate" style="display:none">
-        <div class="sarvarc-team-emptystate-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-        <div class="sarvarc-team-emptystate-title">Create your first team</div>
-        <div class="sarvarc-team-emptystate-text">Invite colleagues, give each person the right level of access, and share projects in one place.</div>
-        <input type="text" id="sarvarcTeamNewName" class="pdfed-export-range-input" placeholder="Team name, e.g. Prayaga &amp; Co." style="margin-top:0">
-        <button class="pdfed-export-download-btn" style="width:100%;margin-top:10px" onclick="sarvarcTeamCreate()">Create team</button>
+        <div class="sarvarc-team-emptystate-title">Start a team in 10 seconds</div>
+        <div class="sarvarc-team-emptystate-text">Give it a name. Then add a teammate and go live to edit the same file together.</div>
+        <ol class="tm-steps tm-steps-intro" aria-label="How it works">
+          <li><span class="tm-step-num">1</span><span>Name your team</span></li>
+          <li><span class="tm-step-num">2</span><span>Add a teammate</span></li>
+          <li><span class="tm-step-num">3</span><span>Press Go live</span></li>
+        </ol>
+        <div class="tm-create-row">
+          <input type="text" id="sarvarcTeamNewName" class="pdfed-export-range-input" placeholder="Team name, e.g. Prayaga &amp; Co." aria-label="Team name" onkeydown="if(event.key==='Enter')sarvarcTeamCreate()">
+          <button type="button" class="tm-btn tm-btn-primary" onclick="sarvarcTeamCreate()">Create team</button>
+        </div>
       </div>
 
       <!-- Has team(s) -->
       <div id="sarvarcTeamActiveState" style="display:none">
         <div class="sarvarc-team-switcher-row">
           <select id="sarvarcTeamSwitcher" class="sarvarc-team-switcher-select" aria-label="Team" onchange="sarvarcTeamSwitch(this.value)"></select>
-          <button class="btn-secondary sarvarc-team-tool-btn" title="Create another team" onclick="sarvarcTeamShowCreateForm()">+ New team</button>
-          <button class="sarvarc-team-action-btn leave" id="sarvarcTeamLeaveBtn" title="Leave this team" onclick="sarvarcTeamLeave()">Leave team</button>
+          <button type="button" class="tm-btn tm-btn-quiet" title="Create another team" onclick="sarvarcTeamShowCreateForm()">New team</button>
+          <button type="button" class="sarvarc-team-action-btn leave" id="sarvarcTeamLeaveBtn" title="Leave this team" onclick="sarvarcTeamLeave()">Leave team</button>
         </div>
 
-        <div id="sarvarcTeamCreateInline" style="display:none;margin-bottom:12px">
-          <input type="text" id="sarvarcTeamNewName2" class="pdfed-export-range-input" placeholder="Team name" style="margin-top:0">
-          <button class="pdfed-export-download-btn" style="width:100%;margin-top:8px" onclick="sarvarcTeamCreate('sarvarcTeamNewName2')">Create</button>
+        <div id="sarvarcTeamCreateInline" class="tm-create-row" style="display:none;margin-bottom:14px">
+          <input type="text" id="sarvarcTeamNewName2" class="pdfed-export-range-input" placeholder="Team name" aria-label="New team name" onkeydown="if(event.key==='Enter')sarvarcTeamCreate('sarvarcTeamNewName2')">
+          <button type="button" class="tm-btn" onclick="sarvarcTeamCreate('sarvarcTeamNewName2')">Create</button>
         </div>
 
-        <!-- MEMBERS -->
-        <div class="sarvarc-team-section-head">
-          <div class="sarvarc-team-section-title">Members</div>
+        <!-- HERO: the one thing most people come here to do. -->
+        <section class="tm-hero" id="sarvarcTeamHero" aria-label="Live session">
+          <div class="tm-hero-text">
+            <div class="tm-hero-title" id="sarvarcTeamHeroTitle">Work on this file together, live</div>
+            <div class="tm-hero-sub" id="sarvarcTeamHeroSub"></div>
+            <div class="tm-hero-online" id="sarvarcTeamHeroOnline" aria-live="polite"></div>
+          </div>
+          <div class="tm-hero-actions">
+            <button type="button" class="tm-btn tm-btn-primary tm-btn-lg" id="sarvarcTeamGoLiveBtn" onclick="sarvarcTeamGoLive()">Go live</button>
+            <button type="button" class="tm-btn tm-btn-lg" id="sarvarcTeamShareBtn" onclick="sarvarcTeamShare()" title="Copy or send a link to your team">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+              Share
+            </button>
+            <button type="button" class="tm-btn tm-btn-lg" id="sarvarcTeamLeaveLiveBtn" onclick="sarvarcTeamLeaveLiveSession()" style="display:none">Leave live</button>
+            <button type="button" class="tm-btn tm-btn-quiet tm-btn-lg" id="sarvarcTeamEndLiveBtn" onclick="sarvarcTeamEndLiveSession()" style="display:none" title="Ends the live session for everyone">End for all</button>
+          </div>
+        </section>
+
+        <!-- PEOPLE -->
+        <div class="sarvarc-team-section-head tm-section-head">
+          <div class="sarvarc-team-section-title">People</div>
         </div>
         <div class="sarvarc-team-table" role="table" aria-label="Team members">
           <div class="sarvarc-team-table-head" role="row">
@@ -5286,6 +5310,23 @@
             <div role="columnheader"><span class="sr-only">Actions</span></div>
           </div>
           <div id="sarvarcTeamMembersList" class="sarvarc-team-members-list" role="rowgroup"></div>
+        </div>
+        <div id="sarvarcTeamPendingList" class="tm-pending" style="display:none"></div>
+
+        <!-- ADD PEOPLE (only owners and admins see this) -->
+        <div id="sarvarcTeamInviteRow" class="sarvarc-team-invite-card">
+          <div class="sarvarc-team-section-title">Add a teammate</div>
+          <div class="sarvarc-team-invite-fields">
+            <input type="email" id="sarvarcTeamInviteEmail" class="pdfed-export-range-input sarvarc-team-field" placeholder="teammate@email.com" aria-label="Email address" onkeydown="if(event.key==='Enter')sarvarcTeamInvite()">
+            <select id="sarvarcTeamInviteRole" class="pdfed-export-range-input sarvarc-team-field sarvarc-team-field-role" aria-label="Role" title="What this person can do" onchange="sarvarcTeamInviteRoleHint()">
+              <option value="editor" selected>Editor</option>
+              <option value="reviewer">Reviewer</option>
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select>
+            <button type="button" class="tm-btn tm-btn-primary sarvarc-team-invite-btn" onclick="sarvarcTeamInvite()">Add</button>
+          </div>
+          <div class="sarvarc-team-invite-help" id="sarvarcTeamInviteHelp"></div>
         </div>
 
         <details class="sarvarc-team-roles-help">
@@ -5304,30 +5345,13 @@
           </div>
         </details>
 
-        <!-- INVITE (only owners and admins see this card) -->
-        <div id="sarvarcTeamInviteRow" class="sarvarc-team-invite-card">
-          <div class="sarvarc-team-section-title">Invite people</div>
-          <div class="sarvarc-team-invite-fields">
-            <input type="email" id="sarvarcTeamInviteEmail" class="pdfed-export-range-input sarvarc-team-field" placeholder="teammate@email.com" aria-label="Email address">
-            <select id="sarvarcTeamInviteRole" class="pdfed-export-range-input sarvarc-team-field sarvarc-team-field-role" aria-label="Role" title="What this person can do" onchange="sarvarcTeamInviteRoleHint()">
-              <option value="editor" selected>Editor</option>
-              <option value="reviewer">Reviewer</option>
-              <option value="viewer">Viewer</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button type="button" class="pdfed-export-download-btn sarvarc-team-invite-btn" onclick="sarvarcTeamInvite()">Send invite</button>
-          </div>
-          <div class="sarvarc-team-invite-help" id="sarvarcTeamInviteHelp"></div>
-        </div>
-
-        <!-- SHARED PROJECTS: snapshots pushed to this team's private storage,
-             so every member opens the SAME file. -->
-        <div class="sarvarc-team-section-head sarvarc-team-projects-head">
+        <!-- SHARED PROJECTS: snapshots saved to this team, so every member opens the SAME file. -->
+        <div class="sarvarc-team-section-head sarvarc-team-projects-head tm-section-head">
           <div class="sarvarc-team-section-title">Team projects</div>
-          <button type="button" class="btn-secondary sarvarc-team-tool-btn" onclick="sarvarcTeamProjectSave()">Save current work to team</button>
+          <button type="button" class="tm-btn tm-btn-quiet" onclick="sarvarcTeamProjectSave()" title="Saves a copy of your current work for everyone in the team">Save to team</button>
         </div>
         <div id="sarvarcTeamProjectsList" class="sarvarc-team-projects-list">
-          <div class="sarvarc-team-empty">No shared projects yet. Save your current work to share it with the team.</div>
+          <div class="sarvarc-team-empty">No shared projects yet. Press Go live and your current work is shared automatically.</div>
         </div>
       </div>
     </div>
@@ -6286,6 +6310,7 @@
 
 <link rel="stylesheet" href="css/30-showcase-bridge.css" id="dgShowcaseBridgeCss">
 <link rel="stylesheet" href="css/31-mobile-polish.css">
+<link rel="stylesheet" href="css/32-team-calm.css">
 
 
 <div id="pdfedPresenter" aria-hidden="true">
