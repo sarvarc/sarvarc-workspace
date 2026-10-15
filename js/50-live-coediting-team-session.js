@@ -576,50 +576,28 @@
       .sarvarc-presence-box {
         display:flex; align-items:center; gap:8px;
         margin-left:10px; padding:4px 10px 4px 8px;
-        border-radius:20px; border:1px solid var(--border2);
-        background:linear-gradient(180deg, rgba(16,185,129,0.10), rgba(16,185,129,0.03));
+        border-radius:20px; border:1px solid var(--pdfed-section-border, rgba(255,255,255,0.1));
+        background:var(--surface);
         flex-shrink:0; transition:opacity .25s ease;
       }
       .sarvarc-presence-live {
-        font-size:9.5px;color:#10B981;letter-spacing:.08em;text-transform:uppercase;
-        font-weight:800;display:flex;align-items:center;gap:5px;
+        font-size:9.5px;color:#4BAE8A;letter-spacing:.08em;text-transform:uppercase;
+        font-weight:700;display:flex;align-items:center;gap:5px;
       }
-      /* Sync-health spinner: spinning cyan ring (matches the SARVARC accent)
-         = last send/receive went through fine. Freezes + dims the instant a
-         send fails or a received packet can't be applied, so a stalled
-         connection is visible at a glance without opening devtools — no
-         red/green traffic-light styling, stays in the app's own palette. */
+      /* Sync-health dot: still green = last send/receive went through fine.
+         Dims the instant a send fails or a packet cannot be applied, so a
+         stalled connection is visible at a glance. No animation. */
       .sarvarc-collab-sync {
-        width:10px; height:10px; border-radius:50%; flex-shrink:0;
-        border:2px solid var(--border2); border-top-color:var(--accent, #00C2FF);
-        animation: sarvarcCollabSpin 0.85s linear infinite;
+        width:8px; height:8px; border-radius:50%; flex-shrink:0; background:#4BAE8A;
       }
-      .sarvarc-collab-sync.sarvarc-collab-stalled {
-        animation:none; opacity:.4;
-      }
-      @keyframes sarvarcCollabSpin { to { transform:rotate(360deg); } }
-      .sarvarc-presence-dot {
-        width:6px;height:6px;border-radius:50%;background:#10B981;
-        box-shadow:0 0 0 rgba(16,185,129,0.6);
-        animation:sarvarcPresenceDotPulse 1.8s ease-in-out infinite;
-      }
-      @keyframes sarvarcPresenceDotPulse {
-        0%   { box-shadow:0 0 0 0 rgba(16,185,129,0.55); }
-        70%  { box-shadow:0 0 0 5px rgba(16,185,129,0); }
-        100% { box-shadow:0 0 0 0 rgba(16,185,129,0); }
-      }
+      .sarvarc-collab-sync.sarvarc-collab-stalled { opacity:.35; }
+      .sarvarc-presence-dot { width:6px;height:6px;border-radius:50%;background:#4BAE8A; }
       .sarvarc-presence-avatars { display:flex; align-items:center; }
       .sarvarc-presence-avatar-wrap {
         position:relative; width:26px; height:26px; margin-left:-8px; flex-shrink:0;
         border-radius:50%;
-        /* the "breathing" — a slow, gentle scale + glow, staggered per person */
-        animation:sarvarcPresenceBreathe 3.2s ease-in-out infinite;
       }
       .sarvarc-presence-avatar-wrap:first-child { margin-left:0; }
-      @keyframes sarvarcPresenceBreathe {
-        0%, 100% { transform:scale(1);    filter:drop-shadow(0 0 0 rgba(16,185,129,0)); }
-        50%      { transform:scale(1.07); filter:drop-shadow(0 0 4px rgba(16,185,129,0.45)); }
-      }
       .sarvarc-presence-avatar-img, .sarvarc-presence-avatar-fallback {
         width:100%; height:100%; border-radius:50%; display:flex; align-items:center; justify-content:center;
         font-size:10.5px; font-weight:700; color:#fff; border:2px solid var(--bg2);
@@ -662,11 +640,11 @@
       }
       .sarvarc-end-live-btn {
         margin-left:8px; padding:4px 10px; font-size:10.5px; font-weight:600;
-        color:#f59e0b; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.35);
+        color:var(--text2); background:transparent; border:1px solid var(--pdfed-section-border, rgba(255,255,255,0.12));
         border-radius:20px; cursor:pointer; white-space:nowrap; flex-shrink:0;
         transition:background .15s,border-color .15s;
       }
-      .sarvarc-end-live-btn:hover { background:rgba(245,158,11,0.16); border-color:#f59e0b; }
+      .sarvarc-end-live-btn:hover { background:var(--surface); color:var(--text); }
       @media (max-width: 900px) { .sarvarc-presence-box { display:none !important; } }
     `;
     document.head.appendChild(style);
@@ -722,9 +700,8 @@
     }
 
     // ---- "Who's here" box, embedded in the top bar ----
-    // Real profile photos where we have them, round and gently "breathing"
-    // (a slow scale + glow pulse, staggered per person) so a glance at the
-    // top bar tells you who's live without it feeling busy or gimmicky.
+    // Real profile photos where we have them, round and perfectly still,
+    // so a glance at the top bar tells you who's live without it feeling busy.
     // The owner also gets an "End Live Session" control here — shown even
     // if they're currently the only one connected, since ending it (e.g.
     // right before others join, or to stop a stray auto-reconnect) is
@@ -756,9 +733,7 @@
           const title = (name.replace(/"/g, '&quot;')) + (whereTxt
             ? (here ? ' \u2014 here with you in ' + whereTxt : (sameMod ? ' \u2014 in ' + whereTxt : ' \u2014 in ' + whereTxt + ' (click to go there)'))
             : ' \u2014 editing live now');
-          // Stagger each avatar's breathing cycle so the box feels alive
-          // rather than everyone pulsing in lockstep.
-          const delay = (i * 0.35).toFixed(2) + 's';
+          const delay = '0s';
           const inner = state.avatar
             ? '<img class="sarvarc-presence-avatar-img" src="' + state.avatar.replace(/"/g, '&quot;') +
               '" alt="" referrerpolicy="no-referrer" title="' + title + '" onerror="this.outerHTML=\'<div class=&quot;sarvarc-presence-avatar-fallback&quot; style=&quot;background:' +
@@ -1308,7 +1283,7 @@
       document.getElementById('sarvarcTeamCreateInline').style.display = 'none';
 
       const sw = document.getElementById('sarvarcTeamSwitcher');
-      sw.innerHTML = sarvarcTeamMyTeams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      sw.innerHTML = sarvarcTeamMyTeams.map(t => `<option value="${sarvarcTeamEsc(t.id)}">${sarvarcTeamEsc(t.name)}</option>`).join('');
       if (!sarvarcTeamActiveId || !sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId)) {
         sarvarcTeamActiveId = sarvarcTeamMyTeams[0].id;
       }
@@ -1406,6 +1381,9 @@
 
       const rowCtx = { youId: user.id, onlineIds: sarvarcTeamOnlineIds, avatars: avatarsById };
       listEl.innerHTML = members.map(m => sarvarcTeamMemberRowHtml(m, rowCtx)).join('');
+      sarvarcTeamMemberCount = members.length;
+      sarvarcTeamRenderHero();
+      sarvarcTeamLoadPending(teamId);
     } catch (e) {
       listEl.innerHTML = '';
       sarvarcTeamShowError(e.message || 'Could not load members.');
@@ -1486,7 +1464,8 @@
       // No email-sending service wired up yet: the invite shows up
       // automatically next time that person logs into SARVARC with
       // this Google account and opens Team.
-      sarvarcTeamShowNote(`Invite added for ${email} as ${inviteRole} — they'll see it next time they log in.`);
+      sarvarcTeamShowNote(`${email} is added as ${inviteRole}. They see it when they sign in with this email. Press Share to send them the link.`);
+      sarvarcTeamLoadPending(sarvarcTeamActiveId);
     } catch (e) {
       if ((e.message || '').includes('duplicate')) sarvarcTeamShowError('Already invited.');
       else sarvarcTeamShowError(e.message || 'Could not send invite.');
@@ -1794,7 +1773,7 @@
         .order('updated_at', { ascending: false });
       if (error) throw error;
       if (!rows || rows.length === 0) {
-        listEl.innerHTML = '<div class="sarvarc-team-empty">No shared projects yet. Save your current work to share it with the team.</div>';
+        listEl.innerHTML = '<div class="sarvarc-team-empty">No shared projects yet. Press Go live and your current work is shared automatically.</div>';
         return;
       }
       // Which of these already have a local (and thus Drive-mirrored) copy
@@ -1946,12 +1925,12 @@
     if (old) old.remove();
     const bar = document.createElement('div');
     bar.id = 'sarvarcLiveInviteBar';
-    bar.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:950;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--bg2,#1b2330);color:var(--text,#e6edf3);border:1px solid var(--accent,#00C2FF);box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px;max-width:92vw;';
+    bar.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:950;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--bg2,#1b2330);color:var(--text,#e6edf3);border:1px solid var(--pdfed-section-border,rgba(255,255,255,.12));box-shadow:0 10px 30px rgba(0,0,0,.30);font-size:13px;max-width:92vw;';
     const msg = document.createElement('span');
     msg.textContent = (p.byName || 'A teammate') + ' started a live session: ' + (p.name || 'Project');
     const join = document.createElement('button');
     join.type = 'button'; join.textContent = 'Join';
-    join.style.cssText = 'padding:6px 14px;border-radius:8px;border:0;background:var(--accent,#00C2FF);color:#04202c;font-weight:700;cursor:pointer;';
+    join.style.cssText = 'padding:7px 16px;border-radius:8px;border:0;background:#3F7FC8;color:#fff;font-weight:600;cursor:pointer;';
     join.addEventListener('click', () => sarvarcTeamJoinLive(p.teamId, p.teamProjectId));
     const no = document.createElement('button');
     no.type = 'button'; no.textContent = '\u00d7'; no.title = 'Dismiss';
@@ -1987,18 +1966,96 @@
   setTimeout(sarvarcTeamAutoStartPresence, 3000);
   setTimeout(sarvarcTeamAutoStartPresence, 10000);
 
-  // Adds the one-click button next to "Save current work to team".
-  function sarvarcTeamEnsureGoLiveBtn() {
-    if (document.getElementById('sarvarcTeamGoLiveBtn')) return;
-    const head = document.querySelector('.sarvarc-team-projects-head');
-    if (!head) return;
-    const b = document.createElement('button');
-    b.type = 'button'; b.id = 'sarvarcTeamGoLiveBtn';
-    b.className = 'btn-primary sarvarc-team-tool-btn';
-    b.textContent = 'Share & go live';
-    b.title = 'Save this work to the team and invite everyone online to edit it together';
-    b.addEventListener('click', () => sarvarcTeamGoLive());
-    head.appendChild(b);
+  // ---- Team window hero: Go live + Share, and the calm live status ----
+  // The buttons themselves live in workspace.html (#sarvarcTeamHero). This
+  // only decides which ones to show and what the one-line status says.
+  // Name kept so sarvarcTeamOpenModal() keeps calling it.
+  let sarvarcTeamMemberCount = 0;
+  function sarvarcTeamEnsureGoLiveBtn() { sarvarcTeamRenderHero(); }
+
+  function sarvarcTeamRenderHero() {
+    const hero = document.getElementById('sarvarcTeamHero');
+    if (!hero) return;
+    const live = !!localStorage.getItem('sarvarcLiveCollabTeamProjectId') || sarvarcCollabIsLive();
+    const others = Math.max(0, (sarvarcTeamOnlineIds ? sarvarcTeamOnlineIds.size : 0) - 1);
+    const canGoLive = sarvarcTeamCan('save_version');
+    const title = document.getElementById('sarvarcTeamHeroTitle');
+    const sub = document.getElementById('sarvarcTeamHeroSub');
+    const goBtn = document.getElementById('sarvarcTeamGoLiveBtn');
+    const leaveBtn = document.getElementById('sarvarcTeamLeaveLiveBtn');
+    const endBtn = document.getElementById('sarvarcTeamEndLiveBtn');
+    const onl = document.getElementById('sarvarcTeamHeroOnline');
+    hero.classList.toggle('is-live', live);
+    if (title) title.textContent = live ? 'You are live' : 'Work on this file together, live';
+    if (sub) {
+      if (live) sub.textContent = others > 0
+        ? (others === 1 ? '1 teammate is here with you.' : others + ' teammates are here with you.')
+        : 'Waiting for teammates. Press Share to invite them.';
+      else if (!canGoLive) sub.textContent = 'Your role can open live sessions but not start them. Ask an owner or admin for editor access.';
+      else if (sarvarcTeamMemberCount <= 1) sub.textContent = 'Add a teammate below, then press Go live. They get a Join button the moment you start.';
+      else if (others > 0) sub.textContent = (others === 1 ? '1 teammate is online now.' : others + ' teammates are online now.') + ' Go live and they can join with one tap.';
+      else sub.textContent = 'Nobody else is online yet. Teammates who open SARVARC later will see a Join button.';
+    }
+    if (goBtn) { goBtn.style.display = live ? 'none' : ''; goBtn.disabled = !canGoLive; goBtn.title = canGoLive ? 'Saves your current work to the team and invites everyone online' : 'Ask an owner or admin for editor access'; }
+    if (leaveBtn) leaveBtn.style.display = live ? '' : 'none';
+    if (endBtn) endBtn.style.display = (live && sarvarcTeamMyRole === 'owner') ? '' : 'none';
+    if (onl) {
+      // Small stack of who is online right now (initials only, no colour fuss).
+      const ids = Array.from(sarvarcTeamOnlineIds || []).slice(0, 5);
+      onl.innerHTML = ids.map(id => {
+        const m = sarvarcTeamMembersCache[id] || {};
+        return '<span class="tm-dot-person" title="' + sarvarcTeamEsc(m.full_name || m.email || 'Online') + '">' + sarvarcTeamEsc(sarvarcPresenceInitials(m.full_name || m.email || '?')) + '</span>';
+      }).join('');
+      onl.style.display = ids.length ? 'flex' : 'none';
+    }
+  }
+
+  // Share: one tap to send teammates a link. Uses the phone/desktop share
+  // sheet when there is one, otherwise copies the message to the clipboard.
+  // Joining still needs the person to be added to the team (Add a teammate),
+  // because the team's door is the invited email, so we say that plainly.
+  async function sarvarcTeamShare() {
+    const team = (sarvarcTeamMyTeams.find(t => t.id === sarvarcTeamActiveId) || {}).name || 'my team';
+    const url = location.origin + location.pathname;
+    const live = !!localStorage.getItem('sarvarcLiveCollabTeamProjectId');
+    const text = live
+      ? 'I am live in "' + team + '" on SARVARC Workspace. Open the link, sign in with Google, then tap Join.'
+      : 'Join "' + team + '" on SARVARC Workspace. Open the link and sign in with Google.';
+    if (navigator.share) {
+      try { await navigator.share({ title: 'SARVARC Workspace', text: text, url: url }); sarvarcTeamShareFollowUp(false); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    let ok = false;
+    try { await navigator.clipboard.writeText(text + ' ' + url); ok = true; } catch (e) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text + ' ' + url; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove();
+      } catch (e2) {}
+    }
+    if (ok) { toast('Link copied. Paste it in WhatsApp, email or chat.', 'success'); sarvarcTeamShareFollowUp(true); }
+    else sarvarcTeamShowError('Could not copy the link. Select the address bar and copy it instead.');
+  }
+
+  function sarvarcTeamShareFollowUp(copied) {
+    sarvarcTeamShowNote((copied ? 'Link copied. ' : 'Link shared. ') + 'To let someone in, add their email under Add a teammate.');
+    const row = document.getElementById('sarvarcTeamInviteRow');
+    const em = document.getElementById('sarvarcTeamInviteEmail');
+    if (row && row.style.display !== 'none' && em) { try { em.scrollIntoView({ block: 'center', behavior: 'smooth' }); em.focus({ preventScroll: true }); } catch (e) {} }
+  }
+
+  // People who were added but have not accepted yet. Best effort: if the
+  // table cannot be read, nothing is shown and nothing breaks.
+  async function sarvarcTeamLoadPending(teamId) {
+    const box = document.getElementById('sarvarcTeamPendingList');
+    if (!box) return;
+    try {
+      const { data, error } = await sarvarcSupabase.from('team_invites').select('email, role, status').eq('team_id', teamId).eq('status', 'pending');
+      if (error || !data || !data.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+      box.innerHTML = '<div class="tm-pending-title">Waiting to join</div>' + data.map(i =>
+        '<div class="tm-pending-row"><span class="tm-pending-mail">' + sarvarcTeamEsc(i.email) + '</span><span class="sarvarc-team-role-badge sarvarc-team-role-' + sarvarcTeamNormalizeRole(i.role) + '">' + sarvarcTeamEsc(sarvarcTeamNormalizeRole(i.role)) + '</span></div>').join('');
+      box.style.display = 'block';
+    } catch (e) { box.style.display = 'none'; }
   }
 
   async function sarvarcTeamProjectOpen(projectId) {
