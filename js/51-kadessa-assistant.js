@@ -4439,6 +4439,40 @@
     return data.text || '';
   }
 
+  // Workstyle: the reference (its slots with their sample words) and the person's own
+  // content go to the Worker's dedicated "workstyle_fill" mode, which answers with the
+  // words for every slot (see js/63-workstyle-fill.js). Exposed on window because this
+  // file is one private scope. Throws an Error; e.limit is true when today's cap is used up.
+  async function callKadessaWorkstyleFill(blueprint, content){
+    let accessToken = '';
+    try{
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      accessToken = session ? session.access_token : '';
+    } catch(e){ /* not signed in, or Supabase not ready yet */ }
+    if (!accessToken){ throw new Error('you are not signed in'); }
+
+    const response = await fetch(KADESSA_API.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + accessToken
+      },
+      body: JSON.stringify({ mode: 'workstyle_fill', blueprint: blueprint, content: content })
+    });
+    let data = {};
+    try{ data = await response.json(); } catch(e){ /* not JSON */ }
+    if (data && data.limitReached){
+      const err = new Error(data.error || 'you have used all of today\'s messages with Kadessa');
+      err.limit = true;
+      throw err;
+    }
+    if (!response.ok || !data || data.error){
+      throw new Error((data && data.error) ? String(data.error).replace(/[.]$/, '') : 'the engine answered with an error');
+    }
+    return { fills: Array.isArray(data.fills) ? data.fills : [], note: data.note || '' };
+  }
+  window.kadessaWorkstyleFillCall = callKadessaWorkstyleFill;
+
   // -----------------------------------------------------------------
   // EYES-ON-IT BACKGROUND WATCHER
   // -----------------------------------------------------------------
