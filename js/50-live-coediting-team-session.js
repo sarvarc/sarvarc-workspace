@@ -283,6 +283,17 @@
       if (!payload || !payload.userId) return;
       sarvarcTeamHandleMemberRemoved(payload.teamId, payload.userId, payload.reason);
     });
+    // "End Live Session" and "Leave live" are relayed on the live room too.
+    // Everyone inside a live session is certainly on this channel, while the
+    // team channel may not be up for them (same reason as member-removed).
+    channel.on('broadcast', { event: 'session-ended' }, ({ payload }) => {
+      if (!payload) return;
+      sarvarcTeamHandleSessionEnded(payload.teamId, payload.teamProjectId);
+    });
+    channel.on('broadcast', { event: 'live-left' }, ({ payload }) => {
+      if (!payload || !payload.userId) return;
+      sarvarcTeamHandleLiveLeft(payload.teamId, payload.userId);
+    });
 
     // Any local change (from us, in this tab) gets broadcast out. Yjs
     // fires this for both local and applied-remote updates, so we skip
@@ -359,6 +370,7 @@
     document.addEventListener('visibilitychange', sarvarcCollabWakeHandler);
     window.addEventListener('online', sarvarcCollabWakeHandler);
     window.addEventListener('pagehide', sarvarcCollabPageHideHandler);
+    sarvarcTeamTrackLive(true);
   }
 
   // One watchdog pass: refresh roles, and if the database says we are no
@@ -421,6 +433,7 @@
     localStorage.removeItem('sarvarcLiveCollabTeamProjectId');
     localStorage.removeItem('sarvarcLiveCollabTeamId');
     localStorage.removeItem('sarvarcLiveCollabSessionId');
+    sarvarcTeamTrackLive(false);
   }
 
   function sarvarcCollabBytesToB64(bytes) {
@@ -1086,6 +1099,7 @@
   function sarvarcTeamMemberRowHtml(m, ctx) {
     const label = m.full_name || m.email || 'Member';
     const online = ctx.onlineIds.has(m.user_id);
+    const inLive = online && sarvarcTeamLiveIds.has(m.user_id);
     const isYou = m.user_id === ctx.youId;
     const avatarUrl = ctx.avatars[m.user_id];
     const color = sarvarcCollabColorFor(m.user_id);
@@ -1113,7 +1127,7 @@
         </div>
       </div>
       <div class="sarvarc-team-cell-role" role="cell">${roleCell}</div>
-      <div class="sarvarc-team-cell-status${online ? ' is-online' : ''}" role="cell"><span class="sarvarc-team-status-dot"></span>${online ? 'Online' : 'Offline'}</div>
+      <div class="sarvarc-team-cell-status${online ? ' is-online' : ''}" role="cell"><span class="sarvarc-team-status-dot"></span>${inLive ? 'In live session' : (online ? 'Online' : 'Offline')}</div>
       <div class="sarvarc-team-member-actions" role="cell">${actions}</div>
     </div>`;
   }
@@ -1644,12 +1658,19 @@
   // others keep working. Your copy stays on your screen as a normal,
   // separate workspace. Clearing the flags also stops the auto-reconnect
   // that would otherwise pull you back in on the next reload.
-  function sarvarcTeamLeaveLiveSession() {
+  async function sarvarcTeamLeaveLiveSession() {
     if (!localStorage.getItem('sarvarcLiveCollabTeamProjectId') && !sarvarcCollabIsLive()) {
       toast('You are not in a live session.', 'info');
       return;
     }
     if (!confirm('Leave this live session?\n\nYou will stop seeing teammates\' changes and they will stop seeing yours. Your copy stays on your screen as your own workspace.')) return;
+    // Tell the others first (live room + team channel) so we vanish from the
+    // owner's "here with you" list and avatar bar at once.
+    try {
+      const user = await sarvarcTeamGetUser();
+      const tid = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
+      if (user) await sarvarcTeamBroadcastBoth('live-left', { teamId: tid, userId: user.id });
+    } catch (e) { console.warn('[Team] could not announce leaving the live session', e); }
     sarvarcCollabDisconnect();
     toast('You left the live session. You are on your own workspace.', 'info');
   }
@@ -1663,19 +1684,68 @@
     const teamId = sarvarcTeamActiveId || localStorage.getItem('sarvarcLiveCollabTeamId');
     sarvarcTeamAudit('live_ended', { project_id: teamProjectId });
     try {
-      if (sarvarcTeamPresenceChannel) {
-        try {
-          await sarvarcTeamPresenceChannel.send({
-            type: 'broadcast', event: 'session-ended',
-            payload: { teamId, teamProjectId }
-          });
-        } catch (e) { console.warn('[Team] could not broadcast session end', e); }
-      }
+      // Sent on the live room AND the team channel. It used to go out on the
+      // team channel only, so anyone inside the live room whose team channel
+      // was not up never got it and stayed connected.
+      await sarvarcTeamBroadcastBoth('session-ended', { teamId, teamProjectId });
     } finally {
       // Broadcasts don't echo back to the sender (self:false), so the owner
       // has to be dropped out of the live room locally too.
       await sarvarcTeamHandleSessionEnded(teamId, teamProjectId);
     }
+  }
+
+  // Sends one broadcast on every channel teammates may be listening on.
+  async function sarvarcTeamBroadcastBoth(event, payload) {
+    const channels = [sarvarcCollabChannel, sarvarcTeamPresenceChannel].filter(Boolean);
+    await Promise.all(channels.map(async (ch) => {
+      try { await ch.send({ type: 'broadcast', event: event, payload: payload }); }
+      catch (e) { console.warn('[Team] could not broadcast ' + event, e); }
+    }));
+  }
+
+  // Live-session flag inside team presence, so the Teams window can tell
+  // "online in SARVARC" apart from "inside the live session".
+  let sarvarcTeamLiveIds = new Set();
+  let sarvarcTeamPresenceMeta = null;
+  async function sarvarcTeamTrackLive(isLive) {
+    const ch = sarvarcTeamPresenceChannel;
+    if (!ch) return;
+    try {
+      if (!sarvarcTeamPresenceMeta) {
+        const u = await sarvarcTeamGetUser();
+        if (!u) return;
+        sarvarcTeamPresenceMeta = { email: u.email, online_at: new Date().toISOString() };
+      }
+      await ch.track(Object.assign({}, sarvarcTeamPresenceMeta, { live: !!isLive }));
+    } catch (e) { /* presence is best-effort */ }
+  }
+
+  // Someone stepped out of the live session (they are still on the team).
+  // Wipe their cursor/avatar and refresh the "here with you" list right away.
+  function sarvarcTeamHandleLiveLeft(teamId, userId) {
+    const liveTeam = localStorage.getItem('sarvarcLiveCollabTeamId');
+    if (teamId && teamId !== sarvarcTeamActiveId && teamId !== liveTeam) return;
+    const nowMs = Date.now();
+    const key = 'live-left:' + userId;
+    if (nowMs - (sarvarcTeamRecentDepartures.get(key) || 0) < 3000) return; // same news on two channels
+    sarvarcTeamRecentDepartures.set(key, nowMs);
+    sarvarcTeamLiveIds.delete(userId);
+    sarvarcPresenceBeatSeenAt.delete(userId);
+    sarvarcPresenceCursorSeenAt.delete(userId);
+    if (sarvarcCollabAwareness && window.YAwareness) {
+      const stale = [];
+      sarvarcCollabAwareness.getStates().forEach((state, clientId) => {
+        if (state && state.userId === userId) stale.push(clientId);
+      });
+      if (stale.length) window.YAwareness.removeAwarenessStates(sarvarcCollabAwareness, stale, 'remote');
+    }
+    const cursorEl = document.getElementById('sarvarc-cursor-' + userId);
+    if (cursorEl) cursorEl.remove();
+    sarvarcPresenceRender();
+    sarvarcTeamRenderHero();
+    const ov = document.getElementById('sarvarcTeamOverlay');
+    if (ov && ov.classList.contains('open') && sarvarcTeamActiveId) sarvarcTeamLoadMembers(sarvarcTeamActiveId);
   }
 
   // Reacts to a 'session-ended' broadcast — fires on EVERY client currently
@@ -1713,6 +1783,8 @@
       channel.on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         sarvarcTeamOnlineIds = new Set(Object.keys(state));
+        sarvarcTeamLiveIds = new Set(Object.keys(state).filter(k => (state[k] || []).some(meta => meta && meta.live)));
+        sarvarcTeamRenderHero();
         const ov = document.getElementById('sarvarcTeamOverlay');
         if (ov && ov.classList.contains('open')) sarvarcTeamLoadMembers(teamId); // only refetch while the Teams window is open (less lag)
       });
@@ -1742,7 +1814,8 @@
       });
       channel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({ email: user.email, online_at: new Date().toISOString() });
+          sarvarcTeamPresenceMeta = { email: user.email, online_at: new Date().toISOString() };
+          await channel.track(Object.assign({}, sarvarcTeamPresenceMeta, { live: sarvarcCollabIsLive() }));
         }
       });
       sarvarcTeamPresenceChannel = channel;
@@ -2005,7 +2078,11 @@
     const hero = document.getElementById('sarvarcTeamHero');
     if (!hero) return;
     const live = !!localStorage.getItem('sarvarcLiveCollabTeamProjectId') || sarvarcCollabIsLive();
-    const others = Math.max(0, (sarvarcTeamOnlineIds ? sarvarcTeamOnlineIds.size : 0) - 1);
+    // While live, "here with you" means people actually inside the live
+    // session (not everyone who merely has SARVARC open).
+    const myUid = window.__sarvarcUid;
+    const hereIds = live ? Array.from(sarvarcTeamLiveIds || []).filter(id => id !== myUid) : Array.from(sarvarcTeamOnlineIds || []);
+    const others = live ? hereIds.length : Math.max(0, hereIds.length - 1);
     const canGoLive = sarvarcTeamCan('save_version');
     const title = document.getElementById('sarvarcTeamHeroTitle');
     const sub = document.getElementById('sarvarcTeamHeroSub');
@@ -2034,7 +2111,7 @@
     sarvarcTeamRenderSaveLine(live);
     if (onl) {
       // Small stack of who is online right now (initials only, no colour fuss).
-      const ids = Array.from(sarvarcTeamOnlineIds || []).slice(0, 5);
+      const ids = hereIds.slice(0, 5);
       onl.innerHTML = ids.map(id => {
         const m = sarvarcTeamMembersCache[id] || {};
         return '<span class="tm-dot-person" title="' + sarvarcTeamEsc(m.full_name || m.email || 'Online') + '">' + sarvarcTeamEsc(sarvarcPresenceInitials(m.full_name || m.email || '?')) + '</span>';
