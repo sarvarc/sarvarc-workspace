@@ -92,7 +92,16 @@
   // packets; stopping that completely needs Supabase Realtime private
   // channels with a database rule (see supabase/02-realtime-auth.sql).
   // =========================================================
-  const SARVARC_COLLAB_REQUIRE_SENDER = false; // flip to true once every open tab runs this build
+  // ON: an update that does not say who sent it is dropped. Every send in this
+  // build carries the sender id, so this only rejects very old open tabs
+  // (they just need a refresh) and hand-made packets.
+  const SARVARC_COLLAB_REQUIRE_SENDER = true;
+  // Server-side enforcement. Leave FALSE until supabase/02-realtime-auth.sql has
+  // been run AND Realtime "Allow public access" is switched OFF in Supabase.
+  // Then set TRUE: the live room becomes a private channel and the database
+  // itself refuses edits from viewers/reviewers/outsiders. Turning this on
+  // before the SQL is applied stops live sessions from connecting at all.
+  const SARVARC_COLLAB_PRIVATE_CHANNEL = false;
   const SARVARC_COLLAB_GUARD_SECTIONS = '#sec-dataarrange, #sec-diagrams, #sec-makeforms, #sec-pdfeditor';
   let sarvarcCollabRoles = {};          // user_id -> normalized role (active team)
   let sarvarcCollabRolesLoaded = false; // false = we could not verify our own role
@@ -229,7 +238,7 @@
 
     const doc = new Y.Doc();
     const awareness = new window.YAwareness.Awareness(doc);
-    const channel = sarvarcSupabase.channel('sarvarc-live-' + teamProjectId, { config: { broadcast: { self: false } } });
+    const channel = sarvarcSupabase.channel('sarvarc-live-' + teamProjectId, { config: { broadcast: { self: false }, private: SARVARC_COLLAB_PRIVATE_CHANNEL } });
 
     // Incoming CRDT updates from teammates — merge into our doc. Tag the
     // transaction origin 'remote' so module attach() observers can tell
@@ -242,7 +251,9 @@
           return;
         }
         const update = sarvarcCollabB64ToBytes(msg.payload.u);
-        Y.applyUpdate(doc, update, 'remote');
+        window.sarvarcCollabApplyingFrom = msg.payload.s || null; // observers run inside applyUpdate and read this
+        try { Y.applyUpdate(doc, update, 'remote'); }
+        finally { window.sarvarcCollabApplyingFrom = null; }
         sarvarcCollabSetHealthy(true);
       } catch (e) {
         console.warn('[Collab] bad update packet', e);
@@ -3037,6 +3048,12 @@
   const SARVARC_PDFED_META_KEYS = ['textBlocks', 'edits', 'annotStrokes', 'annotRedoStrokes', 'bgColor', 'modified', 'label'];
   const SARVARC_PDFED_BASE_KEYS = ['type', 'pageNum', 'width', 'height', 'pageMM'];
   const SARVARC_PDFED_ASSET_MIN = 2048;
+  // One live message must stay under the Realtime ceiling (the picture is sent
+  // as text, then wrapped again for transport, ~1.35x). Placed pictures above
+  // this many characters are shrunk before they are shared. Lower it if your
+  // Supabase plan has a smaller broadcast payload limit.
+  const SARVARC_PDFED_ASSET_MAX = 150000;
+  const pdfedCollabShrinkTried = new Set(); // picture hashes we already tried, so we never loop
   let pdfedCollab = null;
   let pdfedCollabPointerDown = false;
 
@@ -3105,6 +3122,77 @@
     return { data: out, assets: assets };
   }
 
+  function pdfedCollabLoadImage(url) {
+    return new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('picture could not be read'));
+      im.src = url;
+    });
+  }
+
+  // Redraws a picture smaller until it fits under SARVARC_PDFED_ASSET_MAX.
+  // PNG first (keeps charts crisp and transparent), JPEG on white as a fallback.
+  async function pdfedCollabShrinkUrl(url) {
+    const im = await pdfedCollabLoadImage(url);
+    const nw = im.naturalWidth || im.width, nh = im.naturalHeight || im.height;
+    if (!nw || !nh) return null;
+    let scale = Math.min(1, 1600 / Math.max(nw, nh));
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const w = Math.max(1, Math.round(nw * scale)), h = Math.max(1, Math.round(nh * scale));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(im, 0, 0, w, h);
+      let out = c.toDataURL('image/png');
+      if (out.length <= SARVARC_PDFED_ASSET_MAX) return out;
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      out = c.toDataURL('image/jpeg', 0.82);
+      if (out.length <= SARVARC_PDFED_ASSET_MAX) return out;
+      scale *= 0.75;
+    }
+    return null;
+  }
+
+  // Runs before every push: any placed picture too big to send is replaced by a
+  // smaller copy (same position and size on the page, fewer pixels), so it
+  // reaches teammates instead of silently failing. The author sees the same
+  // picture teammates do. Page pictures themselves are never touched.
+  async function pdfedCollabShrinkOversized(C) {
+    let shrunk = 0, failed = 0;
+    for (const pg of pdfed.pages) {
+      for (const it of (pg.placedImages || [])) {
+        const url = it && it.dataUrl;
+        if (typeof url !== 'string' || url.length <= SARVARC_PDFED_ASSET_MAX) continue;
+        const h = pdfedCollabHash(url);
+        if (pdfedCollabShrinkTried.has(h)) continue;
+        pdfedCollabShrinkTried.add(h);
+        try {
+          const small = await pdfedCollabShrinkUrl(url);
+          if (pdfedCollab !== C) return;
+          if (small && it.dataUrl === url) { it.dataUrl = small; shrunk++; } else { failed++; }
+        } catch (e) { console.warn('[Collab] could not shrink picture', e); failed++; }
+      }
+    }
+    if (pdfedCollab !== C) return;
+    if (shrunk) {
+      const idx = pdfed.active;
+      if (typeof pdfedRenderPlacedImages === 'function' && pdfed.pages[idx]) { try { pdfedRenderPlacedImages(idx); } catch (e) {} }
+      if (typeof pdfedPersist === 'function') { try { pdfedPersist(); } catch (e) {} }
+      if (typeof toast === 'function') toast('A large picture was reduced in size so it can be shared live with your team.', 'info');
+    }
+    if (failed && typeof toast === 'function') toast('A picture on this page is too large to share live. Try a smaller image or a lower-resolution chart.', 'error');
+  }
+
+  async function pdfedCollabPrepareAndPush() {
+    const C = pdfedCollab;
+    if (!C) return;
+    try { await pdfedCollabShrinkOversized(C); } catch (e) { console.warn('[Collab] shrink step failed', e); }
+    if (pdfedCollab === C) pdfedCollabPushNow();
+  }
+
   function pdfedCollabPushNow() {
     const C = pdfedCollab;
     if (!C || !C.ready || C.applying || !sarvarcCollabMayEditNow()) return;
@@ -3125,7 +3213,7 @@
     const C = pdfedCollab;
     if (!C || !C.ready || C.applying) return;
     clearTimeout(C.pushTimer);
-    C.pushTimer = setTimeout(pdfedCollabPushNow, 250);
+    C.pushTimer = setTimeout(pdfedCollabPrepareAndPush, 250);
   }
 
   function pdfedCollabBusy() {
@@ -3147,6 +3235,37 @@
     }, 120);
   }
 
+  // "Aman added a chart to page 2". Quiet for the first few seconds after
+  // joining (the whole project arrives then) and for ordinary text/shapes.
+  function pdfedCollabAnnounceArrivals(C, arrivals) {
+    if (!arrivals || !arrivals.length || typeof toast !== 'function') return;
+    if (Date.now() - C.attachedAt < 6000) return;
+    const what = (a) => {
+      if (a.kind === 'placedTables') return 'a table';
+      if (a.kind === 'placedImages') {
+        if (a.itemKind === 'chart') return 'a chart';
+        if (a.itemKind === 'map') return 'a map';
+        if (a.itemKind === 'diagram') return 'a diagram';
+        return 'a picture';
+      }
+      return '';
+    };
+    const shown = arrivals.filter((a) => what(a));
+    if (!shown.length) return;
+    const nameOf = (id) => {
+      const m = id && typeof sarvarcTeamMembersCache !== 'undefined' ? sarvarcTeamMembersCache[id] : null;
+      return (m && (m.full_name || m.email)) || 'A teammate';
+    };
+    const who = nameOf(shown[0].by);
+    const sameWho = shown.every((a) => (a.by || null) === (shown[0].by || null));
+    if (shown.length === 1) {
+      const pageNo = pdfed.pages.findIndex((p) => p._cid === shown[0].cid) + 1;
+      toast(who + ' added ' + what(shown[0]) + (pageNo > 0 ? ' to page ' + pageNo : ''), 'info');
+    } else {
+      toast((sameWho ? who : 'Your team') + ' added ' + shown.length + ' items to the page', 'info');
+    }
+  }
+
   async function pdfedCollabApplyRemote() {
     const C = pdfedCollab;
     if (!C || C.applying) return;
@@ -3166,6 +3285,7 @@
       const activeCid = pdfed.pages[pdfed.active] && pdfed.pages[pdfed.active]._cid;
       const byCid = {}; pdfed.pages.forEach((p) => { if (p._cid) byCid[p._cid] = p; });
       const changed = new Set(); const rasterChanged = new Set();
+      const arrivals = []; // new tables / charts / pictures a teammate just placed
       let structure = false;
 
       // Page list: follow the shared order. A page we have that is not in the
@@ -3221,7 +3341,10 @@
               const it = arr[at];
               Object.keys(it).forEach((f) => { if (f.charAt(0) !== '_') delete it[f]; });
               Object.assign(it, obj);
-            } else { if (!obj.id) obj._cid = id; arr.push(obj); }
+            } else {
+              if (!obj.id) obj._cid = id; arr.push(obj);
+              if (!all) arrivals.push({ cid: parts[0], kind: kind, itemKind: obj.kind || '', by: C.senderByKey[k] || null });
+            }
           }
           changed.add(parts[0]);
         }
@@ -3251,6 +3374,7 @@
           C.stripTimer = setTimeout(() => { if (pdfedCollab === C) pdfedBuildStrip(); }, 800);
         }
       }
+      pdfedCollabAnnounceArrivals(C, arrivals);
     } catch (e) {
       console.warn('[Collab] PDF Editor apply failed', e);
       sarvarcCollabSetHealthy(false);
@@ -3281,12 +3405,14 @@
       const C = pdfedCollab = {
         doc: doc, map: doc.getMap('pdfedDoc'), assets: doc.getMap('pdfedAssets'),
         ready: false, applying: false, known: new Set(), dirty: new Set(),
-        pushTimer: null, applyTimer: null, stripTimer: null, seedTimer: null
+        pushTimer: null, applyTimer: null, stripTimer: null, seedTimer: null,
+        senderByKey: {}, attachedAt: Date.now()
       };
       pdfedCollabEnsureCids(true);
       C.map.observe((event, tx) => {
         if (tx.origin !== 'remote') return;
-        event.changes.keys.forEach((v, k) => C.dirty.add(k));
+        const from = window.sarvarcCollabApplyingFrom || null;
+        event.changes.keys.forEach((v, k) => { C.dirty.add(k); if (from) C.senderByKey[k] = from; });
         pdfedCollabScheduleApply();
       });
       document.addEventListener('pointerdown', pdfedCollabPointerDownHandler, true);
@@ -3303,7 +3429,7 @@
           pdfedCollabApplyRemote();
         } else {
           C.ready = true;
-          if (pdfed.pages.length) pdfedCollabPushNow();
+          if (pdfed.pages.length) pdfedCollabPrepareAndPush();
         }
       }, 1500);
     },
