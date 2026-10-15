@@ -1,22 +1,20 @@
-// ─── WORKSTYLE, STEP 2 + 3: BUILD IN A SAVED STYLE, SIDE BY SIDE ────────────
+// ─── WORKSTYLE, BUILD: LIVE IN THE EDITOR, REFERENCE ON THE LEFT ────────────
 // Takes a style saved by js/59-workstyle.js (or read from a PDF by js/60) and
 // builds it as real, editable pages in the PDF Editor while the person watches:
-//   LEFT   the reference, exactly as it was saved
-//   RIGHT  Kadessa's copy, built live, with her cursor moving to each spot
+//   LEFT   the reference, docked beside the editor
+//   RIGHT  the real editor page, filled one part at a time while Kadessa's ring
+//          glides to each spot (the same ring she uses in Data Arrangement)
+// Nothing is a fake preview: every part that appears is already a real text box,
+// table or image slot on the page and can be edited the moment it lands.
 //
 // Two ways to build:
 //   copy      the reference's own words, so the result is an identical document
-//   template  new words in the same look. The caller passes `fill`, a list of
-//             { role, text } for text and { role:'table', headers?, rows } for
-//             tables, in reading order per role. Anything without new words is
-//             left out, image slots stay. Text that runs longer than the
-//             original pushes what is below it down (the footer stays put).
-//
-// Order of work (so the animation can never leave a half-built document):
-//   1. plan   percent positions in the style -> pixels for the page size
-//   2. commit the real pages go into the editor right away (one undo step)
-//   3. play   the split screen replays the build as a visual on top
-// Skip or Close only stops the replay. The pages are already in the editor.
+//   template  new words in the same look. `fill` is a list of entries, either
+//             addressed to one exact slot { id:'p1s3', text } / { id, headers, rows }
+//             (what the fill engine in js/63-workstyle-fill.js returns) or by role
+//             { role, text } in reading order (what the chat tool sends).
+//             A slot without words is left out. Longer text pushes what is below it
+//             down (the footer stays put). Undo removes the built pages in one step.
 //
 // Honest limits: pictures are never copied (an image slot gets the Brand Kit
 // logo for a logo slot, or a labelled placeholder); lines, boxes and shapes
@@ -26,7 +24,6 @@
 const WSB_PX_PER_MM = 3.7795;
 const WSB_NAMES = { title: 'the title', heading: 'a heading', subheading: 'the subheading', body: 'the body text',
   caption: 'a caption', footer: 'the footer', table: 'the table', logo: 'the logo', image: 'an image slot' };
-let wsbCtl = null; // the build being replayed right now, if any
 
 function wsbPxFor(mm) { return Math.max(1, Math.round((Number(mm) || 0) * WSB_PX_PER_MM)); }
 function wsbR(n, d) { const k = Math.pow(10, d === undefined ? 1 : d); return Math.round((Number(n) || 0) * k) / k; }
@@ -81,13 +78,42 @@ function wsbMeasureText(text, fam, size, bold, italic, w, fallbackH) {
   return fallbackH;
 }
 
+// A one-line part (a title, a tagline, a footer line) is measured as wide as its own words. When the new
+// words are longer, widen the box inside the page margins (around its centre, or from its left or right edge)
+// so a longer name stays on one line like the reference instead of wrapping.
+function wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, margins) {
+  try {
+    if (typeof pdfedKadessaMeasureTextWidth !== 'function') return { x: x, w: w };
+    if (/\n/.test(text) || /\n/.test(String(it.text || '')) || oldH > fs * 1.9) return { x: x, w: w };
+    const pad = (typeof PDFED_PTXT_BORDER !== 'undefined' && typeof PDFED_PTXT_PAD_X !== 'undefined') ? 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_X) : 16;
+    const tw = pdfedKadessaMeasureTextWidth(text, fam, fs, !!it.bold) + pad + 2;
+    if (!(tw > w)) return { x: x, w: w };
+    const lim = Math.max(W * 0.04, ((margins && margins.leftPct) || 0) / 100 * W);
+    const limR = W - Math.max(W * 0.04, ((margins && margins.rightPct) || 0) / 100 * W);
+    if (it.align === 'center') {
+      const cx = x + w / 2, half = Math.min(cx - lim, limR - cx);
+      const nw = Math.min(tw, half * 2);
+      return nw > w ? { x: cx - nw / 2, w: nw } : { x: x, w: w };
+    }
+    if (it.align === 'right') {
+      const right = x + w, nw = Math.min(tw, right - lim);
+      return nw > w ? { x: right - nw, w: nw } : { x: x, w: w };
+    }
+    const nw = Math.min(tw, limR - x);
+    return nw > w ? { x: x, w: nw } : { x: x, w: w };
+  } catch (e) { return { x: x, w: w }; }
+}
+
 function wstyleBuildPlan(style, fill) {
   const template = Array.isArray(fill) && fill.length > 0;
   const queues = {};
   const given = {};
+  const bySlot = {};   // fills addressed to one exact slot (id like "p1s3"), from the fill engine (js/63)
+  let slotHits = 0;
   if (template) {
     fill.forEach(function (f) {
       if (!f || typeof f !== 'object') return;
+      if (typeof f.id === 'string' && /^p\d+s\d+$/.test(f.id)) { bySlot[f.id] = f; return; }
       const r = String(f.role || '').trim().toLowerCase();
       if (!r) return;
       (queues[r] = queues[r] || []).push(f);
@@ -106,6 +132,9 @@ function wstyleBuildPlan(style, fill) {
     let shift = 0;
     (sp.items || []).forEach(function (it, si) {
       have[it.role] = (have[it.role] || 0) + 1;
+      const slotId = 'p' + (pi + 1) + 's' + si;
+      const slotFill = bySlot[slotId] || null;
+      if (slotFill) slotHits++;
       const pinned = it.role === 'footer';
       const x = (it.xPct || 0) / 100 * W, w = (it.wPct || 0) / 100 * W;
       const baseY = (it.yPct || 0) / 100 * H, oldH = (it.hPct || 0) / 100 * H;
@@ -114,20 +143,22 @@ function wstyleBuildPlan(style, fill) {
       if (it.kind === 'text') {
         let text = String(it.text || '');
         if (template) {
-          const f = (queues[it.role] || []).shift();
+          const f = slotFill || (queues[it.role] || []).shift();
           text = f ? String(f.text == null ? '' : f.text).trim() : '';
           if (!text) { skipped++; return; }
         }
         const fs = (it.sizePct || 3) / 100 * W, fam = it.fontFamily || 'Inter';
         fonts[fam] = true;
         let h = oldH;
+        let bx = x, bw = w;
+        { const wd = wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, sp.margins); bx = wd.x; bw = wd.w; }
         if (template) {
           // Compare like with like: the new words and the original words, measured the same way.
           const was = wsbMeasureText(String(it.text || ''), fam, fs, it.bold, it.italic, w, oldH);
-          h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, w, oldH));
+          h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, bw, oldH));
           if (!pinned && h - was > 3) shift += (h - was);
         }
-        items.push({ kind: 'text', src: si, role: it.role, x: x, y: y, w: w, h: h, fontSize: fs, sizePct: it.sizePct || 3,
+        items.push({ kind: 'text', src: si, slot: slotId, role: it.role, x: bx, y: y, w: bw, h: h, fontSize: fs, sizePct: it.sizePct || 3,
           fontFamily: fam, color: it.color || '#111111', gradient: it.gradient || null, bold: !!it.bold, italic: !!it.italic,
           underline: !!it.underline, align: it.align || 'left', opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity, text: text });
         return;
@@ -136,7 +167,7 @@ function wstyleBuildPlan(style, fill) {
       if (it.kind === 'table') {
         let cells = null;
         if (template) {
-          const f = (queues.table || []).shift();
+          const f = slotFill || (queues.table || []).shift();
           if (!f) { skipped++; return; }
           const hdr = Array.isArray(f.headers) ? f.headers.map(function (v) { return String(v == null ? '' : v); }) : null;
           const body = (Array.isArray(f.rows) ? f.rows : []).map(function (r) { return Array.isArray(r) ? r.map(function (v) { return String(v == null ? '' : v); }) : []; });
@@ -176,7 +207,7 @@ function wstyleBuildPlan(style, fill) {
         if (template && th > room && room > H * 0.1) { const k = room / th; for (let r = 0; r < rows; r++) rowHeights[r] *= k; th = room; }
         const cellStyles = wsbCellStyles(it, cells);
         if (template && th > oldH + 3 && !pinned) shift += (th - oldH);
-        items.push({ kind: 'table', src: si, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
+        items.push({ kind: 'table', src: si, slot: slotId, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
           colWidths: colWidths, rowHeights: rowHeights, fontSize: fs, sizePct: it.sizePct || 3, fontFamily: fam,
           headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles });
         return;
@@ -193,7 +224,7 @@ function wstyleBuildPlan(style, fill) {
   });
 
   if (template) {
-    const matched = Object.keys(given).some(function (r) { return have[r]; });
+    const matched = slotHits > 0 || Object.keys(given).some(function (r) { return have[r]; });
     if (!matched) {
       const mine = Object.keys(have).map(function (r) { return have[r] + ' ' + r; }).join(', ');
       throw new Error('none of the roles you gave match this style. It has: ' + mine);
@@ -202,60 +233,65 @@ function wstyleBuildPlan(style, fill) {
   return { name: style.name, template: template, pages: pages, fonts: Object.keys(fonts), skipped: skipped };
 }
 
-// ─── 2. COMMIT: the real, editable pages ─────────────────────────────────────
+// ─── 2. THE REAL PAGES ───────────────────────────────────────────────────────
 function wsbEnsureEditorOpen() {
   try {
     if (typeof unifiedActiveSection === 'function' && unifiedActiveSection() !== 'pdfeditor' && typeof navigate === 'function') navigate('pdfeditor');
   } catch (e) { /* the editor is probably already showing */ }
 }
 
-async function wsbCommit(plan) {
-  wsbEnsureEditorOpen();
-  for (let i = 0; i < plan.fonts.length; i++) { try { await pdfedKadessaEnsureFont(plan.fonts[i]); } catch (e) { /* default font */ } }
+// One empty page with the reference's background, ready to be filled.
+async function wsbNewPage(P) {
+  const bg = P.bg || {};
+  const c1 = /^#[0-9a-fA-F]{6}$/.test(bg.color1 || '') ? bg.color1 : '#ffffff';
+  const url = await pdfedRenderBlankPage('', c1, P.mmW, P.mmH);
+  const pg = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedTables: [],
+    label: 'Workstyle page', bgColor: c1, pageMM: [P.mmW, P.mmH] };
+  let note = '';
+  if (bg.mode === 'gradient' && /^#[0-9a-fA-F]{6}$/.test(bg.color2 || '')) {
+    const angle = bg.direction === 'horizontal' ? 90 : (bg.direction === 'diagonal' ? 135 : 180);
+    try {
+      await pdfedBakeCanvasTintOntoPage(pg, { mode: 'gradient', color1: c1, color2: bg.color2, angle: angle, opacity: 100,
+        imageDataUrl: null, imageFit: (typeof pdfedCanvasTintState !== 'undefined' && pdfedCanvasTintState) ? pdfedCanvasTintState.imageFit : undefined });
+    } catch (e) { note = 'The gradient background could not be baked, so the main color was used. '; }
+  } else if (bg.mode === 'image') note = 'The reference had a background picture, so its main color was used. ';
+  return { pg: pg, note: note };
+}
+
+// Puts one planned part on a page as a real, editable object. Returns its DOM selector.
+function wsbAddItem(pg, it) {
+  if (it.kind === 'text') {
+    const t = { id: 'ptxt_' + (++pdfedPlacedTextSeq), text: it.text, x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w),
+      fontSize: wsbR(it.fontSize, 2), fontFamily: it.fontFamily, color: it.color, bold: it.bold, italic: it.italic,
+      underline: it.underline, align: it.align, locked: false, zIndex: pdfedNextZ(pg) };
+    if (it.opacity !== 1) t.opacity = it.opacity;
+    if (it.gradient) t.gradient = it.gradient;
+    pg.placedTexts.push(t);
+    return '.pdfed-placed-text[data-id="' + t.id + '"]';
+  }
+  if (it.kind === 'table') {
+    const tb = { id: 'tbl_' + (++pdfedTableSeq), x: Math.round(it.x), y: Math.round(it.y), rows: it.rows, cols: it.cols,
+      colWidths: it.colWidths.map(function (v) { return wsbR(v, 2); }), rowHeights: it.rowHeights.map(function (v) { return wsbR(v, 2); }),
+      fontSize: wsbR(it.fontSize, 2), fontFamily: it.fontFamily, headerRow: it.headerRow, cells: it.cells, cellStyles: it.cellStyles,
+      locked: false, zIndex: pdfedNextZ(pg) };
+    pg.placedTables.push(tb);
+    return '.pdfed-placed-table[data-id="' + tb.id + '"]';
+  }
+  if (it.dataUrl) {
+    pdfedAnnotState.placedImgSeq++;
+    const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: it.dataUrl, x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h),
+      locked: false, zIndex: pdfedNextZ(pg), kind: 'image' };
+    if (it.opacity !== 1) im.opacity = it.opacity;
+    pg.placedImages.push(im);
+    return '.pdfed-placed-img[data-id="' + im.id + '"]';
+  }
+  return null;
+}
+
+// Inserts the empty pages into the document (or starts a new one) as ONE undo step.
+async function wsbInsertPages(newPages) {
   const isNewDoc = !pdfed.pages.length;
   const at = isNewDoc ? 0 : (pdfed.active >= 0 ? pdfed.active : pdfed.pages.length - 1) + 1;
-  const newPages = [];
-  let bgNote = '';
-
-  for (let pi = 0; pi < plan.pages.length; pi++) {
-    const P = plan.pages[pi];
-    const bg = P.bg || {};
-    const c1 = /^#[0-9a-fA-F]{6}$/.test(bg.color1 || '') ? bg.color1 : '#ffffff';
-    const url = await pdfedRenderBlankPage('', c1, P.mmW, P.mmH);
-    const pg = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedTables: [],
-      label: 'Workstyle page', bgColor: c1, pageMM: [P.mmW, P.mmH] };
-    if (bg.mode === 'gradient' && /^#[0-9a-fA-F]{6}$/.test(bg.color2 || '')) {
-      const angle = bg.direction === 'horizontal' ? 90 : (bg.direction === 'diagonal' ? 135 : 180);
-      try {
-        await pdfedBakeCanvasTintOntoPage(pg, { mode: 'gradient', color1: c1, color2: bg.color2, angle: angle, opacity: 100,
-          imageDataUrl: null, imageFit: (typeof pdfedCanvasTintState !== 'undefined' && pdfedCanvasTintState) ? pdfedCanvasTintState.imageFit : undefined });
-      } catch (e) { bgNote = 'The gradient background could not be baked, so the main color was used. '; }
-    } else if (bg.mode === 'image') bgNote = 'The reference had a background picture, so its main color was used. ';
-
-    P.items.forEach(function (it) {
-      if (it.kind === 'text') {
-        const t = { id: 'ptxt_' + (++pdfedPlacedTextSeq), text: it.text, x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w),
-          fontSize: wsbR(it.fontSize, 2), fontFamily: it.fontFamily, color: it.color, bold: it.bold, italic: it.italic,
-          underline: it.underline, align: it.align, locked: false, zIndex: pdfedNextZ(pg) };
-        if (it.opacity !== 1) t.opacity = it.opacity;
-        if (it.gradient) t.gradient = it.gradient;
-        pg.placedTexts.push(t);
-      } else if (it.kind === 'table') {
-        pg.placedTables.push({ id: 'tbl_' + (++pdfedTableSeq), x: Math.round(it.x), y: Math.round(it.y), rows: it.rows, cols: it.cols,
-          colWidths: it.colWidths.map(function (v) { return wsbR(v, 2); }), rowHeights: it.rowHeights.map(function (v) { return wsbR(v, 2); }),
-          fontSize: wsbR(it.fontSize, 2), fontFamily: it.fontFamily, headerRow: it.headerRow, cells: it.cells, cellStyles: it.cellStyles,
-          locked: false, zIndex: pdfedNextZ(pg) });
-      } else if (it.dataUrl) {
-        pdfedAnnotState.placedImgSeq++;
-        const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: it.dataUrl, x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h),
-          locked: false, zIndex: pdfedNextZ(pg), kind: 'image' };
-        if (it.opacity !== 1) im.opacity = it.opacity;
-        pg.placedImages.push(im);
-      }
-    });
-    newPages.push(pg);
-  }
-
   pdfed.pages.splice.apply(pdfed.pages, [at, 0].concat(newPages));
   if (isNewDoc) {
     pdfed.pdfDoc = null;
@@ -275,7 +311,7 @@ async function wsbCommit(plan) {
   updateStats();
   await pdfedBuildStrip();
   await pdfedGoto(at);
-  if (isNewDoc) { setTimeout(pdfedZoomFit, 50); if (typeof pdfedScheduleAutoCollapse === 'function') pdfedScheduleAutoCollapse(); }
+  if (isNewDoc) { if (typeof pdfedScheduleAutoCollapse === 'function') pdfedScheduleAutoCollapse(); }
 
   pushKadessaAppHistory({
     label: 'Build in work style (Kadessa)',
@@ -293,20 +329,21 @@ async function wsbCommit(plan) {
       document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
     }
   });
-  return { at: at, pages: newPages.length, bgNote: bgNote };
+  return { at: at, isNewDoc: isNewDoc };
 }
 
-// ─── 3. PLAY: split screen + Kadessa's cursor ────────────────────────────────
+// ─── 3. THE DOCKED REFERENCE AND KADESSA'S RING ──────────────────────────────
 function wsbEl(tag, cls, css) { const e = document.createElement(tag); if (cls) e.className = cls; if (css) e.style.cssText = css; return e; }
 
 function wsbBoxCss(it) { return 'left:' + it.xPct + '%;top:' + it.yPct + '%;width:' + it.wPct + '%;'; }
 
-function wsbMakeItem(it, final) {
+// A part of the REFERENCE as a small, faithful picture (the right side is the real editor).
+function wsbMakeItem(it) {
   let e;
   if (it.kind === 'text') {
     e = wsbEl('div', 'wsb-el wsb-t', wsbBoxCss(it) + 'font:' + (it.italic ? 'italic ' : '') + (it.bold ? '700 ' : '400 ') + it.sizePct + 'cqw/1.25 ' + wsbFontCss(it.fontFamily) +
       ';color:' + it.color + ';text-align:' + it.align + ';opacity:' + it.opacity + (it.underline ? ';text-decoration:underline' : ''));
-    e.textContent = final ? it.text : '';
+    e.textContent = it.text;
   } else if (it.kind === 'table') {
     e = wsbEl('div', 'wsb-el wsb-tb', wsbBoxCss(it) + 'height:' + it.hPct + '%;grid-template-columns:' + it.colWidths.map(function (v) { return v + 'fr'; }).join(' ') +
       ';grid-template-rows:' + it.rowHeights.map(function (v) { return v + 'fr'; }).join(' ') + ';font:' + it.sizePct + 'cqw ' + wsbFontCss(it.fontFamily) + ';color:#222');
@@ -316,8 +353,7 @@ function wsbMakeItem(it, final) {
         const cell = wsbEl('div', 'wsb-c', 'text-align:' + (st.align || 'left') + ';justify-content:' + (st.align === 'right' ? 'flex-end' : st.align === 'center' ? 'center' : 'flex-start') +
           (st.bold ? ';font-weight:700' : '') + (st.italic ? ';font-style:italic' : '') + (st.color ? ';color:' + st.color : '') + (st.fill ? ';background:' + st.fill : '') +
           (st.topBorder ? ';border-top:2px solid rgba(10,25,45,.55)' : ''));
-        cell.dataset.r = r; cell.textContent = txt;
-        if (!final) cell.style.visibility = 'hidden';
+        cell.textContent = txt;
         e.appendChild(cell);
       });
     });
@@ -326,7 +362,6 @@ function wsbMakeItem(it, final) {
     if (it.brand && it.dataUrl) { const im = wsbEl('img'); im.src = it.dataUrl; im.alt = ''; e.appendChild(im); e.classList.add('brand'); }
     else e.textContent = it.role === 'logo' ? 'Logo' : 'Image';
   }
-  if (!final) e.style.visibility = 'hidden';
   return e;
 }
 
@@ -339,137 +374,169 @@ function wsbBackground(bg) {
   return bg.color1 || '#ffffff';
 }
 
-function wsbFit(root) {
-  const ar = Number(root.dataset.ar) || 0.707;
-  const panes = root.querySelectorAll('.wsb-pane');
-  panes.forEach(function (pn) {
-    const availH = Math.max(120, pn.clientHeight - 34);
-    const availW = Math.max(100, pn.clientWidth - 8);
-    const w = Math.min(availW, availH * ar);
-    const pg = pn.querySelector('.wsb-page');
-    if (pg) { pg.style.width = w + 'px'; pg.style.height = (w / ar) + 'px'; }
-  });
-}
+// Docks the reference beside the editor: left half on a wide screen, top part on a narrow one.
+// The editor's own page area is pushed over with a margin and re-fitted, so the real page
+// stays fully visible and usable next to the reference.
+function wsbDock(refPlan, name) {
+  const old = document.getElementById('wsbDock');
+  if (old && old._ctl) { try { old._ctl.close(); } catch (e) { /* ignore */ } }
+  const sc = document.getElementById('pdfedCanvasScroll');
+  const ctl = { speed: 1, skipped: false, closed: false, done: false, instant: wsbReduced(), page: -1 };
 
-async function wsbPlay(refPlan, newPlan, opts) {
-  opts = opts || {};
-  if (wsbCtl) { try { wsbCtl.close(); } catch (e) { /* ignore */ } }
-  const ctl = { speed: 1, skipped: false, closed: false, done: false, instant: wsbReduced() };
-  wsbCtl = ctl;
+  const dock = wsbEl('aside', 'wsb-dock');
+  dock.id = 'wsbDock'; dock._ctl = ctl;
+  dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', 'Reference and Kadessa build');
+  dock.innerHTML =
+    '<div class="wsb-head"><div class="wsb-ttl"><b>Reference</b><span class="wsb-name"></span></div>' +
+    '<button type="button" class="wsb-btn wsb-speed" aria-label="Change speed">x1</button>' +
+    '<button type="button" class="wsb-btn wsb-skip">Skip</button></div>' +
+    '<div class="wsb-prog" aria-hidden="true"><i></i></div>' +
+    '<div class="wsb-body"><div class="wsb-page"></div></div>' +
+    '<div class="wsb-foot" aria-live="polite"></div>';
+  document.body.appendChild(dock);
+  const $ = function (q) { return dock.querySelector(q); };
+  $('.wsb-name').textContent = name ? ' · ' + name : '';
+  const pageEl = $('.wsb-page'), foot = $('.wsb-foot'), prog = $('.wsb-prog i'), skipBtn = $('.wsb-skip'), speedBtn = $('.wsb-speed');
+  let refEls = {};
 
-  const root = wsbEl('div', 'wsb');
-  root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Kadessa is building your document');
-  root.innerHTML =
-    '<div class="wsb-top"><div class="wsb-title"></div><div class="wsb-prog" aria-hidden="true"><i></i></div>' +
-    '<button type="button" class="wsb-btn wsb-speed" aria-label="Change speed">Speed x1</button>' +
-    '<button type="button" class="wsb-btn primary wsb-skip">Skip</button>' +
-    '<button type="button" class="wsb-btn wsb-x" aria-label="Close">Close</button></div>' +
-    '<div class="wsb-panes">' +
-      '<section class="wsb-pane"><h5>Reference</h5><div class="wsb-page wsb-ref"></div></section>' +
-      '<section class="wsb-pane"><h5>Kadessa is building</h5><div class="wsb-page wsb-new"></div></section>' +
-    '</div><div class="wsb-foot" aria-live="polite"></div>';
-  document.body.appendChild(root);
-  const $ = function (s) { return root.querySelector(s); };
-  const title = $('.wsb-title'), prog = $('.wsb-prog i'), foot = $('.wsb-foot'), skipBtn = $('.wsb-skip');
-  const speedBtn = $('.wsb-speed'), refPg = $('.wsb-ref'), newPg = $('.wsb-new');
+  const layout = function () {
+    if (!sc) return;
+    sc.style.marginLeft = ''; sc.style.marginTop = '';
+    const r = sc.getBoundingClientRect();
+    const narrow = window.innerWidth < 760;
+    dock.style.left = r.left + 'px'; dock.style.top = r.top + 'px';
+    if (narrow) {
+      const h = Math.round(r.height * 0.4);
+      dock.style.width = r.width + 'px'; dock.style.height = h + 'px'; sc.style.marginTop = h + 'px';
+    } else {
+      const w = Math.round(r.width * 0.42);
+      dock.style.width = w + 'px'; dock.style.height = r.height + 'px'; sc.style.marginLeft = w + 'px';
+    }
+    const ar = Number(dock.dataset.ar) || 0.707;
+    const body = $('.wsb-body');
+    const availH = Math.max(80, body.clientHeight - 8), availW = Math.max(80, body.clientWidth - 8);
+    const w2 = Math.min(availW, availH * ar);
+    pageEl.style.width = w2 + 'px'; pageEl.style.height = (w2 / ar) + 'px';
+  };
+  const refit = function () { layout(); try { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); } catch (e) { /* keep zoom */ } };
+  const onResize = function () { if (!ctl.closed) refit(); };
+  window.addEventListener('resize', onResize);
 
+  ctl.sleepRaw = wsbSleepRaw;
+  ctl.say = function (m) { foot.textContent = m; };
+  ctl.progress = function (f) { prog.style.width = Math.max(0, Math.min(100, Math.round(f * 100))) + '%'; };
+  ctl.sleep = function (ms) { return (ctl.skipped || ctl.instant) ? Promise.resolve() : wsbSleepRaw(ms / ctl.speed); };
+  ctl.showPage = function (pi) {
+    const RP = refPlan.pages[pi] || refPlan.pages[0];
+    ctl.page = pi;
+    dock.dataset.ar = RP.ratio;
+    pageEl.innerHTML = ''; refEls = {};
+    pageEl.style.background = wsbBackground(RP.bg);
+    RP.items.forEach(function (it) { const e = wsbMakeItem(it); pageEl.appendChild(e); refEls[it.src] = e; });
+    refit();
+  };
+  ctl.hot = function (src, on) { const e = refEls[src]; if (e) e.classList.toggle('hot', !!on); };
+  ctl.finish = function (text) {
+    ctl.done = true; ctl.progress(1); ctl.say(text);
+    speedBtn.style.display = 'none'; skipBtn.disabled = false; skipBtn.textContent = 'Done'; skipBtn.classList.add('primary'); skipBtn.focus();
+  };
   ctl.close = function () {
     if (ctl.closed) return; ctl.closed = true; ctl.skipped = true;
-    window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey);
-    if (root.parentNode) root.parentNode.removeChild(root);
-    if (wsbCtl === ctl) wsbCtl = null;
+    window.removeEventListener('resize', onResize);
+    if (dock.parentNode) dock.parentNode.removeChild(dock);
+    if (sc) { sc.style.marginLeft = ''; sc.style.marginTop = ''; try { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); } catch (e) { /* keep zoom */ } }
+    if (ctl.ring && ctl.ring.parentNode) ctl.ring.parentNode.removeChild(ctl.ring);
   };
-  const onResize = function () { wsbFit(root); };
-  const onKey = function (e) { if (e.key === 'Escape') ctl.close(); };
-  window.addEventListener('resize', onResize); document.addEventListener('keydown', onKey);
-  $('.wsb-x').onclick = ctl.close;
-  speedBtn.onclick = function () { ctl.speed = ctl.speed === 1 ? 2 : (ctl.speed === 2 ? 4 : 1); speedBtn.textContent = 'Speed x' + ctl.speed; };
-  skipBtn.onclick = function () { if (ctl.done) ctl.close(); else ctl.skipped = true; };
+  speedBtn.onclick = function () { ctl.speed = ctl.speed === 1 ? 2 : (ctl.speed === 2 ? 4 : 1); speedBtn.textContent = 'x' + ctl.speed; };
+  skipBtn.onclick = function () { if (ctl.done) ctl.close(); else { ctl.skipped = true; skipBtn.disabled = true; } };
+  dock.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (ctl.done) ctl.close(); else ctl.skipped = true; } });
   skipBtn.focus();
+  ctl.showPage(0);
+  return ctl;
+}
 
-  const sleep = function (ms) { return (ctl.skipped || ctl.instant) ? Promise.resolve() : wsbSleepRaw(ms / ctl.speed); };
-  const say = function (m) { foot.textContent = m; };
-  const total = newPlan.pages.reduce(function (n, p) { return n + p.items.length; }, 0) || 1;
-  let doneCount = 0;
-  const tick = function () { prog.style.width = Math.min(100, Math.round(++doneCount / total * 100)) + '%'; };
+// Kadessa's ring, the same one she uses on Data Arrangement (.kfx-ring in css/26-kadessa.css).
+function wsbRingTo(ctl, el, ms) {
+  if (!el || ctl.skipped || ctl.instant) return;
+  if (!ctl.ring || !ctl.ring.isConnected) {
+    const d = wsbEl('div', 'kfx-ring'); d.style.zIndex = '99991';
+    const t = wsbEl('span', 'kfx-tag'); t.textContent = 'Kadessa'; d.appendChild(t);
+    document.body.appendChild(d); ctl.ring = d;
+    const b0 = el.getBoundingClientRect();
+    d.style.transitionDuration = '0ms';
+    d.style.left = (b0.left - 4) + 'px'; d.style.top = (b0.top - 4) + 'px';
+    d.style.width = (b0.width + 8) + 'px'; d.style.height = (b0.height + 8) + 'px';
+    void d.offsetWidth;
+  }
+  const b = el.getBoundingClientRect();
+  if (b.width < 2 || b.height < 2) return;
+  const d = ctl.ring;
+  d.classList.remove('done');
+  d.style.transitionDuration = Math.round(ms / ctl.speed) + 'ms';
+  d.style.left = (b.left - 4) + 'px'; d.style.top = (b.top - 4) + 'px';
+  d.style.width = (b.width + 8) + 'px'; d.style.height = (b.height + 8) + 'px';
+  d.classList.toggle('below', b.top < 34);
+  d.classList.add('on');
+}
 
-  for (let pi = 0; pi < newPlan.pages.length && !ctl.closed; pi++) {
-    const NP = newPlan.pages[pi], RP = refPlan.pages[pi] || NP;
-    root.dataset.ar = NP.ratio; root.style.setProperty('--ar', NP.ratio);
-    title.textContent = 'Building "' + newPlan.name + '"' + (newPlan.pages.length > 1 ? ', page ' + (pi + 1) + ' of ' + newPlan.pages.length : '');
-    refPg.innerHTML = ''; newPg.innerHTML = '';
-    newPg.style.background = wsbBackground(NP.bg);
-    refPg.style.background = wsbBackground(RP.bg);
-    const refEls = {};
-    RP.items.forEach(function (it) { const e = wsbMakeItem(it, true); refPg.appendChild(e); refEls[it.src] = e; });
-    const cursor = wsbEl('div', 'wsb-cursor');
-    cursor.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 2l16 9-7 2-3 7z" fill="#00c2ff" stroke="#001018" stroke-width="1.4" stroke-linejoin="round"/></svg><span>Kadessa</span>';
-    cursor.style.left = '50%'; cursor.style.top = '-6%';
-    newPg.appendChild(cursor);
-    wsbFit(root);
-    await sleep(500);
+// ─── 4. BUILD, LIVE ──────────────────────────────────────────────────────────
+// Order of work, so an interrupted animation can never leave a half-built document:
+//   1. the empty pages go into the editor (one undo step)
+//   2. each part is added as a real object, with the ring gliding to it
+//   3. whatever the animation did not reach (Skip, Close, an error) is added at once
+async function wsbBuildLive(refPlan, plan, name, animate) {
+  wsbEnsureEditorOpen();
+  for (let i = 0; i < plan.fonts.length; i++) { try { await pdfedKadessaEnsureFont(plan.fonts[i]); } catch (e) { /* default font */ } }
+  const made = [];
+  let bgNote = '';
+  for (let pi = 0; pi < plan.pages.length; pi++) { const m = await wsbNewPage(plan.pages[pi]); made.push(m.pg); if (m.note) bgNote = m.note; }
+  const where = await wsbInsertPages(made);
+  const ctl = animate ? wsbDock(refPlan, name) : null;
 
-    const moveTo = async function (xp, yp, ms) {
-      cursor.style.transitionDuration = ((ctl.skipped || ctl.instant) ? 0 : (ms || 520) / ctl.speed) + 'ms';
-      cursor.style.left = xp + '%'; cursor.style.top = yp + '%';
-      await sleep((ms || 520) + 80);
-    };
-
-    for (let k = 0; k < NP.items.length && !ctl.skipped && !ctl.closed; k++) {
-      const it = NP.items[k];
-      const e = wsbMakeItem(it, false);
-      newPg.insertBefore(e, cursor);
-      const ref = refEls[it.src];
-      if (ref) ref.classList.add('hot');
-      const nm = WSB_NAMES[it.role] || it.role;
-      if (it.kind === 'text') {
-        say('Moving to ' + nm + '…');
-        await moveTo(it.xPct + 1.5, it.yPct + Math.min(it.hPct, 3) / 2);
-        if (ctl.skipped) break;
-        e.style.visibility = 'visible'; say('Typing ' + nm + '…');
-        const len = it.text.length, dt = Math.min(34, 1700 / Math.max(1, len));
-        for (let n = 1; n <= len && !ctl.skipped && !ctl.instant; n++) { e.textContent = it.text.slice(0, n); await wsbSleepRaw(dt / ctl.speed); }
-        e.textContent = it.text;
-      } else if (it.kind === 'table') {
-        say('Drawing ' + nm + ' (' + it.rows + ' rows)…');
-        await moveTo(it.xPct + 1.5, it.yPct + 1);
-        if (ctl.skipped) break;
-        e.style.visibility = 'visible';
-        const cs = e.querySelectorAll('.wsb-c');
-        let rowAt = it.yPct;
-        for (let r = 0; r < it.rows && !ctl.skipped; r++) {
-          const rowH = it.rowHeights[r] / it.h * it.hPct;
-          await moveTo(it.xPct + 1.5, rowAt + rowH / 2, 280);
-          cs.forEach(function (c) { if (+c.dataset.r === r) c.style.visibility = 'visible'; });
-          rowAt += rowH; await sleep(160);
-        }
-        cs.forEach(function (c) { c.style.visibility = 'visible'; });
-      } else {
-        say('Placing ' + nm + '…');
-        await moveTo(it.xPct + it.wPct / 2, it.yPct + it.hPct / 2);
-        if (ctl.skipped) break;
-        e.style.visibility = 'visible'; e.classList.add('pop'); await sleep(260);
+  const total = plan.pages.reduce(function (n, p) { return n + p.items.length; }, 0) || 1;
+  let count = 0;
+  try {
+    for (let pi = 0; pi < plan.pages.length; pi++) {
+      const P = plan.pages[pi], pg = made[pi], idx = where.at + pi;
+      if (ctl && !ctl.closed) {
+        if (pi > 0) { if (ctl.ring) ctl.ring.classList.remove('on'); await pdfedGoto(idx); }
+        ctl.showPage(pi);
+        await ctl.sleep(150);
       }
-      if (ref) ref.classList.remove('hot');
-      tick(); await sleep(140);
+      for (let k = 0; k < P.items.length; k++) {
+        const it = P.items[k];
+        const sel = wsbAddItem(pg, it);
+        count++;
+        if (!ctl || ctl.closed || ctl.skipped || ctl.instant) continue;
+        ctl.hot(it.src, true);
+        ctl.say((it.kind === 'table' ? 'Drawing ' : (it.kind === 'text' ? 'Writing ' : 'Placing ')) + (WSB_NAMES[it.role] || it.role) + '…');
+        pdfedRenderAllPlaced(idx);
+        const el = sel ? document.querySelector(sel) : null;
+        if (el) { el.classList.add('kfx-reveal'); wsbRingTo(ctl, el, 230); }
+        ctl.progress(count / total);
+        await ctl.sleep(it.kind === 'table' ? 330 : 190);
+        ctl.hot(it.src, false);
+      }
+      // Draw this page once more so everything (including anything skipped past) is on screen.
+      if (!ctl || ctl.closed || ctl.skipped || ctl.instant) { await pdfedGoto(idx); }
+      else pdfedRenderAllPlaced(idx);
     }
-    // Skipped, or just finished: make sure everything is fully there.
-    newPg.querySelectorAll('.wsb-el').forEach(function (n) { n.remove(); });
-    NP.items.forEach(function (it) { newPg.insertBefore(wsbMakeItem(it, true), cursor); });
-    refPg.querySelectorAll('.hot').forEach(function (n) { n.classList.remove('hot'); });
-    if (ctl.skipped && !ctl.closed) { doneCount = total; prog.style.width = '100%'; }
-    if (pi < newPlan.pages.length - 1 && !ctl.closed) await sleep(700);
-    cursor.style.opacity = '0';
+  } catch (e) {
+    console.error('Workstyle live build:', e);
+    // Add whatever was not reached, so the document is never half-built.
+    for (let pi = 0; pi < plan.pages.length; pi++) {
+      const have = made[pi].placedTexts.length + made[pi].placedTables.length + made[pi].placedImages.length;
+      const want = plan.pages[pi].items.length;
+      if (have < want) plan.pages[pi].items.slice(have).forEach(function (it) { try { wsbAddItem(made[pi], it); } catch (e2) { /* skip */ } });
+    }
+    try { await pdfedGoto(pdfed.active); } catch (e3) { /* ignore */ }
   }
-
-  if (!ctl.closed) {
-    ctl.done = true; prog.style.width = '100%';
-    const cur = newPg.querySelector('.wsb-cursor'); if (cur) cur.style.display = 'none';
-    say(opts.doneText || 'Done. Everything is real, editable text, tables and image slots in the PDF Editor.');
-    skipBtn.textContent = 'Open in editor'; skipBtn.focus();
-    speedBtn.style.display = 'none';
-    const x = $('.wsb-x'); if (x) x.style.display = 'none';
+  try { await pdfedBuildStrip(); } catch (e) { /* thumbnails refresh later */ }
+  if (ctl && !ctl.closed) {
+    if (ctl.ring) { ctl.ring.classList.add('done'); setTimeout(function () { if (ctl.ring) ctl.ring.classList.remove('on'); }, 900); }
+    ctl.finish('Done. Everything on the right is real, editable text, tables and image slots.');
   }
+  return { at: where.at, pages: made.length, bgNote: bgNote };
 }
 
 // ─── PUBLIC ──────────────────────────────────────────────────────────────────
@@ -499,17 +566,16 @@ async function wstyleBuild(nameOrId, opts) {
   const plan = fill ? wstyleBuildPlan(style, fill) : refPlan;
   if (!plan.pages.some(function (p) { return p.items.length; })) throw new Error('nothing to build, none of the parts of this style got any content');
 
-  const done = await wsbCommit(plan);
-  if (opts.animate !== false) { wsbPlay(refPlan, plan, {}).catch(function (e) { console.error('Workstyle replay failed:', e); }); }
+  const done = await wsbBuildLive(refPlan, plan, style.name, opts.animate !== false);
 
-  const where = done.at === 0 ? 'in a new document' : 'after page ' + done.at;
+  const at = done.at === 0 ? 'in a new document' : 'after page ' + done.at;
   const logoNote = plan.pages.some(function (p) { return p.items.some(function (i) { return i.role === 'logo' && !i.brand; }); })
     ? ' Image slots hold a labelled placeholder, drop your picture on them.' : '';
-  const skipNote = plan.skipped ? ' Left out ' + plan.skipped + ' part' + (plan.skipped === 1 ? '' : 's') + ' of the original you gave no words for.' : '';
+  const skipNote = plan.skipped ? ' Left out ' + plan.skipped + ' part' + (plan.skipped === 1 ? '' : 's') + ' of the reference your content had nothing for.' : '';
   return {
-    say: (plan.template ? 'Built ' : 'Built an identical copy of ') + (plan.template ? 'a new ' + (done.pages === 1 ? 'page' : done.pages + ' pages') + ' in the "' : '"') + style.name +
-      (plan.template ? '" look with your content' : '"') + ' ' + where + ' (' + wsbCounts(plan) + '). Watch it come together side by side.' + skipNote + logoNote +
-      (done.bgNote ? ' ' + done.bgNote.trim() : ''),
-    pages: done.pages
+    say: (plan.template ? 'Built ' + (done.pages === 1 ? 'a new page' : done.pages + ' new pages') + ' in the "' + style.name + '" look with your content' : 'Built an identical copy of "' + style.name + '"') +
+      ' ' + at + ' (' + wsbCounts(plan) + ').' + skipNote + logoNote + (done.bgNote ? ' ' + done.bgNote.trim() : ''),
+    pages: done.pages,
+    skipped: plan.skipped
   };
 }
