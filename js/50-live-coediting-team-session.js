@@ -460,6 +460,102 @@
   // instead of lingering for the full 30s awareness timeout.
   const sarvarcPresenceBeatSeenAt = new Map();
   let sarvarcPresenceBeatTimer = null;
+  // Where is everyone? Each client publishes the module it is looking at
+  // (`module` in its awareness state). Only ids in this whitelist are ever
+  // trusted from a teammate, so a forged value can never reach the markup.
+  const SARVARC_PRESENCE_MODULES = {
+    pdfeditor:     { label: 'Workspace',         short: 'WS' },
+    dataarrange:   { label: 'Data Arrangement',  short: 'DA' },
+    makeforms:     { label: 'Make Forms',        short: 'MF' },
+    diagrams:      { label: 'Diagrams & Graphs', short: 'DG' },
+    extract:       { label: 'Extract Images',    short: 'EX' },
+    redact:        { label: 'Privacy Redaction', short: 'RD' },
+    dashboard:     { label: 'Dashboard',         short: 'DB' },
+    savedsessions: { label: 'Saved Sessions',    short: 'SS' }
+  };
+  // Tools that open ON TOP of a module (full-screen overlays, dialogs, side
+  // panels). `gate` = a full-screen overlay: its content is not the page
+  // underneath, so cursors are only shown between people who are in the same
+  // overlay. Side panels (gate:false) are shown in the name tag only.
+  // Only the tool's NAME is ever shared, never what is in it.
+  // mode: 'open' = element has class "open"; 'display' = element is shown;
+  // 'exists' = element is present in the page.
+  const SARVARC_PRESENCE_TOOLS = {
+    showcase:    { label: 'Showcase',           short: 'SC', sel: '#sppOverlay',            mode: 'open',    gate: true  },
+    proposals:   { label: 'Business Proposals', short: 'BP', sel: '#bpTplModalOverlay',     mode: 'open',    gate: true  },
+    crop:        { label: 'Image Crop',         short: 'CR', sel: '#cropOverlay',           mode: 'open',    gate: true  },
+    reshape:     { label: 'Image Reshaper',     short: 'RS', sel: '#reshapeOverlay',        mode: 'open',    gate: true  },
+    shapestudio: { label: 'Shape Studio',       short: 'SH', sel: '#shapeStudioOverlay',    mode: 'open',    gate: true  },
+    slideshow:   { label: 'Slideshow',          short: 'SL', sel: '#pdfedSlideshowOverlay', mode: 'open',    gate: true  },
+    presenter:   { label: 'Presenter',          short: 'PR', sel: '#pdfedPresenter',        mode: 'open',    gate: true  },
+    signature:   { label: 'Signature',          short: 'SG', sel: '#pdfedSigModal',         mode: 'display', gate: true  },
+    sign:        { label: 'Sign',               short: 'SG', sel: '.sgx-ov',                mode: 'exists',  gate: true  },
+    brandkit:    { label: 'Brand Kit',          short: 'BK', sel: '#bkPanel',               mode: 'open',    gate: false },
+    kadessa:     { label: 'Kadessa',            short: 'KA', sel: '#kadessa-panel',         mode: 'open',    gate: false }
+  };
+  function sarvarcPresenceSafeTool(id) {
+    return (typeof id === 'string' && Object.prototype.hasOwnProperty.call(SARVARC_PRESENCE_TOOLS, id)) ? id : null;
+  }
+  // The tool in front right now (full-screen overlays win over side panels).
+  function sarvarcPresenceCurrentTool() {
+    let panelHit = null;
+    const ids = Object.keys(SARVARC_PRESENCE_TOOLS);
+    for (let i = 0; i < ids.length; i++) {
+      const t = SARVARC_PRESENCE_TOOLS[ids[i]];
+      let el = null;
+      try { el = document.querySelector(t.sel); } catch (e) {}
+      if (!el) continue;
+      let on = false;
+      if (t.mode === 'open') on = el.classList.contains('open');
+      else if (t.mode === 'display') on = getComputedStyle(el).display !== 'none';
+      else on = true;
+      if (!on) continue;
+      if (t.gate) return ids[i];
+      if (!panelHit) panelHit = ids[i];
+    }
+    return panelHit;
+  }
+  // The tool that matters for cursor sharing (side panels do not count).
+  function sarvarcPresenceGateTool(id) {
+    const k = sarvarcPresenceSafeTool(id);
+    return (k && SARVARC_PRESENCE_TOOLS[k].gate) ? k : null;
+  }
+  // "Showcase (Workspace)" / "Data Arrangement"
+  function sarvarcPresenceWhere(moduleId, toolId) {
+    const m = sarvarcPresenceSafeModule(moduleId), t = sarvarcPresenceSafeTool(toolId);
+    const ml = m ? SARVARC_PRESENCE_MODULES[m].label : null;
+    if (t && ml) return SARVARC_PRESENCE_TOOLS[t].label + ' (' + ml + ')';
+    if (t) return SARVARC_PRESENCE_TOOLS[t].label;
+    return ml;
+  }
+  let sarvarcPresenceModuleObserver = null;
+  let sarvarcPresenceToolTimer = null;
+  function sarvarcPresenceCurrentModule() {
+    const el = document.querySelector('.section.active');
+    const id = el && el.id ? el.id.replace(/^sec-/, '') : null;
+    return (id && SARVARC_PRESENCE_MODULES[id]) ? id : null;
+  }
+  function sarvarcPresenceSafeModule(id) {
+    return (typeof id === 'string' && Object.prototype.hasOwnProperty.call(SARVARC_PRESENCE_MODULES, id)) ? id : null;
+  }
+  // Publish our module whenever it changes (covers navigate(), the mobile
+  // swap to Dashboard, restore-from-session... anything that flips the
+  // active .section), without touching the navigation code itself.
+  function sarvarcPresencePublishModule(awareness) {
+    try {
+      const m = sarvarcPresenceCurrentModule();
+      const t = sarvarcPresenceCurrentTool();
+      const local = awareness.getLocalState();
+      if (local && local.module !== m) awareness.setLocalStateField('module', m);
+      if (local && (local.tool || null) !== t) awareness.setLocalStateField('tool', t);
+    } catch (e) {}
+    sarvarcPresenceRender();
+  }
+  // Jump to where a teammate is working (click their avatar).
+  function sarvarcPresenceJump(moduleId) {
+    const m = sarvarcPresenceSafeModule(moduleId);
+    if (m && typeof navigate === 'function') navigate(m);
+  }
   const SARVARC_PRESENCE_BEAT_MS = 5000;
   const SARVARC_PRESENCE_GONE_MS = 20000;
 
@@ -541,6 +637,24 @@
         position:absolute;left:14px;top:16px;white-space:nowrap;font-size:11px;font-weight:600;color:#fff;
         padding:2px 7px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.4);
       }
+      /* Module tag on each avatar: who is working where. Teammates in a
+         different module than you are slightly dimmed and clickable. */
+      .sarvarc-presence-avatar-wrap.sarvarc-presence-away { opacity:.62; cursor:pointer; }
+      .sarvarc-presence-avatar-wrap.sarvarc-presence-away:hover { opacity:1; }
+      .sarvarc-presence-mod {
+        position:absolute; right:-6px; bottom:-5px; min-width:15px; padding:0 3px; height:13px;
+        border-radius:7px; font-size:7.5px; font-weight:800; line-height:13px; text-align:center;
+        color:#fff; letter-spacing:.02em; border:1.5px solid var(--bg2); pointer-events:none;
+      }
+      /* Sidebar: small dots on a module's nav item = teammates working in it. */
+      .sarvarc-nav-here { margin-left:auto; display:flex; align-items:center; flex-shrink:0; }
+      .sarvarc-nav-here-dot {
+        width:16px; height:16px; margin-left:-5px; border-radius:50%; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center; overflow:hidden;
+        font-size:7.5px; font-weight:800; color:#fff; border:1.5px solid var(--bg2); box-sizing:border-box;
+      }
+      .sarvarc-nav-here-dot img { width:100%; height:100%; object-fit:cover; }
+      .sarvarc-nav-here-more { font-size:9px; font-weight:700; color:var(--text2); margin-left:3px; }
       .sarvarc-field-presence-ring { outline:2px solid;outline-offset:2px;border-radius:6px; }
       .sarvarc-field-presence-badge {
         position:absolute;font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:5px 5px 5px 0;
@@ -573,6 +687,8 @@
     const states = sarvarcCollabAwareness.getStates();
     const localId = sarvarcCollabAwareness.clientID;
     const now = Date.now();
+    const myModule = sarvarcPresenceCurrentModule();
+    const myGateTool = sarvarcPresenceGateTool(sarvarcPresenceCurrentTool());
     // Dedupe by userId (same person could theoretically have >1 tab open);
     // keep whichever state has the freshest cursor timestamp.
     const remoteByUser = new Map();
@@ -630,7 +746,16 @@
         shown.forEach((state, i) => {
           const color = state.color || '#3b82f6';
           const name = (state.name || 'Teammate');
-          const title = (name.replace(/"/g, '&quot;')) + ' \u2014 editing live now';
+          const theirMod = sarvarcPresenceSafeModule(state.module);
+          const theirTool = sarvarcPresenceSafeTool(state.tool);
+          const sameMod = !theirMod || !myModule || theirMod === myModule;
+          const sameTool = sarvarcPresenceGateTool(state.tool) === myGateTool;
+          const here = sameMod && sameTool;
+          const modInfo = theirTool ? SARVARC_PRESENCE_TOOLS[theirTool] : (theirMod ? SARVARC_PRESENCE_MODULES[theirMod] : null);
+          const whereTxt = sarvarcPresenceWhere(theirMod, theirTool);
+          const title = (name.replace(/"/g, '&quot;')) + (whereTxt
+            ? (here ? ' \u2014 here with you in ' + whereTxt : (sameMod ? ' \u2014 in ' + whereTxt : ' \u2014 in ' + whereTxt + ' (click to go there)'))
+            : ' \u2014 editing live now');
           // Stagger each avatar's breathing cycle so the box feels alive
           // rather than everyone pulsing in lockstep.
           const delay = (i * 0.35).toFixed(2) + 's';
@@ -640,7 +765,9 @@
               color + '&quot; title=&quot;' + title.replace(/'/g, "&#39;") + '&quot;>' + sarvarcPresenceInitials(name) + '</div>\'">'
             : '<div class="sarvarc-presence-avatar-fallback" style="background:' + color + '" title="' + title + '">' +
               sarvarcPresenceInitials(name) + '</div>';
-          html += '<span class="sarvarc-presence-avatar-wrap" style="animation-delay:' + delay + ';z-index:' + (shown.length - i) + '">' + inner + '</span>';
+          const tag = modInfo ? '<span class="sarvarc-presence-mod" style="background:' + color + '">' + modInfo.short + '</span>' : '';
+          const away = (modInfo && !here) ? ' sarvarc-presence-away' + (theirMod && !sameMod ? '\" onclick=\"sarvarcPresenceJump(\'' + theirMod + '\')' : '') : '';
+          html += '<span class="sarvarc-presence-avatar-wrap' + away + '" style="animation-delay:' + delay + ';z-index:' + (shown.length - i) + '">' + inner + tag + '</span>';
         });
         if (overflow > 0) {
           html += '<span class="sarvarc-presence-overflow" title="' + overflow + ' more live now">+' + overflow + '</span>';
@@ -673,6 +800,13 @@
     remoteByUser.forEach((state, userId) => {
       const cur = state.cursor;
       if (!cur || typeof cur.xPct !== 'number') return; // no cursor yet
+      // A cursor is a position on THEIR screen of THEIR module. Drawing it
+      // over a different module is what made cursors clash, so it only shows
+      // when we are looking at the same module (older tabs without a module
+      // keep the old behaviour).
+      const cm = sarvarcPresenceSafeModule(state.module);
+      if (cm && myModule && cm !== myModule) return;
+      if (sarvarcPresenceGateTool(state.tool) !== myGateTool) return; // one of you is inside a full-screen tool the other is not
       const prevSeen = sarvarcPresenceCursorSeenAt.get(userId);
       if (!prevSeen || prevSeen.senderT !== cur.t) {
         sarvarcPresenceCursorSeenAt.set(userId, { senderT: cur.t, localSeenAt: now });
@@ -713,6 +847,9 @@
     remoteByUser.forEach((state) => {
       const fieldId = state.field;
       if (!fieldId) return;
+      const fm = sarvarcPresenceSafeModule(state.module);
+      if (fm && myModule && fm !== myModule) return;
+      if (sarvarcPresenceGateTool(state.tool) !== myGateTool) return;
       const target = document.getElementById(fieldId);
       if (!target) return;
       const color = state.color || '#3b82f6';
@@ -726,6 +863,50 @@
       badge.style.top = (rect.top + window.scrollY) + 'px';
       badge.textContent = (state.name || 'Teammate');
       document.body.appendChild(badge);
+    });
+    sarvarcPresenceRenderNav(remoteByUser);
+  }
+
+  // Sidebar: put a small dot (photo or initials) for each teammate on the
+  // nav item of the module they are in. Rebuilt only when it changed.
+  function sarvarcPresenceRenderNav(remoteByUser) {
+    const byModule = {};
+    remoteByUser.forEach((state) => {
+      const m = sarvarcPresenceSafeModule(state.module);
+      if (m) (byModule[m] = byModule[m] || []).push(state);
+    });
+    document.querySelectorAll('.sidebar .nav-item[onclick]').forEach(item => {
+      const oc = item.getAttribute('onclick') || '';
+      const mm = /navigate\('([a-z]+)'\)/.exec(oc);
+      // Saved Sessions opens through its own function, not navigate().
+      const id = mm ? mm[1] : (/smOpenSessionsPage\(/.test(oc) ? 'savedsessions' : null);
+      const people = (id && byModule[id]) || [];
+      let box = item.querySelector(':scope > .sarvarc-nav-here');
+      const sig = people.map(p => p.userId + '|' + (p.color || '') + '|' + (p.avatar || '') + '|' + (sarvarcPresenceSafeTool(p.tool) || '')).join(',');
+      if (!people.length) { if (box) box.remove(); return; }
+      if (box && box.dataset.sig === sig) return;
+      if (!box) { box = document.createElement('span'); box.className = 'sarvarc-nav-here'; item.appendChild(box); }
+      box.dataset.sig = sig;
+      box.textContent = '';
+      people.slice(0, 3).forEach(p => {
+        const dot = document.createElement('span');
+        dot.className = 'sarvarc-nav-here-dot';
+        dot.style.background = p.color || '#3b82f6';
+        const nm = p.name || 'Teammate';
+        dot.title = nm + ' is working in ' + (sarvarcPresenceWhere(id, p.tool) || SARVARC_PRESENCE_MODULES[id].label);
+        if (p.avatar) {
+          const img = document.createElement('img');
+          img.src = p.avatar; img.alt = ''; img.referrerPolicy = 'no-referrer';
+          img.onerror = () => { img.remove(); dot.textContent = sarvarcPresenceInitials(nm); };
+          dot.appendChild(img);
+        } else dot.textContent = sarvarcPresenceInitials(nm);
+        box.appendChild(dot);
+      });
+      if (people.length > 3) {
+        const more = document.createElement('span');
+        more.className = 'sarvarc-nav-here-more'; more.textContent = '+' + (people.length - 3);
+        box.appendChild(more);
+      }
     });
   }
 
@@ -769,6 +950,11 @@
     // listener runs alongside (not instead of) the broadcast-out listener
     // registered in sarvarcCollabConnect above.
     awareness.on('update', sarvarcPresenceRender);
+    // Tell teammates which module we are in, and keep it current.
+    sarvarcPresencePublishModule(awareness);
+    sarvarcPresenceToolTimer = setInterval(() => sarvarcPresencePublishModule(awareness), 1000); // cheap: only sends when something changed
+    sarvarcPresenceModuleObserver = new MutationObserver(() => sarvarcPresencePublishModule(awareness));
+    document.querySelectorAll('.section').forEach(sec => sarvarcPresenceModuleObserver.observe(sec, { attributes: true, attributeFilter: ['class'] }));
     // Field badges are positioned from getBoundingClientRect(), which goes
     // stale on scroll/resize even with no new awareness update — a light
     // periodic re-render keeps them lined up, and doubles as cleanup for
@@ -776,6 +962,7 @@
     sarvarcPresenceStaleTimer = setInterval(sarvarcPresenceRender, 2000);
     sarvarcPresenceBeatTimer = setInterval(() => {
       try { if (awareness.getLocalState()) awareness.setLocalStateField('hb', Date.now()); } catch (e) {}
+      sarvarcPresencePublishModule(awareness); // safety net if a class change was missed
     }, SARVARC_PRESENCE_BEAT_MS);
     sarvarcPresenceRender();
   }
@@ -789,6 +976,9 @@
     sarvarcPresenceMouseHandler = sarvarcPresenceFocusHandler = sarvarcPresenceBlurHandler = sarvarcPresenceStaleTimer = sarvarcPresenceBeatTimer = null;
     sarvarcPresenceCursorSeenAt.clear();
     sarvarcPresenceBeatSeenAt.clear();
+    if (sarvarcPresenceModuleObserver) { sarvarcPresenceModuleObserver.disconnect(); sarvarcPresenceModuleObserver = null; }
+    if (sarvarcPresenceToolTimer) { clearInterval(sarvarcPresenceToolTimer); sarvarcPresenceToolTimer = null; }
+    document.querySelectorAll('.sarvarc-nav-here').forEach(el => el.remove());
     const bar = document.getElementById('sarvarcPresenceBox');
     if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
     const cursorsLayer = document.getElementById('sarvarcCollabCursorsLayer');
