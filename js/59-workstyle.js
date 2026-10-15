@@ -194,7 +194,7 @@ async function wstyleSampleBackground(pg) {
 function wstyleTextHeight(pg, idx, t, W) {
   try {
     if (t._hOverride) return t._hOverride;
-    if (idx === pdfed.active) {
+    if (idx >= 0 && idx === pdfed.active) {
       const el = document.querySelector('.pdfed-placed-text[data-id="' + t.id + '"]');
       if (el && el.offsetHeight) return el.offsetHeight;
     }
@@ -276,7 +276,11 @@ function wstyleMeasureTable(tb, W, H) {
 }
 
 async function wstyleMeasurePage(pg, idx) {
-  const sz = pdfedKadessaPageSizePx(pg, idx);
+  // idx < 0 means a page that is not in the editor (read from a PDF file). With an empty editor,
+  // pdfed.active is also -1, so asking the editor would return the blank 300x150 canvas.
+  const sz = idx < 0
+    ? (function () { const m = (pg && pg.pageMM) || [210, 297]; return [Math.max(1, Math.round(m[0] * 3.7795)), Math.max(1, Math.round(m[1] * 3.7795))]; })()
+    : pdfedKadessaPageSizePx(pg, idx);
   const W = sz[0], H = sz[1];
   const mm = (pg.pageMM && pg.pageMM.length === 2) ? [wstyleRound(pg.pageMM[0], 1), wstyleRound(pg.pageMM[1], 1)]
     : [wstyleRound(W / 3.7795, 1), wstyleRound(H / 3.7795, 1)];
