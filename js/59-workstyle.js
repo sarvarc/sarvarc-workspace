@@ -6,8 +6,8 @@
 // page, so the numbers are exact and repeatable.
 //
 // Later steps (not in this file yet):
-//   2. Kadessa builds NEW content in a saved style, instantly.
-//   3. The split screen and the animated cursor sit on top of step 2.
+//   2. Kadessa builds in a saved style: js/62-workstyle-build.js (identical copy, or new words in the same look).
+//   3. The split screen and the animated cursor sit on top of step 2 (same file).
 //
 // Storage: localStorage under 'sarvarcWorkstyles_v1'. The account-scoping shim
 // at the top of js/03-account-storage.js namespaces every key by the signed-in
@@ -241,6 +241,14 @@ function wstyleMeasureTable(tb, W, H) {
     colAlign.push((s && s.align) || 'left');
   }
   const bodyRows = rowH.slice(tb.headerRow ? 1 : 0);
+  // Per-column looks for the header, body, alternate and last rows, so a table
+  // rebuilt later (js/62-workstyle-build.js) matches the original column by column.
+  const nCols = tb.cols || colW.length;
+  const rowCells = function (r) {
+    const out = [];
+    for (let c = 0; c < nCols; c++) out.push(cellAt(r, c));
+    return out;
+  };
   return {
     kind: 'table', role: 'table',
     xPct: wstylePct(tb.x, W), yPct: wstylePct(tb.y, H),
@@ -254,6 +262,10 @@ function wstyleMeasureTable(tb, W, H) {
     headerCell: cellAt(0, 0),
     bodyCell: cellAt(1, 0),
     lastRowCell: lastRow > 1 ? cellAt(lastRow, 0) : null,
+    headerCells: rowCells(0),
+    bodyCells: rowCells(1),
+    altCells: rowH.length > 2 ? rowCells(2) : null,
+    lastRowCells: lastRow > 1 ? rowCells(lastRow) : null,
     colAlign: colAlign,
     zebra: !!(cs && rowH.length > 3 && fillAt(1) !== fillAt(2)),
     rows: tb.rows || rowH.length,
