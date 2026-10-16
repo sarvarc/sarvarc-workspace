@@ -1,8 +1,8 @@
 // ─── WORKSTYLE: THE BUTTON AND PANEL ─────────────────────────────────────────
 // The "Workstyle" button sits right after Showcase in the PDF Editor app bar.
 // The panel does one simple thing:
-//   1. REFERENCE   a PDF file, or the document open in the editor
-//   2. YOUR CONTENT  typed, pasted, or a text file
+//   1. REFERENCE   a file (PDF, Word, Excel, CSV, PowerPoint), or the document open in the editor
+//   2. YOUR CONTENT  typed, pasted, or files in any format (js/64-workstyle-readers.js)
 //   3. Build       Kadessa reads both (js/63-workstyle-fill.js) and builds the same
 //                  format with your content, live in the editor with the reference
 //                  docked beside it (js/62-workstyle-build.js)
@@ -31,16 +31,16 @@ function wsEnsurePanel() {
 
     '<div class="ws-step"><span class="ws-num">1</span> Reference</div>' +
     '<div class="ws-actions">' +
-      '<button type="button" id="wsPdfBtn">Attach a PDF</button>' +
+      '<button type="button" id="wsPdfBtn">Attach a file</button>' +
       '<button type="button" id="wsDocBtn">Use the open document</button>' +
     '</div>' +
-    '<input type="file" id="wsPdfInput" accept="application/pdf,.pdf" style="display:none">' +
+    '<input type="file" id="wsPdfInput" style="display:none">' +
     '<div class="ws-list" id="wsList"></div>' +
 
     '<div class="ws-step"><span class="ws-num">2</span> Your content</div>' +
-    '<textarea id="wsContent" rows="6" maxlength="24000" spellcheck="false" placeholder="Type or paste your content here: names, lines, items, prices, rows. Kadessa matches it to the reference."></textarea>' +
-    '<div class="ws-row"><button type="button" class="ws-link" id="wsFileBtn">Attach a text file</button><span class="ws-fname" id="wsFileName"></span></div>' +
-    '<input type="file" id="wsContentInput" accept=".txt,.csv,.tsv,.md,text/plain,text/csv" style="display:none">' +
+    '<textarea id="wsContent" rows="6" maxlength="24000" spellcheck="false" placeholder="Type or paste your content here, or attach files below (PDF, Word, Excel, PowerPoint, TXT, picture, any format). Kadessa matches it to the reference."></textarea>' +
+    '<div class="ws-row"><button type="button" class="ws-link" id="wsFileBtn">Attach files</button><span class="ws-fname" id="wsFileName"></span></div>' +
+    '<input type="file" id="wsContentInput" multiple style="display:none">' +
 
     '<div class="ws-actions"><button type="button" class="primary" id="wsBuildBtn">Build with Kadessa</button></div>' +
     '<div class="ws-status" id="wsStatus"></div>' +
@@ -51,14 +51,26 @@ function wsEnsurePanel() {
   wsEl('wsPdfInput').addEventListener('change', function () {
     const f = this.files && this.files[0];
     this.value = '';
-    if (f) wsAddPdfReference(f);
+    if (f) wsAddReferenceFile(f);
   });
   wsEl('wsDocBtn').addEventListener('click', wsAddOpenDocument);
   wsEl('wsFileBtn').addEventListener('click', function () { if (!wsBusy) wsEl('wsContentInput').click(); });
   wsEl('wsContentInput').addEventListener('change', function () {
-    const f = this.files && this.files[0];
+    const files = Array.prototype.slice.call(this.files || []);
     this.value = '';
-    if (f) wsReadContentFile(f);
+    if (files.length) wsReadContentFiles(files);
+  });
+  // Drop files straight onto the reference list or the content box.
+  [['wsList', 'ref'], ['wsContent', 'content']].forEach(function (pair) {
+    const el = wsEl(pair[0]);
+    el.addEventListener('dragover', function (e) { e.preventDefault(); el.classList.add('ws-drop'); });
+    el.addEventListener('dragleave', function () { el.classList.remove('ws-drop'); });
+    el.addEventListener('drop', function (e) {
+      e.preventDefault(); el.classList.remove('ws-drop');
+      const files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+      if (!files.length || wsBusy) return;
+      if (pair[1] === 'ref') wsAddReferenceFile(files[0]); else wsReadContentFiles(files);
+    });
   });
   wsEl('wsBuildBtn').addEventListener('click', wsBuild);
   return panel;
@@ -98,12 +110,11 @@ function wsErrText(e) {
 }
 
 // ─── 1. the reference ────────────────────────────────────────────────────────
-async function wsAddPdfReference(file) {
+async function wsAddReferenceFile(file) {
   if (wsBusy) return;
-  if (!/\.pdf$/i.test(file.name || '') && file.type !== 'application/pdf') { wsStatus('That is not a PDF file.', 'err'); return; }
-  wsSetBusy(true, 'Reading ' + (file.name || 'the PDF') + '…');
+  wsSetBusy(true, 'Reading ' + (file.name || 'the file') + '…');
   try {
-    const r = await wstyleSaveFromPdfFile(file);
+    const r = await wsReadAnyReference(file);
     wsRefId = r.id;
     wsStatus('Reference ready. Now add your content.', 'ok');
   } catch (e) { wsStatus(wsErrText(e), 'err'); }
@@ -144,7 +155,7 @@ function wsRenderList() {
   if (!list.length) {
     const e = document.createElement('div');
     e.className = 'ws-empty';
-    e.textContent = 'No reference yet. Attach a PDF, or open your finished work in the editor and use it.';
+    e.textContent = 'No reference yet. Attach a PDF, Word, Excel, CSV or PowerPoint file, or open your finished work in the editor and use it.';
     box.appendChild(e);
     return;
   }
@@ -186,25 +197,35 @@ function wsRenderList() {
 }
 
 // ─── 2. the content ──────────────────────────────────────────────────────────
-function wsReadContentFile(file) {
-  if (file.size > 400000) { wsStatus('That file is too big. Use a text file under 400 KB.', 'err'); return; }
-  const rd = new FileReader();
-  rd.onload = function () {
-    const box = wsEl('wsContent');
-    const add = String(rd.result || '').replace(/\r\n?/g, '\n').trim();
-    box.value = (box.value.trim() ? box.value.replace(/\s+$/, '') + '\n\n' : '') + add;
-    wsContentFile = file.name || '';
-    wsEl('wsFileName').textContent = wsContentFile ? 'Added ' + wsContentFile : '';
-    wsStatus('', '');
-  };
-  rd.onerror = function () { wsStatus('Could not read that file.', 'err'); };
-  rd.readAsText(file);
+async function wsReadContentFiles(files) {
+  if (wsBusy) return;
+  const box = wsEl('wsContent');
+  const added = [], notes = [], failed = [];
+  wsSetBusy(true, 'Reading ' + (files.length > 1 ? files.length + ' files' : (files[0].name || 'the file')) + '…');
+  for (let i = 0; i < files.length; i++) {
+    try {
+      if (files.length > 1) wsStatus('Reading ' + files[i].name + ' (' + (i + 1) + ' of ' + files.length + ')…', '');
+      const r = await wsReadAnyContent(files[i]);
+      box.value = (box.value.trim() ? box.value.replace(/\s+$/, '') + '\n\n' : '') + r.text;
+      added.push(files[i].name);
+      if (r.note) notes.push(files[i].name + ': ' + r.note);
+    } catch (e) { failed.push((files[i].name || 'file') + ': ' + wsErrText(e)); }
+  }
+  if (box.value.length > WSF_MAX_CONTENT) {
+    box.value = box.value.slice(0, WSF_MAX_CONTENT);
+    notes.push('only the first ' + WSF_MAX_CONTENT.toLocaleString('en-US') + ' characters are used');
+  }
+  wsContentFile = added.join(', ');
+  wsEl('wsFileName').textContent = added.length ? 'Added ' + wsContentFile : '';
+  wsSetBusy(false);
+  const msg = failed.concat(notes).join(' ');
+  wsStatus(msg, failed.length ? 'err' : '');
 }
 
 // ─── 3. build ────────────────────────────────────────────────────────────────
 async function wsBuild() {
   if (wsBusy) return;
-  if (!wsRefId) { wsStatus('Add a reference first: attach a PDF or use the open document.', 'err'); return; }
+  if (!wsRefId) { wsStatus('Add a reference first: attach a file or use the open document.', 'err'); return; }
   const text = (wsEl('wsContent').value || '').trim();
   if (!text) { wsStatus('Add your content first.', 'err'); wsEl('wsContent').focus(); return; }
   wsSetBusy(true, 'Kadessa is getting ready…');
