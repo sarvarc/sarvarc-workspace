@@ -215,6 +215,100 @@ async function wstylePdfImageSlots(page, H, W) {
   return slots;
 }
 
+
+// Lines and boxes: filled rectangles (header bars, panels, side strips), thin filled rectangles (rules),
+// and straight stroked lines. Read from the page's drawing instructions, so colors and sizes are exact.
+// Curves, gradients and clipped art are not read. Results are in PDF points, y from the top.
+async function wstylePdfShapes(page, H, W) {
+  const out = [];
+  try {
+    const OPS = pdfjsLib.OPS;
+    const ol = await page.getOperatorList();
+    const mul = function (m, n) {
+      return [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+        m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+    };
+    // pdf.js hands colors over as a typed array (0-255) or, in newer builds, a "#rrggbb" string
+    const col = function (a) {
+      if (typeof a === 'string') return /^#[0-9a-f]{6}$/i.test(a) ? a.toLowerCase() : null;
+      if (a && typeof a.length === 'number' && a.length >= 3) return wstylePdfRgbToHex(a[0], a[1], a[2]);
+      return null;
+    };
+    const gray = function (g) { const v = Math.round((Number(g) || 0) * 255); return wstylePdfRgbToHex(v, v, v); };
+    let st = { ctm: [1, 0, 0, 1, 0, 0], fill: '#000000', stroke: '#000000', lw: 1 };
+    const stack = [];
+    let subs = [], sub = null;
+    const pt = function (x, y) { return [st.ctm[0] * x + st.ctm[2] * y + st.ctm[4], H - (st.ctm[1] * x + st.ctm[3] * y + st.ctm[5])]; };
+    const flat = function (p, q) { return Math.abs(p[0] - q[0]) < 0.6 || Math.abs(p[1] - q[1]) < 0.6; };
+    const paint = function (doFill, doStroke) {
+      const sc = Math.hypot(st.ctm[0], st.ctm[1]) || 1;
+      subs.forEach(function (sb) {
+        if (sb.curved || sb.pts.length < 2) return;
+        const P = sb.pts.map(function (q) { return pt(q[0], q[1]); });
+        if (P.length > 2 && Math.abs(P[0][0] - P[P.length - 1][0]) < 0.6 && Math.abs(P[0][1] - P[P.length - 1][1]) < 0.6) P.pop();
+        const xs = P.map(function (q) { return q[0]; }), ys = P.map(function (q) { return q[1]; });
+        const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+        let isBox = sb.rect;
+        if (!isBox && P.length === 4) isBox = flat(P[0], P[1]) && flat(P[1], P[2]) && flat(P[2], P[3]) && flat(P[3], P[0]);
+        if (isBox) {
+          out.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0, fill: doFill ? st.fill : null, stroke: doStroke ? st.stroke : null, sw: st.lw * sc });
+        } else if (doStroke) {
+          for (let i = 0; i + 1 < P.length + (sb.closed ? 1 : 0); i++) {
+            const A = P[i], B = P[(i + 1) % P.length];
+            if (flat(A, B)) out.push({ x: Math.min(A[0], B[0]), y: Math.min(A[1], B[1]), w: Math.abs(B[0] - A[0]), h: Math.abs(B[1] - A[1]),
+              fill: null, stroke: st.stroke, sw: st.lw * sc, line: true });
+          }
+        }
+      });
+      subs = []; sub = null;
+    };
+    for (let i = 0; i < ol.fnArray.length; i++) {
+      const fn = ol.fnArray[i], a = ol.argsArray[i];
+      if (fn === OPS.save) stack.push({ ctm: st.ctm.slice(), fill: st.fill, stroke: st.stroke, lw: st.lw });
+      else if (fn === OPS.restore) { if (stack.length) st = stack.pop(); }
+      else if (fn === OPS.transform) st.ctm = mul(st.ctm, a);
+      else if (fn === OPS.setLineWidth) st.lw = Number(a[0]) || 0;
+      else if (fn === OPS.setFillRGBColor) st.fill = col(a) || st.fill;
+      else if (fn === OPS.setStrokeRGBColor) st.stroke = col(a) || st.stroke;
+      else if (fn === OPS.setFillGray) st.fill = gray(a[0]);
+      else if (fn === OPS.setStrokeGray) st.stroke = gray(a[0]);
+      else if (fn === OPS.constructPath) {
+        const ops = a[0], co = a[1];
+        let k = 0;
+        for (let j = 0; j < ops.length; j++) {
+          const o = ops[j];
+          if (o === OPS.rectangle) {
+            subs.push({ pts: [[co[k], co[k + 1]], [co[k] + co[k + 2], co[k + 1] + co[k + 3]]], rect: true }); sub = null; k += 4;
+          } else if (o === OPS.moveTo) { sub = { pts: [[co[k], co[k + 1]]] }; subs.push(sub); k += 2; }
+          else if (o === OPS.lineTo) { if (!sub) { sub = { pts: [[co[k], co[k + 1]]] }; subs.push(sub); } else sub.pts.push([co[k], co[k + 1]]); k += 2; }
+          else if (o === OPS.curveTo) { if (sub) sub.curved = true; k += 6; }
+          else if (o === OPS.curveTo2 || o === OPS.curveTo3) { if (sub) sub.curved = true; k += 4; }
+          else if (o === OPS.closePath) { if (sub) sub.closed = true; }
+        }
+      }
+      else if (fn === OPS.stroke || fn === OPS.closeStroke) paint(false, true);
+      else if (fn === OPS.fill || fn === OPS.eoFill) paint(true, false);
+      else if (fn === OPS.fillStroke || fn === OPS.eoFillStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke) paint(true, true);
+      else if (fn === OPS.endPath) { subs = []; sub = null; }
+    }
+  } catch (e) { /* no shapes, carry on */ }
+
+  // keep what is worth rebuilding
+  const seen = {}, keep = [];
+  out.forEach(function (r) {
+    const thin = Math.min(r.w, r.h) <= 2.5;
+    const white = r.fill && !r.stroke && /^#f[a-f0-9]f[a-f0-9]f[a-f0-9]$/.test(r.fill) && r.fill >= '#fafafa';
+    if (r.w < 1.5 && r.h < 1.5) return;
+    if (r.w >= W * 0.9 && r.h >= H * 0.9) return;                  // the page background, measured separately
+    if (white) return;
+    if (!r.line && !r.fill && !(r.stroke && r.sw >= 0.4)) return;
+    const key = [Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h), r.fill, r.stroke].join('|');
+    if (seen[key]) return; seen[key] = 1;
+    keep.push({ x: r.x, y: r.y, w: r.w, h: r.h, fill: r.fill, stroke: r.stroke, sw: r.sw, rule: r.line || thin });
+  });
+  return keep.slice(0, 40);
+}
+
 // ─── one PDF page -> editor-shaped page model -> measured page ───────────────
 async function wstylePdfMeasurePage(pdfPage, pageNo) {
   const vp = pdfPage.getViewport({ scale: 1 });
@@ -330,8 +424,21 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
     return { id: 'pdf_i' + i, x: s.x * S, y: s.y * S, w: s.w * S, h: s.h * S };
   });
 
+  // Boxes and lines. Anything sitting inside a table is left out: a table grows with its rows, so its
+  // grid and row fills are rebuilt by the table itself, not copied as fixed shapes.
+  const rawShapes = await wstylePdfShapes(pdfPage, H, W);
+  const placedShapes = rawShapes.filter(function (sh) {
+    const cxm = sh.x + sh.w / 2, cym = sh.y + sh.h / 2;
+    return !placedTables.some(function (tb) {
+      const tw = tb.colWidths.reduce(function (a, b) { return a + b; }, 0) / S, th = tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S;
+      return cxm >= tb.x / S - 4 && cxm <= tb.x / S + tw + 4 && cym >= tb.y / S - 4 && cym <= tb.y / S + th + 4;
+    });
+  }).map(function (sh) {
+    return { x: sh.x * S, y: sh.y * S, w: sh.w * S, h: sh.h * S, fill: sh.fill, stroke: sh.stroke, sw: sh.sw * S, rule: sh.rule };
+  });
+
   const fakePg = {
-    type: 'pdf', dataUrl: dataUrl, bgColor: null,
+    type: 'pdf', dataUrl: dataUrl, bgColor: null, placedShapes: placedShapes,
     pageMM: [W * 25.4 / 72, H * 25.4 / 72],
     placedTexts: placedTexts, placedTables: placedTables, placedImages: placedImages
   };
