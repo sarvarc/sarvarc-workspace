@@ -732,6 +732,46 @@ function oxParseSect(sp) {
 }
 
 // ── tables ──────────────────────────────────────────────────────────────
+// Word table borders, read from the table's own border settings. Used by Workstyle (js/64) to copy a reference's
+// look. Returns { color, width, rows, cols, outerH, outerV, headRule } (width in px), or null when the table
+// leans on a named table style whose borders live in styles.xml and are not read here.
+function oxReadTableBorder(tbl, styleName, firstRowCells) {
+  const tblPr = oxKid(tbl, 'tblPr');
+  const tb = tblPr && oxKid(tblPr, 'tblBorders');
+  const side = function(box, name) {
+    const e = box && oxKid(box, name);
+    if (!e) return undefined;                               // not said
+    const v = String(oxAttr(e, 'val') || '').toLowerCase();
+    if (!v || v === 'nil' || v === 'none') return null;     // said: no line
+    const sz = parseInt(oxAttr(e, 'sz'), 10) || 4;          // eighths of a point
+    const col = String(oxAttr(e, 'color') || '');
+    return { w: Math.max(1, Math.round(sz / 8 * (96 / 72))), color: /^[0-9a-f]{6}$/i.test(col) ? '#' + col.toLowerCase() : '#000000' };
+  };
+  let top, left, bottom, right, insH, insV;
+  if (tb) {
+    top = side(tb, 'top'); left = side(tb, 'left') || side(tb, 'start'); bottom = side(tb, 'bottom'); right = side(tb, 'right') || side(tb, 'end');
+    insH = side(tb, 'insideH'); insV = side(tb, 'insideV');
+  } else if (/grid/i.test(styleName || '')) {
+    const g = { w: 1, color: '#000000' };
+    top = left = bottom = right = insH = insV = g;
+  } else if (styleName && !/^(normal ?table|tablenormal)$/i.test(styleName)) {
+    return null;                                            // a named style: its lines are in styles.xml
+  }
+  // a line under the header row, set on the header cells themselves
+  let headRule = false;
+  (firstRowCells || []).forEach(function(tc) {
+    const tcPr = oxKid(tc, 'tcPr'), cb = tcPr && oxKid(tcPr, 'tcBorders');
+    if (cb && side(cb, 'bottom')) headRule = true;
+  });
+  const all = [top, left, bottom, right, insH, insV].filter(function(x) { return !!x; });
+  const widths = all.map(function(x) { return x.w; }).sort(function(a, b) { return a - b; });
+  return {
+    color: all.length ? all[0].color : '#000000',
+    width: widths.length ? widths[Math.floor(widths.length / 2)] : 1,
+    rows: !!insH, cols: !!insV, outerH: !!(top && bottom), outerV: !!(left && right), headRule: headRule
+  };
+}
+
 function oxReadTable(tbl, ctx) {
   const grid = oxKids(oxKid(tbl, 'tblGrid'), 'gridCol').map(function(g) { return (parseInt(oxAttr(g, 'w'), 10) || 0) / 15; });
   const look = oxKid(oxKid(tbl, 'tblPr'), 'tblLook');
@@ -780,7 +820,8 @@ function oxReadTable(tbl, ctx) {
     fontPx: Math.round(dSz / 2 * (96 / 72) * 10) / 10,
     font: oxMapFont(pickTop(fontVotes, ctx.theme.minor)),
     jc: jcEl ? oxAttr(jcEl, 'val') : 'left',
-    lookFirst: !!lookFirst, styleName: styleName
+    lookFirst: !!lookFirst, styleName: styleName,
+    border: oxReadTableBorder(tbl, styleName, oxKids(oxKids(tbl, 'tr')[0] || tbl, 'tc'))
   };
 }
 function oxCellContent(tc, ctx) {
@@ -1098,6 +1139,8 @@ async function oxLayoutWord(parsed) {
         fontSize: fontPx, fontFamily: t.font, headerRow: headerRow, cells: cells, cellStyles: styles,
         locked: false, zIndex: pdfedNextZ(pg), linkedTitleId: null
       });
+      // Workstyle asks to keep the Word table's own lines; the normal editor open keeps its usual grid
+      if (parsed.keepBorders && t.border) pg.placedTables[pg.placedTables.length - 1].borderStyle = t.border;
       y += useRows.reduce(function(a, r) { return a + rowH[r]; }, 0) + 10;
       start = end;
       if (start < grid.length) { if (!newPage()) return; }
