@@ -141,6 +141,69 @@ async function wsrPptxToPages(ab) {
   return pages;
 }
 
+// ─── Excel cell lines ────────────────────────────────────────────────────────
+// SheetJS does not give the lines, so the workbook is opened as a zip and its styles read directly: which
+// border each cell style has, then which style each cell of the first sheet uses. The result is one border
+// look for the sheet's table. xlsx and xlsm only (a CSV has no styles, an old xls is not a zip).
+async function wsrXlsxBorders(ab, ext) {
+  if (ext !== 'xlsx' && ext !== 'xlsm') return null;
+  try {
+    const zip = await JSZip.loadAsync(ab);
+    const stylesFile = zip.file('xl/styles.xml');
+    if (!stylesFile) return null;
+    const sty = wsrParseXml(await stylesFile.async('string'));
+    const bordersEl = wsrDesc(sty, 'borders')[0];
+    const xfsEl = wsrDesc(sty, 'cellXfs')[0];
+    if (!bordersEl || !xfsEl) return null;
+    const thick = { thin: 1, hair: 1, dotted: 1, dashed: 1, medium: 2, mediumDashed: 2, thick: 3, double: 3 };
+    const borders = Array.prototype.filter.call(bordersEl.children, function (b) { return b.localName === 'border'; }).map(function (b) {
+      const side = function (n) {
+        const e = Array.prototype.filter.call(b.children, function (k) { return k.localName === n; })[0];
+        const st = e && e.getAttribute('style');
+        if (!st) return null;
+        const c = e.children && e.children[0];
+        const rgb = c && c.getAttribute('rgb');
+        return { w: thick[st] || 1, color: rgb && /^[0-9a-f]{8}$/i.test(rgb) ? '#' + rgb.slice(2).toLowerCase() : '#000000' };
+      };
+      return { l: side('left'), r: side('right'), t: side('top'), b: side('bottom') };
+    });
+    const xfBorder = Array.prototype.filter.call(xfsEl.children, function (x) { return x.localName === 'xf'; }).map(function (x) { return parseInt(x.getAttribute('borderId'), 10) || 0; });
+    // the first sheet, the one the reader builds its table from
+    const names = Object.keys(zip.files).filter(function (n) { return /^xl\/worksheets\/sheet\d+\.xml$/.test(n); })
+      .sort(function (a, b) { return Number(a.match(/(\d+)\.xml$/)[1]) - Number(b.match(/(\d+)\.xml$/)[1]); });
+    if (!names.length) return null;
+    const sh = wsrParseXml(await zip.file(names[0]).async('string'));
+    const rowsEl = wsrDesc(sh, 'row');
+    let n = 0, left = 0, right = 0, top = 0, bottom = 0, headBottom = 0, headN = 0, firstRowNo = null;
+    const widths = [], colors = {};
+    rowsEl.forEach(function (rw, ri) {
+      const rno = parseInt(rw.getAttribute('r'), 10) || ri + 1;
+      if (firstRowNo === null) firstRowNo = rno;
+      Array.prototype.forEach.call(rw.children, function (c) {
+        if (c.localName !== 'c') return;
+        const hasValue = c.children && c.children.length > 0;
+        if (!hasValue) return;                                  // empty styled cells are filler
+        const b = borders[xfBorder[parseInt(c.getAttribute('s'), 10) || 0]] || {};
+        n++;
+        if (b.l) left++; if (b.r) right++; if (b.t) top++; if (b.b) bottom++;
+        [b.l, b.r, b.t, b.b].forEach(function (x) { if (x) { widths.push(x.w); colors[x.color] = (colors[x.color] || 0) + 1; } });
+        if (rno === firstRowNo) { headN++; if (b.b) headBottom++; }
+      });
+    });
+    if (!n) return { color: '#000000', width: 1, rows: false, cols: false, outerH: false, outerV: false, headRule: false };   // no lines at all
+    const share = function (k) { return k / n; };
+    const horiz = share(Math.max(top, bottom)) >= 0.5, vert = share(Math.max(left, right)) >= 0.5;
+    let color = '#000000', best = 0;
+    Object.keys(colors).forEach(function (k) { if (colors[k] > best) { best = colors[k]; color = k; } });
+    widths.sort(function (a, b) { return a - b; });
+    return {
+      color: color, width: widths.length ? widths[Math.floor(widths.length / 2)] : 1,
+      rows: horiz, cols: vert, outerH: horiz, outerV: vert,
+      headRule: !horiz && headN > 0 && headBottom / headN >= 0.6
+    };
+  } catch (e) { return null; }                                  // unreadable styles: keep the editor's usual grid
+}
+
 async function wsReadAnyReference(file) {
   wsrCheckSize(file);
   const ext = wsrExt(file);
@@ -152,13 +215,17 @@ async function wsReadAnyReference(file) {
   if (ext === 'docx') {
     const parsed = await oxParseDocx(await file.arrayBuffer());
     if (!parsed.blocks.length) throw new Error('that Word file is empty, so there is nothing to learn from');
+    parsed.keepBorders = true;                       // copy the Word table's lines too
     pages = (await oxLayoutWord(parsed)).pages;
   } else if (/^(xlsx|xlsm|xlsb|xls|ods|csv|tsv)$/.test(ext)) {
-    pages = (await oxBuildSheetPages(await file.arrayBuffer(), file.name)).pages;
+    const abx = await file.arrayBuffer();
+    pages = (await oxBuildSheetPages(abx, file.name)).pages;
+    const xb = await wsrXlsxBorders(abx, ext);       // the sheet's own cell lines, when it has any
+    if (xb) pages.forEach(function (pg) { (pg.placedTables || []).forEach(function (tb) { tb.borderStyle = xb; }); });
   } else if (ext === 'pptx') {
     pages = await wsrPptxToPages(await file.arrayBuffer());
   } else if (wsrIsImage(file, ext)) {
-    throw new Error('a picture has no text boxes to measure. Open it in the editor, run Make Editable, then use "Use the open document". Or attach the PDF, Word or PowerPoint version');
+    return wstyleSaveFromImageFile(file, name);
   } else if (/^(doc|rtf|odt|odp|pages|ppt)$/.test(ext)) {
     throw new Error('.' + ext + ' cannot be read as a reference in the browser. Save it as PDF or Word (.docx) and attach that');
   } else {
