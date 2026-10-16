@@ -10,8 +10,9 @@
 // the editor have exactly the same shape.
 //
 // Honest limits (v1):
-//   - Needs real text in the PDF. A scanned PDF (text is only a picture) throws
-//     a clear error, since there is nothing to measure.
+//   - Rounded boxes and simple fades (left to right, top to bottom, corner to corner) are copied. Free-form curves are not.
+//   - A scanned or picture-only PDF, or a picture file, is read with OCR (js/16). Sizes are close, not exact,
+//     and the PDF has no fonts to read, so the font is Arial.
 //   - Tables are found by ALIGNED COLUMNS of text (3 or more rows). Tables drawn
 //     with borders but no aligned text are not detected. Ruled lines, boxes and
 //     decorative shapes are not measured yet.
@@ -41,6 +42,7 @@ function wstylePdfFontInfo(rawName) {
     n = n.replace(/(PSMT|PS|MT)$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').trim();
   }
   if (!/^[\w \-'",]{2,60}$/.test(n)) n = 'Inter';
+  if (typeof wstyleNearestFont === 'function') n = wstyleNearestFont(n);   // a font the editor does not have -> the closest one it does
   return { family: n, bold: bold, italic: italic };
 }
 
@@ -243,7 +245,29 @@ async function wstylePdfShapes(page, H, W) {
     const paint = function (doFill, doStroke) {
       const sc = Math.hypot(st.ctm[0], st.ctm[1]) || 1;
       subs.forEach(function (sb) {
-        if (sb.curved || sb.pts.length < 2) return;
+        if (sb.curved) {
+          // A rounded box: 4 corner curves joined by straight sides (or 4 curves only: a pill, circle or oval).
+          // Anything with other curves is free-form art and is not copied.
+          if (sb.nCurve === 4 && (doFill || doStroke)) {
+            const all = sb.pts.concat(sb.cpts || []).map(function (q) { return pt(q[0], q[1]); });
+            const cxs = all.map(function (q) { return q[0]; }), cys = all.map(function (q) { return q[1]; });
+            const bx0 = Math.min.apply(null, cxs), bx1 = Math.max.apply(null, cxs), by0 = Math.min.apply(null, cys), by1 = Math.max.apply(null, cys);
+            const bw = bx1 - bx0, bh = by1 - by0;
+            if (bw >= 4 && bh >= 4) {
+              let r;
+              if (sb.pts.length <= 1) r = Math.min(bw, bh) / 2;                         // only curves: a pill or a circle
+              else {
+                const S0 = pt(sb.pts[0][0], sb.pts[0][1]);
+                const onTopOrBottom = Math.abs(S0[1] - by0) < 0.8 || Math.abs(S0[1] - by1) < 0.8;
+                r = onTopOrBottom ? Math.min(S0[0] - bx0, bx1 - S0[0]) : Math.min(S0[1] - by0, by1 - S0[1]);
+              }
+              r = Math.max(0, Math.min(r, bw / 2, bh / 2));
+              if (r > 0.8) out.push({ x: bx0, y: by0, w: bw, h: bh, fill: doFill ? st.fill : null, stroke: doStroke ? st.stroke : null, sw: st.lw * sc, r: r });
+            }
+          }
+          return;
+        }
+        if (sb.pts.length < 2) return;
         const P = sb.pts.map(function (q) { return pt(q[0], q[1]); });
         if (P.length > 2 && Math.abs(P[0][0] - P[P.length - 1][0]) < 0.6 && Math.abs(P[0][1] - P[P.length - 1][1]) < 0.6) P.pop();
         const xs = P.map(function (q) { return q[0]; }), ys = P.map(function (q) { return q[1]; });
@@ -281,8 +305,8 @@ async function wstylePdfShapes(page, H, W) {
             subs.push({ pts: [[co[k], co[k + 1]], [co[k] + co[k + 2], co[k + 1] + co[k + 3]]], rect: true }); sub = null; k += 4;
           } else if (o === OPS.moveTo) { sub = { pts: [[co[k], co[k + 1]]] }; subs.push(sub); k += 2; }
           else if (o === OPS.lineTo) { if (!sub) { sub = { pts: [[co[k], co[k + 1]]] }; subs.push(sub); } else sub.pts.push([co[k], co[k + 1]]); k += 2; }
-          else if (o === OPS.curveTo) { if (sub) sub.curved = true; k += 6; }
-          else if (o === OPS.curveTo2 || o === OPS.curveTo3) { if (sub) sub.curved = true; k += 4; }
+          else if (o === OPS.curveTo) { if (sub) { sub.curved = true; sub.nCurve = (sub.nCurve || 0) + 1; (sub.cpts = sub.cpts || []).push([co[k + 4], co[k + 5]]); } k += 6; }
+          else if (o === OPS.curveTo2 || o === OPS.curveTo3) { if (sub) { sub.curved = true; sub.nCurve = (sub.nCurve || 0) + 1; (sub.cpts = sub.cpts || []).push([co[k + 2], co[k + 3]]); } k += 4; }
           else if (o === OPS.closePath) { if (sub) sub.closed = true; }
         }
       }
@@ -304,9 +328,178 @@ async function wstylePdfShapes(page, H, W) {
     if (!r.line && !r.fill && !(r.stroke && r.sw >= 0.4)) return;
     const key = [Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h), r.fill, r.stroke].join('|');
     if (seen[key]) return; seen[key] = 1;
-    keep.push({ x: r.x, y: r.y, w: r.w, h: r.h, fill: r.fill, stroke: r.stroke, sw: r.sw, rule: r.line || thin });
+    keep.push({ x: r.x, y: r.y, w: r.w, h: r.h, fill: r.fill, stroke: r.stroke, sw: r.sw, rule: r.line || thin, r: r.r || 0 });
   });
   return keep.slice(0, 40);
+}
+
+// ─── flattened pages: read the words with OCR ────────────────────────────────
+// Renders the page big enough to read, runs the same OCR engine the PDF Editor uses (js/16), and turns every
+// recognised word into the same "run" a real PDF gives (text, left, baseline, width, size). From there the page
+// goes through the normal path: lines, tables, blocks, colors. Sizes come from line height, so they are close,
+// not exact. Bold is guessed from size (a line much bigger than the body text).
+async function wstyleOcrRuns(pdfPage, vp, W, H) {
+  if (typeof pdfedGetOcrWorker !== 'function' || typeof pdfedPreprocessForOcr !== 'function') {
+    throw new Error('the OCR reader is not loaded, refresh and try again');
+  }
+  const big = document.createElement('canvas');
+  const k = Math.max(1, Math.min(3, 1800 / Math.max(W, H)));       // render near 1800 px on the long side for a clean read
+  big.width = Math.max(1, Math.round(W * k)); big.height = Math.max(1, Math.round(H * k));
+  const bx = big.getContext('2d', { willReadFrequently: true });
+  bx.fillStyle = '#ffffff'; bx.fillRect(0, 0, big.width, big.height);
+  await pdfPage.render({ canvasContext: bx, viewport: pdfPage.getViewport({ scale: k }) }).promise;
+
+  try { if (typeof pdfedShowOcrProgress === 'function') pdfedShowOcrProgress('Reading the reference (OCR)…'); } catch (e) {}
+  try {
+    const pre = pdfedPreprocessForOcr(big);
+    const worker = await pdfedGetOcrWorker();
+    const res = await worker.recognize(pre.canvas);
+    const data = (res && res.data) || {};
+    const lines = (data.lines || []).filter(function (l) { return l.text && l.text.trim() && l.confidence >= 35; });
+    const toPt = function (v) { return v / pre.scale / k; };        // OCR pixels -> PDF points
+    const heights = lines.map(function (l) { return toPt(l.bbox.y1 - l.bbox.y0); }).sort(function (a, b) { return a - b; });
+    const medH = heights.length ? heights[Math.floor(heights.length / 2)] : 12;
+    const runs = [];
+    lines.forEach(function (l) {
+      const lh = Math.max(4, toPt(l.bbox.y1 - l.bbox.y0));
+      const size = Math.max(6, lh * ((typeof teClassifyLineVerticalExtent === 'function') ? teClassifyLineVerticalExtent(l.text) : 0.85));
+      const top = toPt(l.bbox.y0);
+      const base = top + size * 0.95;                                // the PDF path puts a box top at base - size * 0.95
+      const words = (l.words && l.words.length) ? l.words : [{ text: l.text, bbox: l.bbox }];
+      words.forEach(function (w) {
+        const t = String(w.text || '').trim();
+        if (!t) return;
+        runs.push({ str: t, x: toPt(w.bbox.x0), base: base, w: Math.max(1, toPt(w.bbox.x1 - w.bbox.x0)), size: size,
+          font: 'Arial', bold: lh > medH * 1.35, italic: false });
+      });
+    });
+    return runs;
+  } catch (err) {
+    if (err && err.ocrEngineUnavailable) throw new Error('the OCR engine could not start (check your connection and refresh), so this flattened reference cannot be read yet');
+    throw err;
+  } finally {
+    try { if (typeof pdfedHideOcrProgress === 'function') pdfedHideOcrProgress(); } catch (e) {}
+  }
+}
+
+// A picture file (png, jpg, webp ...) as a reference. It is wrapped as a one-page "PDF page" so it goes
+// through exactly the same reading as a scanned PDF.
+async function wstyleReadImageFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise(function (res, rej) {
+      const im = new Image();
+      im.onload = function () { res(im); };
+      im.onerror = function () { rej(new Error('could not open that picture')); };
+      im.src = url;
+    });
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (!iw || !ih) throw new Error('that picture has no size');
+    // Fit it on a page 595 points wide (A4 width), keeping its own shape.
+    const W = 595, H = Math.round(595 * ih / iw);
+    const fake = {
+      getViewport: function (o) { const sc = (o && o.scale) || 1; return { width: W * sc, height: H * sc, scale: sc }; },
+      getOperatorList: function () { return Promise.resolve({ fnArray: [], argsArray: [] }); },
+      getTextContent: function () { return Promise.resolve({ items: [] }); },
+      render: function (o) {
+        const c = o.canvasContext;
+        c.drawImage(img, 0, 0, o.viewport.width, o.viewport.height);
+        return { promise: Promise.resolve() };
+      }
+    };
+    const m = await wstylePdfMeasurePage(fake, 1);
+    return { pages: [m], docName: file.name || '', totalPages: 1 };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function wstyleSaveFromImageFile(file, name) {
+  const cleanName = String(name || (file && file.name ? file.name.replace(/\.[a-z0-9]+$/i, '') : '')).replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!cleanName) throw new Error('give the work style a name first');
+  const read = await wstyleReadImageFile(file);
+  return wstyleStoreMeasured(cleanName, read.pages, { docName: read.docName, scope: 'all', fromPicture: true });
+}
+
+// ─── the border look of one table, from the lines drawn over it ──────────────
+// shapes: the thin rules and stroked lines/boxes found inside the table area (PDF points).
+// Returns { color, width, rows, cols, outerH, outerV, headRule } or null when the table has no lines at all
+// (a borderless table). The caller scales to pixels; width is returned in pixels.
+function wstylePdfTableBorders(shapes, tb, S) {
+  const nRows = tb.rows, nCols = tb.cols;
+  const x0 = tb.x / S, y0 = tb.y / S;
+  const x1 = x0 + tb.colWidths.reduce(function (a, b) { return a + b; }, 0) / S;
+  const hdrBottom = y0 + tb.rowHeights[0] / S;
+  const tol = 4;
+  const hs = [], vs = [];       // horizontal and vertical lines
+  let boxes = 0;
+  shapes.forEach(function (sh) {
+    if (sh.rule || sh.w <= 2.5 || sh.h <= 2.5) {
+      if (sh.w >= sh.h) hs.push(sh); else vs.push(sh);
+    } else if (sh.stroke && !sh.fill && sh.sw >= 0.3) {
+      boxes++;                  // an outlined cell or table box
+    }
+  });
+  if (!hs.length && !vs.length && !boxes) return null;
+  // Lines that really run along the table: long enough to be a border, not a speck.
+  const runsAcross = function (sh) { return sh.w >= (x1 - x0) * 0.5; };
+  const hLines = hs.filter(runsAcross);
+  const vLines = vs.filter(function (sh) { return sh.h >= (tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S) * 0.5 || sh.h >= 8; });
+  const ys = [], xs = [];
+  hLines.forEach(function (sh) { const y = sh.y + sh.h / 2; if (!ys.some(function (v) { return Math.abs(v - y) < tol; })) ys.push(y); });
+  vLines.forEach(function (sh) { const x = sh.x + sh.w / 2; if (!xs.some(function (v) { return Math.abs(v - x) < tol; })) xs.push(x); });
+  const yTop = y0 - 2, yBot = y0 + tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S + 2;
+  const innerY = ys.filter(function (y) { return y > yTop + tol && y < yBot - tol; });
+  const innerX = xs.filter(function (x) { return x > x0 + tol && x < x1 - tol; });
+  const outerTop = ys.some(function (y) { return Math.abs(y - y0) < tol * 2; });
+  const outerBot = ys.some(function (y) { return Math.abs(y - (yBot - 2)) < tol * 2; });
+  const outerLeft = xs.some(function (x) { return Math.abs(x - x0) < tol * 2; });
+  const outerRight = xs.some(function (x) { return Math.abs(x - x1) < tol * 2; });
+  const headRule = innerY.some(function (y) { return Math.abs(y - hdrBottom) < tol * 1.5; });
+  let rows = nRows > 2 && innerY.length >= Math.max(1, Math.round((nRows - 1) * 0.6));
+  const cols = nCols > 1 && innerX.length >= Math.max(1, Math.round((nCols - 1) * 0.6));
+  const grid = boxes >= nRows * nCols * 0.5;                              // every cell outlined: a full grid
+  const outerH = (outerTop && outerBot) || grid, outerV = (outerLeft && outerRight) || grid;
+  if (grid) rows = true;
+  if (!rows && !cols && !outerH && !outerV && !headRule) return null;
+  // color and thickness: the most common among the lines
+  const tally = {}, widths = [];
+  hLines.concat(vLines).forEach(function (sh) {
+    const c = sh.stroke || sh.fill;
+    if (c) tally[c] = (tally[c] || 0) + 1;
+    widths.push(sh.stroke && sh.sw ? sh.sw : Math.min(sh.w, sh.h));
+  });
+  let color = null, best = 0;
+  Object.keys(tally).forEach(function (c) { if (tally[c] > best) { best = tally[c]; color = c; } });
+  const widthPx = Math.max(1, Math.round((widths.length ? widths.sort(function (a, b) { return a - b; })[Math.floor(widths.length / 2)] : 0.75) * S));
+  return { color: color || '#999999', width: Math.min(widthPx, 4), rows: !!rows, cols: !!cols, outerH: !!outerH, outerV: !!outerV, headRule: !!headRule };
+}
+
+// ─── gradients, read from the rendered page ──────────────────────────────────
+// The drawing instructions only say "fill with a pattern", so the colors are read from the pixels: both ends of
+// the box are sampled, and if they differ the box is a fade. Returns { c1, c2, dir } or null.
+function wstylePdfShapeGradient(cx, CW, CH, sh) {
+  if (!cx || !sh.fill || sh.rule || sh.w < 24 || sh.h < 24) return null;
+  const px = function (x, y) { return wstylePdfPixel(cx, CW, CH, x, y); };
+  const dist = function (a, b) {
+    if (!a || !b) return 0;
+    const n = function (h, i) { return parseInt(h.slice(1 + i * 2, 3 + i * 2), 16); };
+    return Math.abs(n(a, 0) - n(b, 0)) + Math.abs(n(a, 1) - n(b, 1)) + Math.abs(n(a, 2) - n(b, 2));
+  };
+  const m = Math.max(3, Math.min(sh.w, sh.h) * 0.06);
+  const L = px(sh.x + m, sh.y + sh.h / 2), R = px(sh.x + sh.w - m, sh.y + sh.h / 2);
+  const T = px(sh.x + sh.w / 2, sh.y + m), B = px(sh.x + sh.w / 2, sh.y + sh.h - m);
+  const TL = px(sh.x + m, sh.y + m), BR = px(sh.x + sh.w - m, sh.y + sh.h - m);
+  const BIG = 60, SAME = 36;
+  let c1 = null, c2 = null, dir = null, mid = null;
+  if (dist(L, R) > BIG && dist(T, B) <= SAME) { c1 = L; c2 = R; dir = 'horizontal'; mid = px(sh.x + sh.w / 2, sh.y + sh.h / 2); }
+  else if (dist(T, B) > BIG && dist(L, R) <= SAME) { c1 = T; c2 = B; dir = 'vertical'; mid = px(sh.x + sh.w / 2, sh.y + sh.h / 2); }
+  else if (dist(TL, BR) > BIG && dist(L, R) > SAME && dist(T, B) > SAME) { c1 = TL; c2 = BR; dir = 'diagonal'; mid = px(sh.x + sh.w / 2, sh.y + sh.h / 2); }
+  if (!c1 || !c2) return null;
+  // a real fade has a middle between its ends; two flat halves or a picture on top do not
+  const avg = function (a, b) { const n = function (h, i) { return parseInt(h.slice(1 + i * 2, 3 + i * 2), 16); }; return wstylePdfRgbToHex((n(a, 0) + n(b, 0)) / 2, (n(a, 1) + n(b, 1)) / 2, (n(a, 2) + n(b, 2)) / 2); };
+  if (mid && dist(mid, avg(c1, c2)) > 70) return null;
+  return { c1: c1, c2: c2, dir: dir };
 }
 
 // ─── one PDF page -> editor-shaped page model -> measured page ───────────────
@@ -326,11 +519,8 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
     runs.push({ str: it.str, x: it.transform[4], base: H - it.transform[5], w: it.width || 0, size: size,
       font: f.family, bold: f.bold, italic: f.italic });
   }
-  if (!runs.length) {
-    throw new Error('page ' + pageNo + ' has no real text in it (it looks like a scan), so there is nothing to measure there');
-  }
 
-  // Render a small copy for colors and the background.
+  // Render a small copy for colors and the background (and, for a scan, for OCR).
   let cx = null, cvs = null, dataUrl = '';
   try {
     cvs = document.createElement('canvas');
@@ -340,6 +530,18 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
     await pdfPage.render({ canvasContext: cx, viewport: vp }).promise;
     dataUrl = cvs.toDataURL('image/jpeg', 0.5);
   } catch (e) { cx = null; dataUrl = ''; }
+
+  // A flattened page (a scan, or a PDF made of pictures) has no text to measure. Read it with OCR instead.
+  let viaOcr = false;
+  if (!runs.length) {
+    if (!cvs) throw new Error('page ' + pageNo + ' has no real text and could not be drawn to read it');
+    const ocrRuns = await wstyleOcrRuns(pdfPage, vp, W, H);
+    ocrRuns.forEach(function (r) { runs.push(r); });
+    viaOcr = true;
+    if (!runs.length) {
+      throw new Error('page ' + pageNo + ' has no readable text, even with OCR. It may be blank or too blurry');
+    }
+  }
   const CW = cvs ? cvs.width : W, CH = cvs ? cvs.height : H;
   const ink = function (box, fallback) { return cx ? wstylePdfInkColor(cx, CW, CH, box, fallback) : fallback; };
 
@@ -427,14 +629,22 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   // Boxes and lines. Anything sitting inside a table is left out: a table grows with its rows, so its
   // grid and row fills are rebuilt by the table itself, not copied as fixed shapes.
   const rawShapes = await wstylePdfShapes(pdfPage, H, W);
-  const placedShapes = rawShapes.filter(function (sh) {
+  const inTable = function (sh, tb, pad) {
     const cxm = sh.x + sh.w / 2, cym = sh.y + sh.h / 2;
-    return !placedTables.some(function (tb) {
-      const tw = tb.colWidths.reduce(function (a, b) { return a + b; }, 0) / S, th = tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S;
-      return cxm >= tb.x / S - 4 && cxm <= tb.x / S + tw + 4 && cym >= tb.y / S - 4 && cym <= tb.y / S + th + 4;
-    });
+    const tw = tb.colWidths.reduce(function (a, b) { return a + b; }, 0) / S, th = tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S;
+    return cxm >= tb.x / S - pad && cxm <= tb.x / S + tw + pad && cym >= tb.y / S - pad && cym <= tb.y / S + th + pad;
+  };
+  // The lines inside a table are not copied as loose shapes (the table grows with its rows). They are read
+  // once, here, as the table's border look: which lines it has, their color and thickness.
+  placedTables.forEach(function (tb) {
+    const bs = wstylePdfTableBorders(rawShapes.filter(function (sh) { return inTable(sh, tb, 4); }), tb, S);
+    if (bs) tb.borderStyle = bs;
+  });
+  const placedShapes = rawShapes.filter(function (sh) {
+    return !placedTables.some(function (tb) { return inTable(sh, tb, 4); });
   }).map(function (sh) {
-    return { x: sh.x * S, y: sh.y * S, w: sh.w * S, h: sh.h * S, fill: sh.fill, stroke: sh.stroke, sw: sh.sw * S, rule: sh.rule };
+    const g = wstylePdfShapeGradient(cx, CW, CH, sh);
+    return { x: sh.x * S, y: sh.y * S, w: sh.w * S, h: sh.h * S, fill: g ? g.c1 : sh.fill, stroke: sh.stroke, sw: sh.sw * S, rule: sh.rule, r: (sh.r || 0) * S, grad: g };
   });
 
   const fakePg = {
@@ -446,6 +656,7 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   const measured = await wstyleMeasurePage(fakePg, -1);
   measured.index = pageNo - 1;
   measured.fromPdfFile = true;
+  if (viaOcr) measured.readByOcr = true;
   return measured;
 }
 
