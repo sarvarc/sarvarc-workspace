@@ -20,6 +20,8 @@
 // stored there. The panel says so.
 
 const WSF_MAX_CONTENT = 24000;
+const WSF_DAILY_LIMIT = 5;                       // builds per person per day
+const WSF_USAGE_KEY = 'sarvarcWorkstyleUsage_v1';  // account-scoped by the shim in js/03
 const WSF_SAMPLE_CHARS = 400;
 
 function wsfClean(v) { return String(v == null ? '' : v).replace(/\s+$/g, ''); }
@@ -49,9 +51,14 @@ function wsfBlueprint(style) {
   return slots;
 }
 
-// ─── 2. A PLAIN FILL FOR WHEN THE ENGINE CANNOT BE REACHED ───────────────────
-// Not smart: it splits the content into lines and hands them to the slots in order.
-// Lines that look like rows (tabs, | or several commas) go to the first table.
+// ─── 2. THE FILL FOR WHEN THE ENGINE CANNOT BE REACHED ───────────────────────
+// No AI here, only simple rules that read the shape of the reference's slots:
+//   - lines that look like rows (tabs, | or several commas) go to the first table
+//   - email, phone and web lines go to slots whose sample words are contact details
+//   - short heading-like lines go to title / heading / subheading slots
+//   - the lines after a heading go to the body slot that follows it
+//   - the footer slot gets a footer-like line (copyright, page, thanks) if there is one
+// It cannot judge meaning, so the result is still marked "check it" in the message.
 function wsfSplitRow(line) {
   if (line.indexOf('\t') !== -1) return line.split('\t').map(function (x) { return x.trim(); });
   if (line.indexOf('|') !== -1) return line.split('|').map(function (x) { return x.trim(); }).filter(function (x, i, a) { return !(x === '' && (i === 0 || i === a.length - 1)); });
@@ -59,13 +66,28 @@ function wsfSplitRow(line) {
   return [line];
 }
 
+const WSF_RE_EMAIL = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
+const WSF_RE_PHONE = /(\+?\d[\d\s\-().]{7,}\d)/;
+const WSF_RE_WEB = /(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|in|co|org|net|io|app)\b/i;
+const WSF_RE_FOOTER = /(©|\(c\)|copyright|all rights|thank you|thanks|page\s*\d|terms|powered by)/i;
+
+function wsfIsContact(t) { return WSF_RE_EMAIL.test(t) || WSF_RE_PHONE.test(t) || WSF_RE_WEB.test(t); }
+
+// A heading-like line is short, has no closing full stop, and is not a row or a contact line.
+function wsfIsHeading(t) {
+  if (!t || t.length > 60) return false;
+  if (/[.!?]$/.test(t)) return false;
+  if (wsfIsContact(t)) return false;
+  if (wsfSplitRow(t).length > 1 && t.indexOf(',') === -1) return false;
+  return true;
+}
+
 function wsfLocalFill(slots, content) {
   const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
   const tableSlots = slots.filter(function (s) { return s.kind === 'table'; });
-  const textSlots = slots.filter(function (s) { return s.kind === 'text'; });
   const fills = [];
 
-  // Longest run of consecutive lines that split into the same number (2 or more) of cells.
+  // 1. The longest run of consecutive lines that split into the same number (2 or more) of cells.
   let best = null;
   for (let i = 0; i < lines.length; i++) {
     const n = wsfSplitRow(lines[i]).length;
@@ -87,14 +109,59 @@ function wsfLocalFill(slots, content) {
     rest = lines.slice(0, best.from).concat(lines.slice(best.to + 1));
   }
 
-  let at = 0;
-  textSlots.forEach(function (s, k) {
-    if (at >= rest.length) return;
-    const last = k === textSlots.length - 1;
-    const take = last ? rest.length - at : Math.max(1, Math.min(s.lines, rest.length - at));
-    fills.push({ id: s.id, text: rest.slice(at, at + take).join('\n') });
-    at += take;
+  // 2. Pull out contact lines and footer lines for the slots that look like them.
+  const textSlots = slots.filter(function (s) { return s.kind === 'text'; });
+  const contactSlots = textSlots.filter(function (s) { return s.role !== 'footer' && wsfIsContact(s.sample || ''); });
+  const footerSlots = textSlots.filter(function (s) { return s.role === 'footer'; });
+  const contactLines = contactSlots.length ? rest.filter(wsfIsContact) : [];
+  rest = rest.filter(function (l) { return contactLines.indexOf(l) === -1; });
+  const footerLines = footerSlots.length ? rest.filter(function (l) { return WSF_RE_FOOTER.test(l) && l.length < 100; }) : [];
+  rest = rest.filter(function (l) { return footerLines.indexOf(l) === -1; });
+
+  const used = {};
+  contactSlots.forEach(function (s, k) {
+    if (!contactLines.length) return;
+    const take = (k === contactSlots.length - 1) ? contactLines.splice(0) : contactLines.splice(0, Math.max(1, s.lines));
+    fills.push({ id: s.id, text: take.join('\n') }); used[s.id] = 1;
   });
+  footerSlots.forEach(function (s, k) {
+    if (!footerLines.length) return;
+    const take = (k === footerSlots.length - 1) ? footerLines.splice(0) : footerLines.splice(0, Math.max(1, s.lines));
+    fills.push({ id: s.id, text: take.join('\n') }); used[s.id] = 1;
+  });
+
+  // 3. Headings and body in reading order.
+  const flow = textSlots.filter(function (s) { return !used[s.id]; });
+  const isHeadRole = function (r) { return r === 'title' || r === 'heading' || r === 'subheading'; };
+  const lastBody = (function () { for (let i = flow.length - 1; i >= 0; i--) if (!isHeadRole(flow[i].role)) return flow[i].id; return null; })();
+  let at = 0;
+  flow.forEach(function (s) {
+    if (at >= rest.length) return;
+    if (isHeadRole(s.role)) {
+      // a heading slot takes one line, a multi-line one (a title over two lines) takes up to its own count
+      const want = Math.max(1, s.lines);
+      const take = [];
+      while (take.length < want && at < rest.length && (take.length === 0 || wsfIsHeading(rest[at]))) { take.push(rest[at]); at++; }
+      fills.push({ id: s.id, text: take.join('\n') });
+      return;
+    }
+    // a body slot takes lines until the next heading-like line, but never fewer than one
+    const isLast = s.id === lastBody;
+    let take = [];
+    if (isLast) { take = rest.slice(at); at = rest.length; }
+    else {
+      const cap = Math.max(s.lines * 3, 3);
+      while (at < rest.length && take.length < cap && (take.length < s.lines || !wsfIsHeading(rest[at]))) { take.push(rest[at]); at++; }
+    }
+    if (take.length) fills.push({ id: s.id, text: take.join('\n') });
+  });
+
+  // 4. Anything still unplaced goes after the last body slot's text so no words are lost.
+  if (at < rest.length && lastBody) {
+    const f = fills.filter(function (x) { return x.id === lastBody; })[0];
+    const more = rest.slice(at).join('\n');
+    if (f) f.text += '\n' + more; else fills.push({ id: lastBody, text: more });
+  }
   return fills;
 }
 
@@ -118,10 +185,36 @@ async function wsfAsk(slots, content) {
   }
 }
 
+// ─── DAILY LIMIT: 5 builds a day ─────────────────────────────────────────────
+// Counted on this device per account (the day changes at local midnight). The Worker counts the same
+// 5 a day for signed-in people (kadessa-backend/worker.js, supabase/06-workstyle-usage.sql), so clearing
+// browser data does not give extra builds when the engine is used.
+function wsfToday() {
+  try { return new Date().toLocaleDateString('en-CA'); } catch (e) { return new Date().toISOString().slice(0, 10); }
+}
+function wsfUsageRead() {
+  try {
+    const u = JSON.parse(localStorage.getItem(WSF_USAGE_KEY) || 'null');
+    if (u && u.day === wsfToday() && Number(u.n) >= 0) return { day: u.day, n: Number(u.n) };
+  } catch (e) { /* fall through */ }
+  return { day: wsfToday(), n: 0 };
+}
+function wsfBuildsLeft() { return Math.max(0, WSF_DAILY_LIMIT - wsfUsageRead().n); }
+function wsfCountBuild() {
+  const u = wsfUsageRead();
+  u.n += 1;
+  try { localStorage.setItem(WSF_USAGE_KEY, JSON.stringify(u)); } catch (e) { /* no room: the Worker still counts */ }
+  return Math.max(0, WSF_DAILY_LIMIT - u.n);
+}
+function wsfLimitMessage() {
+  return 'You have used all ' + WSF_DAILY_LIMIT + ' Workstyle builds for today. It opens again tomorrow';
+}
+
 // ─── 4. THE WHOLE THING ──────────────────────────────────────────────────────
 // ref: { styleId } for a saved reference. content: the person's words.
 async function wstyleBuildFromContent(styleId, content, opts) {
   opts = opts || {};
+  if (wsfBuildsLeft() <= 0) { const le = new Error(wsfLimitMessage()); le.limit = true; throw le; }
   const style = wstyleGet(styleId);
   if (!style) throw new Error('that reference is no longer saved, add it again');
   const text = String(content || '').replace(/\r\n?/g, '\n').trim();
@@ -135,7 +228,9 @@ async function wstyleBuildFromContent(styleId, content, opts) {
   if (typeof opts.onStage === 'function') opts.onStage('Building in the editor…');
   const r = await wstyleBuild(style.id, { fill: ans.fills });
   const via = ans.via === 'basic'
-    ? ' Kadessa\'s engine could not be reached (' + ans.why + '), so your lines were placed in order without matching them to the reference. Check the result.'
+    ? ' Kadessa\'s engine could not be reached (' + ans.why + '), so your lines were matched to the reference by simple rules (headings, contact lines, footer, rows) and not by meaning. Check the result.'
     : '';
-  return { say: r.say + via + (ans.note ? ' ' + ans.note : ''), via: ans.via, skipped: r.skipped };
+  const left = (r.left === null || r.left === undefined) ? wsfBuildsLeft() : r.left;   // counted inside wstyleBuild (js/62)
+  const leftSay = ' ' + left + ' of ' + WSF_DAILY_LIMIT + ' Workstyle builds left today.';
+  return { say: r.say + via + (ans.note ? ' ' + ans.note : '') + leftSay, via: ans.via, skipped: r.skipped, left: left };
 }
