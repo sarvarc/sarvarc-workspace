@@ -1342,6 +1342,18 @@ function pdfedRenderPlacedTables(idx) {
           if (fmtSt.topBorder) cell.style.borderTop = '2px solid rgba(10,25,45,0.55)';
           if (fmtSt.fill) cell.style.background = fmtSt.fill;
         }
+        // A reference's border look (Workstyle): draw only the lines it has, keep the 1px box size.
+        const bSides = pdfedTableBorderSides(item, r, c);
+        if (bSides) {
+          const bc = (item.borderStyle && item.borderStyle.color) || 'rgba(0,0,0,0.4)';
+          const bw = Math.max(1, Math.round((item.borderStyle && item.borderStyle.width) || 1));
+          cell.style.borderStyle = 'solid';
+          cell.style.borderWidth = bw + 'px';
+          cell.style.borderTopColor = bSides.top ? bc : 'transparent';
+          cell.style.borderLeftColor = bSides.left ? bc : 'transparent';
+          cell.style.borderBottomColor = bSides.bottom ? bc : 'transparent';
+          cell.style.borderRightColor = bSides.right ? bc : 'transparent';
+        }
         // Shift+click on a cell moves the whole table instead of editing it —
         // a plain click still edits, so typing never gets accidentally hijacked.
         cell.addEventListener('mousedown', ev => {
@@ -1911,6 +1923,28 @@ function pdfedShowTableCellMenu(ev, idx, item, r, c) {
   setTimeout(() => document.addEventListener('mousedown', pdfedTableCellMenuOutsideHandler, true), 0);
 }
 
+// ─── table borders that follow a reference (Workstyle) ───────────────────────
+// A table may carry item.borderStyle = { color, width, rows, cols, outerH, outerV, headRule }:
+//   rows     a line between every pair of rows      cols  a line between every pair of columns
+//   outerH / outerV  lines along the top and bottom / the left and right edges          headRule  a line under the header row
+// No borderStyle means the editor's normal grid (every cell boxed). Each cell draws only its own
+// right and bottom lines (plus top and left on the first row and column) so a shared edge is drawn once.
+// Returns { top, right, bottom, left } as booleans for one cell.
+function pdfedTableBorderSides(item, r, c) {
+  const b = item && item.borderStyle;
+  if (!b) return null;
+  const lastR = item.rows - 1, lastC = item.cols - 1;
+  const rowsLine = !!b.rows || (b.headRule && item.headerRow && r === 0);
+  const oH = b.outerH !== undefined ? !!b.outerH : !!b.outer;   // top and bottom edges
+  const oV = b.outerV !== undefined ? !!b.outerV : !!b.outer;   // left and right edges
+  return {
+    top: r === 0 && oH,
+    left: c === 0 && oV,
+    bottom: r === lastR ? oH : rowsLine,
+    right: c === lastC ? oV : !!b.cols
+  };
+}
+
 // Bakes every placed table for a page onto a real canvas context, used at
 // export time (and whenever a page's pixels must be permanently flattened,
 // e.g. before a rotate) so the downloaded PDF matches exactly what was shown
@@ -1939,9 +1973,20 @@ function pdfedDrawPlacedTablesOnCtx(ctx, list) {
 
         ctx.fillStyle = fmtSt && fmtSt.fill ? fmtSt.fill : (isHead ? 'rgba(0,194,255,0.16)' : 'rgba(255,255,255,0.94)');
         ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, w, h);
+        const bSides = pdfedTableBorderSides(item, r, c);
+        if (bSides) {
+          ctx.strokeStyle = (item.borderStyle && item.borderStyle.color) || 'rgba(0,0,0,0.4)';
+          ctx.lineWidth = Math.max(1, (item.borderStyle && item.borderStyle.width) || 1);
+          const seg = function (x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
+          if (bSides.top) seg(x, y, x + w, y);
+          if (bSides.bottom) seg(x, y + h, x + w, y + h);
+          if (bSides.left) seg(x, y, x, y + h);
+          if (bSides.right) seg(x + w, y, x + w, y + h);
+        } else {
+          ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, y, w, h);
+        }
         if (fmtSt && fmtSt.topBorder) {
           ctx.strokeStyle = 'rgba(10,25,45,0.55)';
           ctx.lineWidth = 2;
