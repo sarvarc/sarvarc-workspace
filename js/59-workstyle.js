@@ -20,7 +20,8 @@
 //                  gradient, bold, italic, underline, align, opacity, chars, text }
 //          table { role:'table', xPct, yPct, wPct, hPct, colPct[], rowHPct[],
 //                  sizePct, fontFamily, headerRow, headerCell, bodyCell,
-//                  lastRowCell, colAlign[], zebra, rows, cols, cells }
+//                  lastRowCell, colAlign[], zebra, rows, cols, cells,
+//                  borderStyle { color, width, rows, cols, outer, headRule } | null }
 //          image { role:'image'|'logo', xPct, yPct, wPct, hPct, opacity }
 //
 // PRIVACY NOTE for step 2: the `text` / `cells` fields hold the reference's own
@@ -67,6 +68,53 @@ function wstyleMedian(arr) {
   const a = arr.slice().sort(function (x, y) { return x - y; });
   const m = Math.floor(a.length / 2);
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+// ─── nearest font ────────────────────────────────────────────────────────────
+// A reference may use a font the editor does not have. Instead of falling back to one default for everything,
+// pick the closest font the editor DOES have: same kind (serif, mono, script, rounded, condensed, heavy
+// display, plain sans). The first font of each kind that is in the font library wins.
+function wstyleFontKnown(name) {
+  try {
+    if (typeof SARVARC_FONT_LIBRARY === 'undefined') return null;
+    const k = String(name || '').trim().toLowerCase();
+    for (let i = 0; i < SARVARC_FONT_LIBRARY.length; i++) if (String(SARVARC_FONT_LIBRARY[i]).toLowerCase() === k) return SARVARC_FONT_LIBRARY[i];
+  } catch (e) { /* no library */ }
+  return null;
+}
+function wstyleFirstKnown(list) {
+  for (let i = 0; i < list.length; i++) { const f = wstyleFontKnown(list[i]); if (f) return f; }
+  return null;
+}
+function wstyleNearestFont(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return 'Inter';
+  const exact = wstyleFontKnown(raw);
+  if (exact) return exact;
+  // the same family without a weight or width word: "Roboto Light" -> "Roboto"
+  const bare = raw.replace(/\b(thin|extra ?light|ultra ?light|light|regular|book|normal|medium|semi ?bold|demi ?bold|bold|extra ?bold|ultra ?bold|black|heavy|italic|oblique|condensed|narrow|cond|std|pro|mt|ps|lt|com)\b/ig, ' ').replace(/\s+/g, ' ').trim();
+  const bareHit = bare && wstyleFontKnown(bare);
+  if (bareHit) return bareHit;
+  // common system fonts that have a close, free twin
+  const twins = { 'helvetica': 'Arimo', 'helvetica neue': 'Arimo', 'arial': 'Arimo', 'times': 'Tinos', 'times new roman': 'Tinos', 'calibri': 'Carlito', 'cambria': 'Caladea',
+    'segoe ui': 'Open Sans', 'tahoma': 'Open Sans', 'verdana': 'Open Sans', 'trebuchet ms': 'Fira Sans', 'georgia': 'Gelasio', 'garamond': 'EB Garamond',
+    'palatino': 'Lora', 'book antiqua': 'Lora', 'bookman': 'Bitter', 'century gothic': 'Poppins', 'gill sans': 'Lato', 'futura': 'Jost', 'avenir': 'Nunito Sans',
+    'myriad': 'Source Sans Pro', 'minion': 'Crimson Text', 'baskerville': 'Libre Baskerville', 'didot': 'Playfair Display', 'bodoni': 'Playfair Display',
+    'optima': 'Marcellus', 'rockwell': 'Zilla Slab', 'impact': 'Anton', 'courier': 'Courier New', 'consolas': 'Source Code Pro', 'menlo': 'Source Code Pro', 'monaco': 'Source Code Pro' };
+  const low = raw.toLowerCase();                       // with the weight and width words: they say what kind it is
+  const tw = twins[(bare || raw).toLowerCase()] || twins[low];
+  if (tw) { const t = wstyleFontKnown(tw); if (t) return t; }
+  const has = function (re) { return re.test(low); };
+  let pick = null;
+  if (has(/mono|courier|consol|code|typewriter|menlo|terminal/)) pick = wstyleFirstKnown(['Source Code Pro', 'Roboto Mono', 'Courier New', 'Fira Code']);
+  else if (has(/script|hand|brush|cursive|callig|signature|marker|pen\b/)) pick = wstyleFirstKnown(['Pacifico', 'Dancing Script', 'Yellowtail', 'Kalam']);
+  else if (has(/round/)) pick = wstyleFirstKnown(['Varela Round', 'Nunito', 'Comfortaa']);
+  else if (has(/cond|narrow|compress|gothic ?(cond|narrow)/)) pick = wstyleFirstKnown(['Roboto Condensed', 'Oswald', 'Saira Condensed', 'Barlow Condensed']);
+  else if (has(/black|heavy|poster|impact|fat|ultra|display/)) pick = wstyleFirstKnown(['Archivo Black', 'Anton', 'Poppins']);
+  else if (has(/serif/) && !has(/sans/)) pick = wstyleFirstKnown(['PT Serif', 'Noto Serif', 'Tinos', 'Libre Baskerville']);
+  else if (has(/roman|garamond|baskerv|caslon|bodoni|didot|palat|antiqua|minion|georgia|cambria|century|times|mincho|song|serif/) && !has(/sans|grotesk|gothic/)) pick = wstyleFirstKnown(['PT Serif', 'Noto Serif', 'Libre Baskerville', 'Tinos']);
+  else if (has(/slab|egyptian|rockwell|clarendon/)) pick = wstyleFirstKnown(['Zilla Slab', 'Bitter', 'Arvo']);
+  return pick || wstyleFirstKnown(['Inter', 'Open Sans', 'Arimo']) || 'Inter';
 }
 
 // ─── the per-account store ───────────────────────────────────────────────────
@@ -271,6 +319,7 @@ function wstyleMeasureTable(tb, W, H) {
     rows: tb.rows || rowH.length,
     cols: tb.cols || colW.length,
     cells: wstyleClone(tb.cells),
+    borderStyle: tb.borderStyle ? wstyleClone(tb.borderStyle) : null,
     _y: tb.y || 0, _x: tb.x || 0
   };
 }
@@ -328,7 +377,8 @@ async function wstyleMeasurePage(pg, idx) {
     return {
       kind: 'shape', role: 'shape', shape: sh.rule ? 'line' : 'rect',
       xPct: wstylePct(sh.x, W), yPct: wstylePct(sh.y, H), wPct: wstylePct(sh.w, W), hPct: wstylePct(sh.h, H),
-      fill: wstyleHex(sh.fill), stroke: wstyleHex(sh.stroke), swPct: wstylePct(sh.sw || 0, W)
+      fill: wstyleHex(sh.fill), stroke: wstyleHex(sh.stroke), swPct: wstylePct(sh.sw || 0, W),
+      rPct: wstylePct(sh.r || 0, W), grad: sh.grad ? wstyleClone(sh.grad) : null
     };
   }).filter(function (sh) { return sh.wPct > 0 || sh.hPct > 0; });
 
