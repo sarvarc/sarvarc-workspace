@@ -4472,6 +4472,7 @@
     return { fills: Array.isArray(data.fills) ? data.fills : [], note: data.note || '' };
   }
   window.kadessaWorkstyleFillCall = callKadessaWorkstyleFill;
+  window.kadessaVisionOcrCall = callKadessaVisionOcr;   // used by js/64-workstyle-readers.js for flattened files
 
   // -----------------------------------------------------------------
   // EYES-ON-IT BACKGROUND WATCHER
