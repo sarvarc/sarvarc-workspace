@@ -323,6 +323,15 @@ async function wstyleMeasurePage(pg, idx) {
     };
   });
 
+  // Lines and boxes (never counted in margins or rhythm, they are decoration)
+  const shapes = (pg.placedShapes || []).slice(0, 40).map(function (sh) {
+    return {
+      kind: 'shape', role: 'shape', shape: sh.rule ? 'line' : 'rect',
+      xPct: wstylePct(sh.x, W), yPct: wstylePct(sh.y, H), wPct: wstylePct(sh.w, W), hPct: wstylePct(sh.h, H),
+      fill: wstyleHex(sh.fill), stroke: wstyleHex(sh.stroke), swPct: wstylePct(sh.sw || 0, W)
+    };
+  }).filter(function (sh) { return sh.wPct > 0 || sh.hPct > 0; });
+
   // Reading order: top to bottom, then left to right (1% row tolerance).
   let items = texts.concat(tables, images);
   items.sort(function (a, b) {
@@ -348,6 +357,7 @@ async function wstyleMeasurePage(pg, idx) {
   }
 
   const bg = await wstyleSampleBackground(pg);
+  items = items.concat(shapes);   // after the measuring above, so decoration never skews margins
 
   // Drop the private working fields before the item leaves this function.
   items.forEach(function (it) { delete it._fs; delete it._y; delete it._x; });
@@ -396,7 +406,7 @@ function wstyleStoreMeasured(cleanName, pages, source) {
   let nText = 0, nTable = 0, nImage = 0;
   pages.forEach(function (p) {
     p.items.forEach(function (it) {
-      if (it.kind === 'text') nText++; else if (it.kind === 'table') nTable++; else nImage++;
+      if (it.kind === 'text') nText++; else if (it.kind === 'table') nTable++; else if (it.kind === 'image') nImage++;
     });
   });
   if (nText + nTable + nImage === 0) {
