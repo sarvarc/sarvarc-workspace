@@ -25,6 +25,15 @@ const WSB_PX_PER_MM = 3.7795;
 const WSB_NAMES = { shape: 'a line or box', title: 'the title', heading: 'a heading', subheading: 'the subheading', body: 'the body text',
   caption: 'a caption', footer: 'the footer', table: 'the table', logo: 'the logo', image: 'an image slot' };
 
+// The reference's border look for one cell of the docked preview (same rule the editor uses).
+function wsbBorderCss(it, r, c) {
+  if (!it.borderStyle || typeof pdfedTableBorderSides !== 'function') return '';
+  const sd = pdfedTableBorderSides({ borderStyle: it.borderStyle, rows: it.rows, cols: it.cols, headerRow: it.headerRow }, r, c);
+  if (!sd) return '';
+  const ln = '1px solid ' + (it.borderStyle.color || '#999');
+  return ';border:1px solid transparent' + (sd.top ? ';border-top:' + ln : '') + (sd.left ? ';border-left:' + ln : '') + (sd.bottom ? ';border-bottom:' + ln : '') + (sd.right ? ';border-right:' + ln : '');
+}
+
 function wsbPxFor(mm) { return Math.max(1, Math.round((Number(mm) || 0) * WSB_PX_PER_MM)); }
 function wsbR(n, d) { const k = Math.pow(10, d === undefined ? 1 : d); return Math.round((Number(n) || 0) * k) / k; }
 function wsbSleepRaw(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -347,7 +356,7 @@ function wstyleBuildPlan(style, fill) {
         if (template && th > oldH + 3 && !pinned) { shift += (th - oldH); shiftLog.push({ at: baseY + oldH, shift: shift }); }
         items.push({ kind: 'table', src: si, slot: slotId, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
           colWidths: colWidths, rowHeights: rowHeights, fontSize: fs, sizePct: it.sizePct || 3, fontFamily: fam,
-          headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles });
+          headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles, borderStyle: it.borderStyle || null });
         return;
       }
 
@@ -365,12 +374,13 @@ function wstyleBuildPlan(style, fill) {
       const low = sy > H * 0.9;
       const top = low ? 0 : shiftAt(sy), bot = low ? 0 : shiftAt(sy + shh);
       items.unshift({ kind: 'shape', role: 'shape', shape: sh.shape, src: r.si, x: (sh.xPct || 0) / 100 * W, y: sy + top, w: (sh.wPct || 0) / 100 * W,
-        h: shh + (bot - top), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W });
+        h: shh + (bot - top), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W,
+        r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null });
     });
     let made = [{ index: pi, mmW: mm[0], mmH: mm[1], W: W, H: H, ratio: W / H, bg: sp.bg || { mode: 'solid', color1: '#ffffff' }, items: items }];
     if (template) made = wsbPaginate(made[0], sp);
     made.forEach(function (P) {
-      P.items.forEach(function (i) { i.xPct = wsbR(i.x / W * 100, 3); i.yPct = wsbR(i.y / H * 100, 3); i.wPct = wsbR(i.w / W * 100, 3); i.hPct = wsbR(i.h / H * 100, 3); });
+      P.items.forEach(function (i) { i.xPct = wsbR(i.x / W * 100, 3); i.yPct = wsbR(i.y / H * 100, 3); i.wPct = wsbR(i.w / W * 100, 3); i.hPct = wsbR(i.h / H * 100, 3); if (i.kind === 'shape') i.rPct = i.r ? wsbR(i.r / W * 100, 3) : 0; });
       pages.push(P);
     });
   });
@@ -426,6 +436,7 @@ function wsbAddItem(pg, it) {
       colWidths: it.colWidths.map(function (v) { return wsbR(v, 2); }), rowHeights: it.rowHeights.map(function (v) { return wsbR(v, 2); }),
       fontSize: wsbR(it.fontSize, 2), fontFamily: it.fontFamily, headerRow: it.headerRow, cells: it.cells, cellStyles: it.cellStyles,
       locked: false, zIndex: pdfedNextZ(pg) };
+    if (it.borderStyle) tb.borderStyle = it.borderStyle;
     pg.placedTables.push(tb);
     return '.pdfed-placed-table[data-id="' + tb.id + '"]';
   }
@@ -439,8 +450,11 @@ function wsbAddItem(pg, it) {
       it = Object.assign({}, it, { w: bw, h: bh });
     } else {
       const hs = sw / 2;
-      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><rect x="' + hs + '" y="' + hs + '" width="' + Math.max(1, w - sw) + '" height="' + Math.max(1, h - sw) +
-        '" fill="' + (it.fill || 'none') + '"' + (it.stroke && sw > 0 ? ' stroke="' + it.stroke + '" stroke-width="' + sw + '"' : '') + '/></svg>';
+      const rx = Math.max(0, Math.min(it.r || 0, w / 2, h / 2));                       // rounded corners
+      const g = it.grad;                                                              // a fade
+      const gd = g ? '<defs><linearGradient id="wsg" x1="0" y1="0" x2="' + (g.dir === 'vertical' ? 0 : 1) + '" y2="' + (g.dir === 'horizontal' ? 0 : 1) + '"><stop offset="0" stop-color="' + g.c1 + '"/><stop offset="1" stop-color="' + g.c2 + '"/></linearGradient></defs>' : '';
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + gd + '<rect x="' + hs + '" y="' + hs + '" width="' + Math.max(1, w - sw) + '" height="' + Math.max(1, h - sw) +
+        '"' + (rx ? ' rx="' + rx + '" ry="' + rx + '"' : '') + ' fill="' + (g ? 'url(#wsg)' : (it.fill || 'none')) + '"' + (it.stroke && sw > 0 ? ' stroke="' + it.stroke + '" stroke-width="' + sw + '"' : '') + '/></svg>';
     }
     pdfedAnnotState.placedImgSeq++;
     const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))), x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h),
@@ -523,14 +537,15 @@ function wsbMakeItem(it) {
         const st = (it.cellStyles[r] && it.cellStyles[r][c]) || {};
         const cell = wsbEl('div', 'wsb-c', 'text-align:' + (st.align || 'left') + ';justify-content:' + (st.align === 'right' ? 'flex-end' : st.align === 'center' ? 'center' : 'flex-start') +
           (st.bold ? ';font-weight:700' : '') + (st.italic ? ';font-style:italic' : '') + (st.color ? ';color:' + st.color : '') + (st.fill ? ';background:' + st.fill : '') +
-          (st.topBorder ? ';border-top:2px solid rgba(10,25,45,.55)' : ''));
+          (st.topBorder ? ';border-top:2px solid rgba(10,25,45,.55)' : '') + wsbBorderCss(it, r, c));
         cell.textContent = txt;
         e.appendChild(cell);
       });
     });
   } else if (it.kind === 'shape') {
     e = wsbEl('div', 'wsb-el', wsbBoxCss(it) + 'height:' + it.hPct + '%;' + (it.shape === 'line' ? 'min-height:1px;background:' + (it.stroke || it.fill || '#000') :
-      'box-sizing:border-box;' + (it.fill ? 'background:' + it.fill + ';' : '') + (it.stroke ? 'border:1px solid ' + it.stroke : '')));
+      'box-sizing:border-box;' + (it.grad ? 'background:linear-gradient(' + (it.grad.dir === 'horizontal' ? 'to right' : it.grad.dir === 'vertical' ? 'to bottom' : 'to bottom right') + ',' + it.grad.c1 + ',' + it.grad.c2 + ');' : (it.fill ? 'background:' + it.fill + ';' : '')) +
+        (it.rPct ? 'border-radius:' + it.rPct + 'cqw;' : '') + (it.stroke ? 'border:1px solid ' + it.stroke : '')));
   } else {
     e = wsbEl('div', 'wsb-el wsb-im', wsbBoxCss(it) + 'height:' + it.hPct + '%;opacity:' + it.opacity);
     if (it.brand && it.dataUrl) { const im = wsbEl('img'); im.src = it.dataUrl; im.alt = ''; e.appendChild(im); e.classList.add('brand'); }
@@ -727,6 +742,8 @@ function wsbCounts(plan) {
 // opts: { fill?: [...], animate?: boolean (default true) }
 async function wstyleBuild(nameOrId, opts) {
   opts = opts || {};
+  // 5 builds a day, for every way of building (the panel and Kadessa's chat tool). See js/63.
+  if (typeof wsfBuildsLeft === 'function' && wsfBuildsLeft() <= 0) { const le = new Error(wsfLimitMessage()); le.limit = true; throw le; }
   const style = wstyleGet(nameOrId);
   if (!style) {
     const names = wstyleList().map(function (s) { return '"' + s.name + '"'; });
@@ -741,6 +758,7 @@ async function wstyleBuild(nameOrId, opts) {
   if (!plan.pages.some(function (p) { return p.items.length; })) throw new Error('nothing to build, none of the parts of this style got any content');
 
   const done = await wsbBuildLive(refPlan, plan, style.name, opts.animate !== false);
+  const left = (typeof wsfCountBuild === 'function') ? wsfCountBuild() : null;   // only a finished build counts
 
   const at = done.at === 0 ? 'in a new document' : 'after page ' + done.at;
   const logoNote = plan.pages.some(function (p) { return p.items.some(function (i) { return i.role === 'logo' && !i.brand; }); })
@@ -750,6 +768,7 @@ async function wstyleBuild(nameOrId, opts) {
     say: (plan.template ? 'Built ' + (done.pages === 1 ? 'a new page' : done.pages + ' new pages') + ' in the "' + style.name + '" look with your content' + (plan.pages.some(function (p) { return p.cont; }) ? ' (longer than the reference, so it continues on extra pages with the same look)' : '') : 'Built an identical copy of "' + style.name + '"') +
       ' ' + at + ' (' + wsbCounts(plan) + ').' + skipNote + logoNote + (done.bgNote ? ' ' + done.bgNote.trim() : ''),
     pages: done.pages,
-    skipped: plan.skipped
+    skipped: plan.skipped,
+    left: left
   };
 }
