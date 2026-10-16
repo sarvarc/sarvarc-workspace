@@ -22,7 +22,7 @@
 // picture becomes its main color.
 
 const WSB_PX_PER_MM = 3.7795;
-const WSB_NAMES = { title: 'the title', heading: 'a heading', subheading: 'the subheading', body: 'the body text',
+const WSB_NAMES = { shape: 'a line or box', title: 'the title', heading: 'a heading', subheading: 'the subheading', body: 'the body text',
   caption: 'a caption', footer: 'the footer', table: 'the table', logo: 'the logo', image: 'an image slot' };
 
 function wsbPxFor(mm) { return Math.max(1, Math.round((Number(mm) || 0) * WSB_PX_PER_MM)); }
@@ -104,6 +104,144 @@ function wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, margins) {
   } catch (e) { return { x: x, w: w }; }
 }
 
+
+// ─── PAGINATION: content longer than the reference page flows onto continuation pages ───
+// Same rules as Refine Report (js/32 pdfedAutoAlignContent + pdfedMakeRefineOverflowPage):
+//   a continuation page has the reference's size and background, carries the logo and footer again,
+//   starts below the logo (or at the top margin), a table that splits repeats its header row,
+//   a heading is never left alone at the foot of a page, and gaps follow the reference's own rhythm
+//   kept inside Refine's range (6 px at least, 24 px at most).
+const WSB_MIN_GAP = 6, WSB_SECTION_GAP = 24, WSB_MAX_PAGES_PER_REF = 40;
+
+// Decoration that repeats on every page: header band, footer rule, tall side strip. Other boxes and lines stay on page 1.
+function wsbShapeRepeats(it, H, W) {
+  return it.kind === 'shape' && (it.y + it.h <= H * 0.15 || it.y >= H * 0.9 || (it.h >= H * 0.6 && it.w <= W * 0.12));
+}
+function wsbIsAnchor(it, H, W) { return it.role === 'footer' || (it.kind === 'image' && it.role === 'logo') || (H ? wsbShapeRepeats(it, H, W) : false); }
+function wsbShapesFirst(items) { return items.filter(function (i) { return i.kind === 'shape'; }).concat(items.filter(function (i) { return i.kind !== 'shape'; })); }
+function wsbIsHeading(it) { return it.kind === 'text' && (it.role === 'title' || it.role === 'heading' || it.role === 'subheading'); }
+
+// Splits one text box so the first part ends above `limit`. Returns { head, rest } (either may be null).
+function wsbSplitText(it, y, limit) {
+  const avail = limit - y;
+  const fs = it.fontSize, lineH = fs * 1.3;
+  if (avail < lineH * 2) return { head: null, rest: it };         // fewer than two lines of room: move it whole
+  const measure = function (t) { return wsbMeasureText(t, it.fontFamily, fs, it.bold, it.italic, it.w, lineH * Math.max(1, String(t).split('\n').length)); };
+  const lines = String(it.text).split('\n');
+  // 1. how many whole lines (paragraphs) fit
+  let lo = 0, hi = lines.length;
+  while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (measure(lines.slice(0, mid).join('\n')) <= avail) lo = mid; else hi = mid - 1; }
+  let headText = lines.slice(0, lo).join('\n'), restLines = lines.slice(lo);
+  // 2. inside the next paragraph, how many words fit
+  if (lo < lines.length) {
+    const words = lines[lo].split(' ');
+    let a = 0, b = words.length - 1;
+    const base = lo ? lines.slice(0, lo).join('\n') + '\n' : '';
+    while (a < b) { const mid = Math.ceil((a + b) / 2); if (measure(base + words.slice(0, mid).join(' ')) <= avail) a = mid; else b = mid - 1; }
+    if (a > 0) { headText = base + words.slice(0, a).join(' '); restLines = [words.slice(a).join(' ')].concat(lines.slice(lo + 1)); }
+  }
+  headText = headText.replace(/\s+$/, '');
+  const restText = restLines.join('\n').replace(/^\s+/, '');
+  if (!restText) return { head: it, rest: null };
+  if (!headText || measure(headText) < lineH * 2 - 1) return { head: null, rest: it };   // no one-line orphan at the foot
+  const head = Object.assign({}, it, { text: headText, y: y, h: measure(headText) });
+  const rest = Object.assign({}, it, { text: restText, h: measure(restText) });
+  return { head: head, rest: rest };
+}
+
+function wsbSplitTable(it, y, limit) {
+  const hdr = it.headerRow ? 1 : 0;
+  let sum = 0, k = 0;
+  while (k < it.rows && y + sum + it.rowHeights[k] <= limit) { sum += it.rowHeights[k]; k++; }
+  if (k >= it.rows) return { head: it, rest: null };
+  if (k < hdr + 1) return { head: null, rest: it };               // header alone does not stay: move the table whole
+  // no widow: do not leave a single body row alone on the next page
+  if (it.rows - k === 1 && k > hdr + 2) { k--; sum -= it.rowHeights[k]; }
+  const take = function (arr, from, to, repeat) { return (repeat ? [arr[0]] : []).concat(arr.slice(from, to)); };
+  const hr = it.rowHeights.slice(0, k), tr = take(it.rowHeights, k, it.rows, hdr);
+  const head = Object.assign({}, it, { y: y, rows: k, cells: it.cells.slice(0, k), cellStyles: it.cellStyles.slice(0, k), rowHeights: hr,
+    h: hr.reduce(function (a, b) { return a + b; }, 0) });
+  const rest = Object.assign({}, it, { rows: tr.length, cells: take(it.cells, k, it.rows, hdr), cellStyles: take(it.cellStyles, k, it.rows, hdr),
+    rowHeights: tr, h: tr.reduce(function (a, b) { return a + b; }, 0) });
+  return { head: head, rest: rest };
+}
+
+function wsbSplit(it, y, limit) {
+  if (y + it.h <= limit + 0.5) return { head: Object.assign({}, it, { y: y }), rest: null };
+  if (it.kind === 'table') return wsbSplitTable(it, y, limit);
+  if (it.kind === 'text') return wsbSplitText(it, y, limit);
+  return { head: null, rest: it };                                // pictures and shapes move whole
+}
+
+// P = one planned page (px). sp = the reference page. Returns [P, continuation pages...].
+function wsbPaginate(P, sp) {
+  const H = P.H;
+  const m = sp.margins || {};
+  const mTop = Math.max(H * 0.04, (m.topPct || 0) / 100 * H);
+  let limit = H - Math.max(H * 0.05, (m.bottomPct || 0) / 100 * H);
+  const W = P.W;
+  const anchors = wsbShapesFirst(P.items.filter(function (i) { return wsbIsAnchor(i, H, W); }));
+  const deco = P.items.filter(function (i) { return i.kind === 'shape' && !wsbIsAnchor(i, H, W); });
+  const footTops = anchors.filter(function (a) { return a.role === 'footer' || (a.kind === 'shape' && a.y >= H * 0.9); }).map(function (a) { return a.y; });
+  if (footTops.length) limit = Math.min(limit, Math.min.apply(null, footTops) - WSB_SECTION_GAP / 2);
+  const flow = P.items.filter(function (i) { return i.kind !== 'shape' && !wsbIsAnchor(i, H, W); });
+  const logoBottom = anchors.filter(function (a) { return (a.kind === 'image' || a.kind === 'shape') && a.y < H / 2 && a.y + a.h <= H * 0.25; }).reduce(function (b, a) { return Math.max(b, a.y + a.h); }, 0);
+  const startY = Math.max(mTop, logoBottom ? logoBottom + WSB_SECTION_GAP : mTop);
+
+  // Page 1 keeps its positions; whatever crosses the limit is split or moved.
+  const kept = [], queue = [];
+  flow.forEach(function (it) {
+    if (queue.length) { queue.push(it); return; }                  // once one item spills, everything after it follows in order
+    const r = wsbSplit(it, it.y, limit);
+    if (r.head) kept.push(r.head);
+    if (r.rest) queue.push(r.rest);
+  });
+  // boxes and lines that are not repeated stay on page 1, trimmed so none hangs below the content area
+  const decoKept = deco.map(function (d) { return d.y >= limit ? null : (d.y + d.h > limit ? Object.assign({}, d, { h: limit - d.y }) : d); }).filter(Boolean);
+  if (!queue.length) { P.items = wsbShapesFirst(P.items); return [P]; }
+
+  // Keep-with-next: a heading left at the foot of the page goes with the text it introduces.
+  while (kept.length && wsbIsHeading(kept[kept.length - 1]) && queue.length) queue.unshift(kept.pop());
+
+  const pages = [];
+  P.items = wsbShapesFirst(anchors.concat(decoKept, kept));
+  pages.push(P);
+
+  // gap each queued item had above it on the reference, kept within Refine's range
+  const gapAbove = function (it, prev) {
+    if (!prev) return 0;
+    const g = it.y - (prev.y + prev.h);
+    return Math.max(WSB_MIN_GAP, Math.min(WSB_SECTION_GAP, g > 0 ? g : WSB_MIN_GAP));
+  };
+
+  let guard = 0;
+  while (queue.length && pages.length < WSB_MAX_PAGES_PER_REF && guard++ < 400) {
+    const C = Object.assign({}, P, { cont: true, items: anchors.map(function (a) { return Object.assign({}, a); }) });
+    let rowY = startY, rowBottom = startY, prev = null, placedAny = false, prevPlacedY = startY;
+    while (queue.length) {
+      const it = queue[0];
+      let y;
+      if (!prev) y = startY;
+      else if (Math.abs(it.y - prev.y) <= 4 && Math.abs(it.x - prev.x) > 4 && prev.src !== it.src) y = prevPlacedY;   // side by side, same row
+      else y = rowBottom + gapAbove(it, prev);
+      let r = wsbSplit(it, y, limit);
+      if (!r.head && !placedAny) {                                  // cannot fit even on an empty page: place it anyway, never loop
+        r = { head: Object.assign({}, it, { y: startY, h: Math.min(it.h, limit - startY) }), rest: null };
+        if (it.kind === 'table') r = { head: Object.assign({}, it, { y: startY }), rest: null };
+      }
+      if (!r.head) break;
+      C.items.push(r.head);
+      placedAny = true;
+      queue.shift();
+      prevPlacedY = y; prev = { x: it.x, y: it.y, h: it.h, src: it.src };
+      rowBottom = Math.max(y === prevPlacedY ? rowBottom : 0, y + r.head.h);
+      if (r.rest) { queue.unshift(r.rest); break; }               // the split item fills this page
+    }
+    pages.push(C);
+  }
+  return pages;
+}
+
 function wstyleBuildPlan(style, fill) {
   const template = Array.isArray(fill) && fill.length > 0;
   const queues = {};
@@ -126,12 +264,14 @@ function wstyleBuildPlan(style, fill) {
   let skipped = 0;
 
   (style.pages || []).forEach(function (sp, pi) {
+    const shapesRaw = [], shiftLog = [];
     const mm = (sp.pageMM && sp.pageMM.length === 2) ? sp.pageMM : [210, 297];
     const W = wsbPxFor(mm[0]), H = wsbPxFor(mm[1]);
     const items = [];
     let shift = 0;
     (sp.items || []).forEach(function (it, si) {
       have[it.role] = (have[it.role] || 0) + 1;
+      if (it.kind === 'shape') { shapesRaw.push({ it: it, si: si }); return; }
       const slotId = 'p' + (pi + 1) + 's' + si;
       const slotFill = bySlot[slotId] || null;
       if (slotFill) slotHits++;
@@ -156,7 +296,7 @@ function wstyleBuildPlan(style, fill) {
           // Compare like with like: the new words and the original words, measured the same way.
           const was = wsbMeasureText(String(it.text || ''), fam, fs, it.bold, it.italic, w, oldH);
           h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, bw, oldH));
-          if (!pinned && h - was > 3) shift += (h - was);
+          if (!pinned && h - was > 3) { shift += (h - was); shiftLog.push({ at: baseY + oldH, shift: shift }); }
         }
         items.push({ kind: 'text', src: si, slot: slotId, role: it.role, x: bx, y: y, w: bw, h: h, fontSize: fs, sizePct: it.sizePct || 3,
           fontFamily: fam, color: it.color || '#111111', gradient: it.gradient || null, bold: !!it.bold, italic: !!it.italic,
@@ -203,10 +343,8 @@ function wstyleBuildPlan(style, fill) {
           } catch (e) { /* keep saved heights */ }
         }
         let th = rowHeights.reduce(function (a, b) { return a + b; }, 0);
-        const room = H * 0.96 - y;
-        if (template && th > room && room > H * 0.1) { const k = room / th; for (let r = 0; r < rows; r++) rowHeights[r] *= k; th = room; }
         const cellStyles = wsbCellStyles(it, cells);
-        if (template && th > oldH + 3 && !pinned) shift += (th - oldH);
+        if (template && th > oldH + 3 && !pinned) { shift += (th - oldH); shiftLog.push({ at: baseY + oldH, shift: shift }); }
         items.push({ kind: 'table', src: si, slot: slotId, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
           colWidths: colWidths, rowHeights: rowHeights, fontSize: fs, sizePct: it.sizePct || 3, fontFamily: fam,
           headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles });
@@ -219,8 +357,22 @@ function wstyleBuildPlan(style, fill) {
       items.push({ kind: 'image', src: si, role: it.role, x: x, y: y, w: w, h: oldH, dataUrl: brand || wsbPlaceholder(isLogo ? 'Logo' : 'Image'),
         brand: !!brand, opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity });
     });
-    items.forEach(function (i) { i.xPct = wsbR(i.x / W * 100, 3); i.yPct = wsbR(i.y / H * 100, 3); i.wPct = wsbR(i.w / W * 100, 3); i.hPct = wsbR(i.h / H * 100, 3); });
-    pages.push({ index: pi, mmW: mm[0], mmH: mm[1], W: W, H: H, ratio: W / H, bg: sp.bg || { mode: 'solid', color1: '#ffffff' }, items: items });
+    // Boxes and lines go first (behind everything). Those under a part that grew move down with it;
+    // a box around parts that grew is made taller by the same amount.
+    const shiftAt = function (yy) { let v = 0; shiftLog.forEach(function (l) { if (l.at <= yy + 2) v = l.shift; }); return v; };
+    shapesRaw.slice().reverse().forEach(function (r) {
+      const sh = r.it, sy = (sh.yPct || 0) / 100 * H, shh = (sh.hPct || 0) / 100 * H;
+      const low = sy > H * 0.9;
+      const top = low ? 0 : shiftAt(sy), bot = low ? 0 : shiftAt(sy + shh);
+      items.unshift({ kind: 'shape', role: 'shape', shape: sh.shape, src: r.si, x: (sh.xPct || 0) / 100 * W, y: sy + top, w: (sh.wPct || 0) / 100 * W,
+        h: shh + (bot - top), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W });
+    });
+    let made = [{ index: pi, mmW: mm[0], mmH: mm[1], W: W, H: H, ratio: W / H, bg: sp.bg || { mode: 'solid', color1: '#ffffff' }, items: items }];
+    if (template) made = wsbPaginate(made[0], sp);
+    made.forEach(function (P) {
+      P.items.forEach(function (i) { i.xPct = wsbR(i.x / W * 100, 3); i.yPct = wsbR(i.y / H * 100, 3); i.wPct = wsbR(i.w / W * 100, 3); i.hPct = wsbR(i.h / H * 100, 3); });
+      pages.push(P);
+    });
   });
 
   if (template) {
@@ -246,7 +398,7 @@ async function wsbNewPage(P) {
   const c1 = /^#[0-9a-fA-F]{6}$/.test(bg.color1 || '') ? bg.color1 : '#ffffff';
   const url = await pdfedRenderBlankPage('', c1, P.mmW, P.mmH);
   const pg = { type: 'blank', dataUrl: url, modified: true, edits: {}, textBlocks: [], placedTexts: [], placedImages: [], placedTables: [],
-    label: 'Workstyle page', bgColor: c1, pageMM: [P.mmW, P.mmH] };
+    label: P.cont ? 'Workstyle page (cont.)' : 'Workstyle page', bgColor: c1, pageMM: [P.mmW, P.mmH] };
   let note = '';
   if (bg.mode === 'gradient' && /^#[0-9a-fA-F]{6}$/.test(bg.color2 || '')) {
     const angle = bg.direction === 'horizontal' ? 90 : (bg.direction === 'diagonal' ? 135 : 180);
@@ -276,6 +428,25 @@ function wsbAddItem(pg, it) {
       locked: false, zIndex: pdfedNextZ(pg) };
     pg.placedTables.push(tb);
     return '.pdfed-placed-table[data-id="' + tb.id + '"]';
+  }
+  if (it.kind === 'shape') {
+    const w = Math.max(1, it.w), h = Math.max(1, it.h), sw = Math.max(0, it.sw || 0);
+    let svg;
+    if (it.shape === 'line') {
+      const c = it.stroke || it.fill || '#000000', t = Math.max(1, sw);
+      const bw = it.w >= it.h ? w : Math.max(w, t), bh = it.w >= it.h ? Math.max(h, t) : h;
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + bw + '" height="' + bh + '" viewBox="0 0 ' + bw + ' ' + bh + '"><rect width="' + bw + '" height="' + bh + '" fill="' + c + '"/></svg>';
+      it = Object.assign({}, it, { w: bw, h: bh });
+    } else {
+      const hs = sw / 2;
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><rect x="' + hs + '" y="' + hs + '" width="' + Math.max(1, w - sw) + '" height="' + Math.max(1, h - sw) +
+        '" fill="' + (it.fill || 'none') + '"' + (it.stroke && sw > 0 ? ' stroke="' + it.stroke + '" stroke-width="' + sw + '"' : '') + '/></svg>';
+    }
+    pdfedAnnotState.placedImgSeq++;
+    const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))), x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h),
+      locked: false, zIndex: pdfedNextZ(pg), kind: 'image', _wsShape: true };
+    pg.placedImages.push(im);
+    return '.pdfed-placed-img[data-id="' + im.id + '"]';
   }
   if (it.dataUrl) {
     pdfedAnnotState.placedImgSeq++;
@@ -357,6 +528,9 @@ function wsbMakeItem(it) {
         e.appendChild(cell);
       });
     });
+  } else if (it.kind === 'shape') {
+    e = wsbEl('div', 'wsb-el', wsbBoxCss(it) + 'height:' + it.hPct + '%;' + (it.shape === 'line' ? 'min-height:1px;background:' + (it.stroke || it.fill || '#000') :
+      'box-sizing:border-box;' + (it.fill ? 'background:' + it.fill + ';' : '') + (it.stroke ? 'border:1px solid ' + it.stroke : '')));
   } else {
     e = wsbEl('div', 'wsb-el wsb-im', wsbBoxCss(it) + 'height:' + it.hPct + '%;opacity:' + it.opacity);
     if (it.brand && it.dataUrl) { const im = wsbEl('img'); im.src = it.dataUrl; im.alt = ''; e.appendChild(im); e.classList.add('brand'); }
@@ -500,7 +674,7 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
       const P = plan.pages[pi], pg = made[pi], idx = where.at + pi;
       if (ctl && !ctl.closed) {
         if (pi > 0) { if (ctl.ring) ctl.ring.classList.remove('on'); await pdfedGoto(idx); }
-        ctl.showPage(pi);
+        ctl.showPage(P.index);
         await ctl.sleep(150);
       }
       for (let k = 0; k < P.items.length; k++) {
@@ -542,7 +716,7 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
 // ─── PUBLIC ──────────────────────────────────────────────────────────────────
 function wsbCounts(plan) {
   let t = 0, tb = 0, im = 0;
-  plan.pages.forEach(function (p) { p.items.forEach(function (i) { if (i.kind === 'text') t++; else if (i.kind === 'table') tb++; else im++; }); });
+  plan.pages.forEach(function (p) { p.items.forEach(function (i) { if (i.kind === 'text') t++; else if (i.kind === 'table') tb++; else if (i.kind === 'image') im++; }); });
   const parts = [];
   if (t) parts.push(t + ' text box' + (t === 1 ? '' : 'es'));
   if (tb) parts.push(tb + ' table' + (tb === 1 ? '' : 's'));
@@ -573,7 +747,7 @@ async function wstyleBuild(nameOrId, opts) {
     ? ' Image slots hold a labelled placeholder, drop your picture on them.' : '';
   const skipNote = plan.skipped ? ' Left out ' + plan.skipped + ' part' + (plan.skipped === 1 ? '' : 's') + ' of the reference your content had nothing for.' : '';
   return {
-    say: (plan.template ? 'Built ' + (done.pages === 1 ? 'a new page' : done.pages + ' new pages') + ' in the "' + style.name + '" look with your content' : 'Built an identical copy of "' + style.name + '"') +
+    say: (plan.template ? 'Built ' + (done.pages === 1 ? 'a new page' : done.pages + ' new pages') + ' in the "' + style.name + '" look with your content' + (plan.pages.some(function (p) { return p.cont; }) ? ' (longer than the reference, so it continues on extra pages with the same look)' : '') : 'Built an identical copy of "' + style.name + '"') +
       ' ' + at + ' (' + wsbCounts(plan) + ').' + skipNote + logoNote + (done.bgNote ? ' ' + done.bgNote.trim() : ''),
     pages: done.pages,
     skipped: plan.skipped
