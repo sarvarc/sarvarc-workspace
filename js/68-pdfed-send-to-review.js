@@ -17,7 +17,7 @@ function pdfedRevEsc(s) {
   });
 }
 function pdfedRevBaseUrl() {
-  return window.SARVARC_REVIEW_PUBLIC_BASE_URL || window.SARVARC_SIGN_PUBLIC_BASE_URL || 'https://sarvarc-review.pages.dev';
+  return window.SARVARC_REVIEW_PUBLIC_BASE_URL || 'https://sarvarc-review.pages.dev';
 }
 function pdfedRevLink(slug) { return pdfedRevBaseUrl() + '/review.html?s=' + slug; }
 function pdfedRevNewSlug() { return 'rv' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-5); }
