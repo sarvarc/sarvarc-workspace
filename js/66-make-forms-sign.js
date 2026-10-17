@@ -37,6 +37,23 @@
   var saveTimer = null;
   var ed = null;             // editor root element
 
+  // ───────────────────────── icons (same line style as the rest of SARVARC) ─────────────────────────
+  function svg(inner, n) {
+    return '<svg width="' + (n || 14) + '" height="' + (n || 14) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+  }
+  var ARW_L = svg('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>', 13);
+  var ARW_R = svg('<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>', 13);
+  var PEN = svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>', 13);
+  var PAL_IC = {
+    name: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    email: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+    date: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    text: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
+    signature: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    checkbox: '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
+  };
+
   // ───────────────────────── small helpers ─────────────────────────
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -213,24 +230,28 @@
   function buildEditor() {
     if (ed) return ed;
     ed = document.createElement('div');
-    ed.id = 'sgdEditor'; ed.className = 'sgd-ed'; ed.style.display = 'none';
+    ed.id = 'sgdEditorView';
     ed.innerHTML =
-      '<div class="sgd-top">' +
-        '<button class="sgd-btn sgd-ghost" data-top="back" title="Back">&larr; Back</button>' +
-        '<input class="sgd-title" id="sgdTitle" placeholder="Document name" maxlength="120">' +
-        '<div class="sgd-tabs">' +
-          '<button data-mode="design" class="on">1. Place fields</button>' +
-          '<button data-mode="fill">2. Try it &amp; sign</button>' +
-          '<button data-mode="share">3. Send &amp; responses</button>' +
+      '<div class="mf-editor-top">' +
+        '<div class="mf-editor-top-left">' +
+          '<button class="mf-icon-btn mf-back-btn" data-top="back" title="Back to Forms">' + svg('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>', 16) + '</button>' +
+          '<div class="mf-toolbar-divider"></div>' +
+          '<input type="text" class="mf-title-input" id="sgdTitle" placeholder="Untitled document" maxlength="120">' +
         '</div>' +
-        '<span class="sgd-saved" id="sgdSaved"></span>' +
+        '<div class="mf-editor-actions"><span class="sgd-saved" id="sgdSaved"></span></div>' +
       '</div>' +
-      '<div class="sgd-body">' +
+      '<div class="mf-mode-tabs">' +
+        '<button class="mf-mode-tab active" data-mode="design">Place fields</button>' +
+        '<button class="mf-mode-tab" data-mode="fill">Try it &amp; sign</button>' +
+        '<button class="mf-mode-tab" data-mode="share">Send &amp; responses</button>' +
+      '</div>' +
+      '<div class="sgd-body" id="sgdBody">' +
         '<aside class="sgd-left" id="sgdLeft"></aside>' +
         '<main class="sgd-stage" id="sgdStage"></main>' +
         '<aside class="sgd-right" id="sgdRight"></aside>' +
       '</div>';
-    document.body.appendChild(ed);
+    var host = document.querySelector('#sec-makeforms .mf-wrap') || document.body;
+    host.appendChild(ed);
 
     ed.addEventListener('click', onEditorClick);
     ed.addEventListener('input', onEditorInput);
@@ -255,8 +276,7 @@
     cur = d; mode = 'design'; selId = null; armed = null; values = {};
     $('#sgdTitle', ed).value = d.title || '';
     $('#sgdStage', ed).innerHTML = '<div class="sgd-loading">Opening your document…</div>';
-    ed.style.display = 'flex';
-    document.body.classList.add('sgd-open');
+    showView(true);
     try {
       pages = await Core.renderPages(blobs[id], PAGE_SCALE);
     } catch (err) {
@@ -271,15 +291,34 @@
   function closeEditor() {
     clearInterval(syncTimer); syncTimer = null;
     saveDocsNow();
-    if (ed) ed.style.display = 'none';
-    document.body.classList.remove('sgd-open');
+    showView(false);
+    cur = null; pages = [];
+    renderGrid();
+  }
+  // The editor is a view inside Make Forms (like the Forms editor), not a full-screen overlay.
+  function showView(on) {
+    ['mfGalleryView', 'mfEditorView', 'mfcView'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (on) el.style.display = 'none';
+      else if (id === 'mfGalleryView') el.style.display = 'block';
+    });
+    if (ed) ed.style.display = on ? 'block' : 'none';
+    if (on) { try { ed.scrollIntoView({ block: 'start' }); } catch (e) { /* ignore */ } }
+  }
+  // If Forms opens one of its own editors, quietly close this one first.
+  function hideQuiet() {
+    if (!ed || ed.style.display === 'none') return;
+    clearInterval(syncTimer); syncTimer = null;
+    saveDocsNow();
+    ed.style.display = 'none';
     cur = null; pages = [];
     renderGrid();
   }
 
   function setMode(m) {
     mode = m; armed = null;
-    $$('[data-mode]').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+    $$('[data-mode]').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === m); });
     clearInterval(syncTimer); syncTimer = null;
     renderLeft(); renderStage(); renderRight();
     if (m === 'share') {
@@ -291,12 +330,14 @@
   // ───────────────────────── left: palette ─────────────────────────
   function renderLeft() {
     var left = $('#sgdLeft', ed);
+    var body = $('#sgdBody', ed);
+    if (body) body.classList.toggle('no-left', mode !== 'design');
     if (mode !== 'design') { left.style.display = 'none'; return; }
     left.style.display = '';
     left.innerHTML = '<div class="sgd-h">Fields</div><div class="sgd-hint">Drag onto the document, or tap one then tap where you want it.</div>' +
       Core.TYPES.map(function (t) {
         return '<button class="sgd-pal' + (armed === t.id ? ' on' : '') + '" draggable="true" data-pal="' + t.id + '">' +
-          '<span class="sgd-pal-ic">' + palIcon(t.id) + '</span>' + esc(t.label) + '</button>';
+          '<span class="sgd-pal-ic">' + svg(PAL_IC[t.id] || PAL_IC.text, 14) + '</span>' + esc(t.label) + '</button>';
       }).join('');
     $$('.sgd-pal').forEach(function (b) {
       b.addEventListener('dragstart', function (e) {
@@ -304,10 +345,6 @@
         e.dataTransfer.effectAllowed = 'copy';
       });
     });
-  }
-  function palIcon(t) {
-    var m = { name: 'Aa', phone: '☎', email: '@', date: '31', text: 'T', signature: '✍', checkbox: '☑' };
-    return m[t] || 'T';
   }
 
   // ───────────────────────── center: pages and fields ─────────────────────────
@@ -352,7 +389,7 @@
     if (f.type === 'signature') {
       var img = Core.sigImage(v);
       inner = img ? '<img class="sgd-sigimg" src="' + img + '" alt="Signature" data-sign="' + f.id + '">'
-                  : '<button class="sgd-signbtn" data-sign="' + f.id + '">✍ Sign here' + (f.required ? ' *' : '') + '</button>';
+                  : '<button class="sgd-signbtn" data-sign="' + f.id + '">' + PEN + ' Sign here' + (f.required ? ' *' : '') + '</button>';
     } else if (f.type === 'checkbox') {
       inner = '<input type="checkbox" class="sgd-cb" data-fid="' + f.id + '"' + (v === '1' ? ' checked' : '') + '>';
     } else {
@@ -458,7 +495,7 @@
         '<ol class="sgd-steps"><li>Drag a field onto the document.</li><li>Move it, or pull its corner to resize.</li>' +
         '<li>Click a field to rename it or make it required.</li></ol>' +
         '<div class="sgd-hint">' + n + ' field' + (n !== 1 ? 's' : '') + ' placed. Press Delete to remove the selected one.</div>' +
-        '<button class="sgd-btn sgd-primary sgd-block" data-go="fill">Next: try it &amp; sign &rarr;</button>';
+        '<button class="sgd-btn sgd-primary sgd-block" data-go="fill">Next: try it &amp; sign ' + ARW_R + '</button>';
     }
     return '<div class="sgd-h">Field settings</div>' +
       '<label class="sgd-lab">Label (what the signer sees)</label>' +
@@ -479,8 +516,8 @@
       '<div class="sgd-hint">This is a private test. Nothing is sent to anyone. Fill the fields and sign, then download your copy.</div>' +
       '<div class="sgd-progress">Required: ' + done + ' of ' + req.length + '</div>' +
       '<button class="sgd-btn sgd-primary sgd-block" data-top="dl">Download signed PDF</button>' +
-      '<button class="sgd-btn sgd-block" data-go="share">Next: send it to someone &rarr;</button>' +
-      '<button class="sgd-btn sgd-ghost sgd-block" data-go="design">&larr; Edit fields</button>';
+      '<button class="sgd-btn sgd-block" data-go="share">Next: send it to someone ' + ARW_R + '</button>' +
+      '<button class="sgd-btn sgd-ghost sgd-block" data-go="design">' + ARW_L + ' Edit fields</button>';
   }
   function hasValue(f) { var v = values[f.id]; return v != null && v !== '' && v !== '0'; }
 
@@ -581,7 +618,7 @@
     var f = fieldById(fid); if (!f) return;
     if (!window.SarvarcSign) { say('Signature tool did not load. Please refresh the page.', 'error'); return; }
     window.SarvarcSign.open({
-      title: f.label || 'Add your signature', accent: '#0073E6',
+      title: f.label || 'Add your signature', accent: '#0073E6', host: ed,
       onDone: function (val) { values[fid] = window.SarvarcSign.toAnswer(val); renderLayers(); renderRight(); }
     });
   }
@@ -784,6 +821,11 @@
     renderGrid();
     blobsReady = loadBlobs().then(function () { reconcilePublish(); renderGrid(); });
   }
+  ['mfBackToGallery', 'mfOpenEditor', 'mfcOpenEditor', 'mfStartBlank', 'mfStartCanvas'].forEach(function (n) {
+    var orig = window[n];
+    if (typeof orig !== 'function') return;
+    window[n] = function () { hideQuiet(); return orig.apply(this, arguments); };
+  });
   window.sgdPickFile = pickFile;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
