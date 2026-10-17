@@ -288,7 +288,31 @@
       '.sgx-ov button.sgx-btn:disabled{opacity:.55;cursor:wait}',
       '.sgx-spin{display:inline-block;width:12px;height:12px;border:2px solid #C9D3E3;border-top-color:var(--sgx-accent);border-radius:50%;animation:sgxSp .7s linear infinite;vertical-align:-2px;margin-right:7px}',
       '@keyframes sgxSp{to{transform:rotate(360deg)}}',
-      '@media (max-width:480px){.sgx-card{padding:16px 15px 14px;border-radius:16px}}'
+      '@media (max-width:480px){.sgx-card{padding:16px 15px 14px;border-radius:16px}}',
+      /* Hosted inside a module (SARVARC theme): covers only that module, not the whole app */
+      '.sgx-ov.sgx-host{position:absolute;z-index:60;align-items:flex-start;padding:0;background:rgba(7,11,22,.66);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);border-radius:var(--radius,14px)}',
+      '.sgx-host .sgx-card{position:sticky;top:90px;margin:0 auto;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius,14px);box-shadow:0 24px 60px -18px rgba(0,0,0,.6)}',
+      '.sgx-host .sgx-title{color:var(--text)}',
+      '.sgx-ov.sgx-host button.sgx-x{color:var(--text2)}',
+      '.sgx-host .sgx-tabs{background:var(--bg3);border:1px solid var(--border)}',
+      '.sgx-ov.sgx-host button.sgx-tab{color:var(--text2)}',
+      '.sgx-ov.sgx-host button.sgx-tab.on{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff}',
+      '.sgx-host .sgx-lab{color:var(--text3)}',
+      '.sgx-ov.sgx-host button.sgx-mini{background:var(--surface2);border-color:var(--border);color:var(--text)}',
+      '.sgx-ov.sgx-host button.sgx-mini:hover{border-color:var(--border2);background:rgba(0,194,255,.08)}',
+      '.sgx-ov.sgx-host label.sgx-check,.sgx-host .sgx-note{color:var(--text2)}',
+      '.sgx-ov.sgx-host .sgx-in{background:var(--bg3);border-color:var(--border);color:var(--text)}',
+      '.sgx-ov.sgx-host .sgx-in:focus{border-color:var(--border2);background:var(--bg3)}',
+      '.sgx-ov.sgx-host button.sgx-font{background:var(--bg3);border-color:var(--border);color:var(--text)}',
+      '.sgx-ov.sgx-host button.sgx-font.on{border-color:var(--cyan);background:rgba(0,194,255,.10)}',
+      '.sgx-host .sgx-drop{background:var(--bg3);border-color:var(--border);color:var(--text2)}',
+      '.sgx-host .sgx-drop:hover,.sgx-host .sgx-drop.over{border-color:var(--cyan);background:rgba(0,194,255,.06)}',
+      '.sgx-host .sgx-drop b{color:var(--cyan)}',
+      '.sgx-host .sgx-chip{background:var(--bg3);border-color:var(--border)}',
+      '.sgx-host .sgx-chip .tx b{color:var(--text)}',
+      '.sgx-ov.sgx-host button.sgx-btn{background:var(--surface2);border-color:var(--border);color:var(--text);font-size:12.5px;border-radius:9px}',
+      '.sgx-ov.sgx-host button.sgx-btn:hover{border-color:var(--border2);background:rgba(0,194,255,.08)}',
+      '.sgx-ov.sgx-host button.sgx-btn.pri{background:linear-gradient(135deg,var(--cyan),var(--purple));border-color:transparent;color:#fff;box-shadow:0 4px 20px rgba(0,194,255,.30)}'
     ].join('\n');
     document.head.appendChild(st);
   }
@@ -320,7 +344,8 @@
 
     var accent = opts.accent || '#0073E6';
     var root = document.createElement('div');
-    root.className = 'sgx-ov';
+    var host = opts.host && opts.host.nodeType === 1 ? opts.host : null;
+    root.className = 'sgx-ov' + (host ? ' sgx-host' : '');
     root.style.setProperty('--sgx-accent', accent);
     root.style.setProperty('--sgx-rgb', hexToRgb(accent));
     root.setAttribute('role', 'dialog');
@@ -382,7 +407,7 @@
           '<button type="button" class="sgx-btn pri" data-a="ok" data-el="ok">Use signature</button>' +
         '</div>' +
       '</div>';
-    document.body.appendChild(root);
+    (host || document.body).appendChild(root);
 
     S = {
       root: root, opts: opts, tab: 'draw', ink: INKS[0], smooth: true,
