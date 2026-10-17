@@ -72,6 +72,80 @@
     catch (e) { return ''; }
   }
 
+  // ───────────────────────── branding (same set as Forms: logo, accent colour, social links) ─────────────────────────
+  var SOCIALS = [
+    ['instagram', 'Instagram URL', 'mfSocialInstagram'], ['linkedin', 'LinkedIn URL', 'mfSocialLinkedin'],
+    ['whatsapp', 'WhatsApp number or link', 'mfSocialWhatsapp'], ['x', 'X (Twitter) URL', 'mfSocialX'],
+    ['youtube', 'YouTube URL', 'mfSocialYoutube'], ['website', 'Website', 'mfSocialWebsite']
+  ];
+  function brandOf(d) {
+    if (!d.brand) d.brand = {};
+    if (!d.brand.social) d.brand.social = {};
+    return d.brand;
+  }
+  function hasBrand(d) {
+    var b = d.brand; if (!b) return false;
+    return !!(b.name || b.logo || Object.keys(b.social || {}).length);
+  }
+  function socialIcon(id) {
+    var inp = document.getElementById(id), ic = inp && inp.previousElementSibling;
+    return ic ? ic.innerHTML : svg('<circle cx="12" cy="12" r="9"/>', 16);
+  }
+  function brandHtml(d) {
+    var b = brandOf(d), cur2 = b.color || '#0073E6';
+    var presets = (typeof MF_ACCENT_PRESETS !== 'undefined') ? MF_ACCENT_PRESETS : ['#0073E6', '#00C2FF', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#1a1a1a'];
+    return '<div class="sgd-brand"><div class="sgd-h">Branding</div>' +
+      '<div class="sgd-hint">Shown to the person who opens the link, so they know who sent it.</div>' +
+      '<label class="sgd-lab">Logo</label><div class="mf-brand-logo-row">' +
+        '<div class="mf-brand-logo-thumb">' + (b.logo ? '<img src="' + esc(b.logo) + '" alt="Logo">' :
+          svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>', 18)) + '</div>' +
+        '<div class="mf-brand-logo-btns"><button class="sgd-btn" data-brand="logo">Upload Logo</button>' +
+        (b.logo ? '<button class="sgd-btn sgd-danger" data-brand="rmlogo">Remove</button>' : '') + '</div></div>' +
+      '<label class="sgd-lab">Business name</label>' +
+      '<input class="sgd-field" data-brandprop="name" maxlength="60" placeholder="e.g. Sharma Solar" value="' + esc(b.name || '') + '">' +
+      '<label class="sgd-lab">Accent Color</label><div class="mf-brand-swatches">' +
+      presets.map(function (c) {
+        return '<div class="mf-swatch' + (c.toLowerCase() === cur2.toLowerCase() ? ' active' : '') + '" style="background:' + c + '" title="' + c + '" data-brandcolor="' + c + '"></div>';
+      }).join('') + '<input type="color" class="mf-swatch-custom" data-brandprop="color" value="' + esc(cur2) + '" title="Custom color"></div>' +
+      '<label class="sgd-lab">Social links (optional)</label><div class="sgd-social">' +
+      SOCIALS.map(function (x) {
+        return '<div class="mf-social-field"><span class="mf-social-field-icon">' + socialIcon(x[2]) + '</span>' +
+          '<input type="text" data-social="' + x[0] + '" placeholder="' + x[1] + '" value="' + esc(b.social[x[0]] || '') + '"></div>';
+      }).join('') + '</div></div>';
+  }
+  function pickLogo() {
+    var inp = document.getElementById('sgdLogoInput');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file'; inp.id = 'sgdLogoInput'; inp.accept = 'image/*'; inp.style.display = 'none';
+      inp.addEventListener('change', function () {
+        var file = inp.files && inp.files[0]; if (!file || !cur) return;
+        var img = new Image(), url = URL.createObjectURL(file);
+        img.onload = async function () {
+          var r = Math.min(1, 320 / Math.max(img.width, img.height));
+          var c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          var b = brandOf(cur);
+          b.logo = c.toDataURL('image/png');
+          // Same as Forms: pick the accent colour from the logo
+          try {
+            if (typeof pdfedExtractLogoColors === 'function') {
+              var cols = await pdfedExtractLogoColors(b.logo);
+              if (cols && cols.length) b.color = cols[0];
+            }
+          } catch (e) { /* keep current colour */ }
+          if (typeof sarvarcAssetSave === 'function') { try { sarvarcAssetSave('logo', b.logo, file.name); } catch (e) { /* ignore */ } }
+          touched(); renderRight();
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); say('Could not read that image', 'error'); };
+        img.src = url;
+      });
+      document.body.appendChild(inp);
+    }
+    inp.value = ''; inp.click();
+  }
+
   // ───────────────────────── storage ─────────────────────────
   function loadDocs() {
     try { docs = JSON.parse(localStorage.getItem(LS_KEY) || '[]') || []; } catch (e) { docs = []; }
@@ -131,17 +205,16 @@
     var sorted = docs.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
     grid.innerHTML = sorted.map(function (d) {
       var nResp = responsesOf(d).length;
-      return '<div class="mf-form-card sgd-card" data-open="' + d.id + '">' +
-        '<span class="mf-form-tag">Sign</span>' +
-        '<h4>' + esc(d.title || 'Untitled document') + '</h4>' +
-        '<div class="mf-form-meta">' + statusBadge(d) + ' ' + (d.pageCount || 1) + ' page' + ((d.pageCount || 1) !== 1 ? 's' : '') +
-        ' · ' + (d.fields || []).length + ' field' + ((d.fields || []).length !== 1 ? 's' : '') +
-        (nResp ? ' · ' + nResp + ' signed' : '') + '</div>' +
-        '<div class="mf-form-actions" data-stop="1">' +
+      var np = d.pageCount || 1, nf = (d.fields || []).length;
+      return '<div class="sgd-doc" data-open="' + d.id + '">' +
+        '<div class="sgd-sheet"><i></i><i></i><i></i><b>Sign</b></div>' +
+        '<div class="sgd-doc-info"><h4>' + esc(d.title || 'Untitled document') + '</h4>' +
+        '<div class="sgd-doc-meta">' + statusBadge(d) + '<span>' + np + ' page' + (np !== 1 ? 's' : '') + '</span><span>' + nf + ' field' + (nf !== 1 ? 's' : '') + '</span>' + (nResp ? '<span>' + nResp + ' signed</span>' : '') + '</div>' +
+        '<div class="sgd-doc-actions" data-stop="1">' +
         '<button data-act="open" data-id="' + d.id + '">Edit</button>' +
         '<button data-act="dup" data-id="' + d.id + '">Duplicate</button>' +
-        '<button class="mf-danger" data-act="del" data-id="' + d.id + '">Delete</button>' +
-        '</div></div>';
+        '<button class="sgd-del" data-act="del" data-id="' + d.id + '">Delete</button>' +
+        '</div></div></div>';
     }).join('');
   }
   function bindGallery() {
@@ -231,24 +304,26 @@
     if (ed) return ed;
     ed = document.createElement('div');
     ed.id = 'sgdEditorView';
+    if (!document.getElementById('sgdFonts')) {
+      var fl = document.createElement('link'); fl.id = 'sgdFonts'; fl.rel = 'stylesheet';
+      fl.href = 'https://fonts.googleapis.com/css2?family=Fraunces:wght@600&display=swap';
+      document.head.appendChild(fl);
+    }
     ed.innerHTML =
-      '<div class="mf-editor-top">' +
-        '<div class="mf-editor-top-left">' +
-          '<button class="mf-icon-btn mf-back-btn" data-top="back" title="Back to Forms">' + svg('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>', 16) + '</button>' +
-          '<div class="mf-toolbar-divider"></div>' +
-          '<input type="text" class="mf-title-input" id="sgdTitle" placeholder="Untitled document" maxlength="120">' +
+      '<div class="sgd-bar">' +
+        '<button class="sgd-round" data-top="back" title="Back to Forms">' + svg('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>', 16) + '</button>' +
+        '<input type="text" class="sgd-name" id="sgdTitle" placeholder="Untitled document" maxlength="120">' +
+        '<div class="sgd-steps2" id="sgdSteps"><i class="sgd-thumb"></i>' +
+          '<button data-mode="design" class="active">Place</button>' +
+          '<button data-mode="fill">Sign</button>' +
+          '<button data-mode="share">Send</button>' +
         '</div>' +
-        '<div class="mf-editor-actions"><span class="sgd-saved" id="sgdSaved"></span></div>' +
+        '<span class="sgd-saved" id="sgdSaved"></span>' +
       '</div>' +
-      '<div class="mf-mode-tabs">' +
-        '<button class="mf-mode-tab active" data-mode="design">Place fields</button>' +
-        '<button class="mf-mode-tab" data-mode="fill">Try it &amp; sign</button>' +
-        '<button class="mf-mode-tab" data-mode="share">Send &amp; responses</button>' +
-      '</div>' +
-      '<div class="sgd-body" id="sgdBody">' +
-        '<aside class="sgd-left" id="sgdLeft"></aside>' +
+      '<div class="sgd-work" id="sgdBody">' +
+        '<aside class="sgd-dock" id="sgdLeft"></aside>' +
         '<main class="sgd-stage" id="sgdStage"></main>' +
-        '<aside class="sgd-right" id="sgdRight"></aside>' +
+        '<aside class="sgd-drawer" id="sgdRight"></aside>' +
       '</div>';
     var host = document.querySelector('#sec-makeforms .mf-wrap') || document.body;
     host.appendChild(ed);
@@ -319,6 +394,7 @@
   function setMode(m) {
     mode = m; armed = null;
     $$('[data-mode]').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === m); });
+    var stp = $('#sgdSteps', ed); if (stp) stp.style.setProperty('--i', ['design', 'fill', 'share'].indexOf(m));
     clearInterval(syncTimer); syncTimer = null;
     renderLeft(); renderStage(); renderRight();
     if (m === 'share') {
@@ -334,11 +410,10 @@
     if (body) body.classList.toggle('no-left', mode !== 'design');
     if (mode !== 'design') { left.style.display = 'none'; return; }
     left.style.display = '';
-    left.innerHTML = '<div class="sgd-h">Fields</div><div class="sgd-hint">Drag onto the document, or tap one then tap where you want it.</div>' +
-      Core.TYPES.map(function (t) {
-        return '<button class="sgd-pal' + (armed === t.id ? ' on' : '') + '" draggable="true" data-pal="' + t.id + '">' +
-          '<span class="sgd-pal-ic">' + svg(PAL_IC[t.id] || PAL_IC.text, 14) + '</span>' + esc(t.label) + '</button>';
-      }).join('');
+    left.innerHTML = Core.TYPES.map(function (t) {
+      return '<button class="sgd-pal' + (armed === t.id ? ' on' : '') + '" draggable="true" data-pal="' + t.id + '" title="Drag onto the page, or tap then tap where you want it">' +
+        '<span class="sgd-pal-ic">' + svg(PAL_IC[t.id] || PAL_IC.text, 18) + '</span>' + esc(t.label) + '</button>';
+    }).join('');
     $$('.sgd-pal').forEach(function (b) {
       b.addEventListener('dragstart', function (e) {
         e.dataTransfer.setData('text/plain', 'sgd:' + b.dataset.pal);
@@ -526,8 +601,9 @@
     var live = !!d.publishedId;
     var paused = d.liveState === 'paused';
     var expired = d.expiresAt && d.expiresAt < Date.now();
-    var h = '<div class="sgd-h">Send for signing</div>';
-    h += '<div class="sgd-status">' + statusBadge(d) + (d.liveStale && live ? ' <span class="sgd-stale">Changes not on the link yet</span>' : '') + '</div>';
+    var h = '<div class="sgd-status">' + statusBadge(d) + (d.liveStale && live ? ' <span class="sgd-stale">Changes not on the link yet</span>' : '') + '</div>';
+    h += brandHtml(d);
+    h += '<div class="sgd-h">Send for signing</div>';
     h += '<label class="sgd-lab">Keep the link live for</label>' +
       '<select class="sgd-field" data-expiry="1">' +
       [[1, '1 day'], [3, '3 days'], [7, '7 days'], [14, '14 days'], [30, '30 days'], [0, 'Until I take it offline']].map(function (o) {
@@ -580,6 +656,12 @@
       return;
     }
     if ((b = t.closest('[data-sign]')) && mode === 'fill') { openSign(b.dataset.sign); return; }
+    if ((b = t.closest('[data-brand]'))) {
+      if (b.dataset.brand === 'logo') pickLogo();
+      else { brandOf(cur).logo = ''; touched(); renderRight(); }
+      return;
+    }
+    if ((b = t.closest('[data-brandcolor]'))) { brandOf(cur).color = b.dataset.brandcolor; touched(); renderRight(); return; }
     if ((b = t.closest('[data-share]'))) { shareAction(b.dataset.share); return; }
     if ((b = t.closest('[data-resp]'))) { respAction(b.dataset.resp, b.dataset.rid); return; }
   }
@@ -600,6 +682,16 @@
       var el = $('.sgd-f[data-id="' + f.id + '"] .sgd-f-label', ed);
       if (el) el.textContent = (f.label || '') + (f.required ? ' *' : '');
       if (e.type === 'change') renderLayers();
+      return;
+    }
+    if (t.dataset && t.dataset.social) {
+      var bs = brandOf(cur).social, v = (t.value || '').trim();
+      if (v) bs[t.dataset.social] = v; else delete bs[t.dataset.social];
+      touched(); return;
+    }
+    if (t.dataset && t.dataset.brandprop) {
+      brandOf(cur)[t.dataset.brandprop] = t.value; touched();
+      if (t.dataset.brandprop === 'color') { $$('[data-brandcolor]').forEach(function (x) { x.classList.toggle('active', x.dataset.brandcolor.toLowerCase() === t.value.toLowerCase()); }); }
       return;
     }
     if (t.dataset && t.dataset.expiry) { cur.expiryDays = +t.value; touched(); return; }
@@ -704,6 +796,7 @@
         status: d.liveState === 'paused' ? 'paused' : 'active',
         expires_at: d.expiresAt ? new Date(d.expiresAt).toISOString() : null
       };
+      if (hasBrand(d)) payload.brand = d.brand;
       var row;
       if (d.publishedId) {
         var u = await sb.from('sign_requests').update(payload).eq('id', d.publishedId).select('id, share_slug').single();
