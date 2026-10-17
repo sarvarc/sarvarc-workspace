@@ -1745,7 +1745,7 @@ const SM_MODULE_MANIFEST = [
 const SM_MODULE_STORAGE = {
   workspace:   { idb: ['workspaceDoc_v1'] },
   dataarrange: { ls:  ['sarvarcDaState_v1'] },
-  makeforms:   { ls:  ['sarvarcForms'], idb: ['sarvarcFormsAttachments'] },
+  makeforms:   { ls:  ['sarvarcForms', 'sarvarcSignDocs'], idb: ['sarvarcFormsAttachments', 'sarvarcSignDocFiles'] },
   diagrams:    { ls:  ['sarvarcDgHistory_v1', 'sarvarcDgState_v1', 'sarvarcDgFlowState_v1'] },
   extract:     { idb: ['sarvarcExtractState_v1'] },
   redact:      { idb: ['sarvarcRedactState_v1'] }
