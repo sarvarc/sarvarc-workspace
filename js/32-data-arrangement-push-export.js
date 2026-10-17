@@ -281,7 +281,8 @@ const DA_TYPE_LABELS = {
   hr: 'HR & Payroll', bank: 'Bank Statement', invoicing: 'Invoicing & Billing', purchase: 'Purchase & Procurement',
   inventory: 'Inventory & Stock', accounting: 'Accounting', sales: 'Sales', crm: 'Customer / CRM',
   marketing: 'Marketing', education: 'Education / Academic', project: 'Project & Task Management',
-  logistics: 'Logistics & Shipping', healthcare: 'Healthcare', real_estate: 'Real Estate', generic: 'General',
+  logistics: 'Logistics & Shipping', healthcare: 'Healthcare', real_estate: 'Real Estate',
+  statement: 'Financial Statement', generic: 'General',
 };
 
 // Returns { type, label } — type is one of the DA_TYPE_KEYWORDS keys, or 'generic'.
@@ -290,7 +291,42 @@ const DA_TYPE_LABELS = {
 // as general data. Building `scores` from Object.keys(DA_TYPE_KEYWORDS)
 // rather than a hardcoded list means new domains added above are picked up
 // automatically, with no second place in the code to keep in sync.
-function daDetectDataType(headers) {
+// -- Financial statements (Balance Sheet, P&L) -------------------------------
+// A statement's header row ("Particulars | Note | 31-Mar-25 | 31-Mar-24") says
+// almost nothing; what identifies it is the LINE ITEMS down the label column
+// (Share capital, Trade receivables, Total assets / Revenue from operations,
+// Profit before tax ...). So this reads those labels instead of the headers.
+const DA_BS_LABELS = ['total assets', 'non-current assets', 'non current assets', 'current assets',
+  'share capital', 'reserves and surplus', 'reserves & surplus', 'trade payables', 'trade receivables',
+  'equity and liabilities', 'equity & liabilities', 'shareholders', 'borrowings', 'inventories',
+  'cash and cash equivalents', 'cash & cash equivalents', 'retained earnings', 'fixed assets',
+  'property, plant', 'current liabilities', 'total liabilities', 'accounts receivable', 'accounts payable',
+  'sundry debtors', 'sundry creditors', 'loans and advances', 'net worth'];
+const DA_PL_LABELS = ['revenue from operations', 'total income', 'total revenue', 'other income',
+  'total expenses', 'profit before tax', 'profit after tax', 'profit for the year', 'profit for the period',
+  'net profit', 'gross profit', 'operating profit', 'cost of materials', 'cost of goods sold', 'cost of sales',
+  'employee benefit', 'finance cost', 'depreciation and amortis', 'depreciation & amortis', 'tax expense',
+  'earnings per share', 'ebitda', 'net sales', 'direct expenses', 'indirect expenses'];
+
+function daDetectStatementKind(headers, rows) {
+  if (!rows || rows.length < 3) return null;
+  const seen = new Set();
+  (headers || []).forEach(h => seen.add(String(h ?? '').toLowerCase()));
+  rows.forEach(r => { for (let c = 0; c < Math.min(2, r.length); c++) {
+    const t = String(r[c] ?? '').toLowerCase().trim();
+    if (t && isNaN(Number(t.replace(/,/g, '')))) seen.add(t);
+  } });
+  const labels = Array.from(seen);
+  const hits = list => list.filter(k => labels.some(l => l.includes(k))).length;
+  const bs = hits(DA_BS_LABELS), pl = hits(DA_PL_LABELS);
+  if (bs >= 3 && pl >= 3) return 'financial';
+  if (bs >= 3 && bs > pl) return 'balance_sheet';
+  if (pl >= 3 && pl > bs) return 'pnl';
+  return null;
+}
+const DA_STATEMENT_LABELS = { balance_sheet: 'Balance Sheet', pnl: 'Profit & Loss', financial: 'Financial Statements' };
+
+function daDetectDataType(headers, rows) {
   if (!headers || !headers.length) return { type: 'generic', label: DA_TYPE_LABELS.generic };
   const norm = headers.map(daNormHeader);
   const scores = {};
@@ -300,6 +336,12 @@ function daDetectDataType(headers) {
   });
   let best = 'generic', bestScore = 1; // need >=2 keyword hits to beat the "generic" default
   Object.keys(scores).forEach(type => { if (scores[type] >= 2 && scores[type] > bestScore) { best = type; bestScore = scores[type]; } });
+  // Only generic / plain-accounting header matches give way to a statement:
+  // a bank statement or invoice keeps its own, more specific type.
+  if (rows && (best === 'generic' || best === 'accounting')) {
+    const kind = daDetectStatementKind(headers, rows);
+    if (kind) return { type: 'statement', label: DA_STATEMENT_LABELS[kind], statementKind: kind, score: 3, confident: true };
+  }
   return { type: best, label: DA_TYPE_LABELS[best], score: bestScore, confident: best !== 'generic' && bestScore >= 3 };
 }
 
@@ -327,6 +369,7 @@ const DA_HEADER_FILL = {
   logistics: 'rgba(0,172,193,0.14)',
   healthcare: 'rgba(211,47,47,0.14)',
   real_estate: 'rgba(85,139,47,0.14)',
+  statement: 'rgba(0,115,230,0.14)',
   generic: 'rgba(15,23,42,0.05)',
 };
 
@@ -369,7 +412,7 @@ function daBuildCellStyles(cells) {
     numericCol[c] = filled > 0 && (numeric / filled) >= 0.6;
   }
 
-  const dtype = daDetectDataType(headers).type;
+  const dtype = daDetectDataType(headers, dataRows).type;
   let nameCol = -1, deptCol = -1, debitCol = -1, creditCol = -1, balanceCol = -1;
   if (dtype === 'hr') {
     nameCol = daFindCol(headers, ['name']);
@@ -392,11 +435,15 @@ function daBuildCellStyles(cells) {
     const isHead = r === 0;
     const rowLabel = String((cells[r] && cells[r][0]) ?? '').trim();
     const isTotalRow = !isHead && DA_TOTAL_ROW_RE.test(rowLabel);
+    // In a statement, a row with only a label ("ASSETS", "Current assets")
+    // is a section heading: bold it so the structure reads like the original.
+    const isSectionRow = !isHead && dtype === 'statement' && rowLabel !== '' &&
+      (cells[r] || []).slice(1).every(v => String(v ?? '').trim() === '');
     const rowStyles = [];
     for (let c = 0; c < colCount; c++) {
       const st = {
         align: numericCol[c] ? 'right' : 'left',
-        bold: isHead || isTotalRow,
+        bold: isHead || isTotalRow || isSectionRow,
         italic: false,
         color: null,
         topBorder: isTotalRow,
@@ -413,6 +460,8 @@ function daBuildCellStyles(cells) {
         if (dtype === 'bank' && c === debitCol && cellVal !== '') st.color = '#c62828';
         if (dtype === 'bank' && c === creditCol && cellVal !== '') st.color = '#2e7d32';
         if (dtype === 'bank' && c === balanceCol && cellVal !== '') st.bold = true;
+        // Statements: losses and negatives, written (45,000) or -45,000, in red.
+        if (dtype === 'statement' && c > 0 && /^(\(\s*[\p{Sc}]?\s*[\d,.]+\s*\)|-\s*[\p{Sc}]?\s*[\d,.]+)$/u.test(cellVal)) st.color = '#c62828';
       }
       rowStyles.push(st);
     }
@@ -4225,7 +4274,7 @@ async function daPushToWorkflow(mode, opts) {
     // Figure out what kind of data this looks like (HR, Accounting, Sales,
     // or General) so the table can be aligned/tinted accordingly and the
     // toast can tell the user what it detected.
-    const detected = daDetectDataType(headers);
+    const detected = daDetectDataType(headers, allRows);
     const detectedNote = detected.type === 'generic' ? '' : ` as ${detected.label} data`;
 
     // Split into page-sized chunks, long tables spill onto extra pages
@@ -4450,7 +4499,7 @@ async function daPushAllToWorkflow() {
       const allRows = daComputedRowsForExport(ds).map(r => r.slice(0, headers.length));
       const layout = daComputeTableLayout(headers, allRows);
 
-      const detected = daDetectDataType(headers);
+      const detected = daDetectDataType(headers, allRows);
       if (detected.type !== 'generic') typeCounts[detected.label] = (typeCounts[detected.label] || 0) + 1;
 
       const chunks = [];
