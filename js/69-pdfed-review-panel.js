@@ -7,8 +7,10 @@
      - A quiet check every 30 seconds while Workspace is open: red count on the Send for Review
        button and a small notice when a new comment arrives
 
+     - Drag your own notes to a new spot on the page; delete any note (asks first)
+
    Needs: js/68-pdfed-send-to-review.js, js/65-sign-doc-core.js (page drawing),
-          supabase/09-review-links.sql and supabase/10-review-compare.sql.
+          supabase/09-review-links.sql, supabase/10-review-compare.sql and supabase/11-review-drag-delete.sql.
 */
 
 const PDFED_RVP = { link: null, comments: [], cur: [], prev: [], mode: 'view', draft: null, hl: null, seen: new Set(), note: '', timer: null, known: null };
@@ -352,7 +354,7 @@ async function pdfedRvpToggleCompare() {
    add your own note on the page. Pins are shown only while the Review tab is open and are never exported.
    Compare with previous still opens the full-screen view above.
    Pins sit on the page the client saw. If you add or remove pages, a pin can land on a different page. */
-const PDFED_RVD = { link: null, comments: [], seen: new Set(), timer: null, hl: null, pick: false, draft: null, note: '', busy: false, docId: null };
+const PDFED_RVD = { link: null, comments: [], seen: new Set(), timer: null, hl: null, pick: false, draft: null, note: '', busy: false, docId: null, confirm: null, drag: null, justDragged: false };
 
 function pdfedRvdActive() {
   const p = document.getElementById('pdfedReviewPanel');
@@ -452,7 +454,15 @@ function pdfedRvdItemHtml(c, num) {
   return '<div class="rvd-card' + (isDone ? ' isdone' : '') + (isNew ? ' nw' : '') + (PDFED_RVD.hl === c.id ? ' hl' : '') + '" onclick="pdfedRvdFocus(\'' + c.id + '\')">' +
     '<div class="rvd-flag' + (own ? ' own' : '') + (isDone ? ' done' : '') + '">' + num + '</div>' +
     '<div class="rvd-ct"><div class="rvd-who"><b>' + pdfedRevEsc(c.author_name || 'Client') + '</b><small>' + (own ? 'Your note' : 'Client') + ' · Page ' + c.page + '</small>' +
-    (isNew ? '<span class="rvd-new">NEW</span>' : '') + '</div><div class="rvd-tx">' + pdfedRevEsc(c.body) + '</div></div>' +
+    (isNew ? '<span class="rvd-new">NEW</span>' : '') + '</div><div class="rvd-tx">' + pdfedRevEsc(c.body) + '</div>' +
+    (PDFED_RVD.confirm === c.id
+      ? '<div class="rvd-conf" onclick="event.stopPropagation()"><span>Delete this note? This cannot be undone.</span>' +
+        '<button class="rvd-btn solid sm" onclick="pdfedRvdDelete(\'' + c.id + '\')">Delete</button>' +
+        '<button class="rvd-btn sm" onclick="pdfedRvdAskDelete(null)">Keep</button></div>'
+      : '') + '</div>' +
+    (PDFED_RVD.confirm === c.id ? '' :
+      '<button class="rvd-del" title="Delete note" aria-label="Delete note" onclick="event.stopPropagation();pdfedRvdAskDelete(\'' + c.id + '\')">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>') +
     '<button class="rvd-check' + (isDone ? ' on' : '') + '" title="' + (isDone ? 'Mark as not done' : 'Mark as done') + '" onclick="event.stopPropagation();pdfedRvdTick(\'' + c.id + '\')">' +
     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></div>';
 }
@@ -501,7 +511,7 @@ function pdfedRvdRender() {
     note + draft +
     '<div class="rvd-sh">Comments on version ' + L.version + '</div>' +
     pdfedRvdListHtml(L.version) + older +
-    '<p class="rvd-hint">Click a comment to jump to it on your page. Pins show only while this tab is open and are never in your exported PDF.</p>';
+    '<p class="rvd-hint">Click a comment to jump to it on your page. Drag your own notes to move them; you can delete any note. Pins show only while this tab is open and are never in your exported PDF.</p>';
 
   const t = document.getElementById('pdfedRvdTxt');
   if (t) { if (keepTxt) t.value = keepTxt; if (!keepEl) t.focus(); }
@@ -511,7 +521,7 @@ function pdfedRvdRender() {
 // ---------- pins on the live editor page ----------
 function pdfedRvdPinsSync() {
   const wrap = document.getElementById('pdfedCanvasWrap');
-  if (!wrap) return;
+  if (!wrap || PDFED_RVD.drag) return;   // never redraw the pins in the middle of a drag
   let layer = document.getElementById('pdfedRvdPins');
   const L = PDFED_RVD.link;
   const ready = pdfedRvdActive() && L && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.active >= 0;
@@ -520,15 +530,16 @@ function pdfedRvdPinsSync() {
     layer = document.createElement('div');
     layer.id = 'pdfedRvdPins';
     layer.className = 'rvd-layer';
+    layer.addEventListener('pointerdown', pdfedRvdPinDown);
     wrap.appendChild(layer);
   }
   const page = pdfed.active + 1;
   const nums = pdfedRvdNums(L.version);
   let html = PDFED_RVD.comments.filter(function (c) { return c.version === L.version && c.page === page; }).map(function (c) {
     const cls = 'rvp-pin rvd-pin' + (c.author_kind === 'owner' ? ' own' : '') + (c.status === 'done' ? ' done' : '') +
-      (pdfedRvdIsNew(c) ? ' new' : '') + (PDFED_RVD.hl === c.id ? ' hl' : '');
-    return '<div class="' + cls + '" data-cid="' + c.id + '" style="left:' + (c.x * 100) + '%;top:' + (c.y * 100) + '%" title="' +
-      pdfedRevEsc(c.author_name + ': ' + c.body) + '" onclick="event.stopPropagation();pdfedRvdFocus(\'' + c.id + '\')"><span>' + nums[c.id] + '</span></div>';
+      (pdfedRvdIsNew(c) ? ' new' : '') + (PDFED_RVD.hl === c.id ? ' hl' : '') + (c.author_kind === 'owner' ? ' rvd-drag' : '');
+    return '<div class="' + cls + '" data-cid="' + c.id + '"' + (c.author_kind === 'owner' ? ' data-drag="1"' : '') + ' style="left:' + (c.x * 100) + '%;top:' + (c.y * 100) + '%" title="' +
+      pdfedRevEsc(c.author_name + ': ' + c.body) + (c.author_kind === 'owner' ? ' (drag to move)' : '') + '" onclick="event.stopPropagation();if(!PDFED_RVD.justDragged)pdfedRvdFocus(\'' + c.id + '\')"><span>' + nums[c.id] + '</span></div>';
   }).join('');
   const d = PDFED_RVD.draft;
   if (d && d.page === page) html += '<div class="rvp-pin rvd-pin own" style="left:' + (d.x * 100) + '%;top:' + (d.y * 100) + '%"><span>+</span></div>';
@@ -642,6 +653,92 @@ async function pdfedRvdSave() {
     pdfedRvdRender(); pdfedRvdPinsSync();
   } catch (e) {
     toast('Could not add the note: ' + (e && e.message ? e.message : 'unknown error'), 'error');
+  }
+}
+
+// ---------- delete a note (any note on your own link; asks first) ----------
+function pdfedRvdAskDelete(id) {
+  PDFED_RVD.confirm = id;
+  pdfedRvdRender();
+}
+async function pdfedRvdDelete(id) {
+  const c = PDFED_RVD.comments.find(function (x) { return x.id === id; });
+  PDFED_RVD.confirm = null;
+  if (!c) { pdfedRvdRender(); return; }
+  const r = await window.sarvarcSupabase.from('review_comments').delete().eq('id', id);
+  if (r.error) {
+    pdfedRvdRender();
+    toast('Could not delete the note: ' + r.error.message, 'error');
+    return;
+  }
+  PDFED_RVD.comments = PDFED_RVD.comments.filter(function (x) { return x.id !== id; });
+  if (PDFED_RVD.hl === id) PDFED_RVD.hl = null;
+  pdfedRvdRender(); pdfedRvdPinsSync();
+}
+
+// ---------- drag your own notes on the page ----------
+// Only your own notes move. A client's pin always stays where the client pointed (the database enforces this too).
+function pdfedRvdPinDown(ev) {
+  const pin = ev.target && ev.target.closest ? ev.target.closest('.rvd-pin[data-drag="1"]') : null;
+  if (!pin || ev.button !== 0) return;
+  ev.stopPropagation(); ev.preventDefault();
+  PDFED_RVD.drag = { id: pin.getAttribute('data-cid'), el: pin, sx: ev.clientX, sy: ev.clientY, moved: false, ghost: null, pid: ev.pointerId };
+  document.addEventListener('pointermove', pdfedRvdPinMove);
+  document.addEventListener('pointerup', pdfedRvdPinUp);
+  document.addEventListener('pointercancel', pdfedRvdPinCancel);
+}
+function pdfedRvdPinMove(ev) {
+  const d = PDFED_RVD.drag;
+  if (!d || ev.pointerId !== d.pid) return;
+  if (!d.moved) {
+    if (Math.abs(ev.clientX - d.sx) + Math.abs(ev.clientY - d.sy) < 6) return;
+    d.moved = true;
+    const g = d.el.cloneNode(true);
+    g.classList.add('ghost');
+    ['data-cid', 'data-drag', 'title', 'onclick'].forEach(function (a) { g.removeAttribute(a); });
+    document.body.appendChild(g); d.ghost = g;
+    d.el.classList.add('lifted'); document.body.classList.add('rvd-dragging');
+  }
+  ev.preventDefault();
+  d.ghost.style.left = ev.clientX + 'px'; d.ghost.style.top = ev.clientY + 'px';
+}
+function pdfedRvdPinEnd() {
+  const d = PDFED_RVD.drag;
+  document.removeEventListener('pointermove', pdfedRvdPinMove);
+  document.removeEventListener('pointerup', pdfedRvdPinUp);
+  document.removeEventListener('pointercancel', pdfedRvdPinCancel);
+  if (d) {
+    if (d.ghost && d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
+    if (d.el) d.el.classList.remove('lifted');
+  }
+  document.body.classList.remove('rvd-dragging');
+  PDFED_RVD.drag = null;
+  return d;
+}
+function pdfedRvdPinCancel() { pdfedRvdPinEnd(); pdfedRvdPinsSync(); }
+async function pdfedRvdPinUp(ev) {
+  const d = PDFED_RVD.drag;
+  if (!d || ev.pointerId !== d.pid) return;
+  pdfedRvdPinEnd();
+  if (!d.moved) { pdfedRvdFocus(d.id); return; }          // a plain click still jumps to the note
+  PDFED_RVD.justDragged = true; setTimeout(function () { PDFED_RVD.justDragged = false; }, 0);
+  const c = PDFED_RVD.comments.find(function (x) { return x.id === d.id; });
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  const r = wrap ? wrap.getBoundingClientRect() : null;
+  if (!c || !r || !r.width || !r.height) { pdfedRvdPinsSync(); return; }
+  const out = Math.max(r.left - ev.clientX, ev.clientX - r.right, r.top - ev.clientY, ev.clientY - r.bottom);
+  if (out > 40) { pdfedRvdPinsSync(); return; }            // dropped well away from the page: it goes back
+  const x = Math.round(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * 10000) / 10000;
+  const y = Math.round(Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height)) * 10000) / 10000;
+  if (Math.abs(x - c.x) < 0.002 && Math.abs(y - c.y) < 0.002) { pdfedRvdPinsSync(); return; }
+  const prev = { x: c.x, y: c.y };
+  c.x = x; c.y = y;
+  pdfedRvdPinsSync();
+  const res = await window.sarvarcSupabase.from('review_comments').update({ x: x, y: y }).eq('id', c.id);
+  if (res.error) {
+    c.x = prev.x; c.y = prev.y;
+    pdfedRvdPinsSync();
+    toast('Could not move the note: ' + res.error.message + '. Check that 11-review-drag-delete.sql was run.', 'error');
   }
 }
 
