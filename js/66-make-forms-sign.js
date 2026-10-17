@@ -48,7 +48,7 @@
   function say(msg, type) { if (typeof toast === 'function') toast(msg, type || 'info'); }
   function $(sel, root) { return (root || document).querySelector(sel); }
   function slug() { return 'sg' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-5); }
-  function baseUrl() { return window.SARVARC_FORMS_PUBLIC_BASE_URL || 'https://sarvarc-sign.pages.dev'; }
+  function baseUrl() { return window.SARVARC_SIGN_PUBLIC_BASE_URL || 'https://sarvarc-sign.pages.dev'; }
   function linkFor(d) { return baseUrl() + '/sign.html?s=' + d.shareSlug; }
   function fmtDate(t) {
     try { return new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
