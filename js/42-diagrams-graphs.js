@@ -3598,10 +3598,23 @@ function dgColumnStem(header) {
 // view — only from what gets auto-plotted).
 const DG_AGGREGATE_LABEL_RE = /^(grand\s+)?(sub[\s-]?)?totals?\s*:?$|^(overall|combined|aggregate|net)\s*totals?$|^sum(mary)?\s*:?$|^averages?\s*:?$|^means?\s*:?$|^overall$|^grand\s+sum$/i;
 
-function dgIsAggregateLabel(label) {
+// Statement-style summary rows: the label STARTS with "Total" / "Subtotal" / "Grand total" and
+// carries a description -- "Total assets", "Total income", "Total expenses", "Total equity and
+// liabilities". The strict pattern above only matched a label that was exactly "Total", so these
+// slipped through and were plotted as the tallest bar in the chart. Applies to ROW labels only;
+// a COLUMN called "Total Sales" is a real measure and keeps using the strict pattern.
+const DG_AGGREGATE_ROW_LABEL_RE = /^(grand\s+|sub[\s-]?|net\s+)?totals?\b(\s*[-:(].*|\s+\S.*)?$/i;
+
+function dgIsStrictAggregateLabel(label) {
   const l = String(label ?? '').trim().toLowerCase().replace(/[:*]+$/, '').trim();
   if (!l) return false;
   return DG_AGGREGATE_LABEL_RE.test(l);
+}
+
+function dgIsAggregateLabel(label) {
+  const l = String(label ?? '').trim().toLowerCase().replace(/[:*]+$/, '').trim();
+  if (!l) return false;
+  return DG_AGGREGATE_LABEL_RE.test(l) || DG_AGGREGATE_ROW_LABEL_RE.test(l);
 }
 
 // Same idea for a whole COLUMN — a header literally called "Total" (or "Total ($)",
@@ -3613,7 +3626,7 @@ function dgIsAggregateHeader(header) {
     .replace(/\([^)]*\)\s*$/, '')      // strip trailing unit, e.g. "Total ($)"
     .replace(/\b(19|20)\d{2}\b/g, '')  // strip trailing year, e.g. "Total 2026"
     .trim();
-  return dgIsAggregateLabel(h);
+  return dgIsStrictAggregateLabel(h);
 }
 
 // Label-agnostic safety net: even when a summary row isn't spelled with any of the words
@@ -4803,8 +4816,17 @@ function dgBucketDateRows(parsed, maxPoints) {
   return { granularity: 'year', rows: parsed.slice(0, maxPoints) }; // unreachable, ladder ends on 'year'
 }
 
+// Columns that are numbers on paper but never a measure worth plotting: note / serial / reference
+// numbers, and personal identifiers (mobile, PAN, GSTIN, Aadhaar, account numbers, PIN codes).
+const DG_NON_MEASURE_HEADER_RE = /^(notes?(\s*(no|number|ref))?|sr\.?\s*no|s\.?\s*no|sl\.?\s*no|serial(\s*(no|number))?|ref(erence)?(\s*(no|number|id))?|schedule|id|mobile|phone|contact|pan|gstin|gst\s*(no|number)|aadhaar|aadhar|uan|ifsc|pin\s*code|pincode|zip(\s*code)?|postal\s*code|account\s*(no|number)|folio|#)(\s*\(.*\))?$/i;
+// "ABCDE1234F" (a PAN) or "24ABCDE1234F1Z5" (a GSTIN): letters on both sides of a run of digits.
+// dgParseNumericCell strips the letters and reads these as 1234, which is not a number at all.
+const DG_ID_CODE_RE = /[A-Za-z]\d+[A-Za-z]/;
+const DG_LONG_DIGITS_RE = /^\+?\d{10,}$/;
+
 function dgColumnIsNumeric(colIdx) {
   if (!dgUploadParsed) return false;
+  if (DG_NON_MEASURE_HEADER_RE.test(String((dgUploadParsed.headers || [])[colIdx] ?? '').trim())) return false;
   // A genuine date column (even a slash/dash-formatted one that's technically all digits once
   // the separators are stripped) should never be treated as a numeric measure — plotting
   // "2024-01-15" as the number 20240115 is never what anyone wants.
@@ -4824,13 +4846,17 @@ function dgColumnIsNumeric(colIdx) {
     sample = [];
     for (let i = 0; i < SAMPLE_SIZE; i++) sample.push(allRows[Math.floor(i * stride)]);
   }
-  let numeric = 0, total = 0;
+  let numeric = 0, total = 0, idLike = 0;
   sample.forEach(r => {
     const v = r[colIdx];
-    if (String(v ?? '').trim() === '') return;
+    const s = String(v ?? '').trim();
+    if (s === '') return;
     total++;
+    if (DG_ID_CODE_RE.test(s)) return; // identifier code, not a number
+    if (typeof v !== 'number' && DG_LONG_DIGITS_RE.test(s.replace(/[\s-]/g, ''))) idLike++; // phone / account-length digit run
     if (!isNaN(dgParseNumericCell(v))) numeric++;
   });
+  if (total > 0 && idLike / total >= 0.6) return false;
   return total > 0 && (numeric / total) > 0.6;
 }
 
