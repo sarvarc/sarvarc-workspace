@@ -2039,6 +2039,14 @@ function daFindDate(v) {
 function daFindAmount(v) {
   const t = v.trim();
   if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return { match: t, remainder: '' };
+  // A whole-cell number with thousands grouping and NO currency symbol --
+  // "1,20,000" (Indian lakh grouping), "450,000", "(45,000)" or "45,000-"
+  // (accounting negatives). Before this, none of these matched, so the
+  // Amount column failed to recognise its OWN cell and went hunting through
+  // the rest of the row -- in a client table it walked off with the mobile
+  // number and shuffled every other column. Whole-cell only, so it can
+  // never pull a piece out of a longer string.
+  if (/^\(?-?\d{1,3}(,\d{2,3})+(\.\d+)?\)?-?$/.test(t)) return { match: t, remainder: '' };
   // Recognize ₹ (Rupee) alongside $ — an Indian-formatted amount like
   // "₹18,50,000" matched NEITHER branch here before, so this column always
   // failed to claim its own cell and went hunting elsewhere in the row
@@ -2187,7 +2195,13 @@ function daNormalizeAmountValue(raw, header) {
   else if (/£/.test(t)) symbol = '£';
   else if (/¥/.test(t)) symbol = '¥';
   else if (/\$/.test(t)) symbol = '$';
-  else symbol = daHeaderCurrencySymbol(header) || '$';
+  else {
+    // No symbol in the cell and none named by the header: keep the value
+    // exactly as it came. Stamping '$' on it turned rupee figures such as
+    // "1,20,000" into "$120,000.00", which is wrong data, not formatting.
+    symbol = daHeaderCurrencySymbol(header);
+    if (!symbol) return raw;
+  }
   const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$₹€£¥,\s]/g, '');
   const num = parseFloat(cleaned);
   if (isNaN(num)) return raw;
@@ -2249,19 +2263,35 @@ function daGuessHeaderType(header) {
   return 'text';
 }
 
+// Personal / identifier columns (mobile, PAN, GSTIN, Aadhaar, account no ...).
+// A value that is already sitting under one of these headers is never moved,
+// and nothing else is ever moved into it -- a 10-digit mobile number looks
+// exactly like a bare integer "amount", so letting the Amount column hunt
+// through the row used to take it and shift every other cell along.
+const DA_PROTECTED_HEADER_RE = /\b(mobile|phone|contact|tel|telephone|whatsapp|pan|gstin|gst\s*(no|number)|aadhaar|aadhar|uan|ifsc|pin\s*code|pincode|zip|postal|account\s*(no|number)|a\/c\s*no|folio)\b/i;
+
 function daSmartTypeRealign(headers, rows) {
   const headerTypes = headers.map(daGuessHeaderType);
   // Typed columns are walked in header order, so e.g. "ID" (usually column
   // 1) claims a plain-number cell before "Age" goes looking for one,
   // instead of the two competing unpredictably.
-  const typedCols = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t !== 'text');
-  if (!typedCols.length) return rows; // nothing unambiguous to correct against
+  const typedColsAll = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t !== 'text');
+  if (!typedColsAll.length) return rows; // nothing unambiguous to correct against
 
   return rows.map(row => {
     const width = Math.max(headers.length, row.length);
     let cells = Array.from({ length: width }, (_, i) => String(row[i] !== undefined ? row[i] : ''));
     let used = new Array(width).fill(false);
     const result = new Array(headers.length).fill('');
+    // Lock identifier columns that already hold a value, then leave them out
+    // of every pass below.
+    const lockedIdx = [];
+    headers.forEach((h, i) => {
+      if (DA_PROTECTED_HEADER_RE.test(String(h || '')) && i < cells.length && cells[i] !== '') {
+        result[i] = cells[i]; used[i] = true; lockedIdx.push(i);
+      }
+    });
+    const typedCols = typedColsAll.filter(x => !lockedIdx.includes(x.i));
 
     // Pass 1 — claim a value for each unambiguously-typed header: prefer
     // the cell already sitting in that column if it already matches (never
@@ -2288,7 +2318,7 @@ function daSmartTypeRealign(headers, rows) {
     // category-like text can't be told apart by content, so order is the
     // only signal worth trusting for these).
     const leftover = cells.map((v, idx) => ({ v, idx })).filter(x => !used[x.idx] && x.v !== '');
-    const textColIdxs = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t === 'text').map(x => x.i);
+    const textColIdxs = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t === 'text' && !lockedIdx.includes(x.i)).map(x => x.i);
     let li = 0;
     textColIdxs.forEach(i => {
       if (li < leftover.length) { result[i] = leftover[li].v; used[leftover[li].idx] = true; li++; }
@@ -2459,8 +2489,9 @@ function daAddDataset(name, aoa, titleOverride) {
   // and work out a quick one-line summary — transaction count, total money
   // in/out, and the closing balance — so the person gets that read
   // immediately instead of having to eyeball or manually total rows.
-  const detected = daDetectDataType(headers);
+  const detected = daDetectDataType(headers, rows);
   ds.dataType = detected.type;
+  if (detected.statementKind) ds.statementKind = detected.statementKind;
   if (detected.type === 'bank' && rows.length) {
     ds.bankSummary = daBankStatementSummary(headers, rows);
   }
