@@ -920,6 +920,25 @@
     window[n] = function () { hideQuiet(); return orig.apply(this, arguments); };
   });
   window.sgdPickFile = pickFile;
+
+  // Hand-off from the PDF Editor ("Send for Signing" button, js/67-pdfed-send-to-sign.js).
+  // Adds the finished PDF to the Sign Documents list exactly like an uploaded file would be,
+  // so it also lands in Saved Sessions. Returns the new document id.
+  window.sgdImportDocument = async function (info) {
+    if (!Core) throw new Error('Sign Documents did not load');
+    await (blobsReady || Promise.resolve());
+    var d = {
+      id: uid('sgd'), title: (info && info.title) || 'Untitled document',
+      fileName: (info && info.fileName) || 'document.pdf', pageCount: (info && info.pageCount) || 1,
+      fields: [], expiryDays: 7, source: 'pdfeditor',
+      createdAt: Date.now(), updatedAt: Date.now()
+    };
+    docs.push(d); blobs[d.id] = info.dataUrl;
+    saveDocsNow(); await saveBlobs(); renderGrid();
+    return d.id;
+  };
+  window.sgdOpenDocument = function (id) { return openEditor(id); };
+  window.sgdMaxBytes = MAX_BYTES;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
