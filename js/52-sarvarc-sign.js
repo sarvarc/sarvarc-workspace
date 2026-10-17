@@ -290,8 +290,9 @@
       '@keyframes sgxSp{to{transform:rotate(360deg)}}',
       '@media (max-width:480px){.sgx-card{padding:16px 15px 14px;border-radius:16px}}',
       /* Hosted inside a module (SARVARC theme): covers only that module, not the whole app */
-      '.sgx-ov.sgx-host{position:absolute;z-index:60;align-items:flex-start;padding:0;background:rgba(7,11,22,.66);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);border-radius:var(--radius,14px)}',
-      '.sgx-host .sgx-card{position:sticky;top:90px;margin:0 auto;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius,14px);box-shadow:0 24px 60px -18px rgba(0,0,0,.6)}',
+      '@keyframes sgxUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}',
+      '.sgx-ov.sgx-host{position:absolute;z-index:60;align-items:flex-end;padding:0;background:rgba(7,11,22,.66);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);border-radius:var(--radius,14px)}',
+      '.sgx-host .sgx-card{position:sticky;bottom:18px;width:min(560px,calc(100% - 24px));margin:0 auto 18px;animation:sgxUp .26s cubic-bezier(.3,.8,.3,1);background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius,14px);box-shadow:0 24px 60px -18px rgba(0,0,0,.6)}',
       '.sgx-host .sgx-title{color:var(--text)}',
       '.sgx-ov.sgx-host button.sgx-x{color:var(--text2)}',
       '.sgx-host .sgx-tabs{background:var(--bg3);border:1px solid var(--border)}',
