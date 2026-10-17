@@ -950,6 +950,14 @@ function pdfedShowRightTab(tab) {
   assetsBtn.classList.toggle('active', tab === 'assets');
   notesBtn.classList.toggle('active', tab === 'notes');
 
+  // Review tab (client comments docked inside the editor). Optional: only present when js/69 is loaded.
+  const reviewPanel = document.getElementById('pdfedReviewPanel');
+  const reviewBtn   = document.getElementById('pdfedTabReviewBtn');
+  if (reviewPanel) reviewPanel.style.display = tab === 'review' ? '' : 'none';
+  if (reviewBtn) reviewBtn.classList.toggle('active', tab === 'review');
+  if (tab === 'review' && typeof pdfedRvdShow === 'function') pdfedRvdShow();
+  else if (tab !== 'review' && typeof pdfedRvdHide === 'function') pdfedRvdHide();
+
   if (tab === 'notes') pdfedNotesRender();
   if (tab === 'assets' && typeof sarvarcAssetsRenderPanel === 'function') sarvarcAssetsRenderPanel();
 }

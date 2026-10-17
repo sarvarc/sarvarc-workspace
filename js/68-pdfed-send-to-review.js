@@ -65,7 +65,7 @@ function pdfedOpenSendReview() {
         '<div class="pdfedrev-linkrow"><input id="pdfedRevLinkIn" class="pdfedrev-in" type="text" readonly value="' + (saved ? pdfedRevEsc(pdfedRevLink(saved.slug)) : '') + '">' +
         '<button class="pdfedrev-btn" onclick="pdfedRevCopy()">Copy</button></div>' +
         '<div id="pdfedRevVer" class="pdfedrev-ver">' + (saved ? 'Version ' + saved.version + ' is live' : '') + '</div>' +
-        '<div class="pdfedrev-acts"><button class="pdfedrev-btn" onclick="pdfedOpenReviewPanel()">Open comments</button>' +
+        '<div class="pdfedrev-acts"><button class="pdfedrev-btn" onclick="pdfedOpenReviewDock()">Open comments</button>' +
         '<button class="pdfedrev-btn danger" onclick="pdfedRevTakeOffline()">Take offline</button></div>' +
       '</div>' +
       '<button id="pdfedRevGo" class="pdfedrev-btn primary" onclick="pdfedRevPublish()">' + (saved ? 'Send new version (same link)' : 'Publish link') + '</button>' +

@@ -344,3 +344,309 @@ async function pdfedRvpToggleCompare() {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
+
+
+/* ===== REVIEW TAB INSIDE THE PDF EDITOR (docked, no full-screen cover) =====
+   The right panel of the PDF Editor has a Review tab. It lists the client's comments with a Done tick,
+   clicking a comment jumps the editor to that page and shows a pin where the client pointed, and you can
+   add your own note on the page. Pins are shown only while the Review tab is open and are never exported.
+   Compare with previous still opens the full-screen view above.
+   Pins sit on the page the client saw. If you add or remove pages, a pin can land on a different page. */
+const PDFED_RVD = { link: null, comments: [], seen: new Set(), timer: null, hl: null, pick: false, draft: null, note: '', busy: false, docId: null };
+
+function pdfedRvdActive() {
+  const p = document.getElementById('pdfedReviewPanel');
+  return !!p && p.style.display !== 'none';
+}
+function pdfedRvdSheetHtml(label) {
+  return '<div class="rvd-sheet"><i></i><i></i><i></i><b>' + label + '</b></div>';
+}
+function pdfedRvdMsg(html) {
+  const el = document.getElementById('pdfedReviewPanel');
+  if (el) el.innerHTML = '<div class="rvd-empty">' + pdfedRvdSheetHtml('REVIEW') + '<p>' + html + '</p></div>';
+}
+
+async function pdfedOpenReviewDock() {
+  const saved = pdfedRevReadMap()[pdfedRevDocKey()];
+  if (!saved) { toast('Publish a review link first', 'info'); return; }
+  pdfedRevCloseModal();
+  const layout = document.getElementById('pdfedLayout');
+  if (layout && layout.classList.contains('right-collapsed') && typeof pdfedToggleRightPanel === 'function') pdfedToggleRightPanel(true);
+  pdfedShowRightTab('review');
+}
+
+async function pdfedRvdShow() {
+  const saved = pdfedRevReadMap()[pdfedRevDocKey()];
+  if (!saved) {
+    PDFED_RVD.link = null; PDFED_RVD.comments = []; PDFED_RVD.docId = null;
+    pdfedRvdMsg('No review link for this document yet. Click <b>Send for Review</b> in the top bar and publish a link. Your client\'s comments will show up here.');
+    pdfedRvdPinsSync();
+    return;
+  }
+  if (PDFED_RVD.docId !== saved.id) {
+    PDFED_RVD.link = null; PDFED_RVD.comments = []; PDFED_RVD.hl = null; PDFED_RVD.draft = null; PDFED_RVD.note = '';
+    pdfedRvdPickOff();
+  }
+  PDFED_RVD.docId = saved.id;
+  if (!PDFED_RVD.link) pdfedRvdMsg('Loading comments…');
+  await pdfedRvdLoad(saved.id);
+  clearInterval(PDFED_RVD.timer);
+  PDFED_RVD.timer = setInterval(function () { pdfedRvdRefresh(false); }, 20000);
+}
+
+function pdfedRvdHide() {
+  clearInterval(PDFED_RVD.timer); PDFED_RVD.timer = null;
+  pdfedRvdPickOff();
+  pdfedRvdPinsSync();
+}
+
+async function pdfedRvdLoad(id) {
+  const sb = window.sarvarcSupabase;
+  if (!sb) { pdfedRvdMsg('Sign in to Workspace to see your review comments.'); return; }
+  try {
+    // file_data_url is only used as a filter here (not downloaded): no file means the link was taken offline.
+    const lr = await sb.from('review_links')
+      .select('id, title, version, page_count, status, expires_at, share_slug, prev_version')
+      .eq('id', id).not('file_data_url', 'is', null).maybeSingle();
+    if (lr.error) throw lr.error;
+    if (!lr.data) {
+      PDFED_RVD.link = null; PDFED_RVD.comments = [];
+      pdfedRvdMsg('This review link is no longer online. Publish it again from <b>Send for Review</b>.');
+      pdfedRvdPinsSync();
+      return;
+    }
+    const cr = await sb.from('review_comments').select('*').eq('review_id', id).order('created_at', { ascending: true });
+    if (cr.error) throw cr.error;
+    PDFED_RVD.link = lr.data;
+    PDFED_RVD.comments = (cr.data || []).map(function (c) {
+      c.x = Number(c.x); c.y = Number(c.y); c.page = Number(c.page); c.version = Number(c.version); return c;
+    });
+    PDFED_RVD.link.version = Number(PDFED_RVD.link.version);
+    PDFED_RVD.seen = pdfedRvpSeenGet(id);
+    pdfedRvdRender();
+    pdfedRvdPinsSync();
+  } catch (e) {
+    console.error('[Review tab]', e);
+    pdfedRvdMsg('Could not load comments: ' + pdfedRevEsc(e && e.message ? e.message : 'unknown error') + '. Check that 10-review-compare.sql was run.');
+  }
+}
+
+async function pdfedRvdRefresh(manual) {
+  if (!pdfedRvdActive() || !PDFED_RVD.docId || PDFED_RVD.busy) return;
+  const t = document.getElementById('pdfedRvdTxt');
+  if (!manual && t && t.value.trim()) return; // never wipe a note that is being typed
+  PDFED_RVD.busy = true;
+  try { await pdfedRvdLoad(PDFED_RVD.docId); } finally { PDFED_RVD.busy = false; }
+}
+
+function pdfedRvdIsNew(c) { return c.author_kind === 'client' && !PDFED_RVD.seen.has(c.id); }
+
+function pdfedRvdNums(version) {
+  const m = {}; let n = 0;
+  PDFED_RVD.comments.forEach(function (c) { if (c.version === version) m[c.id] = ++n; });
+  return m;
+}
+
+function pdfedRvdItemHtml(c, num) {
+  const isNew = pdfedRvdIsNew(c), isDone = c.status === 'done', own = c.author_kind === 'owner';
+  return '<div class="rvd-card' + (isDone ? ' isdone' : '') + (isNew ? ' nw' : '') + (PDFED_RVD.hl === c.id ? ' hl' : '') + '" onclick="pdfedRvdFocus(\'' + c.id + '\')">' +
+    '<div class="rvd-flag' + (own ? ' own' : '') + (isDone ? ' done' : '') + '">' + num + '</div>' +
+    '<div class="rvd-ct"><div class="rvd-who"><b>' + pdfedRevEsc(c.author_name || 'Client') + '</b><small>' + (own ? 'Your note' : 'Client') + ' · Page ' + c.page + '</small>' +
+    (isNew ? '<span class="rvd-new">NEW</span>' : '') + '</div><div class="rvd-tx">' + pdfedRevEsc(c.body) + '</div></div>' +
+    '<button class="rvd-check' + (isDone ? ' on' : '') + '" title="' + (isDone ? 'Mark as not done' : 'Mark as done') + '" onclick="event.stopPropagation();pdfedRvdTick(\'' + c.id + '\')">' +
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></div>';
+}
+
+function pdfedRvdListHtml(version) {
+  const nums = pdfedRvdNums(version);
+  const rows = PDFED_RVD.comments.filter(function (c) { return c.version === version; })
+    .map(function (c) { return pdfedRvdItemHtml(c, nums[c.id]); }).join('');
+  return rows || '<p class="rvd-hint">No comments on this version yet. When your client pins something, it lands here.</p>';
+}
+
+function pdfedRvdRender() {
+  const el = document.getElementById('pdfedReviewPanel');
+  const L = PDFED_RVD.link;
+  if (!el || !L || !pdfedRvdActive()) return;
+  const keepEl = document.getElementById('pdfedRvdTxt');
+  const keepTxt = keepEl ? keepEl.value : '';
+  const keepScroll = el.scrollTop;
+  const cur = PDFED_RVD.comments.filter(function (c) { return c.version === L.version; });
+  const done = cur.filter(function (c) { return c.status === 'done'; }).length;
+  const pct = cur.length ? Math.round((done / cur.length) * 100) : 0;
+
+  let older = '';
+  const vers = {};
+  PDFED_RVD.comments.forEach(function (c) { if (c.version < L.version) vers[c.version] = 1; });
+  Object.keys(vers).sort(function (a, b) { return b - a; }).forEach(function (v) {
+    older += '<details class="rvd-older"><summary>Older: version ' + v + '</summary>' + pdfedRvdListHtml(Number(v)) + '</details>';
+  });
+
+  const draft = PDFED_RVD.draft
+    ? '<div class="rvd-draft"><div class="rvd-dh">New note on page ' + PDFED_RVD.draft.page + '. Your client can see it.</div>' +
+      '<textarea id="pdfedRvdTxt" maxlength="1000" placeholder="Add a note for your client"></textarea>' +
+      '<div class="rvd-row"><button class="rvd-btn primary" onclick="pdfedRvdSave()">Add note</button>' +
+      '<button class="rvd-btn" onclick="pdfedRvdCancel()">Cancel</button></div></div>'
+    : '';
+  const note = PDFED_RVD.note ? '<div class="rvd-note">' + pdfedRevEsc(PDFED_RVD.note) + '</div>' : '';
+
+  el.innerHTML =
+    '<div class="rvd-head">' + pdfedRvdSheetHtml('V' + L.version) +
+      '<div class="rvd-hinfo"><div class="rvd-title">' + pdfedRevEsc(L.title) + '</div><span class="rvd-live">Version ' + L.version + ' live</span></div></div>' +
+    '<div class="rvd-progress"><div class="rvd-ptxt"><b>' + done + ' of ' + cur.length + '</b> done</div><div class="rvd-pbar"><i style="width:' + pct + '%"></i></div></div>' +
+    '<div class="rvd-row">' +
+      '<button class="rvd-btn primary" onclick="pdfedRvdPickToggle()">' + (PDFED_RVD.pick ? 'Cancel pin' : '+ Note on page') + '</button>' +
+      '<button class="rvd-btn" onclick="pdfedRvdCompare()">Compare</button>' +
+      '<button class="rvd-link" onclick="pdfedRvdRefresh(true)">Refresh</button></div>' +
+    note + draft +
+    '<div class="rvd-sh">Comments on version ' + L.version + '</div>' +
+    pdfedRvdListHtml(L.version) + older +
+    '<p class="rvd-hint">Click a comment to jump to it on your page. Pins show only while this tab is open and are never in your exported PDF.</p>';
+
+  const t = document.getElementById('pdfedRvdTxt');
+  if (t) { if (keepTxt) t.value = keepTxt; if (!keepEl) t.focus(); }
+  el.scrollTop = keepScroll;
+}
+
+// ---------- pins on the live editor page ----------
+function pdfedRvdPinsSync() {
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  if (!wrap) return;
+  let layer = document.getElementById('pdfedRvdPins');
+  const L = PDFED_RVD.link;
+  const ready = pdfedRvdActive() && L && typeof pdfed !== 'undefined' && pdfed.pages && pdfed.active >= 0;
+  if (!ready) { if (layer) layer.innerHTML = ''; return; }
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'pdfedRvdPins';
+    layer.className = 'rvd-layer';
+    wrap.appendChild(layer);
+  }
+  const page = pdfed.active + 1;
+  const nums = pdfedRvdNums(L.version);
+  let html = PDFED_RVD.comments.filter(function (c) { return c.version === L.version && c.page === page; }).map(function (c) {
+    const cls = 'rvp-pin rvd-pin' + (c.author_kind === 'owner' ? ' own' : '') + (c.status === 'done' ? ' done' : '') +
+      (pdfedRvdIsNew(c) ? ' new' : '') + (PDFED_RVD.hl === c.id ? ' hl' : '');
+    return '<div class="' + cls + '" data-cid="' + c.id + '" style="left:' + (c.x * 100) + '%;top:' + (c.y * 100) + '%" title="' +
+      pdfedRevEsc(c.author_name + ': ' + c.body) + '" onclick="event.stopPropagation();pdfedRvdFocus(\'' + c.id + '\')"><span>' + nums[c.id] + '</span></div>';
+  }).join('');
+  const d = PDFED_RVD.draft;
+  if (d && d.page === page) html += '<div class="rvp-pin rvd-pin own" style="left:' + (d.x * 100) + '%;top:' + (d.y * 100) + '%"><span>+</span></div>';
+  layer.innerHTML = html;
+}
+
+function pdfedRvdInitObserver() {
+  const lab = document.getElementById('pdfedPageLabel');
+  if (!lab || lab.dataset.rvdObs) return;
+  lab.dataset.rvdObs = '1';
+  new MutationObserver(function () { pdfedRvdPinsSync(); }).observe(lab, { childList: true, characterData: true, subtree: true });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pdfedRvdInitObserver);
+else pdfedRvdInitObserver();
+
+// ---------- actions ----------
+async function pdfedRvdFocus(id) {
+  const c = PDFED_RVD.comments.find(function (x) { return x.id === id; });
+  const L = PDFED_RVD.link;
+  if (!c || !L) return;
+  PDFED_RVD.hl = id;
+  if (c.author_kind === 'client' && !PDFED_RVD.seen.has(id)) {
+    PDFED_RVD.seen.add(id);
+    pdfedRvpSeenAdd(L.id, [id]);
+    const left = PDFED_RVD.comments.filter(function (x) { return x.author_kind === 'client' && !PDFED_RVD.seen.has(x.id); }).length;
+    pdfedRvpNewById[L.id] = left;
+    pdfedRvpDotSync();
+  }
+  if (c.version !== L.version) {
+    toast('That comment is on an older version of the work', 'info');
+  } else if (typeof pdfedGoto === 'function' && pdfed.pages && pdfed.pages[c.page - 1]) {
+    if (pdfed.active !== c.page - 1) { try { await pdfedGoto(c.page - 1); } catch (e) { /* keep going, the list still updates */ } }
+  } else if (c.version === L.version) {
+    toast('Page ' + c.page + ' is not in your document any more', 'info');
+  }
+  pdfedRvdRender();
+  pdfedRvdPinsSync();
+  const pin = document.querySelector('#pdfedRvdPins .rvd-pin[data-cid="' + id + '"]');
+  if (pin && pin.scrollIntoView) pin.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+}
+
+async function pdfedRvdTick(id) {
+  const c = PDFED_RVD.comments.find(function (x) { return x.id === id; });
+  if (!c) return;
+  const to = c.status === 'done' ? 'open' : 'done';
+  c.status = to;
+  pdfedRvdRender(); pdfedRvdPinsSync();
+  const r = await window.sarvarcSupabase.from('review_comments').update({ status: to }).eq('id', id);
+  if (r.error) {
+    c.status = to === 'done' ? 'open' : 'done';
+    pdfedRvdRender(); pdfedRvdPinsSync();
+    toast('Could not update: ' + r.error.message, 'error');
+  }
+}
+
+// "Add note on page": the next click on the editor page drops a pin there.
+function pdfedRvdPickEvt(ev) {
+  if (!PDFED_RVD.pick) return;
+  if (ev.target && ev.target.closest && ev.target.closest('.rvd-pin')) return;
+  ev.stopPropagation();
+  if (ev.type !== 'click') return;
+  ev.preventDefault();
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  const r = wrap ? wrap.getBoundingClientRect() : null;
+  if (!r || !r.width || !r.height) return;
+  const x = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+  const y = Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height));
+  PDFED_RVD.draft = { page: pdfed.active + 1, x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 };
+  pdfedRvdPickOff();
+  pdfedRvdRender(); pdfedRvdPinsSync();
+}
+function pdfedRvdPickKey(ev) { if (ev.key === 'Escape' && PDFED_RVD.pick) { pdfedRvdPickOff(); pdfedRvdRender(); } }
+function pdfedRvdPickOn() {
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  if (!wrap || !pdfed.pages || pdfed.active < 0) { toast('Open a page first', 'info'); return; }
+  PDFED_RVD.pick = true; PDFED_RVD.draft = null;
+  PDFED_RVD.note = 'Click the spot on your page where the note should go. Press Esc to cancel.';
+  wrap.classList.add('rvd-picking');
+  ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(function (t) { wrap.addEventListener(t, pdfedRvdPickEvt, true); });
+  document.addEventListener('keydown', pdfedRvdPickKey);
+}
+function pdfedRvdPickOff() {
+  const wrap = document.getElementById('pdfedCanvasWrap');
+  if (wrap) {
+    wrap.classList.remove('rvd-picking');
+    ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(function (t) { wrap.removeEventListener(t, pdfedRvdPickEvt, true); });
+  }
+  document.removeEventListener('keydown', pdfedRvdPickKey);
+  if (PDFED_RVD.pick) { PDFED_RVD.pick = false; PDFED_RVD.note = ''; }
+}
+function pdfedRvdPickToggle() {
+  if (PDFED_RVD.pick) { pdfedRvdPickOff(); pdfedRvdRender(); return; }
+  pdfedRvdPickOn(); pdfedRvdRender();
+}
+function pdfedRvdCancel() { PDFED_RVD.draft = null; pdfedRvdRender(); pdfedRvdPinsSync(); }
+
+async function pdfedRvdSave() {
+  const t = document.getElementById('pdfedRvdTxt');
+  const body = ((t && t.value) || '').trim();
+  const d = PDFED_RVD.draft;
+  if (!body || !d || !PDFED_RVD.link) { if (t) t.focus(); return; }
+  try {
+    const r = await window.sarvarcSupabase.from('review_comments').insert({
+      review_id: PDFED_RVD.link.id, version: PDFED_RVD.link.version, page: d.page, x: d.x, y: d.y,
+      author_kind: 'owner', author_name: 'You', body: body
+    }).select('*').single();
+    if (r.error) throw r.error;
+    const c = r.data; c.x = Number(c.x); c.y = Number(c.y); c.page = Number(c.page); c.version = Number(c.version);
+    PDFED_RVD.comments.push(c);
+    PDFED_RVD.draft = null;
+    pdfedRvdRender(); pdfedRvdPinsSync();
+  } catch (e) {
+    toast('Could not add the note: ' + (e && e.message ? e.message : 'unknown error'), 'error');
+  }
+}
+
+// Compare keeps the full-screen view (two versions side by side need the room).
+async function pdfedRvdCompare() {
+  await pdfedOpenReviewPanel();
+  if (PDFED_RVP.link) pdfedRvpToggleCompare();
+}
