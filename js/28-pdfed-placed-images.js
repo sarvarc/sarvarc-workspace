@@ -208,6 +208,9 @@ function pdfedRenderPlacedImages(idx) {
     }
     } // end !item._sectionIcon guard
 
+    // Workstyle picture spot: an Upload button right on the spot (js/62-workstyle-build.js)
+    if (item._wsSlot && typeof wsbMountSlotUpload === 'function') wsbMountSlotUpload(el, item, idx);
+
     layer.appendChild(el);
   });
 }
