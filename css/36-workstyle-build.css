@@ -24,3 +24,35 @@
   .wsb-dock{ border-right:0; border-bottom:1px solid var(--border2, rgba(0,194,255,0.30)); box-shadow:0 6px 20px rgba(0,0,0,.25); }
   .wsb-foot{ padding-top:4px; padding-bottom:6px; min-height:0; }
 }
+
+/* Picture spots: an Upload button right on the spot where the reference had a logo or a picture.
+   Prefix "wss". Logic in js/62-workstyle-build.js (wsbMountSlotUpload), called from js/28. Editor only:
+   an empty spot holds a transparent pixel, so none of this is ever exported or printed. */
+.wss-ov{ position:absolute; inset:0; z-index:1; display:flex; align-items:center; justify-content:center; pointer-events:none; box-sizing:border-box; border-radius:4px; }
+.wss-empty .wss-ov{ background:repeating-linear-gradient(135deg, rgba(0,194,255,0.07) 0 10px, rgba(0,194,255,0.03) 10px 20px); border:2px dashed #00c2ff; }
+.wss-btn{ pointer-events:auto; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; max-width:92%; max-height:92%; overflow:hidden;
+  padding:7px 14px; font:inherit; font-size:12.5px; font-weight:700; line-height:1.2; text-align:center; color:#001018; background:#00c2ff; border:0; border-radius:999px; cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,0,0,0.28); transition:transform .12s, box-shadow .12s; }
+.wss-btn svg{ flex:none; }
+.wss-btn:hover, .wss-btn:focus-visible{ transform:scale(1.05); box-shadow:0 5px 14px rgba(0,0,0,0.36); outline:none; }
+.wss-btn .wss-t{ display:block; white-space:nowrap; }
+.wss-btn .wss-s{ display:block; font-size:10px; font-weight:600; opacity:.75; white-space:nowrap; }
+.wss-drop .wss-ov{ background:rgba(0,194,255,0.22); border:2px solid #00c2ff; }
+/* a small spot: icon and one short word, the full wording is in the tooltip */
+.wss-sm .wss-btn{ padding:5px 9px; font-size:11px; }
+.wss-sm .wss-btn .wss-s{ display:none; }
+.wss-sm .wss-btn .wss-t{ max-width:72px; overflow:hidden; text-overflow:ellipsis; }
+/* a filled spot (Brand Kit logo or an upload): the button only appears when the spot is hovered, along the bottom */
+.wss-has .wss-ov{ align-items:flex-end; padding-bottom:6px; }
+.wss-has .wss-btn{ opacity:0; transform:translateY(4px); }
+.wss-has:hover .wss-btn, .wss-has:focus-within .wss-btn{ opacity:1; transform:none; }
+.wss-has .wss-btn svg{ display:none; }
+.wss-has .wss-btn{ flex-direction:row; padding:4px 10px; font-size:11px; }
+@media (prefers-reduced-motion: reduce){ .wss-btn{ transition:none; } }
+
+/* Colours the reference taught (panel, under the two upload boxes) */
+.ws-pal{ display:none; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px; font-size:10.5px; color:var(--text3); }
+.ws-pal.on{ display:flex; }
+.ws-pal-l{ font-weight:700; color:var(--text2); margin-right:2px; }
+.ws-sw{ display:inline-flex; align-items:center; gap:4px; }
+.ws-sw i{ display:inline-block; width:14px; height:14px; border-radius:50%; border:1px solid var(--border2); box-shadow:0 0 0 1px rgba(0,0,0,0.12) inset; flex:none; }
