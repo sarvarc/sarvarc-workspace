@@ -16,10 +16,10 @@
 //             A slot without words is left out. Longer text pushes what is below it
 //             down (the footer stays put). Undo removes the built pages in one step.
 //
-// Honest limits: pictures are never copied (an image slot gets the Brand Kit
-// logo for a logo slot, or a labelled placeholder); lines, boxes and shapes
-// are not measured by Workstyle yet, so they are not rebuilt; a background
-// picture becomes its main color.
+// Pictures are never copied from the reference. Every logo / image spot becomes an UPLOAD SPOT exactly where the
+// picture sat (see wsbMountSlotUpload below): click it or drop a file on it, and the picture is fitted into that
+// exact box. A logo spot is filled from the Brand Kit when there is one (and can be replaced the same way).
+// A background picture becomes its main color.
 
 const WSB_PX_PER_MM = 3.7795;
 const WSB_NAMES = { shape: 'a line or box', title: 'the title', heading: 'a heading', subheading: 'the subheading', body: 'the body text',
@@ -40,21 +40,11 @@ function wsbSleepRaw(ms) { return new Promise(function (r) { setTimeout(r, ms); 
 function wsbReduced() { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
 function wsbFontCss(fam) { return (typeof pdfedFontCss === 'function') ? pdfedFontCss(fam) : ('"' + fam + '", sans-serif'); }
 
-// A small labelled stand-in for a picture the style cannot carry.
-const wsbPlaceholderCache = {};
-function wsbPlaceholder(label) {
-  if (wsbPlaceholderCache[label]) return wsbPlaceholderCache[label];
-  try {
-    const c = document.createElement('canvas'); c.width = 320; c.height = 200;
-    const x = c.getContext('2d');
-    x.fillStyle = '#eef2f6'; x.fillRect(0, 0, 320, 200);
-    x.setLineDash([10, 8]); x.lineWidth = 3; x.strokeStyle = '#9aa7b5'; x.strokeRect(6, 6, 308, 188);
-    x.fillStyle = '#6b7a89'; x.font = '600 28px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText(label, 160, 100);
-    wsbPlaceholderCache[label] = c.toDataURL('image/png');
-  } catch (e) { wsbPlaceholderCache[label] = ''; }
-  return wsbPlaceholderCache[label];
-}
+// An empty picture spot holds a transparent pixel: it draws nothing in an export or a thumbnail, and the editor
+// shows the dashed "Upload" spot on top of it (wsbMountSlotUpload), so a spot nobody filled never prints.
+const WSB_BLANK_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+let wsbBrandNat = null;      // natural size of the Brand Kit logo, so it is fitted instead of stretched
+let wsbBuildSeq = 0;         // one number per build, so repeated logo spots (continuation pages) belong together
 function wsbBrandLogo() { try { const k = (typeof bkLoad === 'function') ? bkLoad() : null; return (k && k.logo) ? k.logo : null; } catch (e) { return null; } }
 
 // ─── 1. PLAN ─────────────────────────────────────────────────────────────────
@@ -251,6 +241,38 @@ function wsbPaginate(P, sp) {
   return pages;
 }
 
+// Colour logic. Text keeps the reference's colour, but when a part moves off the box or band it was written on
+// (a white title that ends up on a white page) it would vanish. Work out what colour really sits under the text
+// (the top-most filled box under its centre, else the page background) and, only when the contrast is clearly
+// too low to read, switch that text to near-black or white, whichever reads better. Anything readable is untouched.
+const WSB_HEX = /^#[0-9a-fA-F]{6}$/;
+function wsbMixHex(a, b) {
+  const x = wstyleRgbOf(a), y = wstyleRgbOf(b);
+  if (!x || !y) return a || b || '#ffffff';
+  const h = function (n) { return ('0' + Math.round(n).toString(16)).slice(-2); };
+  return '#' + h((x[0] + y[0]) / 2) + h((x[1] + y[1]) / 2) + h((x[2] + y[2]) / 2);
+}
+function wsbFixContrast(items, bg) {
+  if (typeof wstyleContrast !== 'function') return 0;
+  const c1 = (bg && WSB_HEX.test(bg.color1 || '')) ? bg.color1 : '#ffffff';
+  const pageCol = (bg && bg.mode === 'gradient' && WSB_HEX.test(bg.color2 || '')) ? wsbMixHex(c1, bg.color2) : c1;
+  const boxes = items.filter(function (i) { return i.kind === 'shape' && i.shape !== 'line' && (i.fill || i.grad); });
+  let n = 0;
+  items.forEach(function (it) {
+    if (it.kind !== 'text' || it.gradient || !WSB_HEX.test(it.color || '')) return;
+    const cx = it.x + it.w / 2, cy = it.y + it.h / 2;
+    let under = pageCol;
+    for (let k = boxes.length - 1; k >= 0; k--) {
+      const b = boxes[k];
+      if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) { under = b.fill || (b.grad ? wsbMixHex(b.grad.c1, b.grad.c2) : pageCol); break; }
+    }
+    if (!WSB_HEX.test(under) || wstyleContrast(it.color, under) >= 2.2) return;
+    it.color = wstyleContrast('#111111', under) >= wstyleContrast('#ffffff', under) ? '#111111' : '#ffffff';
+    n++;
+  });
+  return n;
+}
+
 function wstyleBuildPlan(style, fill) {
   const template = Array.isArray(fill) && fill.length > 0;
   const queues = {};
@@ -270,14 +292,27 @@ function wstyleBuildPlan(style, fill) {
   const fonts = {};
   const have = {};
   const pages = [];
-  let skipped = 0;
+  let skipped = 0, contrastFixed = 0;
 
   (style.pages || []).forEach(function (sp, pi) {
     const shapesRaw = [], shiftLog = [];
     const mm = (sp.pageMM && sp.pageMM.length === 2) ? sp.pageMM : [210, 297];
     const W = wsbPxFor(mm[0]), H = wsbPxFor(mm[1]);
     const items = [];
-    let shift = 0;
+    // Spacing model. `shift` is what every ROW above has added (longer words) or given back (shorter words), so the
+    // gaps the reference had are kept: nothing overlaps and no big hole opens when the new words are shorter.
+    // Parts on the same row (side by side columns, a logo beside a name) move together and the row follows its
+    // tallest part, so one column growing never pushes its neighbour off the row.
+    let shift = 0, rowTop = -1e9, rowShift = 0, rowDelta = null, rowBottom = 0;
+    const commitRow = function () {
+      if (rowDelta !== null && Math.abs(rowDelta) > 0) { shift += rowDelta; shiftLog.push({ at: rowBottom, shift: shift }); }
+      rowDelta = null;
+    };
+    const rowStart = function (baseY) {
+      if (Math.abs(baseY - rowTop) > 4) { commitRow(); rowTop = baseY; rowShift = shift; rowBottom = 0; }
+      return rowShift;
+    };
+    const rowAdd = function (delta, bottom) { rowDelta = rowDelta === null ? delta : Math.max(rowDelta, delta); rowBottom = Math.max(rowBottom, bottom); };
     (sp.items || []).forEach(function (it, si) {
       have[it.role] = (have[it.role] || 0) + 1;
       if (it.kind === 'shape') { shapesRaw.push({ it: it, si: si }); return; }
@@ -287,7 +322,7 @@ function wstyleBuildPlan(style, fill) {
       const pinned = it.role === 'footer';
       const x = (it.xPct || 0) / 100 * W, w = (it.wPct || 0) / 100 * W;
       const baseY = (it.yPct || 0) / 100 * H, oldH = (it.hPct || 0) / 100 * H;
-      const y = baseY + (pinned ? 0 : shift);
+      const y = baseY + (pinned ? 0 : rowStart(baseY));
 
       if (it.kind === 'text') {
         let text = String(it.text || '');
@@ -305,7 +340,7 @@ function wstyleBuildPlan(style, fill) {
           // Compare like with like: the new words and the original words, measured the same way.
           const was = wsbMeasureText(String(it.text || ''), fam, fs, it.bold, it.italic, w, oldH);
           h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, bw, oldH));
-          if (!pinned && h - was > 3) { shift += (h - was); shiftLog.push({ at: baseY + oldH, shift: shift }); }
+          if (!pinned) rowAdd(Math.abs(h - was) > 3 ? (h - was) : 0, baseY + oldH);
         }
         items.push({ kind: 'text', src: si, slot: slotId, role: it.role, x: bx, y: y, w: bw, h: h, fontSize: fs, sizePct: it.sizePct || 3,
           fontFamily: fam, color: it.color || '#111111', gradient: it.gradient || null, bold: !!it.bold, italic: !!it.italic,
@@ -353,7 +388,7 @@ function wstyleBuildPlan(style, fill) {
         }
         let th = rowHeights.reduce(function (a, b) { return a + b; }, 0);
         const cellStyles = wsbCellStyles(it, cells);
-        if (template && th > oldH + 3 && !pinned) { shift += (th - oldH); shiftLog.push({ at: baseY + oldH, shift: shift }); }
+        if (template && !pinned) rowAdd(Math.abs(th - oldH) > 3 ? (th - oldH) : 0, baseY + oldH);
         items.push({ kind: 'table', src: si, slot: slotId, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
           colWidths: colWidths, rowHeights: rowHeights, fontSize: fs, sizePct: it.sizePct || 3, fontFamily: fam,
           headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles, borderStyle: it.borderStyle || null });
@@ -363,9 +398,11 @@ function wstyleBuildPlan(style, fill) {
       // image slot
       const isLogo = it.role === 'logo';
       const brand = isLogo ? wsbBrandLogo() : null;
-      items.push({ kind: 'image', src: si, role: it.role, x: x, y: y, w: w, h: oldH, dataUrl: brand || wsbPlaceholder(isLogo ? 'Logo' : 'Image'),
+      if (!pinned) rowAdd(0, baseY + oldH);
+      items.push({ kind: 'image', src: si, page: pi, role: it.role, x: x, y: y, w: w, h: oldH, dataUrl: brand || '',
         brand: !!brand, opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity });
     });
+    commitRow();
     // Boxes and lines go first (behind everything). Those under a part that grew move down with it;
     // a box around parts that grew is made taller by the same amount.
     const shiftAt = function (yy) { let v = 0; shiftLog.forEach(function (l) { if (l.at <= yy + 2) v = l.shift; }); return v; };
@@ -374,9 +411,10 @@ function wstyleBuildPlan(style, fill) {
       const low = sy > H * 0.9;
       const top = low ? 0 : shiftAt(sy), bot = low ? 0 : shiftAt(sy + shh);
       items.unshift({ kind: 'shape', role: 'shape', shape: sh.shape, src: r.si, x: (sh.xPct || 0) / 100 * W, y: sy + top, w: (sh.wPct || 0) / 100 * W,
-        h: shh + (bot - top), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W,
+        h: Math.max(1, shh + (bot - top)), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W,
         r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null });
     });
+    if (template) contrastFixed += wsbFixContrast(items, sp.bg);
     let made = [{ index: pi, mmW: mm[0], mmH: mm[1], W: W, H: H, ratio: W / H, bg: sp.bg || { mode: 'solid', color1: '#ffffff' }, items: items }];
     if (template) made = wsbPaginate(made[0], sp);
     made.forEach(function (P) {
@@ -392,7 +430,7 @@ function wstyleBuildPlan(style, fill) {
       throw new Error('none of the roles you gave match this style. It has: ' + mine);
     }
   }
-  return { name: style.name, template: template, pages: pages, fonts: Object.keys(fonts), skipped: skipped };
+  return { name: style.name, template: template, pages: pages, fonts: Object.keys(fonts), skipped: skipped, contrastFixed: contrastFixed };
 }
 
 // ─── 2. THE REAL PAGES ───────────────────────────────────────────────────────
@@ -462,15 +500,184 @@ function wsbAddItem(pg, it) {
     pg.placedImages.push(im);
     return '.pdfed-placed-img[data-id="' + im.id + '"]';
   }
-  if (it.dataUrl) {
+  if (it.kind === 'image') {
+    // A picture spot. Empty until the person uploads (or the Brand Kit logo fills a logo spot); either way it keeps
+    // its exact box in _wsBox, so an upload is fitted into the same place every time.
+    const role = it.role === 'logo' ? 'logo' : 'image';
+    const pw = (pg.pageMM && pg.pageMM[0]) ? wsbPxFor(pg.pageMM[0]) : 0;
+    const box = { x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h) };
+    let f = { x: box.x, y: box.y, w: box.w, h: box.h }, url = WSB_BLANK_PNG, empty = true;
+    if (it.brand && it.dataUrl) {
+      url = it.dataUrl; empty = false;
+      if (wsbBrandNat) f = wsbFitIntoSlot(box, wsbBrandNat.w, wsbBrandNat.h, 'logo', pw);
+    }
     pdfedAnnotState.placedImgSeq++;
-    const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: it.dataUrl, x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h),
-      locked: false, zIndex: pdfedNextZ(pg), kind: 'image' };
+    const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: url, x: wsbR(f.x), y: wsbR(f.y), w: wsbR(f.w), h: wsbR(f.h),
+      locked: false, zIndex: pdfedNextZ(pg), kind: 'image', _wsSlot: true, _wsRole: role, _wsEmpty: empty, _wsBox: box,
+      _wsGroup: 'wsg' + wsbBuildSeq + '_' + (it.page || 0) + '_' + it.src };
     if (it.opacity !== 1) im.opacity = it.opacity;
     pg.placedImages.push(im);
     return '.pdfed-placed-img[data-id="' + im.id + '"]';
   }
   return null;
+}
+
+// ─── 2b. UPLOAD SPOTS: a logo or picture goes in exactly where the reference had one ───────────────────────────
+// Every picture spot the build makes (flag _wsSlot) shows an Upload button ON the spot, in the editor. Click it, or
+// drop a picture file on the spot, and the picture is fitted into that exact box:
+//   logo   fitted inside the box (never stretched or cropped), kept to the side the reference put it on
+//   image  fills the box edge to edge (cropped from the centre), so the box keeps the reference's exact shape
+// A logo that repeats on continuation pages is filled on all of them at once. One undo step. An unfilled spot is
+// never exported or printed (it holds a transparent pixel; the dashed Upload box is only drawn in the editor).
+function wsbFitIntoSlot(B, nw, nh, role, pageW) {
+  nw = Math.max(1, nw || 1); nh = Math.max(1, nh || 1);
+  if (role !== 'logo') return { x: B.x, y: B.y, w: B.w, h: B.h, crop: true };
+  const k = Math.min(B.w / nw, B.h / nh);
+  const w = nw * k, h = nh * k;
+  const cx = B.x + B.w / 2;
+  let x = B.x + (B.w - w) / 2;
+  if (pageW) { if (cx < pageW * 0.34) x = B.x; else if (cx > pageW * 0.66) x = B.x + B.w - w; }   // keep to the side it sat on
+  return { x: x, y: B.y + (B.h - h) / 2, w: w, h: h, crop: false };
+}
+
+function wsbLoadNat(url) {
+  return new Promise(function (res) {
+    if (!url) { res(null); return; }
+    const im = new Image();
+    im.onload = function () { res({ w: im.naturalWidth || 300, h: im.naturalHeight || 150, img: im }); };
+    im.onerror = function () { res(null); };
+    im.src = url;
+  });
+}
+
+function wsbReadFileUrl(file) {
+  return new Promise(function (res, rej) {
+    const r = new FileReader();
+    r.onload = function () { res(String(r.result || '')); };
+    r.onerror = function () { rej(new Error('could not read that file')); };
+    r.readAsDataURL(file);
+  });
+}
+
+// Fills one spot with a loaded picture. Returns what it replaced (for undo).
+function wsbFillSlot(item, nat, srcUrl, isSvg, pw) {
+  const prev = { dataUrl: item.dataUrl, x: item.x, y: item.y, w: item.w, h: item.h, empty: !!item._wsEmpty, opacity: item.opacity };
+  const B = item._wsBox || { x: item.x, y: item.y, w: item.w, h: item.h };
+  const f = wsbFitIntoSlot(B, nat.w, nat.h, item._wsRole, pw);
+  let url = srcUrl;
+  if (!isSvg) {
+    const cap = 2000;
+    const cv = document.createElement('canvas');
+    if (f.crop) {
+      // cover: the part of the picture that fills the box, from the centre
+      const sc = Math.max(B.w / nat.w, B.h / nat.h), sw = B.w / sc, sh = B.h / sc;
+      const out = Math.min(2, cap / Math.max(B.w, B.h));
+      cv.width = Math.max(1, Math.round(B.w * out)); cv.height = Math.max(1, Math.round(B.h * out));
+      cv.getContext('2d').drawImage(nat.img, (nat.w - sw) / 2, (nat.h - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
+      url = cv.toDataURL('image/jpeg', 0.92);
+    } else if (Math.max(nat.w, nat.h) > cap) {
+      const dn = cap / Math.max(nat.w, nat.h);
+      cv.width = Math.round(nat.w * dn); cv.height = Math.round(nat.h * dn);
+      cv.getContext('2d').drawImage(nat.img, 0, 0, cv.width, cv.height);
+      url = cv.toDataURL('image/png');
+    }
+  }
+  item.dataUrl = url; item._wsEmpty = false;
+  item.x = wsbR(f.x); item.y = wsbR(f.y); item.w = wsbR(f.w); item.h = wsbR(f.h);
+  delete item.opacity;
+  return prev;
+}
+
+async function wsbApplySlotFile(idx, item, file) {
+  if (!file) return;
+  const okType = /^image\//.test(file.type || '') || /\.(png|jpe?g|webp|gif|svg|bmp)$/i.test(file.name || '');
+  if (!okType) { toast('Choose a picture file (PNG, JPG, SVG or WEBP)', 'error'); return; }
+  if (file.size > 15 * 1048576) { toast('That picture is over 15 MB. Choose a smaller one', 'error'); return; }
+  let url;
+  try { url = await wsbReadFileUrl(file); } catch (e) { toast('Could not read that file', 'error'); return; }
+  const nat = await wsbLoadNat(url);
+  if (!nat) { toast('That file is not a picture the editor can open', 'error'); return; }
+  const isSvg = /svg/i.test(file.type || '') || /\.svg$/i.test(file.name || '');
+  // A logo repeated on continuation pages is one logo: fill every copy. A picture spot is just that one spot.
+  const targets = [];
+  pdfed.pages.forEach(function (pg, pi) {
+    (pg.placedImages || []).forEach(function (im) {
+      if (im === item || (item._wsRole === 'logo' && item._wsGroup && im._wsGroup === item._wsGroup)) targets.push({ pg: pg, pi: pi, im: im });
+    });
+  });
+  const done = targets.map(function (t) {
+    const pw = (t.pg.pageMM && t.pg.pageMM[0]) ? wsbPxFor(t.pg.pageMM[0]) : 0;
+    return { t: t, prev: wsbFillSlot(t.im, nat, url, isSvg, pw) };
+  });
+  done.forEach(function (d) { pdfedMarkModified(d.t.pi); });
+  pdfedRenderPlacedImages(idx);
+  toast((item._wsRole === 'logo' ? 'Logo' : 'Picture') + ' placed in its spot' + (done.length > 1 ? ' on ' + done.length + ' pages' : ''), 'success');
+  pushAppHistory({
+    label: 'Upload to picture spot',
+    undo: function () {
+      done.forEach(function (d) {
+        const im = d.t.im, v = d.prev;
+        im.dataUrl = v.dataUrl; im.x = v.x; im.y = v.y; im.w = v.w; im.h = v.h; im._wsEmpty = v.empty;
+        if (v.opacity === undefined) delete im.opacity; else im.opacity = v.opacity;
+        pdfedMarkModified(d.t.pi);
+      });
+      pdfedRenderPlacedImages(pdfed.active);
+    },
+    redo: function () {
+      done.forEach(function (d) { const pw = (d.t.pg.pageMM && d.t.pg.pageMM[0]) ? wsbPxFor(d.t.pg.pageMM[0]) : 0; wsbFillSlot(d.t.im, nat, url, isSvg, pw); pdfedMarkModified(d.t.pi); });
+      pdfedRenderPlacedImages(pdfed.active);
+    }
+  });
+}
+
+let wsbSlotInput = null, wsbSlotTarget = null;
+function wsbPickForSlot(idx, item) {
+  if (!wsbSlotInput) {
+    wsbSlotInput = document.createElement('input');
+    wsbSlotInput.type = 'file'; wsbSlotInput.accept = 'image/*,.svg'; wsbSlotInput.style.display = 'none';
+    wsbSlotInput.addEventListener('change', function () {
+      const f = wsbSlotInput.files && wsbSlotInput.files[0], t = wsbSlotTarget;
+      wsbSlotInput.value = '';
+      if (f && t) wsbApplySlotFile(t.idx, t.item, f);
+    });
+    document.body.appendChild(wsbSlotInput);
+  }
+  wsbSlotTarget = { idx: idx, item: item };
+  wsbSlotInput.click();
+}
+
+// Called by pdfedRenderPlacedImages (js/28) for every picture spot. Adds the Upload button right on the spot.
+function wsbMountSlotUpload(el, item, idx) {
+  const empty = !!item._wsEmpty, logo = item._wsRole === 'logo';
+  el.classList.add('wss', empty ? 'wss-empty' : 'wss-has');
+  if (item.w < 120 || item.h < 60) el.classList.add('wss-sm');
+  const ov = document.createElement('div');
+  ov.className = 'wss-ov';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'wss-btn';
+  const label = empty ? (logo ? 'Upload logo' : 'Upload image') : (logo ? 'Replace logo' : 'Replace image');
+  btn.title = label + ' here';
+  btn.setAttribute('aria-label', label + ' in this spot');
+  btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>';
+  const t = document.createElement('span'); t.className = 'wss-t'; t.textContent = label; btn.appendChild(t);
+  if (empty) { const s2 = document.createElement('span'); s2.className = 'wss-s'; s2.textContent = 'or drop a file here'; btn.appendChild(s2); }
+  ['pointerdown', 'mousedown', 'touchstart'].forEach(function (ev) { btn.addEventListener(ev, function (e) { e.stopPropagation(); }); });
+  btn.addEventListener('click', function (e) { e.stopPropagation(); wsbPickForSlot(idx, item); });
+  ov.appendChild(btn);
+  el.appendChild(ov);
+  // drop a picture straight onto the spot
+  el.addEventListener('dragover', function (e) {
+    const dt = e.dataTransfer;
+    if (dt && Array.prototype.indexOf.call(dt.types || [], 'Files') !== -1) { e.preventDefault(); el.classList.add('wss-drop'); }
+  });
+  el.addEventListener('dragleave', function () { el.classList.remove('wss-drop'); });
+  el.addEventListener('drop', function (e) {
+    el.classList.remove('wss-drop');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    e.preventDefault(); e.stopPropagation();
+    wsbApplySlotFile(idx, item, f);
+  });
 }
 
 // Inserts the empty pages into the document (or starts a new one) as ONE undo step.
@@ -676,6 +883,8 @@ function wsbRingTo(ctl, el, ms) {
 async function wsbBuildLive(refPlan, plan, name, animate) {
   wsbEnsureEditorOpen();
   for (let i = 0; i < plan.fonts.length; i++) { try { await pdfedKadessaEnsureFont(plan.fonts[i]); } catch (e) { /* default font */ } }
+  wsbBuildSeq++;
+  try { const bn = await wsbLoadNat(wsbBrandLogo()); wsbBrandNat = bn ? { w: bn.w, h: bn.h } : null; } catch (e) { wsbBrandNat = null; }
   const made = [];
   let bgNote = '';
   for (let pi = 0; pi < plan.pages.length; pi++) { const m = await wsbNewPage(plan.pages[pi]); made.push(m.pg); if (m.note) bgNote = m.note; }
@@ -761,12 +970,14 @@ async function wstyleBuild(nameOrId, opts) {
   const left = (typeof wsfCountBuild === 'function') ? wsfCountBuild() : null;   // only a finished build counts
 
   const at = done.at === 0 ? 'in a new document' : 'after page ' + done.at;
-  const logoNote = plan.pages.some(function (p) { return p.items.some(function (i) { return i.role === 'logo' && !i.brand; }); })
-    ? ' Image slots hold a labelled placeholder, drop your picture on them.' : '';
+  let spots = 0;
+  plan.pages.forEach(function (p) { p.items.forEach(function (i) { if (i.kind === 'image' && !i.brand) spots++; }); });
+  const logoNote = spots ? ' ' + spots + ' logo / image spot' + (spots === 1 ? ' is' : 's are') + ' ready: click Upload on a spot, or drop a picture on it, and it is fitted exactly there.' : '';
+  const colorNote = plan.contrastFixed ? ' ' + plan.contrastFixed + ' text colour' + (plan.contrastFixed === 1 ? ' was' : 's were') + ' switched to stay readable on the colour behind ' + (plan.contrastFixed === 1 ? 'it' : 'them') + '.' : '';
   const skipNote = plan.skipped ? ' Left out ' + plan.skipped + ' part' + (plan.skipped === 1 ? '' : 's') + ' of the reference your content had nothing for.' : '';
   return {
     say: (plan.template ? 'Built ' + (done.pages === 1 ? 'a new page' : done.pages + ' new pages') + ' in the "' + style.name + '" look with your content' + (plan.pages.some(function (p) { return p.cont; }) ? ' (longer than the reference, so it continues on extra pages with the same look)' : '') : 'Built an identical copy of "' + style.name + '"') +
-      ' ' + at + ' (' + wsbCounts(plan) + ').' + skipNote + logoNote + (done.bgNote ? ' ' + done.bgNote.trim() : ''),
+      ' ' + at + ' (' + wsbCounts(plan) + ').' + skipNote + colorNote + logoNote + (done.bgNote ? ' ' + done.bgNote.trim() : ''),
     pages: done.pages,
     skipped: plan.skipped,
     left: left
