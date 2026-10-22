@@ -77,18 +77,38 @@ function wsbMeasureText(text, fam, size, bold, italic, w, fallbackH) {
   return fallbackH;
 }
 
+// How far a part may stretch sideways: up to its neighbour on the same line, never into it. Two side-by-side parts
+// that both stretch share the free space between them (each takes half), so they can never run into each other.
+function wsbSideBounds(sp, self, W) {
+  const x = (self.xPct || 0) / 100 * W, w = (self.wPct || 0) / 100 * W, y = (self.yPct || 0), h = (self.hPct || 0);
+  let left = -Infinity, right = Infinity;
+  (sp.items || []).forEach(function (o) {
+    if (o === self || o.kind === 'shape') return;
+    const oy = o.yPct || 0, oh = o.hPct || 0;
+    const ov = Math.min(y + h, oy + oh) - Math.max(y, oy);
+    if (ov <= 0.3 * Math.min(h, oh)) return;                                   // not on the same line
+    const ox = (o.xPct || 0) / 100 * W, ow = (o.wPct || 0) / 100 * W;
+    const gap = ox >= x + w - 2 ? ox - (x + w) : x - (ox + ow);
+    const ext = Math.max(0, (o.kind === 'text' ? gap * 0.5 : gap) - 4);           // a text neighbour may stretch too, so share the gap
+    if (ox >= x + w - 2) right = Math.min(right, x + w + ext);
+    else if (ox + ow <= x + 2) left = Math.max(left, x - ext);
+  });
+  return { left: left, right: right };
+}
+
 // A one-line part (a title, a tagline, a footer line) is measured as wide as its own words. When the new
 // words are longer, widen the box inside the page margins (around its centre, or from its left or right edge)
 // so a longer name stays on one line like the reference instead of wrapping.
-function wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, margins) {
+function wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, margins, bounds) {
   try {
     if (typeof pdfedKadessaMeasureTextWidth !== 'function') return { x: x, w: w };
     if (/\n/.test(text) || /\n/.test(String(it.text || '')) || oldH > fs * 1.9) return { x: x, w: w };
     const pad = (typeof PDFED_PTXT_BORDER !== 'undefined' && typeof PDFED_PTXT_PAD_X !== 'undefined') ? 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_X) : 16;
     const tw = pdfedKadessaMeasureTextWidth(text, fam, fs, !!it.bold) + pad + 2;
     if (!(tw > w)) return { x: x, w: w };
-    const lim = Math.max(W * 0.04, ((margins && margins.leftPct) || 0) / 100 * W);
-    const limR = W - Math.max(W * 0.04, ((margins && margins.rightPct) || 0) / 100 * W);
+    let lim = Math.max(W * 0.04, ((margins && margins.leftPct) || 0) / 100 * W);
+    let limR = W - Math.max(W * 0.04, ((margins && margins.rightPct) || 0) / 100 * W);
+    if (bounds) { lim = Math.max(lim, bounds.left); limR = Math.min(limR, bounds.right); }   // never stretch into a neighbour
     if (it.align === 'center') {
       const cx = x + w / 2, half = Math.min(cx - lim, limR - cx);
       const nw = Math.min(tw, half * 2);
@@ -172,7 +192,20 @@ function wsbSplit(it, y, limit) {
   return { head: null, rest: it };                                // pictures and shapes move whole
 }
 
+// Two parts are in the same COLUMN when their horizontal spans overlap enough. Parts in different columns never
+// push each other; parts in the same column always do, so nothing can end up on top of something else.
+function wsbCol(a, b) {
+  const ov = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  return ov > 4 && ov > 0.15 * Math.min(a.w, b.w);
+}
+function wsbByPos(a, b) {
+  const ay = a._ry !== undefined ? a._ry : a.y, by = b._ry !== undefined ? b._ry : b.y;
+  return (ay - by) || (a.x - b.x);
+}
+function wsbStrip(items) { items.forEach(function (i) { delete i._ry; delete i._rb; }); }
+
 // P = one planned page (px). sp = the reference page. Returns [P, continuation pages...].
+// Column-aware: a column that runs out of room continues on the next page, and the other columns are not dragged along.
 function wsbPaginate(P, sp) {
   const H = P.H;
   const m = sp.margins || {};
@@ -183,14 +216,14 @@ function wsbPaginate(P, sp) {
   const deco = P.items.filter(function (i) { return i.kind === 'shape' && !wsbIsAnchor(i, H, W); });
   const footTops = anchors.filter(function (a) { return a.role === 'footer' || (a.kind === 'shape' && a.y >= H * 0.9); }).map(function (a) { return a.y; });
   if (footTops.length) limit = Math.min(limit, Math.min.apply(null, footTops) - WSB_SECTION_GAP / 2);
-  const flow = P.items.filter(function (i) { return i.kind !== 'shape' && !wsbIsAnchor(i, H, W); });
+  const flow = P.items.filter(function (i) { return i.kind !== 'shape' && !wsbIsAnchor(i, H, W); }).sort(wsbByPos);
   const logoBottom = anchors.filter(function (a) { return (a.kind === 'image' || a.kind === 'shape') && a.y < H / 2 && a.y + a.h <= H * 0.25; }).reduce(function (b, a) { return Math.max(b, a.y + a.h); }, 0);
   const startY = Math.max(mTop, logoBottom ? logoBottom + WSB_SECTION_GAP : mTop);
 
-  // Page 1 keeps its positions; whatever crosses the limit is split or moved.
+  // Page 1 keeps its positions; whatever crosses the limit is split or moved. Everything below it IN THE SAME COLUMN follows.
   const kept = [], queue = [];
   flow.forEach(function (it) {
-    if (queue.length) { queue.push(it); return; }                  // once one item spills, everything after it follows in order
+    if (queue.some(function (q) { return wsbCol(q, it); })) { queue.push(it); return; }
     const r = wsbSplit(it, it.y, limit);
     if (r.head) kept.push(r.head);
     if (r.rest) queue.push(r.rest);
@@ -199,45 +232,64 @@ function wsbPaginate(P, sp) {
   const decoKept = deco.map(function (d) { return d.y >= limit ? null : (d.y + d.h > limit ? Object.assign({}, d, { h: limit - d.y }) : d); }).filter(Boolean);
   if (!queue.length) { P.items = wsbShapesFirst(P.items); return [P]; }
 
-  // Keep-with-next: a heading left at the foot of the page goes with the text it introduces.
-  while (kept.length && wsbIsHeading(kept[kept.length - 1]) && queue.length) queue.unshift(kept.pop());
+  // Keep-with-next: a heading left at the foot of a column goes with the text it introduces.
+  for (let moved = true; moved && queue.length;) {
+    moved = false;
+    for (let i = kept.length - 1; i >= 0; i--) {
+      const k = kept[i];
+      if (!wsbIsHeading(k)) continue;
+      if (kept.some(function (o) { return o !== k && wsbCol(o, k) && o.y > k.y; })) continue;
+      if (!queue.some(function (q) { return wsbCol(q, k) && q.y >= k.y; })) continue;
+      kept.splice(i, 1); queue.push(k); moved = true; break;
+    }
+  }
+  queue.sort(wsbByPos);
+  queue.forEach(function (q) { if (q._ry === undefined) { q._ry = q.y; q._rb = q.y + q.h; } });
 
   const pages = [];
   P.items = wsbShapesFirst(anchors.concat(decoKept, kept));
   pages.push(P);
 
-  // gap each queued item had above it on the reference, kept within Refine's range
-  const gapAbove = function (it, prev) {
-    if (!prev) return 0;
-    const g = it.y - (prev.y + prev.h);
-    return Math.max(WSB_MIN_GAP, Math.min(WSB_SECTION_GAP, g > 0 ? g : WSB_MIN_GAP));
-  };
-
-  let guard = 0;
-  while (queue.length && pages.length < WSB_MAX_PAGES_PER_REF && guard++ < 400) {
+  let guard = 0, left = queue;
+  while (left.length && pages.length < WSB_MAX_PAGES_PER_REF && guard++ < 400) {
     const C = Object.assign({}, P, { cont: true, items: anchors.map(function (a) { return Object.assign({}, a); }) });
-    let rowY = startY, rowBottom = startY, prev = null, placedAny = false, prevPlacedY = startY;
-    while (queue.length) {
-      const it = queue[0];
-      let y;
-      if (!prev) y = startY;
-      else if (Math.abs(it.y - prev.y) <= 4 && Math.abs(it.x - prev.x) > 4 && prev.src !== it.src) y = prevPlacedY;   // side by side, same row
-      else y = rowBottom + gapAbove(it, prev);
+    const placed = [], carry = [];
+    left.sort(wsbByPos);
+    left.forEach(function (it) {
+      if (carry.some(function (q) { return wsbCol(q, it); })) { carry.push(it); return; }   // its column is already full
+      let y = startY;
+      placed.forEach(function (p) {
+        if (wsbCol(p, it)) {
+          const g = it._ry - p._rb;                                 // the gap it had on the reference, kept within Refine's range
+          y = Math.max(y, p.y + p.h + Math.max(WSB_MIN_GAP, Math.min(WSB_SECTION_GAP, g > 0 ? g : WSB_MIN_GAP)));
+        }
+      });
+      placed.forEach(function (p) { if (!wsbCol(p, it) && Math.abs(p._ry - it._ry) <= 4 && p.y > y) y = p.y; });   // keep a row of columns level
       let r = wsbSplit(it, y, limit);
-      if (!r.head && !placedAny) {                                  // cannot fit even on an empty page: place it anyway, never loop
+      if (!r.head && !placed.length && !carry.length) {            // cannot fit even on an empty page: place it anyway, never loop
         r = { head: Object.assign({}, it, { y: startY, h: Math.min(it.h, limit - startY) }), rest: null };
         if (it.kind === 'table') r = { head: Object.assign({}, it, { y: startY }), rest: null };
       }
-      if (!r.head) break;
-      C.items.push(r.head);
-      placedAny = true;
-      queue.shift();
-      prevPlacedY = y; prev = { x: it.x, y: it.y, h: it.h, src: it.src };
-      rowBottom = Math.max(y === prevPlacedY ? rowBottom : 0, y + r.head.h);
-      if (r.rest) { queue.unshift(r.rest); break; }               // the split item fills this page
+      if (!r.head) { carry.push(it); return; }
+      placed.push(r.head); C.items.push(r.head);
+      if (r.rest) carry.push(r.rest);
+    });
+    // a heading alone at the foot of a column moves to the next page with its text (never empties the page)
+    for (let again = true; again && carry.length && placed.length > 1;) {
+      again = false;
+      for (let i = placed.length - 1; i >= 0; i--) {
+        const k = placed[i];
+        if (!wsbIsHeading(k)) continue;
+        if (placed.some(function (o) { return o !== k && wsbCol(o, k) && o.y > k.y; })) continue;
+        if (!carry.some(function (q) { return wsbCol(q, k) && q._ry >= k._ry; })) continue;
+        placed.splice(i, 1); C.items.splice(C.items.indexOf(k), 1);
+        carry.push(k); again = true; break;
+      }
     }
     pages.push(C);
+    left = carry;
   }
+  pages.forEach(function (pg) { wsbStrip(pg.items); });
   return pages;
 }
 
@@ -273,6 +325,139 @@ function wsbFixContrast(items, bg) {
   return n;
 }
 
+// ─── REFLOW: column-aware spacing ───────────────────────────────────────────────────────────────────────────────────
+// Every part and box of a reference page goes into a small layout tree: a box holds the parts that sit inside it, and
+// parts at the same level in the same column stack top to bottom. Each part is placed BELOW the real new bottom of
+// whatever sat above it in its column, plus the gap the reference had. So:
+//   - longer words push only their own column down (a neighbouring column is not dragged along, and cannot be overrun)
+//   - shorter words give the space back (everything below in that column moves up by the same amount)
+//   - a box (card, panel, band behind text) grows or shrinks to wrap its parts, with the padding the reference had
+//   - parts that sat level (a row of cards, a title beside a date) stay level, and the row follows its tallest part
+//   - a part that sat ON another (a label on a picture) keeps its offset from it
+//   - rules under a heading follow the heading; the footer and header/footer bands stay where they are
+// Returns the shape items (in the reference's order). The parts get their `y` set.
+function wsbReflow(parts, shapesRaw, W, H) {
+  const E = [];
+  parts.forEach(function (p) {
+    E.push({ k: 'part', it: p, x: p._rx, w: p._rw, y0: p._by, h0: Math.max(1, p._oh), h: p.h, pin: !!p._pin, y: p._by, done: false, busy: false, group: null, container: null });
+  });
+  shapesRaw.forEach(function (r) {
+    const sh = r.it;
+    const x = (sh.xPct || 0) / 100 * W, y0 = (sh.yPct || 0) / 100 * H, w = (sh.wPct || 0) / 100 * W, h0 = (sh.hPct || 0) / 100 * H;
+    const stat = y0 > H * 0.9 || (y0 + h0 <= H * 0.15) || (h0 >= H * 0.6 && w <= W * 0.12) || (w >= W * 0.9 && h0 >= H * 0.85);
+    let k = 'box';
+    if (stat) k = 'static';
+    else if (sh.shape === 'line' || h0 < 4 || w < 4) k = (w >= h0) ? 'rule' : 'static';
+    E.push({ k: k, sh: sh, si: r.si, x: x, w: w, y0: y0, h0: h0, h: h0, pin: false, y: y0, done: false, busy: false, group: null, container: null });
+  });
+  const L = E.filter(function (e) { return e.k !== 'static' && !e.pin; });
+  const boxes = L.filter(function (e) { return e.k === 'box'; });
+  const area = function (e) { return e.w * e.h0; };
+  // 1. which box is each part / box / rule inside (the smallest one around its centre)
+  L.forEach(function (e) {
+    const cx = e.x + e.w / 2, cy = e.y0 + e.h0 / 2;
+    let best = null;
+    boxes.forEach(function (b) {
+      if (b === e || area(b) <= area(e)) return;
+      if (cx >= b.x && cx <= b.x + b.w && cy >= b.y0 && cy <= b.y0 + b.h0 && (!best || area(b) < area(best))) best = b;
+    });
+    e.container = best;
+  });
+  // 2. peers: parts / boxes level with each other (same top, about the same bottom, side by side) are one row
+  const parent = new Map();
+  const find = function (e) { while (parent.get(e) !== e) { parent.set(e, parent.get(parent.get(e))); e = parent.get(e); } return e; };
+  L.forEach(function (e) { parent.set(e, e); });
+  for (let i = 0; i < L.length; i++) {
+    for (let j = i + 1; j < L.length; j++) {
+      const a = L[i], b = L[j];
+      if (a.k === 'rule' || b.k === 'rule' || a.container !== b.container || wsbCol(a, b)) continue;
+      if (Math.abs(a.y0 - b.y0) <= 4 && Math.abs((a.y0 + a.h0) - (b.y0 + b.h0)) <= Math.max(8, 0.2 * Math.max(a.h0, b.h0))) parent.set(find(a), find(b));
+    }
+  }
+  const groups = new Map();
+  L.forEach(function (e) { const r = find(e); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(e); });
+  groups.forEach(function (ms) { if (ms.length > 1) { const g = { members: ms }; ms.forEach(function (m) { m.group = g; }); } });
+
+  const predsOf = function (m) {
+    return L.filter(function (q) { return q !== m && q.container === m.container && q.y0 < m.y0 - 0.01 && (!m.group || q.group !== m.group) && wsbCol(q, m); });
+  };
+  const kidsOf = function (b) { return L.filter(function (c) { return c.container === b; }); };
+  // a contentless decoration beside a part (an accent bar) follows that part
+  const followOf = function (m) {
+    if (m.k !== 'box' || m.group || kidsOf(m).length) return null;
+    let best = null, bo = 0;
+    L.forEach(function (q) {
+      if (q === m || q.k !== 'part' || q.container !== m.container || wsbCol(q, m)) return;
+      const ov = Math.min(q.y0 + q.h0, m.y0 + m.h0) - Math.max(q.y0, m.y0);
+      if (ov > 0.5 * Math.min(q.h0, m.h0) && ov > bo) { best = q; bo = ov; }
+    });
+    return predsOf(m).length ? null : best;
+  };
+  let boxBottom;
+  const rawBottom = function (q) { return q.k === 'box' ? boxBottom(q) : q.y + (q.k === 'part' ? q.h : q.h0); };
+  const bottomOf = function (q) {
+    if (!q.group) return rawBottom(q);
+    let b = -Infinity;
+    q.group.members.forEach(function (m) { b = Math.max(b, rawBottom(m)); });
+    return b;
+  };
+  boxBottom = function (b) {
+    const kids = kidsOf(b);
+    if (!kids.length) return b.y + b.h0;
+    let refMax = -Infinity, nb = -Infinity;
+    kids.forEach(function (c) {
+      refMax = Math.max(refMax, c.y0 + c.h0);
+      nb = Math.max(nb, c.done ? rawBottom(c) : c.y0 + c.h0 + (b.y - b.y0));
+    });
+    const pad = Math.max(0, b.y0 + b.h0 - refMax);          // the padding the reference had under its last part
+    return Math.max(nb + pad, b.y + Math.min(b.h0, 24));
+  };
+  const candY = function (m) {
+    let y = null;
+    const up = function (v) { y = (y === null) ? v : Math.max(y, v); };
+    predsOf(m).forEach(function (q) {
+      const gap = m.y0 - (q.y0 + q.h0);
+      if (gap >= -0.35 * Math.min(q.h0, m.h0)) up(bottomOf(q) + Math.max(0, gap));   // below it: keep the reference gap
+      else up(q.y + (m.y0 - q.y0));                                                  // sat on it: keep the offset
+    });
+    if (m.container) up(m.container.y + (m.y0 - m.container.y0));                     // keep the padding above, inside its box
+    const f = followOf(m);
+    if (f) up(m.y0 + (f.y - f.y0));
+    return y === null ? m.y0 : y;
+  };
+  const place = function (e) {
+    if (e.done || e.busy) return;
+    const ms = e.group ? e.group.members : [e];
+    ms.forEach(function (m) { m.busy = true; });
+    ms.forEach(function (m) {
+      if (m.container) place(m.container);
+      predsOf(m).forEach(place);
+      const f = followOf(m); if (f) place(f);
+    });
+    let top = Infinity;
+    ms.forEach(function (m) { top = Math.min(top, m.y0); });
+    let y = -Infinity;
+    ms.forEach(function (m) { y = Math.max(y, candY(m) - (m.y0 - top)); });
+    ms.forEach(function (m) { m.y = y + (m.y0 - top); m.done = true; m.busy = false; });
+  };
+  L.slice().sort(function (a, b) { return (a.y0 - b.y0) || (a.x - b.x); }).forEach(place);
+
+  // 3. write the results
+  const bottoms = new Map();
+  boxes.forEach(function (b) { bottoms.set(b, boxBottom(b)); });
+  groups.forEach(function (ms) {                                      // boxes level in a row end level too
+    const bx = ms.filter(function (m) { return m.k === 'box'; });
+    if (bx.length > 1) { const mx = Math.max.apply(null, bx.map(function (b) { return bottoms.get(b); })); bx.forEach(function (b) { bottoms.set(b, mx); }); }
+  });
+  parts.forEach(function (p) { p.y = E.find(function (e) { return e.it === p; }).y; });
+  return E.filter(function (e) { return e.k !== 'part'; }).sort(function (a, b) { return a.si - b.si; }).map(function (e) {
+    const sh = e.sh;
+    const y = e.y, h = e.k === 'box' ? Math.max(1, bottoms.get(e) - y) : Math.max(1, e.h0);
+    return { kind: 'shape', role: 'shape', shape: sh.shape, src: e.si, x: e.x, y: y, w: e.w, h: h, fill: sh.fill || null, stroke: sh.stroke || null,
+      sw: (sh.swPct || 0) / 100 * W, r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null };
+  });
+}
+
 function wstyleBuildPlan(style, fill) {
   const template = Array.isArray(fill) && fill.length > 0;
   const queues = {};
@@ -295,24 +480,12 @@ function wstyleBuildPlan(style, fill) {
   let skipped = 0, contrastFixed = 0;
 
   (style.pages || []).forEach(function (sp, pi) {
-    const shapesRaw = [], shiftLog = [];
+    const shapesRaw = [];
     const mm = (sp.pageMM && sp.pageMM.length === 2) ? sp.pageMM : [210, 297];
     const W = wsbPxFor(mm[0]), H = wsbPxFor(mm[1]);
     const items = [];
-    // Spacing model. `shift` is what every ROW above has added (longer words) or given back (shorter words), so the
-    // gaps the reference had are kept: nothing overlaps and no big hole opens when the new words are shorter.
-    // Parts on the same row (side by side columns, a logo beside a name) move together and the row follows its
-    // tallest part, so one column growing never pushes its neighbour off the row.
-    let shift = 0, rowTop = -1e9, rowShift = 0, rowDelta = null, rowBottom = 0;
-    const commitRow = function () {
-      if (rowDelta !== null && Math.abs(rowDelta) > 0) { shift += rowDelta; shiftLog.push({ at: rowBottom, shift: shift }); }
-      rowDelta = null;
-    };
-    const rowStart = function (baseY) {
-      if (Math.abs(baseY - rowTop) > 4) { commitRow(); rowTop = baseY; rowShift = shift; rowBottom = 0; }
-      return rowShift;
-    };
-    const rowAdd = function (delta, bottom) { rowDelta = rowDelta === null ? delta : Math.max(rowDelta, delta); rowBottom = Math.max(rowBottom, bottom); };
+    // Spacing: every part is first measured with its new words; wsbReflow (above) then places the parts column by column.
+    const parts = [];
     (sp.items || []).forEach(function (it, si) {
       have[it.role] = (have[it.role] || 0) + 1;
       if (it.kind === 'shape') { shapesRaw.push({ it: it, si: si }); return; }
@@ -322,7 +495,7 @@ function wstyleBuildPlan(style, fill) {
       const pinned = it.role === 'footer';
       const x = (it.xPct || 0) / 100 * W, w = (it.wPct || 0) / 100 * W;
       const baseY = (it.yPct || 0) / 100 * H, oldH = (it.hPct || 0) / 100 * H;
-      const y = baseY + (pinned ? 0 : rowStart(baseY));
+      const y = baseY;
 
       if (it.kind === 'text') {
         let text = String(it.text || '');
@@ -335,16 +508,14 @@ function wstyleBuildPlan(style, fill) {
         fonts[fam] = true;
         let h = oldH;
         let bx = x, bw = w;
-        { const wd = wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, sp.margins); bx = wd.x; bw = wd.w; }
+        { const wd = wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, sp.margins, wsbSideBounds(sp, it, W)); bx = wd.x; bw = wd.w; }
         if (template) {
-          // Compare like with like: the new words and the original words, measured the same way.
-          const was = wsbMeasureText(String(it.text || ''), fam, fs, it.bold, it.italic, w, oldH);
           h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, bw, oldH));
-          if (!pinned) rowAdd(Math.abs(h - was) > 3 ? (h - was) : 0, baseY + oldH);
         }
-        items.push({ kind: 'text', src: si, slot: slotId, role: it.role, x: bx, y: y, w: bw, h: h, fontSize: fs, sizePct: it.sizePct || 3,
+        parts.push({ kind: 'text', src: si, slot: slotId, role: it.role, x: bx, y: y, w: bw, h: h, fontSize: fs, sizePct: it.sizePct || 3,
           fontFamily: fam, color: it.color || '#111111', gradient: it.gradient || null, bold: !!it.bold, italic: !!it.italic,
-          underline: !!it.underline, align: it.align || 'left', opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity, text: text });
+          underline: !!it.underline, align: it.align || 'left', opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity, text: text,
+          _by: baseY, _oh: oldH, _rx: x, _rw: w, _pin: pinned });
         return;
       }
 
@@ -380,40 +551,63 @@ function wstyleBuildPlan(style, fill) {
           let rh = (template || !it.rowHPct || it.rowHPct[r] === undefined) ? (r === 0 && it.headerRow ? hdrH : bodyH) : it.rowHPct[r] / 100 * H;
           rowHeights.push(rh);
         }
+        const cellStyles = wsbCellStyles(it, cells);
         if (template && typeof pdfedKadessaComputeTableLayout === 'function') {
           try {
+            // Keep the reference's own column widths, unless one is too narrow for its longest word in the new content
+            // (the word would be chopped across lines): then use the auto-fit widths. Row heights are ALWAYS measured at
+            // the column widths really used, so a row is never shorter than its wrapped text.
             const lay = pdfedKadessaComputeTableLayout(cells, fam, fs, false, totalW);
-            for (let r = 0; r < rows; r++) rowHeights[r] = Math.max(rowHeights[r], (lay.rowHeights && lay.rowHeights[r]) || 0);
+            if (typeof pdfedKadessaMeasureWordWidth === 'function' && lay.colWidths && lay.colWidths.length === cols) {
+              let tooNarrow = false;
+              for (let c = 0; c < cols && !tooNarrow; c++) {
+                let need = 0;
+                for (let r = 0; r < rows; r++) need = Math.max(need, pdfedKadessaMeasureWordWidth(cells[r][c] || '', fam, fs, r === 0 || !!(cellStyles[r][c] && cellStyles[r][c].bold)));
+                need += 2 * (PDFED_TABLE_CELL_BORDER + PDFED_TABLE_CELL_PAD_X);
+                if (colWidths[c] + 1 < Math.min(need, lay.colWidths[c])) tooNarrow = true;
+              }
+              if (tooNarrow) {
+                const sum = lay.colWidths.reduce(function (a, b) { return a + b; }, 0) || 1;
+                colWidths = lay.colWidths.map(function (v) { return v * totalW / sum; });
+              }
+            }
+            for (let r = 0; r < rows; r++) {
+              let mx = 0;
+              for (let c = 0; c < cols; c++) {
+                const bold = (r === 0 && !!it.headerRow) || !!(cellStyles[r][c] && cellStyles[r][c].bold);
+                mx = Math.max(mx, pdfedKadessaMeasureTableCellHeight(cells[r][c] || '', fam, fs, bold, colWidths[c]));
+              }
+              rowHeights[r] = Math.max(rowHeights[r], Math.round(mx));
+            }
           } catch (e) { /* keep saved heights */ }
         }
         let th = rowHeights.reduce(function (a, b) { return a + b; }, 0);
-        const cellStyles = wsbCellStyles(it, cells);
-        if (template && !pinned) rowAdd(Math.abs(th - oldH) > 3 ? (th - oldH) : 0, baseY + oldH);
-        items.push({ kind: 'table', src: si, slot: slotId, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
+        parts.push({ kind: 'table', src: si, slot: slotId, role: 'table', x: x, y: y, w: totalW, h: th, rows: rows, cols: cols,
           colWidths: colWidths, rowHeights: rowHeights, fontSize: fs, sizePct: it.sizePct || 3, fontFamily: fam,
-          headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles, borderStyle: it.borderStyle || null });
+          headerRow: !!it.headerRow, cells: cells, cellStyles: cellStyles, borderStyle: it.borderStyle || null,
+          _by: baseY, _oh: oldH, _rx: x, _rw: totalW, _pin: pinned });
         return;
       }
 
       // image slot
       const isLogo = it.role === 'logo';
       const brand = isLogo ? wsbBrandLogo() : null;
-      if (!pinned) rowAdd(0, baseY + oldH);
-      items.push({ kind: 'image', src: si, page: pi, role: it.role, x: x, y: y, w: w, h: oldH, dataUrl: brand || '',
-        brand: !!brand, opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity });
+      parts.push({ kind: 'image', src: si, page: pi, role: it.role, x: x, y: y, w: w, h: oldH, dataUrl: brand || '',
+        brand: !!brand, opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity,
+        _by: baseY, _oh: oldH, _rx: x, _rw: w, _pin: pinned });
     });
-    commitRow();
-    // Boxes and lines go first (behind everything). Those under a part that grew move down with it;
-    // a box around parts that grew is made taller by the same amount.
-    const shiftAt = function (yy) { let v = 0; shiftLog.forEach(function (l) { if (l.at <= yy + 2) v = l.shift; }); return v; };
-    shapesRaw.slice().reverse().forEach(function (r) {
-      const sh = r.it, sy = (sh.yPct || 0) / 100 * H, shh = (sh.hPct || 0) / 100 * H;
-      const low = sy > H * 0.9;
-      const top = low ? 0 : shiftAt(sy), bot = low ? 0 : shiftAt(sy + shh);
-      items.unshift({ kind: 'shape', role: 'shape', shape: sh.shape, src: r.si, x: (sh.xPct || 0) / 100 * W, y: sy + top, w: (sh.wPct || 0) / 100 * W,
-        h: Math.max(1, shh + (bot - top)), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W,
-        r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null });
+    // Boxes and lines go first (behind everything). In a new-content build the parts are placed column by column and the
+    // boxes follow them; a copy keeps every position exactly.
+    let shapeItems;
+    if (template) shapeItems = wsbReflow(parts, shapesRaw, W, H);
+    else shapeItems = shapesRaw.map(function (r) {
+      const sh = r.it;
+      return { kind: 'shape', role: 'shape', shape: sh.shape, src: r.si, x: (sh.xPct || 0) / 100 * W, y: (sh.yPct || 0) / 100 * H, w: (sh.wPct || 0) / 100 * W,
+        h: Math.max(1, (sh.hPct || 0) / 100 * H), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W,
+        r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null };
     });
+    parts.forEach(function (p) { delete p._by; delete p._oh; delete p._rx; delete p._rw; delete p._pin; });
+    items.push.apply(items, shapeItems.concat(parts));
     if (template) contrastFixed += wsbFixContrast(items, sp.bg);
     let made = [{ index: pi, mmW: mm[0], mmH: mm[1], W: W, H: H, ratio: W / H, bg: sp.bg || { mode: 'solid', color1: '#ffffff' }, items: items }];
     if (template) made = wsbPaginate(made[0], sp);
