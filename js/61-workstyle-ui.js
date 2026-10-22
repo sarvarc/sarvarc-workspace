@@ -65,11 +65,12 @@ function wsEnsurePanel() {
   panel.id = 'wsPanel';
   panel.innerHTML =
     '<h4>Workstyle</h4>' +
-    '<p class="ws-sub">Upload a reference and your file. Kadessa builds your content in the reference\u2019s format.</p>' +
+    '<p class="ws-sub">Upload a reference and your file. Kadessa builds your content in the reference\u2019s layout, spacing and colours. Logo and image spots get an Upload button right where they sit.</p>' +
     '<div class="ws-cards">' +
       '<div class="ws-card"><div class="ws-lab"><span class="ws-num">1</span> Reference</div><div class="ws-zone" id="wsRefZone" tabindex="0" role="button" aria-label="Upload a reference file"></div></div>' +
       '<div class="ws-card"><div class="ws-lab"><span class="ws-num">2</span> Your file</div><div class="ws-zone" id="wsConZone" tabindex="0" role="button" aria-label="Upload your files"></div></div>' +
     '</div>' +
+    '<div class="ws-pal" id="wsPal" aria-live="polite"></div>' +
     '<input type="file" id="wsPdfInput" style="display:none">' +
     '<input type="file" id="wsContentInput" multiple style="display:none">' +
     '<button type="button" class="ws-link" id="wsDocBtn">Use the open document as reference</button>' +
@@ -217,6 +218,25 @@ function wsPaintZone(zone, logos, title, meta, hint, clearFn) {
   zone.appendChild(x);
 }
 
+// The colours learned from the chosen reference, by role (js/59 wstylePalette).
+function wsRenderPalette(sel) {
+  const box = wsEl('wsPal');
+  if (!box) return;
+  box.textContent = '';
+  const pal = sel ? wstylePaletteOf(wstyleGet(sel.id)) : null;
+  if (!pal) { box.classList.remove('on'); return; }
+  const lab = document.createElement('span'); lab.className = 'ws-pal-l'; lab.textContent = 'Colours learned';
+  box.appendChild(lab);
+  [['Main', pal.primary], ['Accent', pal.accent], ['Text', pal.text], ['Page', pal.background]].forEach(function (p) {
+    if (!p[1]) return;
+    const w = document.createElement('span'); w.className = 'ws-sw'; w.title = p[0] + ' ' + p[1];
+    const dot = document.createElement('i'); dot.style.background = p[1];
+    w.appendChild(dot); w.appendChild(document.createTextNode(p[0]));
+    box.appendChild(w);
+  });
+  box.classList.add('on');
+}
+
 function wsRenderList() {
   const refZone = wsEl('wsRefZone'), conZone = wsEl('wsConZone'), box = wsEl('wsList');
   if (!refZone || !conZone || !box) return;
@@ -231,6 +251,8 @@ function wsRenderList() {
   } else {
     wsPaintZone(refZone, [], '', '', 'PDF, Word, Excel, PowerPoint', null);
   }
+
+  wsRenderPalette(sel);
 
   // box 2: your files
   if (wsFiles.length) {
