@@ -956,9 +956,16 @@ function pdfedWrapRichLine(ctx, runs, maxWidth, fontCtx) {
       ctx.font = `${italic ? 'italic' : 'normal'} ${bold ? '700' : '400'} ${fontCtx.fontSize}px ${fontCtx.fam}, Inter, sans-serif`;
     }
     const tokens = (run.text || '').match(/\S+\s*|\s+/g) || [''];
+    // Canvas measureText and the browser's own DOM text layout never agree to the pixel
+    // (hinting, kerning, subpixel advances: usually 1-3px over a short line). The live box
+    // wraps by DOM layout, so a line that just fits there could wrap here and the extra line
+    // landed on top of whatever sits below it (thumbnail/export overlap). Give the wrap test a
+    // small tolerance, and ignore the trailing space of the last word on a line like the DOM does.
+    const wrapTol = fontCtx ? Math.max(2, fontCtx.fontSize * 0.08) : 0;
     tokens.forEach(tok => {
       const w = ctx.measureText(tok).width;
-      if (currentWidth + w > maxWidth && current.length) {
+      const wFit = /\s$/.test(tok) && /\S/.test(tok) ? ctx.measureText(tok.replace(/\s+$/, '')).width : w;
+      if (currentWidth + wFit > maxWidth + wrapTol && current.length) {
         out.push(current);
         current = []; currentWidth = 0;
         if (/^\s+$/.test(tok)) return; // drop the space that triggered the wrap
