@@ -104,7 +104,7 @@ function wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, margins, bounds) {
     if (typeof pdfedKadessaMeasureTextWidth !== 'function') return { x: x, w: w };
     if (/\n/.test(text) || /\n/.test(String(it.text || '')) || oldH > fs * 1.9) return { x: x, w: w };
     const pad = (typeof PDFED_PTXT_BORDER !== 'undefined' && typeof PDFED_PTXT_PAD_X !== 'undefined') ? 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_X) : 16;
-    const tw = pdfedKadessaMeasureTextWidth(text, fam, fs, !!it.bold) + pad + 2;
+    const tw = pdfedKadessaMeasureTextWidth(text, fam, fs, !!it.bold) + pad + Math.max(4, Math.ceil(fs * 0.12));   // headroom: canvas (thumbnail/export) and DOM text widths differ by a few px
     if (!(tw > w)) return { x: x, w: w };
     let lim = Math.max(W * 0.04, ((margins && margins.leftPct) || 0) / 100 * W);
     let limR = W - Math.max(W * 0.04, ((margins && margins.rightPct) || 0) / 100 * W);
