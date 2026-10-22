@@ -117,6 +117,81 @@ function wstyleNearestFont(name) {
   return pick || wstyleFirstKnown(['Inter', 'Open Sans', 'Arimo']) || 'Inter';
 }
 
+// ─── colour understanding ────────────────────────────────────────────────────
+// Reads the reference's colours by ROLE, not just as a list: the page background, the MAIN colour (the one that
+// carries the most area or the headings: header band, table header, title), an ACCENT (a second, different hue:
+// rules, highlights), the TEXT colour (the one that reads best on the background) and a MUTED colour (captions
+// and footer). Used to show what was learned (panel) and to repair text that would become unreadable when a
+// part moves off the box it was written on (js/62 wsbFixContrast).
+function wstyleRgbOf(hex) {
+  const h = wstyleHex(hex);
+  return h ? [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)] : null;
+}
+function wstyleLuminance(hex) {
+  const c = wstyleRgbOf(hex);
+  if (!c) return 0;
+  const f = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+}
+function wstyleContrast(a, b) {
+  const l1 = wstyleLuminance(a), l2 = wstyleLuminance(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+function wstyleChroma(hex) {
+  const c = wstyleRgbOf(hex);
+  return c ? (Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2])) / 255 : 0;
+}
+function wstyleColorDist(a, b) {
+  const x = wstyleRgbOf(a), y = wstyleRgbOf(b);
+  if (!x || !y) return 0;
+  return Math.sqrt(Math.pow(x[0] - y[0], 2) + Math.pow(x[1] - y[1], 2) + Math.pow(x[2] - y[2], 2));
+}
+
+function wstylePalette(pages) {
+  const bgW = {}, fillW = {}, textW = {}, mutedW = {};
+  const add = function (m, c, w) { c = wstyleHex(c); if (c && w > 0) m[c] = (m[c] || 0) + w; };
+  const top = function (m) { return Object.keys(m).sort(function (a, b) { return m[b] - m[a]; }); };
+  let bg = '#ffffff';
+  (pages || []).forEach(function (p, i) {
+    const b = p.bg || {};
+    if (i === 0 && wstyleHex(b.color1)) bg = wstyleHex(b.color1);
+    add(bgW, b.color1, 1); add(bgW, b.color2, 0.5);
+    (p.items || []).forEach(function (it) {
+      if (it.kind === 'shape') {
+        const line = it.shape === 'line';
+        const w = line ? Math.max(1, (it.wPct || 0) * 0.5) : Math.max(0.05, (it.wPct || 0) * (it.hPct || 0) / 10);
+        add(fillW, it.fill || (it.grad && it.grad.c1), w);
+        if (it.grad && it.grad.c2) add(fillW, it.grad.c2, w * 0.5);
+        if (it.stroke && !it.fill) add(fillW, it.stroke, w * 0.5);
+      } else if (it.kind === 'text') {
+        const w = Math.max(1, it.chars || 1) * (it.sizePct || 3);
+        add(textW, it.color, w);
+        if (it.role === 'caption' || it.role === 'footer') add(mutedW, it.color, w);
+        if ((it.role === 'title' || it.role === 'heading') && wstyleChroma(it.color) >= 0.18) add(fillW, it.color, w / 8);
+      } else if (it.kind === 'table') {
+        const hf = it.headerCell && it.headerCell.fill;
+        add(fillW, hf, Math.max(0.5, (it.wPct || 0) * (it.hPct || 0) / 40));
+      }
+    });
+  });
+  const away = function (c) { return wstyleColorDist(c, bg) > 40; };
+  const textList = top(textW);
+  const text = textList.filter(function (c) { return wstyleContrast(c, bg) >= 3; })[0] || textList[0] || (wstyleLuminance(bg) < 0.4 ? '#ffffff' : '#111111');
+  const pool = top(fillW).filter(away);
+  const chromatic = pool.filter(function (c) { return wstyleChroma(c) >= 0.18; });
+  const primary = chromatic[0] || pool[0] || text;
+  const accent = chromatic.filter(function (c) { return wstyleColorDist(c, primary) >= 90; })[0] || null;
+  const muted = top(mutedW).filter(function (c) { return c !== text; })[0] || null;
+  const list = [bg, primary, accent, text, muted].filter(function (c, i, a) { return c && a.indexOf(c) === i; });
+  return { background: bg, primary: primary, accent: accent, text: text, muted: muted, list: list };
+}
+// Styles saved before the palette existed get it worked out when asked for.
+function wstylePaletteOf(style) {
+  if (!style) return null;
+  if (style.palette && style.palette.background) return style.palette;
+  try { return wstylePalette(style.pages || []); } catch (e) { return null; }
+}
+
 // ─── the per-account store ───────────────────────────────────────────────────
 function wstyleReadAll() {
   try {
@@ -477,6 +552,7 @@ function wstyleStoreMeasured(cleanName, pages, source) {
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
     source: Object.assign({ pageCount: pages.length }, source || {}),
+    palette: (function () { try { return wstylePalette(pages); } catch (e) { return null; } })(),
     pages: pages
   };
 
