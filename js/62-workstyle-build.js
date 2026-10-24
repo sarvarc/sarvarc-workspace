@@ -44,6 +44,9 @@ function wsbFontCss(fam) { return (typeof pdfedFontCss === 'function') ? pdfedFo
 // shows the dashed "Upload" spot on top of it (wsbMountSlotUpload), so a spot nobody filled never prints.
 const WSB_BLANK_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 let wsbBrandNat = null;      // natural size of the Brand Kit logo, so it is fitted instead of stretched
+let wsbLastRef = null;       // the reference of the latest build, so the side-by-side panel can be opened again later
+const wsbPageRef = new WeakMap(); // editor page -> which reference page it was built from (the panel follows the page you are on)
+let wsbSideCtl = null;       // the open reference panel, if any
 let wsbBuildSeq = 0;         // one number per build, so repeated logo spots (continuation pages) belong together
 function wsbBrandLogo() { try { const k = (typeof bkLoad === 'function') ? bkLoad() : null; return (k && k.logo) ? k.logo : null; } catch (e) { return null; } }
 
@@ -964,85 +967,168 @@ function wsbBackground(bg) {
   return bg.color1 || '#ffffff';
 }
 
-// Docks the reference beside the editor: left half on a wide screen, top part on a narrow one.
-// The editor's own page area is pushed over with a margin and re-fitted, so the real page
-// stays fully visible and usable next to the reference.
-function wsbDock(refPlan, name) {
+// Puts the reference BESIDE the live page inside the editor's canvas, the same side-by-side look as the
+// OCR "Compare" view: reference on the left, the real page (still editable) on the right, a drawn-in divider
+// and two small tags. A slim control pill floats at the bottom of the canvas (speed, Skip / Close, status).
+function wsbDock(refPlan, name, opts) {
+  opts = opts || {};
   const old = document.getElementById('wsbDock');
-  if (old && old._ctl) { try { old._ctl.close(); } catch (e) { /* ignore */ } }
-  const sc = document.getElementById('pdfedCanvasScroll');
+  if (old && old._ctl) { try { old._ctl.close(true); } catch (e) { /* ignore */ } }
+  // The OCR Compare view uses the same left slot: only one of the two at a time.
+  if (typeof teCompareSplitOn !== 'undefined' && teCompareSplitOn && typeof teExitCompareSplit === 'function') { try { teExitCompareSplit(); } catch (e) { /* ignore */ } }
+  const sc = document.getElementById('pdfedCanvasScroll'), inner = document.getElementById('pdfedCanvasInner');
+  const wrap = document.getElementById('pdfedCanvasWrap'), canvas = document.getElementById('pdfedPageCanvas');
+  const afterTag = document.getElementById('pdfedCompareAfterTag');
   const ctl = { speed: 1, skipped: false, closed: false, done: false, instant: wsbReduced(), page: -1 };
 
+  // 1. the reference pane + divider, placed in the canvas row before the real page
+  const pane = wsbEl('div', 'pdfed-compare-before wsb-pane'); pane.id = 'wsbPane';
+  pane.innerHTML =
+    '<div class="pdfed-compare-tag wsb-tagref">Reference<span class="wsb-name"></span>' +
+    '<span class="wsb-nav"><button type="button" class="wsb-nb wsb-prev" aria-label="Previous reference page">&#8249;</button><span class="wsb-pn"></span>' +
+    '<button type="button" class="wsb-nb wsb-next" aria-label="Next reference page">&#8250;</button></span></div>' +
+    '<div class="wsb-pagebox"><div class="wsb-page"></div></div>';
+  const divider = wsbEl('div', 'pdfed-compare-divider'); divider.id = 'wsbDivider';
+  if (inner && wrap) { inner.insertBefore(pane, wrap); inner.insertBefore(divider, wrap); }
+  pane.style.display = 'block'; divider.style.display = 'block';
+  pdfedSplitSync();
+
+  // 2. the control pill
   const dock = wsbEl('aside', 'wsb-dock');
   dock.id = 'wsbDock'; dock._ctl = ctl;
   dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', 'Reference and Kadessa build');
   dock.innerHTML =
-    '<div class="wsb-head"><div class="wsb-ttl"><b>Reference</b><span class="wsb-name"></span></div>' +
+    '<div class="wsb-foot" aria-live="polite"></div>' +
     '<button type="button" class="wsb-btn wsb-speed" aria-label="Change speed">x1</button>' +
-    '<button type="button" class="wsb-btn wsb-skip">Skip</button></div>' +
-    '<div class="wsb-prog" aria-hidden="true"><i></i></div>' +
-    '<div class="wsb-body"><div class="wsb-page"></div></div>' +
-    '<div class="wsb-foot" aria-live="polite"></div>';
+    '<button type="button" class="wsb-btn wsb-skip">Skip</button>' +
+    '<div class="wsb-prog" aria-hidden="true"><i></i></div>';
   document.body.appendChild(dock);
-  const $ = function (q) { return dock.querySelector(q); };
-  $('.wsb-name').textContent = name ? ' · ' + name : '';
-  const pageEl = $('.wsb-page'), foot = $('.wsb-foot'), prog = $('.wsb-prog i'), skipBtn = $('.wsb-skip'), speedBtn = $('.wsb-speed');
+  const $ = function (q) { return dock.querySelector(q); }, $p = function (q) { return pane.querySelector(q); };
+  $p('.wsb-name').textContent = name ? ' · ' + name : '';
+  const pageEl = $p('.wsb-page'), foot = $('.wsb-foot'), prog = $('.wsb-prog i'), skipBtn = $('.wsb-skip'), speedBtn = $('.wsb-speed');
+  const pnEl = $p('.wsb-pn'), prevBtn = $p('.wsb-prev'), nextBtn = $p('.wsb-next'), navEl = $p('.wsb-nav');
+  navEl.style.display = refPlan.pages.length > 1 ? '' : 'none';
   let refEls = {};
 
   const layout = function () {
-    if (!sc) return;
-    sc.style.marginLeft = ''; sc.style.marginTop = '';
-    const r = sc.getBoundingClientRect();
-    const narrow = window.innerWidth < 760;
-    dock.style.left = r.left + 'px'; dock.style.top = r.top + 'px';
-    if (narrow) {
-      const h = Math.round(r.height * 0.4);
-      dock.style.width = r.width + 'px'; dock.style.height = h + 'px'; sc.style.marginTop = h + 'px';
-    } else {
-      const w = Math.round(r.width * 0.42);
-      dock.style.width = w + 'px'; dock.style.height = r.height + 'px'; sc.style.marginLeft = w + 'px';
-    }
-    const ar = Number(dock.dataset.ar) || 0.707;
-    const body = $('.wsb-body');
-    const availH = Math.max(80, body.clientHeight - 8), availW = Math.max(80, body.clientWidth - 8);
-    const w2 = Math.min(availW, availH * ar);
+    if (!canvas) return;
+    const cw = parseFloat(canvas.style.width) || canvas.width, ch = parseFloat(canvas.style.height) || canvas.height;
+    if (!cw || !ch) return;
+    pane.style.width = cw + 'px'; pane.style.height = ch + 'px';
+    const ar = Number(pane.dataset.ar) || 0.707;
+    const w2 = Math.min(cw, ch * ar);
     pageEl.style.width = w2 + 'px'; pageEl.style.height = (w2 / ar) + 'px';
+    if (sc) { const r = sc.getBoundingClientRect(); dock.style.left = (r.left + r.width / 2) + 'px'; dock.style.bottom = Math.max(8, window.innerHeight - r.bottom + 14) + 'px'; }
   };
-  const refit = function () { layout(); try { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); } catch (e) { /* keep zoom */ } };
+  const refit = function (noZoom) {
+    if (noZoom !== true) { try { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); } catch (e) { /* keep zoom */ } }
+    layout();
+  };
   const onResize = function () { if (!ctl.closed) refit(); };
   window.addEventListener('resize', onResize);
+  let ro = null;   // the live page changes size (zoom, another page): keep the two panes the same size
+  if (typeof ResizeObserver === 'function' && canvas) { ro = new ResizeObserver(function () { if (!ctl.closed) layout(); }); ro.observe(canvas); }
 
   ctl.sleepRaw = wsbSleepRaw;
   ctl.say = function (m) { foot.textContent = m; };
   ctl.progress = function (f) { prog.style.width = Math.max(0, Math.min(100, Math.round(f * 100))) + '%'; };
   ctl.sleep = function (ms) { return (ctl.skipped || ctl.instant) ? Promise.resolve() : wsbSleepRaw(ms / ctl.speed); };
-  ctl.showPage = function (pi) {
+  ctl.showPage = function (pi, noZoom) {
     const RP = refPlan.pages[pi] || refPlan.pages[0];
     ctl.page = pi;
-    dock.dataset.ar = RP.ratio;
+    pnEl.textContent = (pi + 1) + '/' + refPlan.pages.length;
+    prevBtn.disabled = pi <= 0; nextBtn.disabled = pi >= refPlan.pages.length - 1;
+    pane.dataset.ar = RP.ratio;
     pageEl.innerHTML = ''; refEls = {};
     pageEl.style.background = wsbBackground(RP.bg);
     RP.items.forEach(function (it) { const e = wsbMakeItem(it); pageEl.appendChild(e); refEls[it.src] = e; });
-    refit();
+    refit(noZoom);
+  };
+  prevBtn.onclick = function () { ctl.showPage(Math.max(0, ctl.page - 1), true); };
+  nextBtn.onclick = function () { ctl.showPage(Math.min(refPlan.pages.length - 1, ctl.page + 1), true); };
+  // Once the build is over (or when opened later) the reference follows the page you are editing.
+  ctl.follow = function () {
+    if (ctl.followT) return;
+    ctl.lastPg = pdfed.pages[pdfed.active];
+    ctl.followT = setInterval(function () {
+      if (ctl.closed) { clearInterval(ctl.followT); return; }
+      const pg = pdfed.pages[pdfed.active];
+      if (pg === ctl.lastPg) return;
+      ctl.lastPg = pg;
+      if (wsbPageRef.has(pg)) ctl.showPage(wsbPageRef.get(pg), true);
+    }, 350);
   };
   ctl.hot = function (src, on) { const e = refEls[src]; if (e) e.classList.toggle('hot', !!on); };
   ctl.finish = function (text) {
     ctl.done = true; ctl.progress(1); ctl.say(text);
-    speedBtn.style.display = 'none'; skipBtn.disabled = false; skipBtn.textContent = 'Done'; skipBtn.classList.add('primary'); skipBtn.focus();
+    speedBtn.style.display = 'none'; skipBtn.disabled = false; skipBtn.textContent = 'Close'; skipBtn.classList.add('primary'); skipBtn.focus();
+    ctl.follow();   // stays open beside the page so you can keep working side by side
   };
-  ctl.close = function () {
+  const onKey = function (e) { if (e.key === 'Escape' && document.getElementById('wsbDock') === dock) { if (ctl.done) ctl.close(); else ctl.skipped = true; } };
+  document.addEventListener('keydown', onKey);
+  ctl.close = function (now) {
     if (ctl.closed) return; ctl.closed = true; ctl.skipped = true;
     window.removeEventListener('resize', onResize);
+    document.removeEventListener('keydown', onKey);
+    if (ro) ro.disconnect();
+    if (ctl.followT) clearInterval(ctl.followT);
+    if (wsbSideCtl === ctl) wsbSideCtl = null;
     if (dock.parentNode) dock.parentNode.removeChild(dock);
-    if (sc) { sc.style.marginLeft = ''; sc.style.marginTop = ''; try { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); } catch (e) { /* keep zoom */ } }
     if (ctl.ring && ctl.ring.parentNode) ctl.ring.parentNode.removeChild(ctl.ring);
+    const gone = function () {
+      if (pane.parentNode) pane.parentNode.removeChild(pane);
+      if (divider.parentNode) divider.parentNode.removeChild(divider);
+      pdfedSplitSync();   // keeps the layout if the OCR Compare view is open, removes it otherwise
+      try { if (typeof pdfedZoomFit === 'function') pdfedZoomFit(); } catch (e) { /* keep zoom */ }
+    };
+    // slide the reference out, then give the real page its width back (same exit as OCR Compare)
+    pane.classList.remove('pdfed-compare-visible'); divider.classList.remove('pdfed-compare-visible');
+    const tg = pane.querySelector('.pdfed-compare-tag'); if (tg) tg.classList.remove('pdfed-compare-visible');
+    if (afterTag && !(typeof teCompareSplitOn !== 'undefined' && teCompareSplitOn)) afterTag.classList.remove('pdfed-compare-visible');
+    if (now) gone(); else setTimeout(gone, 380);
+    wsbSyncSideBtn();
   };
   speedBtn.onclick = function () { ctl.speed = ctl.speed === 1 ? 2 : (ctl.speed === 2 ? 4 : 1); speedBtn.textContent = 'x' + ctl.speed; };
   skipBtn.onclick = function () { if (ctl.done) ctl.close(); else { ctl.skipped = true; skipBtn.disabled = true; } };
-  dock.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (ctl.done) ctl.close(); else ctl.skipped = true; } });
   skipBtn.focus();
-  ctl.showPage(0);
+  wsbSideCtl = ctl;
+  if (opts.review) {
+    // Opened later, not during a build: nothing to animate, just the reference beside the live page.
+    speedBtn.style.display = 'none'; skipBtn.textContent = 'Close'; skipBtn.classList.add('primary');
+    ctl.done = true; ctl.progress(1);
+    ctl.say('The reference follows the page you are on. Edit the real page on the right.');
+    const cur = pdfed.pages[pdfed.active];
+    ctl.showPage(wsbPageRef.has(cur) ? wsbPageRef.get(cur) : 0);
+    ctl.follow();
+  } else {
+    ctl.showPage(0);
+  }
+  // animate in (a reflow first, so the slide-in is not skipped)
+  void pane.offsetWidth;
+  requestAnimationFrame(function () { pane.classList.add('pdfed-compare-visible'); divider.classList.add('pdfed-compare-visible'); });
+  setTimeout(function () {
+    const tg = pane.querySelector('.pdfed-compare-tag'); if (tg) tg.classList.add('pdfed-compare-visible');
+    if (afterTag) afterTag.classList.add('pdfed-compare-visible');
+  }, 180);
+  wsbSyncSideBtn();
   return ctl;
+}
+
+// Called by the OCR Compare view before it opens, so the two never share the left slot.
+function wsbCloseSideBySide(now) { if (wsbSideCtl && !wsbSideCtl.closed) wsbSideCtl.close(now === true); }
+
+// The button in the editor's page-actions bar (next to Compare): opens / closes the reference beside the page.
+function wsbToggleSideBySide() {
+  if (wsbSideCtl && !wsbSideCtl.closed) { wsbSideCtl.close(); return; }
+  if (!wsbLastRef) { toast('Build something with Workstyle first, then its reference can sit beside your page', 'info'); return; }
+  if (!pdfed.pages.length) { toast('Open a page first', 'info'); return; }
+  wsbDock(wsbLastRef.refPlan, wsbLastRef.name, { review: true });
+}
+function wsbSyncSideBtn() {
+  const btn = document.getElementById('pdfedPgactSide'), sep = document.getElementById('pdfedPgactSideSep');
+  const show = !!wsbLastRef;
+  if (btn) { btn.style.display = show ? 'flex' : 'none'; btn.classList.toggle('comparing', !!(wsbSideCtl && !wsbSideCtl.closed)); }
+  if (sep) sep.style.display = show ? '' : 'none';
 }
 
 // Kadessa's ring, the same one she uses on Data Arrangement (.kfx-ring in css/26-kadessa.css).
@@ -1083,6 +1169,8 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
   let bgNote = '';
   for (let pi = 0; pi < plan.pages.length; pi++) { const m = await wsbNewPage(plan.pages[pi]); made.push(m.pg); if (m.note) bgNote = m.note; }
   const where = await wsbInsertPages(made);
+  wsbLastRef = { refPlan: refPlan, name: name };
+  made.forEach(function (pg, i) { wsbPageRef.set(pg, plan.pages[i].index); });
   const ctl = animate ? wsbDock(refPlan, name) : null;
 
   const total = plan.pages.reduce(function (n, p) { return n + p.items.length; }, 0) || 1;
@@ -1124,9 +1212,10 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
     try { await pdfedGoto(pdfed.active); } catch (e3) { /* ignore */ }
   }
   try { await pdfedBuildStrip(); } catch (e) { /* thumbnails refresh later */ }
+  wsbSyncSideBtn();
   if (ctl && !ctl.closed) {
     if (ctl.ring) { ctl.ring.classList.add('done'); setTimeout(function () { if (ctl.ring) ctl.ring.classList.remove('on'); }, 900); }
-    ctl.finish('Done. Everything on the right is real, editable text, tables and image slots.');
+    ctl.finish('Done. Everything on the right is real, editable text, tables and image slots. Keep this open to work side by side.');
   }
   return { at: where.at, pages: made.length, bgNote: bgNote };
 }
