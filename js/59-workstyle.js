@@ -453,7 +453,8 @@ async function wstyleMeasurePage(pg, idx) {
       kind: 'shape', role: 'shape', shape: sh.rule ? 'line' : 'rect',
       xPct: wstylePct(sh.x, W), yPct: wstylePct(sh.y, H), wPct: wstylePct(sh.w, W), hPct: wstylePct(sh.h, H),
       fill: wstyleHex(sh.fill), stroke: wstyleHex(sh.stroke), swPct: wstylePct(sh.sw || 0, W),
-      rPct: wstylePct(sh.r || 0, W), grad: sh.grad ? wstyleClone(sh.grad) : null
+      rPct: wstylePct(sh.r || 0, W), grad: sh.grad ? wstyleClone(sh.grad) : null,
+      geom: (!sh.rule && typeof sh.geom === 'string') ? sh.geom : null
     };
   }).filter(function (sh) { return sh.wPct > 0 || sh.hPct > 0; });
 

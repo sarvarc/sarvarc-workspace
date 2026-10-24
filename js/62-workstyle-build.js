@@ -140,6 +140,26 @@ function wsbShapeRepeats(it, H, W) {
   return it.kind === 'shape' && (it.y + it.h <= H * 0.15 || it.y >= H * 0.9 || (it.h >= H * 0.6 && it.w <= W * 0.12));
 }
 function wsbIsAnchor(it, H, W) { return it.role === 'footer' || (it.kind === 'image' && it.role === 'logo') || (H ? wsbShapeRepeats(it, H, W) : false); }
+// Shapes beyond the plain box: a circle / oval, and straight-sided shapes drawn from points (0..1 across the shape's own box).
+const WSB_POLY = {
+  triangle: [[0.5, 0], [1, 1], [0, 1]], rtTriangle: [[0, 0], [1, 1], [0, 1]], diamond: [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]],
+  parallelogram: [[0.2, 0], [1, 0], [0.8, 1], [0, 1]], trapezoid: [[0.2, 0], [0.8, 0], [1, 1], [0, 1]],
+  hexagon: [[0.25, 0], [0.75, 0], [1, 0.5], [0.75, 1], [0.25, 1], [0, 0.5]], pentagon: [[0, 0], [0.7, 0], [1, 0.5], [0.7, 1], [0, 1]],
+  chevron: [[0, 0], [0.7, 0], [1, 0.5], [0.7, 1], [0, 1], [0.3, 0.5]],
+  rightArrow: [[0, 0.25], [0.6, 0.25], [0.6, 0], [1, 0.5], [0.6, 1], [0.6, 0.75], [0, 0.75]],
+  leftArrow: [[1, 0.25], [0.4, 0.25], [0.4, 0], [0, 0.5], [0.4, 1], [0.4, 0.75], [1, 0.75]],
+  upArrow: [[0.25, 1], [0.25, 0.4], [0, 0.4], [0.5, 0], [1, 0.4], [0.75, 0.4], [0.75, 1]],
+  downArrow: [[0.25, 0], [0.25, 0.6], [0, 0.6], [0.5, 1], [1, 0.6], [0.75, 0.6], [0.75, 0]]
+};
+function wsbGeomPoints(geom, w, h) {
+  const pts = WSB_POLY[geom];
+  return pts ? pts.map(function (p) { return wsbR(p[0] * w, 2) + ',' + wsbR(p[1] * h, 2); }).join(' ') : null;
+}
+function wsbGeomClip(geom) {
+  const pts = WSB_POLY[geom];
+  return pts ? 'polygon(' + pts.map(function (p) { return (p[0] * 100) + '% ' + (p[1] * 100) + '%'; }).join(',') + ')' : null;
+}
+
 function wsbShapesFirst(items) { return items.filter(function (i) { return i.kind === 'shape'; }).concat(items.filter(function (i) { return i.kind !== 'shape'; })); }
 function wsbIsHeading(it) { return it.kind === 'text' && (it.role === 'title' || it.role === 'heading' || it.role === 'subheading'); }
 
@@ -457,7 +477,7 @@ function wsbReflow(parts, shapesRaw, W, H) {
     const sh = e.sh;
     const y = e.y, h = e.k === 'box' ? Math.max(1, bottoms.get(e) - y) : Math.max(1, e.h0);
     return { kind: 'shape', role: 'shape', shape: sh.shape, src: e.si, x: e.x, y: y, w: e.w, h: h, fill: sh.fill || null, stroke: sh.stroke || null,
-      sw: (sh.swPct || 0) / 100 * W, r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null };
+      sw: (sh.swPct || 0) / 100 * W, r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null, geom: sh.geom || null };
   });
 }
 
@@ -607,7 +627,7 @@ function wstyleBuildPlan(style, fill) {
       const sh = r.it;
       return { kind: 'shape', role: 'shape', shape: sh.shape, src: r.si, x: (sh.xPct || 0) / 100 * W, y: (sh.yPct || 0) / 100 * H, w: (sh.wPct || 0) / 100 * W,
         h: Math.max(1, (sh.hPct || 0) / 100 * H), fill: sh.fill || null, stroke: sh.stroke || null, sw: (sh.swPct || 0) / 100 * W,
-        r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null };
+        r: (sh.rPct || 0) / 100 * W, grad: sh.grad || null, geom: sh.geom || null };
     });
     parts.forEach(function (p) { delete p._by; delete p._oh; delete p._rx; delete p._rw; delete p._pin; });
     items.push.apply(items, shapeItems.concat(parts));
@@ -688,8 +708,13 @@ function wsbAddItem(pg, it) {
       const rx = Math.max(0, Math.min(it.r || 0, w / 2, h / 2));                       // rounded corners
       const g = it.grad;                                                              // a fade
       const gd = g ? '<defs><linearGradient id="wsg" x1="0" y1="0" x2="' + (g.dir === 'vertical' ? 0 : 1) + '" y2="' + (g.dir === 'horizontal' ? 0 : 1) + '"><stop offset="0" stop-color="' + g.c1 + '"/><stop offset="1" stop-color="' + g.c2 + '"/></linearGradient></defs>' : '';
-      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + gd + '<rect x="' + hs + '" y="' + hs + '" width="' + Math.max(1, w - sw) + '" height="' + Math.max(1, h - sw) +
-        '"' + (rx ? ' rx="' + rx + '" ry="' + rx + '"' : '') + ' fill="' + (g ? 'url(#wsg)' : (it.fill || 'none')) + '"' + (it.stroke && sw > 0 ? ' stroke="' + it.stroke + '" stroke-width="' + sw + '"' : '') + '/></svg>';
+      const paint = ' fill="' + (g ? 'url(#wsg)' : (it.fill || 'none')) + '"' + (it.stroke && sw > 0 ? ' stroke="' + it.stroke + '" stroke-width="' + sw + '"' : '');
+      const polyPts = it.geom ? wsbGeomPoints(it.geom, w, h) : null;
+      let shapeTag;
+      if (it.geom === 'ellipse') shapeTag = '<ellipse cx="' + w / 2 + '" cy="' + h / 2 + '" rx="' + Math.max(1, (w - sw) / 2) + '" ry="' + Math.max(1, (h - sw) / 2) + '"' + paint + '/>';
+      else if (polyPts) shapeTag = '<polygon points="' + polyPts + '"' + paint + ' stroke-linejoin="round"/>';
+      else shapeTag = '<rect x="' + hs + '" y="' + hs + '" width="' + Math.max(1, w - sw) + '" height="' + Math.max(1, h - sw) + '"' + (rx ? ' rx="' + rx + '" ry="' + rx + '"' : '') + paint + '/>';
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + gd + shapeTag + '</svg>';
     }
     pdfedAnnotState.placedImgSeq++;
     const im = { id: 'pimg_' + pdfedAnnotState.placedImgSeq, dataUrl: 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))), x: wsbR(it.x), y: wsbR(it.y), w: wsbR(it.w), h: wsbR(it.h),
@@ -949,7 +974,7 @@ function wsbMakeItem(it) {
   } else if (it.kind === 'shape') {
     e = wsbEl('div', 'wsb-el', wsbBoxCss(it) + 'height:' + it.hPct + '%;' + (it.shape === 'line' ? 'min-height:1px;background:' + (it.stroke || it.fill || '#000') :
       'box-sizing:border-box;' + (it.grad ? 'background:linear-gradient(' + (it.grad.dir === 'horizontal' ? 'to right' : it.grad.dir === 'vertical' ? 'to bottom' : 'to bottom right') + ',' + it.grad.c1 + ',' + it.grad.c2 + ');' : (it.fill ? 'background:' + it.fill + ';' : '')) +
-        (it.rPct ? 'border-radius:' + it.rPct + 'cqw;' : '') + (it.stroke ? 'border:1px solid ' + it.stroke : '')));
+        (it.geom === 'ellipse' ? 'border-radius:50%;' : (it.rPct ? 'border-radius:' + it.rPct + 'cqw;' : '')) + (wsbGeomClip(it.geom) ? 'clip-path:' + wsbGeomClip(it.geom) + ';' : '') + (it.stroke ? 'border:1px solid ' + it.stroke : '')));
   } else {
     e = wsbEl('div', 'wsb-el wsb-im', wsbBoxCss(it) + 'height:' + it.hPct + '%;opacity:' + it.opacity);
     if (it.brand && it.dataUrl) { const im = wsbEl('img'); im.src = it.dataUrl; im.alt = ''; e.appendChild(im); e.classList.add('brand'); }
