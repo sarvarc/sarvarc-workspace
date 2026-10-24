@@ -841,6 +841,8 @@ function teToggleCompareSplit() {
   if (teCompareHideTimer) { clearTimeout(teCompareHideTimer); teCompareHideTimer = null; }
 
   if (teCompareSplitOn) {
+    // The Workstyle reference pane uses the same left slot: only one of the two at a time.
+    if (typeof wsbCloseSideBySide === 'function') wsbCloseSideBySide(true);
     beforeImg.src = canvas.toDataURL('image/png');
     // Match the live canvas's current on-screen (zoomed) size exactly, so
     // both panes read at the same scale.
@@ -853,7 +855,7 @@ function teToggleCompareSplit() {
     if (divider) divider.style.display = 'block';
     if (scroll) scroll.classList.add('compare-split');
     if (inner) inner.classList.add('compare-split');
-    if (afterTag) afterTag.style.display = 'block';
+    if (afterTag) { afterTag.style.display = 'block'; afterTag.textContent = 'After'; }
     if (btn) { btn.classList.add('comparing'); btn.title = 'Exit compare view'; }
 
     // Force a reflow so the browser registers the hidden starting state
@@ -904,9 +906,8 @@ function teExitCompareSplit() {
   teCompareHideTimer = setTimeout(() => {
     if (beforeWrap) beforeWrap.style.display = 'none';
     if (divider) divider.style.display = 'none';
-    if (scroll) scroll.classList.remove('compare-split');
-    if (inner) inner.classList.remove('compare-split');
-    if (afterTag) afterTag.style.display = 'none';
+    // Not removed outright: the Workstyle reference pane may be using the same layout.
+    pdfedSplitSync();
     teCompareHideTimer = null;
   }, 380); // matches the pane's fade/slide-out transition duration
 }
