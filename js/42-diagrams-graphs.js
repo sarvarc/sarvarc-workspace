@@ -4098,12 +4098,31 @@ function dgBuildComparisonCharts() {
     : `Built a normalized radar overview + ${perMetricSpecs.length} per-metric comparison charts`) + totalNote, 'success');
 }
 
+// Hides the gallery panel but KEEPS the charts, so the little "Charts" tab can bring it back.
 function dgCloseMultiGallery() {
-  dgMultiCharts = [];
-  dgActiveMultiChartIdx = null;
   const gallery = document.getElementById('dgMultiGallery');
-  if (gallery) gallery.classList.remove('open');
+  if (gallery) gallery.classList.add('collapsed');
+  dgSyncMultiGalleryTab();
   if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); // preview is wider again
+}
+
+function dgOpenMultiGallery() {
+  const gallery = document.getElementById('dgMultiGallery');
+  if (gallery) gallery.classList.remove('collapsed');
+  dgSyncMultiGalleryTab();
+  if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); // panel takes width again
+}
+
+// Shows the reopen tab only while the gallery is collapsed AND there are still charts in it.
+function dgSyncMultiGalleryTab() {
+  const gallery = document.getElementById('dgMultiGallery');
+  const tab = document.getElementById('dgMultiGalleryReopen');
+  const cnt = document.getElementById('dgMultiGalleryReopenCount');
+  if (!tab) return;
+  const has = Array.isArray(dgMultiCharts) && dgMultiCharts.length > 0;
+  const collapsed = !!(gallery && gallery.classList.contains('collapsed'));
+  tab.classList.toggle('show', has && collapsed);
+  if (cnt) cnt.textContent = has ? String(dgMultiCharts.length) : '';
 }
 
 function dgRenderMultiChartGallery() {
@@ -4115,10 +4134,12 @@ function dgRenderMultiChartGallery() {
   // is always a fresh batch — whatever slot the editor was previously synced
   // to no longer means anything against the new array.
   dgActiveMultiChartIdx = null;
-  if (!dgMultiCharts.length) { gallery.classList.remove('open'); if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); return; }
+  if (!dgMultiCharts.length) { gallery.classList.remove('open', 'collapsed'); dgSyncMultiGalleryTab(); if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); return; }
   gallery.classList.add('open');
+  gallery.classList.remove('collapsed'); // a fresh batch always opens expanded
+  dgSyncMultiGalleryTab();
   if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); // panel took width from the preview
-  if (countEl) countEl.textContent = `${dgMultiCharts.length} chart${dgMultiCharts.length === 1 ? '' : 's'} \u00b7 click one to edit it`;
+  if (countEl) countEl.textContent = `${dgMultiCharts.length} chart${dgMultiCharts.length === 1 ? '' : 's'}`;
   strip.innerHTML = dgMultiCharts.map((c, i) => `
     <div class="dg-multi-gallery-card" data-idx="${i}" onclick="dgLoadMultiChart(${i})">
       <canvas width="320" height="200" data-thumb="${i}"></canvas>
