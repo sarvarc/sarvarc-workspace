@@ -2230,6 +2230,7 @@
     try {
       if (!c || typeof c !== 'object') return c;
       c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
+      c.daTextView = true; // tells the Worker this client has Wrap Text (da_set_text_display)
       c.daSummaries = true; // tells the Worker this client can add summary columns (da_add_summary)
       c.workstyle = true; // tells the Worker this client can save work styles (workstyle_save, workstyle_list)
       try { var dsT = (typeof daGetActive === 'function') ? daGetActive() : null; if (dsT && dsT.headers && dsT.headers.length) c.openTable = { name: dsT.name, rowCount: (dsT.rows || []).length, columns: kadessaProfileColumns(dsT).slice(0, 30) }; } catch (e) {}
@@ -2580,6 +2581,23 @@
           : ('column ' + daColToLetters(p.colIdx));
         const opts = Array.isArray(p.options) ? p.options : [];
         return 'Add a dropdown to ' + where + ' with choices: ' + opts.slice(0, 6).join(', ') + (opts.length > 6 ? ', ...' : '') + '.';
+      }
+    },
+    da_set_text_display: {
+      risk: 'safe',
+      run: function(p){
+        daEnsureVisible();
+        const ds = daGetActive(); if (!ds) throw new Error('no table is open');
+        if (typeof p.wrap === 'boolean') ds.wrap = p.wrap;
+        const nCols = (ds.headers || []).length;
+        const cols = p.fitAll ? ds.headers.map(function(_, i){ return i; }) : (Array.isArray(p.fitColumns) ? p.fitColumns.filter(function(i){ return i >= 0 && i < nCols; }) : []);
+        if (cols.length) daColAutoFit(cols, null);
+        else { daPersist(); daRenderTable(); }
+      },
+      label: function(p){
+        if (p.fitAll) return 'Fit every column to its longest text.';
+        if (Array.isArray(p.fitColumns) && p.fitColumns.length) return 'Fit column ' + p.fitColumns.map(daColToLetters).join(', ') + ' to its longest text.';
+        return p.wrap === false ? 'Turn Wrap Text off.' : 'Turn on Wrap Text so every cell shows its full text.';
       }
     },
     da_remove_dropdown: {
