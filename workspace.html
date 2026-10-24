@@ -3110,6 +3110,8 @@
                   </div>
                   <label class="dg-show-chip active" id="dgLegendChip" title="Show legend"><input type="checkbox" id="dgLegendToggle" checked onchange="dgToggleShowChip(this,'dgLegendChip')"> Legend</label>
                   <label class="dg-show-chip active" id="dgValuesChip" title="Show values on chart"><input type="checkbox" id="dgValuesToggle" checked onchange="dgToggleShowChip(this,'dgValuesChip')"> Values</label>
+                  <button type="button" class="dg-show-chip" id="dgBarLayoutChip" onclick="dgCycleBarLayout()" title="Bar charts: Auto switches to horizontal bars when there are 15+ categories so every label and value stays readable. Click to cycle Auto / Horizontal / Vertical.">Layout: Auto</button>
+                  <button type="button" class="dg-show-chip" id="dgTopNChip" onclick="dgCycleTopN()" title="Bar charts: show only the Top 10 / 15 / 20 bars and the rest are summarised in a note. Click to cycle.">Top: All</button>
                   <label class="dg-show-chip" id="dgTrendChip" title="Trendline (bar/line/area, incl. 3D)"><input type="checkbox" id="dgTrendlineToggle" onchange="dgToggleShowChip(this,'dgTrendChip')"> Trend</label>
                   <label class="dg-show-chip" id="dgGrowthChip" title="Plot bar/line/area charts as % change from the first value instead of raw numbers"><input type="checkbox" id="dgGrowthToggle" onchange="dgToggleShowChip(this,'dgGrowthChip')"> Growth %</label>
                   <label class="dg-show-chip active" id="dgInsightsChip" title="Show insights strip"><input type="checkbox" id="dgInsightsToggle" checked onchange="dgToggleShowChip(this,'dgInsightsChip')"> Insights</label>
@@ -3909,49 +3911,13 @@
 <!-- Diagrams & Graphs: big-data multi-chart suggestion modal, shown after an upload that looks like -->
 <!-- census data, a revenue report, or anything else with several numeric columns / a lot of rows -->
 <div class="dg-push-choice-overlay" id="dgMultiSuggestOverlay" onmousedown="if(event.target===this)dgDismissMultiSuggest()">
-  <div class="dg-push-choice-modal" style="max-width:520px">
+  <div class="dg-push-choice-modal dg-suggest-modal">
     <div class="dg-push-choice-head">
-      <h3 id="dgMultiSuggestTitle">This looks like a rich dataset</h3>
-      <p id="dgMultiSuggestSub">Want me to build more than one chart out of it?</p>
+      <h3 id="dgMultiSuggestTitle">How would you like to see your data?</h3>
+      <p id="dgMultiSuggestSub">Pick a picture below &mdash; each preview is drawn from your own numbers.</p>
     </div>
     <div class="dg-multi-suggest-stats" id="dgMultiSuggestStats"></div>
-    <div class="dg-push-choice-body">
-      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestGroupedBtn" onclick="dgConfirmMultiSuggest('grouped')" style="display:none;border-color:var(--blue, #00C2FF)">
-        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="3" height="8"/><rect x="7" y="7" width="3" height="13"/><rect x="14" y="14" width="3" height="6"/><rect x="18" y="9" width="3" height="11"/></svg></div>
-        <div class="dg-push-choice-text">
-          <h4 id="dgMultiSuggestGroupedHead">Grouped bar chart (recommended)</h4>
-          <p id="dgMultiSuggestGroupedDesc">Puts one cluster of colour-coded bars per row — e.g. Profit 2025 next to Profit 2026 for every department — in a single chart, so the two values are compared directly.</p>
-        </div>
-      </button>
-      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestCompareBtn" onclick="dgConfirmMultiSuggest('compare')" style="display:none">
-        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 19 7 19 17 12 22 5 17 5 7"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="5" y1="7" x2="19" y2="17"/><line x1="19" y1="7" x2="5" y2="17"/></svg></div>
-        <div class="dg-push-choice-text">
-          <h4 id="dgMultiSuggestCompareHead">Compare side-by-side</h4>
-          <p id="dgMultiSuggestCompareDesc">Builds one bar chart per metric, plus a normalized radar overview, so differences between columns jump out immediately.</p>
-        </div>
-      </button>
-      <button type="button" class="dg-push-choice-card" id="dgMultiSuggestPerColumnBtn" onclick="dgConfirmMultiSuggest('perColumn')">
-        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-        <div class="dg-push-choice-text">
-          <h4 id="dgMultiSuggestPerColumnHead">One chart per numeric column</h4>
-          <p id="dgMultiSuggestPerColumnDesc">Builds a separate chart for every measure in the file (e.g. population, income, growth rate), all sharing the same category labels.</p>
-        </div>
-      </button>
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmMultiSuggest('topGrouped')">
-        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 4 5-8"/></svg></div>
-        <div class="dg-push-choice-text">
-          <h4 id="dgMultiSuggestTopGroupedHead">Top entries + "Other" bucket</h4>
-          <p>Keeps the single chart, but shows the top entries and rolls everything else into one "Other" bar so nothing gets silently dropped.</p>
-        </div>
-      </button>
-      <button type="button" class="dg-push-choice-card" onclick="dgConfirmMultiSuggest('single')">
-        <div class="dg-push-choice-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></div>
-        <div class="dg-push-choice-text">
-          <h4>Just build one chart</h4>
-          <p>Keep the single chart already generated from the columns picked in the Upload Data panel.</p>
-        </div>
-      </button>
-    </div>
+    <div class="dg-suggest-grid" id="dgMultiSuggestBody"></div>
     <div class="dg-push-choice-footer">
       <button class="btn-secondary" onclick="dgDismissMultiSuggest()" style="padding:8px 18px;font-size:12px">Not now</button>
     </div>
