@@ -468,11 +468,31 @@ function pdfedZoom(delta, pivotX, pivotY) {
   pdfedApplyZoom();
 }
 
+// One place decides whether the canvas row is in "two pages side by side" layout. Two features use it:
+// the OCR Compare view (teCompareSplitOn, js/17) and the Workstyle reference pane (#wsbPane, js/62).
+// Each calls this after it opens or closes, so closing one can never strip the layout the other still needs.
+function pdfedSplitSync() {
+  const scroll = document.getElementById('pdfedCanvasScroll');
+  const inner  = document.getElementById('pdfedCanvasInner');
+  const afterTag = document.getElementById('pdfedCompareAfterTag');
+  const ocr = (typeof teCompareSplitOn !== 'undefined') && !!teCompareSplitOn;
+  const ws  = !!document.getElementById('wsbPane');
+  const on = ocr || ws;
+  if (scroll) scroll.classList.toggle('compare-split', on);
+  if (inner) inner.classList.toggle('compare-split', on);
+  if (afterTag) {
+    afterTag.style.display = on ? 'block' : 'none';
+    afterTag.textContent = ws ? 'Yours · editable' : 'After';
+  }
+}
+
 function pdfedZoomFit() {
   const scroll  = document.getElementById('pdfedCanvasScroll');
   const canvas  = document.getElementById('pdfedPageCanvas');
   if (!canvas.width || !scroll.clientWidth) return;
   const availW = scroll.clientWidth  - 80;  // 2×40px padding from .pdfed-canvas-inner
+  // Workstyle side-by-side open: two pages share the row, so each gets half (minus the two gaps and the divider).
+  const availWOne = (document.getElementById('wsbPane')) ? Math.max(120, (availW - 60) / 2) : availW;
   const availH = scroll.clientHeight - 80;
   // Same density normalization as pdfedApplyZoom: fit against this page's
   // real on-screen size (raw px ÷ its own density × baseline), not its raw
@@ -483,7 +503,7 @@ function pdfedZoomFit() {
   const pdfedFitNormalize = PDFED_PX_PER_MM / pdfedFitDensity;
   const fitW = canvas.width  * pdfedFitNormalize;
   const fitH = canvas.height * pdfedFitNormalize;
-  pdfed.zoom = Math.max(0.10, Math.min(availW / fitW, availH / fitH));
+  pdfed.zoom = Math.max(0.10, Math.min(availWOne / fitW, availH / fitH));
   pdfedApplyZoom();
   scroll.scrollLeft = 0;
   scroll.scrollTop  = 0;
