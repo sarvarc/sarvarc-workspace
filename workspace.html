@@ -2707,22 +2707,6 @@
 
             <div class="dg-rbn-sep"></div>
 
-            <!-- ANNOTATE: manual text placed directly on the canvas, Canva-style.
-                 Kept near the front of the ribbon (not scrolled off to the right).
-                 Select All / Align live only on the floating per-selection toolbar
-                 (dgPtxtToolbar) and Ctrl+A now — the ribbon copies were redundant. -->
-            <div class="dg-rbn-group">
-              <div class="dg-rbn-group-btns">
-                <button class="dg-rbn-btn" onclick="dgAddText()" title="Add a draggable text label on the chart">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-                  Add Text
-                </button>
-              </div>
-              <div class="dg-rbn-group-label">Annotate</div>
-            </div>
-
-            <div class="dg-rbn-sep"></div>
-
             <!-- TITLE (dropdown, was a full-width text field docked in the ribbon) -->
             <div class="dg-rbn-dropdown-group" id="dgTitleGroup">
               <div class="dg-rbn-btn-row">
@@ -2766,6 +2750,9 @@
 
             <div class="dg-rbn-sep"></div>
 
+            <!-- Templates + Number Format were removed from the ribbon. They stay in the DOM, hidden, because the
+                 chart engine still reads #dgFormatSelect (auto currency / percent / abbreviation detection). -->
+            <div class="dg-rbn-legacy-hidden" style="display:none" aria-hidden="true">
             <!-- TEMPLATES (dropdown) -->
             <div class="dg-rbn-dropdown-group" id="dgTemplatesGroup">
               <div class="dg-rbn-btn-row">
@@ -2815,6 +2802,7 @@
             </div>
 
             <div class="dg-rbn-sep"></div>
+            </div>
 
             <!-- BAR CORNER RADIUS (dropdown, was a slider docked full-time in the ribbon; main button label shows the current value) -->
             <div class="dg-rbn-dropdown-group" id="dgRadiusGroup">
@@ -3092,15 +3080,18 @@
             <!-- MULTI-CHART GALLERY: shown when a big/wide upload was split into several charts (one per metric).
                  Lives as a LEFT side panel inside the main row (beside the live preview) so it is always
                  on screen — no scrolling below the chart to find it. -->
+            <button type="button" class="dg-multi-gallery-reopen" id="dgMultiGalleryReopen" onclick="dgOpenMultiGallery()" title="Show charts gallery" aria-label="Show charts gallery">
+              <span class="dg-mgr-arrow">&rsaquo;</span><span class="dg-mgr-text">Charts</span><span class="dg-mgr-count" id="dgMultiGalleryReopenCount"></span>
+            </button>
             <div class="dg-multi-gallery" id="dgMultiGallery">
               <div class="dg-multi-gallery-head">
-                <div class="dg-multi-gallery-title">Charts from your data<span id="dgMultiGalleryCount"></span></div>
-                <button type="button" class="dg-multi-gallery-close" onclick="dgCloseMultiGallery()" title="Dismiss these charts" aria-label="Dismiss these charts">&times;</button>
+                <div class="dg-multi-gallery-title">Charts<span id="dgMultiGalleryCount"></span></div>
+                <button type="button" class="dg-multi-gallery-close" onclick="dgCloseMultiGallery()" title="Hide gallery (you can reopen it)" aria-label="Hide gallery">&lsaquo;</button>
               </div>
               <div class="dg-multi-gallery-strip" id="dgMultiGalleryStrip"></div>
               <div class="dg-multi-gallery-actions">
-                <button type="button" class="btn-primary" style="padding:8px 12px;font-size:11.5px;width:100%" onclick="dgOpenMultiPushChoice()">Push all to Workspace</button>
-                <button type="button" class="btn-secondary" style="padding:7px 12px;font-size:11.5px;width:100%" onclick="dgSendAllToShowcase()" title="Play all these charts as one live reel in Showcase (saves as MP4)">Showcase all</button>
+                <button type="button" class="btn-primary" style="padding:8px 12px;font-size:11.5px;width:100%" onclick="dgOpenMultiPushChoice()" title="Push all these charts to Workspace">Push all</button>
+                <button type="button" class="btn-secondary" style="padding:7px 12px;font-size:11.5px;width:100%" onclick="dgSendAllToShowcase()" title="Play all these charts as one live reel in Showcase (saves as MP4)">Showcase</button>
               </div>
             </div>
             <div class="dg-preview-wrap">
