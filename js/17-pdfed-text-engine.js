@@ -1,926 +1,2949 @@
-/* ─── DIAGRAMS & GRAPHS ─── */
-.dg-section { display:flex; flex-direction:column; gap:8px; padding:8px 24px 14px; position:relative; z-index:1; min-height:0; }
-.dg-body { display:flex; flex-direction:column; gap:8px; min-height:0; flex:1; position:relative; }
-.dg-panel {
-  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
-  padding:16px; display:flex; flex-direction:column; gap:14px;
-}
-.dg-panel-title {
-  font-size:11px; font-weight:800; letter-spacing:0.4px; text-transform:uppercase;
-  color:var(--text3);
-}
-.dg-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.dg-type-tile {
-  display:flex; flex-direction:column; align-items:center; gap:6px;
-  padding:12px 6px; border-radius:10px; cursor:pointer;
-  background:var(--surface); border:1px solid var(--border); color:var(--text2);
-  font-size:11px; font-weight:700; transition:all 0.15s ease;
-}
-.dg-type-tile svg { color:var(--text3); transition:color 0.15s ease; }
-.dg-type-tile:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
-.dg-type-tile.active { background:var(--pdfed-accent-bg); border-color:var(--pdfed-accent); color:var(--pdfed-accent); }
-.dg-type-tile.active svg { color:var(--pdfed-accent); }
-.dg-field { display:flex; flex-direction:column; gap:6px; }
-.dg-field label { font-size:11px; font-weight:700; color:var(--text2); }
-.dg-field input[type="text"] {
-  padding:8px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border);
-  color:var(--text); font-size:12.5px; outline:none; width:100%;
-}
-.dg-field input[type="text"]:focus { border-color:var(--pdfed-accent); }
-.dg-toggle-row {
-  display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); font-weight:600;
-  background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 11px;
-  cursor:pointer; transition:border-color 0.15s ease, background 0.15s ease;
-}
-.dg-toggle-row:hover { border-color:var(--border2); background:var(--surface2); }
-.dg-toggle-row input[type="checkbox"] { accent-color: var(--pdfed-accent); width:15px; height:15px; cursor:pointer; }
-.dg-palette { display:flex; gap:9px; flex-wrap:wrap; }
-.dg-palette-swatch {
-  width:26px; height:26px; border-radius:9px; cursor:pointer; border:2px solid transparent;
-  transition:transform 0.15s cubic-bezier(.2,.8,.3,1.4), box-shadow 0.15s ease;
-  box-shadow:0 1px 3px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -6px 10px rgba(0,0,0,0.14);
-}
-.dg-palette-swatch:hover { transform:scale(1.16) translateY(-1px); box-shadow:0 6px 14px rgba(0,0,0,0.38), inset 0 0 0 1px rgba(255,255,255,0.18); }
-.dg-palette-swatch.active { border-color:var(--bg2); box-shadow:0 0 0 2px var(--pdfed-accent), 0 4px 14px var(--pdfed-accent-bg); }
-.dg-rows { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; }
-.dg-row {
-  display:flex; align-items:center; gap:6px; padding:6px; border-radius:8px;
-  background:var(--surface); border:1px solid var(--border);
-}
-.dg-row input[type="color"] {
-  width:22px; height:22px; border-radius:6px; border:none; padding:0; cursor:pointer; flex-shrink:0; background:none;
-}
-.dg-row input[type="text"], .dg-row input[type="number"] {
-  background:transparent; border:none; outline:none; color:var(--text); font-size:12px; min-width:0;
-}
-.dg-row input[type="text"] { flex:1.3; }
-.dg-row input[type="number"] { flex:1; text-align:right; }
-.dg-row-del {
-  flex-shrink:0; width:18px; height:18px; border-radius:5px; display:flex; align-items:center; justify-content:center;
-  color:var(--text3); font-size:13px; line-height:1;
-}
-.dg-row-del:hover { background:rgba(239,68,68,0.2); color:#ef4444; }
-.dg-add-row-btn {
-  display:flex; align-items:center; justify-content:center; gap:6px;
-  padding:8px; border-radius:8px; font-size:11.5px; font-weight:700;
-  background:var(--surface); border:1px dashed var(--border2); color:var(--text2); cursor:pointer;
-}
-.dg-add-row-btn:hover { background:var(--surface2); color:var(--pdfed-accent); border-color:var(--pdfed-accent); }
+// ---- Kadessa's own "read this page" helper -----------------------------------
+// Same tier order as pdfedExtractPlainTextForPage above (real PDF text layer
+// first, local OCR fallback second) but built for Kadessa specifically: it also
+// reports a confidence number and, when the OCR tier was needed, the page's
+// raster, so the caller can decide whether a paid vision re-read is worth
+// offering. A real text layer is used AS-IS whenever one exists -- exact,
+// free, and OCR/vision never even run in that case, since there's nothing
+// for either to improve on. Only flattened/scanned pages or photos (the
+// pdf.js "zero text items" case) ever reach the OCR tier at all.
+async function pdfedReadPageForKadessa(pg, worker) {
+  try {
+    const layerText = await pdfedExtractPdfLayerText(pg);
+    if (layerText) return { source: 'text-layer', text: layerText, confidence: 100 };
+  } catch (err) {
+    console.warn('Kadessa page read (PDF layer) failed, falling back to OCR:', err);
+  }
+  try {
+    const img = await pdfedLoadPageImage(pg);
+    if (!img) return { source: 'ocr', text: '', confidence: 0 };
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    if (!canvas.width || !canvas.height) return { source: 'ocr', text: '', confidence: 0 };
+    canvas.getContext('2d').drawImage(img, 0, 0);
 
-/* Compact floating info icon (replaces the old always-on title+description header bar,
-   so the ribbon + canvas get essentially all the vertical space). */
-.dg-info-btn {
-  position:absolute; top:2px; right:2px; z-index:6;
-  display:flex; align-items:center; justify-content:center; width:26px; height:26px;
-  background:var(--surface); border:1px solid var(--border); border-radius:50%; color:var(--text3);
-  cursor:pointer; transition:background 0.15s, color 0.15s, border-color 0.15s;
-}
-.dg-info-btn:hover { background:var(--surface2); color:var(--pdfed-accent); border-color:var(--pdfed-accent); }
-.dg-info-popover {
-  display:none; position:absolute; top:32px; right:2px; z-index:20; width:280px;
-  background:var(--bg2); border:1px solid var(--border2); border-radius:12px; padding:14px 16px;
-  box-shadow:0 14px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.12);
-}
-.dg-info-popover.open { display:block; }
-.dg-info-popover h2 { font-family:'Inter',sans-serif; font-size:15px; font-weight:800; margin-bottom:6px; }
-.dg-info-popover p { color:var(--text2); font-size:12.5px; line-height:1.5; }
+    const { canvas: ocrCanvas, scale } = pdfedPreprocessForOcr(canvas);
+    const { data } = await worker.recognize(ocrCanvas);
+    await pdfedRetryWeakLines(canvas, data.lines || [], scale, worker);
 
-.dg-rbn-btn-accent { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); }
-.dg-rbn-btn-accent:hover { background:var(--pdfed-accent-bg); filter:brightness(1.15); color:var(--pdfed-accent); }
-
-/* Push-to-Workspace is the one ribbon action that actually does something with the
-   finished chart (everything else is editing/formatting) — a solid filled accent
-   button, instead of the same flat tint as every other ribbon icon, keeps it reading
-   as the primary action rather than blending into the row. Built from the same
-   --pdfed-accent the rest of the (now Workspace-matched) ribbon uses, so the one bright
-   spot in the bar still belongs to the same colour family instead of a mismatched brand hue. */
-.dg-rbn-btn-push {
-  background:linear-gradient(135deg, var(--pdfed-accent), var(--purple, #7C5CFC)) !important;
-  color:#fff !important; padding:5px 9px !important; border-radius:6px !important;
-  box-shadow:0 2px 8px var(--pdfed-accent-bg);
-  align-self:center;
-}
-.dg-rbn-btn-push:hover { box-shadow:0 3px 12px var(--pdfed-accent-bg); transform:translateY(-1px); color:#fff !important; filter:brightness(1.08); }
-.dg-rbn-btn-push svg { flex-shrink:0; }
-/* Keep the Push group visually anchored inside the ribbon row, same height/alignment
-   as every other group — no special padding that could push it out of vertical rhythm. */
-#dgPushGroup { align-self:stretch; justify-content:center; }
-
-/* ── Diagrams & Graphs ribbon bar — restyled to match the Workspace (PDF editor)
-   ribbon exactly: same toolbar surface, border, and accent tokens (--pdfed-*), not the
-   standalone cyan brand color, so the two toolbars read as one consistent product. ── */
-.dg-ribbon-bar {
-  display:flex; align-items:center; gap:2px; height:52px; flex-shrink:0;
-  border:1px solid var(--pdfed-toolbar-border); border-radius:12px;
-  background:var(--pdfed-toolbar-bg); padding:0 8px; overflow-x:auto; overflow-y:hidden;
-  box-shadow:var(--shadow-nav);
-  /* OPENING (this rule governs the transition back to normal, i.e. the target
-     state when .dg-ribbon-collapsed is removed). 0s — no delay at all. Opening
-     the tool bar means the user wants a tool right now; it's there and
-     clickable the same frame as the click. */
-  transition: height 0s, opacity 0s, padding 0s, border-color 0s;
-}
-/* Collapsed: shrink the whole bar to a slim clickable strip instead of hiding it,
-   so it still reads as "there are tools here" for people who like the toolbar minimal. */
-.dg-ribbon-bar.dg-ribbon-collapsed {
-  height: 10px;
-  padding: 0;
-  opacity: 0.55;
-  cursor: pointer;
-  overflow: hidden;
-  border-style: dashed;
-  /* COLLAPSING (this rule governs the transition into this state, i.e. when
-     .dg-ribbon-collapsed is added) — the "premium" side, matching the PDF
-     editor ribbon: 0.75s, slow and deliberate, because closing is the motion
-     people actually watch. Opacity/padding/border settle quickly (0.3s) so
-     nothing looks squashed mid-collapse; height follows a steep ease-in
-     (almost all motion happens in the final third) so the bar holds, then
-     tucks itself down to the slim strip with a confident, unhurried close. */
-  transition: height 0.75s cubic-bezier(.7,0,.84,0),
-              opacity 0.3s ease-in,
-              padding 0.3s ease-in,
-              border-color 0.3s ease-in;
-}
-.dg-ribbon-bar.dg-ribbon-collapsed:hover { opacity: 0.9; }
-.dg-ribbon-bar.dg-ribbon-collapsed > * { visibility: hidden; }
-/* Peeking: hovering the collapsed strip floats the full toolbar over the
-   canvas below it instead of pushing the canvas down, so nothing reflows
-   just to glance at a tool. Leaving the area collapses it back to the strip. */
-.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 52px;
-  padding: 0 8px;
-  opacity: 1;
-  border-style: solid;
-  overflow-x: auto;
-  overflow-y: hidden;
-  z-index: 40;
-  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.35);
-}
-.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek > * { visibility: visible; }
-.dg-ribbon-toggle-btn svg { transition: transform 0.2s ease; }
-.dg-ribbon-toggle-btn.active svg { transform: rotate(180deg); }
-.dg-ribbon-toggle-btn.active { color: var(--pdfed-accent) !important; border-color: var(--border2) !important; }
-.dg-ribbon-bar { min-width:0; max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
-.dg-ribbon-bar::after { content:''; flex:0 0 14px; }   /* breathing room so the last button can scroll fully into view */
-.dg-ribbon-bar::-webkit-scrollbar { height:3px; }
-.dg-ribbon-bar::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
-.dg-rbn-group { display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
-.dg-rbn-group:hover { background:rgba(255,255,255,0.025); }
-.dg-rbn-group-btns { display:flex; align-items:center; gap:3px; }
-.dg-rbn-group-label { font-size:8px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--text3); text-align:center; line-height:1; opacity:0.65; user-select:none; }
-.dg-rbn-group:hover .dg-rbn-group-label { opacity:0.9; color:var(--text2); }
-.dg-rbn-sep { width:1px; height:32px; background:var(--border); flex-shrink:0; margin:0 6px; align-self:center; }
-.dg-rbn-btn {
-  display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 9px; border-radius:6px;
-  border:none; background:transparent; color:var(--text2); font-family:'Inter',sans-serif; font-size:9.5px;
-  font-weight:600; letter-spacing:0.1px; line-height:1; cursor:pointer; transition:all 0.12s; white-space:nowrap; min-width:44px;
-}
-.dg-rbn-btn:hover { background:var(--pdfed-btn-hover); color:var(--text); }
-.dg-rbn-btn.active { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); }
-.dg-rbn-btn svg { flex-shrink:0; }
-.dg-rbn-dropdown-group { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-shrink:0; padding:3px 6px 4px; border-radius:8px; transition:background 0.15s; }
-.dg-rbn-dropdown-group:hover { background:rgba(255,255,255,0.025); }
-.dg-rbn-dropdown-group:hover .dg-rbn-group-label { opacity:0.9; color:var(--text2); }
-.dg-rbn-btn-row { display:flex; align-items:center; }
-.dg-rbn-caret {
-  display:flex; align-items:center; justify-content:center; width:16px; background:var(--pdfed-btn-bg);
-  border:none; border-left:1px solid var(--pdfed-toolbar-border); border-radius:0 6px 6px 0; cursor:pointer; color:var(--text2);
-  transition:background 0.15s, color 0.15s; flex-shrink:0;
-}
-.dg-rbn-caret:hover { background:var(--pdfed-btn-hover); color:var(--text); }
-.dg-rbn-caret svg { pointer-events:none; }
-.dg-rbn-main { border-radius:6px 0 0 6px !important; }
-.dg-rbn-inline-field { display:flex; flex-direction:column; gap:3px; padding:3px 8px; justify-content:flex-start; }
-.dg-rbn-inline-field > label { font-size:8px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text3); text-align:center; opacity:0.65; margin-top:2px; }
-.dg-rbn-inline-field:hover > label { opacity:0.9; color:var(--text2); }
-.dg-rbn-inline-field input[type="text"] {
-  width:132px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
-  font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none;
-}
-.dg-rbn-inline-field input[type="text"]:focus { border-color:var(--pdfed-accent); }
-.dg-rbn-inline-field select {
-  width:118px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
-  font-size:11px; padding:5px 7px; font-family:'Inter',sans-serif; outline:none; cursor:pointer;
+    const lines = (data.lines || []).filter(function(l){ return l.text && l.text.trim(); });
+    const text = lines
+      .filter(function(l){ return l.confidence >= 35; })
+      .sort(function(a, b){ return a.bbox.y0 - b.bbox.y0; })
+      .map(function(l){ return l.text.trim(); })
+      .join('\n');
+    const avgConfidence = lines.length
+      ? Math.round(lines.reduce(function(sum, l){ return sum + l.confidence; }, 0) / lines.length)
+      : 0;
+    // Kept at the same resolution OCR itself worked from (not re-rasterized
+    // at a different size later) so a follow-up vision re-read reuses this
+    // exact image instead of loading/drawing the page a second time.
+    return { source: 'ocr', text: text, confidence: avgConfidence, dataUrl: canvas.toDataURL('image/jpeg', 0.85) };
+  } catch (err) {
+    console.warn('Kadessa page read (OCR) failed:', err);
+    return { source: 'ocr', text: '', confidence: 0 };
+  }
 }
 
-/* ── Diagrams & Graphs ribbon — enterprise-grade compact pass ──────────────
-   Brings this ribbon in line with the Data Arrangement toolbar's finished
-   language: one slim row, icon-only action buttons with a tooltip instead
-   of a tiny caption baked under every icon, and quiet hairline dividers
-   instead of a boxed-and-captioned segment for every single button. This
-   sits after the base rules above and wins on source order, so nothing
-   upstream needs to be rewritten. */
-.dg-ribbon-bar { height:44px; padding:0 6px; gap:0; }
-.dg-ribbon-bar.dg-ribbon-collapsed.dg-ribbon-peek { height:44px; padding:0 6px; }
+let pdfedExtractedTextResults = null;
+// Kadessa's most recent low-confidence OCR read (set by pdfed_read_page below,
+// consumed and cleared by pdfed_vision_reread_page). Kept module-level so
+// the vision follow-up doesn't need the person to specify a page again and
+// doesn't re-rasterize or re-OCR anything -- it just reuses this image.
+let pdfedKadessaLastLowConfidenceRead = null; // { pageIdx, dataUrl, ocrText, confidence }
 
-.dg-rbn-group, .dg-rbn-dropdown-group {
-  flex-direction:row; align-items:center; padding:0 3px; gap:0; border-radius:7px; min-height:0;
+function pdfedOpenExtractChooser() {
+  if (pdfed.active < 0) { toast('Open a PDF first', 'error'); return; }
+  document.getElementById('pdfedExtractChooserOverlay').classList.add('open');
 }
-.dg-rbn-group:hover, .dg-rbn-dropdown-group:hover { background:rgba(255,255,255,0.035); }
-[data-theme="light"] .dg-rbn-group:hover, [data-theme="light"] .dg-rbn-dropdown-group:hover { background:rgba(16,40,90,0.045); }
-
-/* The old caption ("CHART TYPE", "ANNOTATE", "STYLE"…) retires to
-   screen-reader-only text — a tooltip now carries the same information for
-   sighted users, so nothing is lost, but the row stops reading as a dozen
-   separately labelled boxes stacked two rows deep. */
-.dg-rbn-group-label {
-  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
-  clip:rect(0,0,0,0); white-space:nowrap; border:0;
-}
-.dg-rbn-btn-row { height:30px; align-items:center; }
-
-/* Standalone action buttons (Add Text, Undo, Redo, Clear All) — icon-only
-   30px squares, the same module every other toolbar in the app uses. */
-.dg-rbn-group .dg-rbn-btn {
-  flex-direction:row; width:30px; height:30px; padding:0; margin:0;
-  border-radius:7px; font-size:0; line-height:0; letter-spacing:0; gap:0;
-}
-.dg-rbn-group .dg-rbn-btn svg { flex-shrink:0; opacity:0.82; }
-.dg-rbn-group .dg-rbn-btn:hover svg, .dg-rbn-group .dg-rbn-btn.active svg { opacity:1; }
-.dg-rbn-group-btns { gap:1px; }
-
-/* Dropdown triggers (Chart Type, Title, Axes, Templates, Format, Corners,
-   Colour, Upload, Data, History, Export) — icon + live value in one row,
-   no stacked caption underneath. */
-.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main {
-  flex-direction:row; height:30px; padding:0 9px; border-radius:7px 0 0 7px;
-  font-size:11.5px; font-weight:600; gap:6px; letter-spacing:0.1px; min-width:0;
-}
-.dg-rbn-dropdown-group .dg-rbn-caret { height:30px; width:16px; border-radius:0 7px 7px 0; }
-
-/* Push stays the one filled, labelled call-to-action in the row — every
-   other control is quiet by comparison, so the eye lands here last. */
-.dg-rbn-btn-push { flex-direction:row !important; width:auto !important; height:30px; padding:0 12px !important; gap:6px; font-size:11.5px !important; font-weight:700 !important; }
-
-/* Thinner, shorter, lower-contrast dividers — present enough to mark a
-   boundary, not heavy enough to chop the bar into fourteen little boxes. */
-.dg-rbn-sep { width:1px; height:20px; margin:0 4px; opacity:0.55; background:var(--border2); }
-
-/* Premium tooltip, matching the Data Arrangement toolbar's dark pill —
-   applies to any ribbon control carrying data-tip (the boot script below
-   promotes every title attribute in this bar to data-tip once, so there's
-   no native browser tooltip fighting this one). */
-.dg-ribbon-bar [data-tip], .dg-mode-tabs [data-tip] { position:relative; }
-.dg-ribbon-bar [data-tip]::after, .dg-mode-tabs [data-tip]::after {
-  content:attr(data-tip); position:absolute; top:calc(100% + 7px); left:50%;
-  transform:translate(-50%,-3px); white-space:pre; pointer-events:none;
-  padding:5px 9px; border-radius:6px; font-size:11px; font-weight:600; line-height:1.3;
-  letter-spacing:0.1px; color:#f4f7fb; background:#0f1520; max-width:220px;
-  text-align:center; white-space:normal;
-  border:1px solid rgba(255,255,255,0.08); box-shadow:0 6px 16px -4px rgba(0,0,0,0.45);
-  opacity:0; visibility:hidden; z-index:60;
-  transition:opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
-}
-.dg-ribbon-bar [data-tip]:hover::after, .dg-ribbon-bar [data-tip]:focus-visible::after,
-.dg-mode-tabs [data-tip]:hover::after, .dg-mode-tabs [data-tip]:focus-visible::after {
-  opacity:1; visibility:visible; transform:translate(-50%,0);
-  transition:opacity 0.14s ease 0.28s, transform 0.14s ease 0.28s, visibility 0s linear 0.28s;
-}
-[data-theme="light"] .dg-ribbon-bar [data-tip]::after, [data-theme="light"] .dg-mode-tabs [data-tip]::after { background:#1b2740; color:#fff; border-color:rgba(255,255,255,0.06); }
-@media (hover:none) { .dg-ribbon-bar [data-tip]::after, .dg-mode-tabs [data-tip]::after { display:none; } }
-
-/* Mode switch (Data Charts / Flowchart / Map) + Tool Bar toggle — a proper
-   segmented control instead of three loose pill buttons, so it reads as
-   one control with a selected state rather than three separate buttons. */
-.dg-mode-tabs { align-items:center; padding:3px !important; background:var(--surface2); border:1px solid var(--border); border-radius:9px; gap:2px !important; }
-.dg-mode-tab { border-radius:6px !important; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
-.dg-mode-tab:not(.active) { background:transparent !important; border-color:transparent !important; }
-.dg-mode-tab:not(.active):hover { background:var(--surface) !important; color:var(--text) !important; }
-.dg-ribbon-toggle-btn { height:28px; border-radius:7px !important; transition:background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
-.dg-ribbon-toggle-btn:hover { background:var(--surface2) !important; color:var(--text) !important; }
-
-/* Fixed-position dropdown panels launched from the ribbon (Chart Type / Templates / Colour / Data) */
-.dg-dropdown-panel {
-  display:none; position:fixed; background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
-  padding:12px; z-index:9999; box-shadow:0 14px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.12);
-}
-.dg-dropdown-panel.open { display:block; animation:dgDropdownIn 0.18s cubic-bezier(.2,.8,.3,1); transform-origin:top left; }
-@keyframes dgDropdownIn {
-  from { opacity:0; transform:translateY(-6px) scale(0.97); }
-  to   { opacity:1; transform:translateY(0) scale(1); }
-}
-.dg-type-dropdown { width:250px; max-height:min(70vh, 520px); overflow-y:auto; overscroll-behavior:contain; }
-.dg-columns-dropdown { width:320px; }
-.dg-axis-block { border:1px solid var(--border); border-radius:10px; padding:10px 11px; background:rgba(255,255,255,0.015); }
-.dg-axis-head { display:flex; align-items:center; gap:6px; margin-bottom:7px; }
-.dg-axis-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:5px; font-size:10px; font-weight:800; flex:none; }
-.dg-axis-badge.x { background:rgba(0,194,255,0.15); color:var(--blue); }
-.dg-axis-badge.y { background:rgba(34,197,94,0.15); color:#22C55E; }
-.dg-axis-title { font-size:11.5px; font-weight:800; color:var(--text); }
-.dg-axis-sub { font-size:10px; color:var(--text3); font-weight:500; }
-.dg-axis-swap-row { display:flex; align-items:center; justify-content:center; margin:2px 0; }
-.dg-axis-swap-btn {
-  display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:var(--text2);
-  background:var(--surface); border:1px solid var(--border); border-radius:99px; padding:4px 12px; cursor:pointer; transition:all 0.15s ease;
-}
-.dg-axis-swap-btn:hover { color:var(--blue); border-color:var(--blue); background:rgba(0,194,255,0.08); }
-.dg-axis-swap-btn svg { flex:none; }
-.dg-upload-preview-toggle {
-  display:flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; color:var(--text3);
-  cursor:pointer; margin-bottom:6px; user-select:none;
-}
-.dg-upload-preview-toggle:hover { color:var(--text2); }
-.dg-upload-preview-toggle svg { transition:transform 0.15s ease; }
-.dg-upload-preview-toggle.open svg { transform:rotate(90deg); }
-.dg-type-dropdown .dg-type-grid { grid-template-columns:1fr 1fr; }
-.dg-templates-dropdown { width:230px; }
-.dg-templates-dropdown .dg-template-grid { grid-template-columns:1fr; }
-.dg-title-dropdown, .dg-format-dropdown, .dg-radius-dropdown { width:220px; }
-.dg-title-panel-input {
-  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
-  font-size:12px; padding:7px 9px; font-family:'Inter',sans-serif; outline:none; box-sizing:border-box;
-}
-.dg-title-panel-input:focus { border-color:var(--blue); }
-.dg-format-panel-select {
-  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text);
-  font-size:12px; padding:7px 9px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; box-sizing:border-box;
-}
-.dg-colour-dropdown {
-  width:276px; max-height:74vh; overflow-y:auto; padding:18px;
-  border-radius:16px;
-  box-shadow:0 22px 48px rgba(0,0,0,0.45), 0 4px 14px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.03) inset;
-}
-.dg-colour-dropdown::-webkit-scrollbar { width:6px; }
-.dg-colour-dropdown::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
-.dg-color-divider { height:1px; border:none; margin:14px 0; background:linear-gradient(90deg, transparent, var(--border2) 50%, transparent); }
-.dg-data-dropdown { width:320px; max-height:72vh; overflow-y:auto; }
-.dg-upload-dropdown { width:300px; max-height:74vh; overflow-y:auto; }
-.dg-history-dropdown { width:260px; max-height:60vh; overflow-y:auto; }
-.dg-history-badge { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; margin-left:4px; border-radius:99px; background:var(--blue); color:#fff; font-size:8px; font-weight:800; line-height:14px; }
-.dg-history-empty { font-size:10.5px; line-height:1.5; color:var(--text3); padding:6px 2px; }
-.dg-history-item { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; border:1px solid var(--border); margin-bottom:6px; background:var(--surface); }
-.dg-history-item:hover { border-color:var(--border2); }
-.dg-history-item-main { flex:1; min-width:0; cursor:pointer; }
-.dg-history-item-title { font-size:11px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.dg-history-item-meta { font-size:9px; color:var(--text3); margin-top:2px; text-transform:capitalize; }
-.dg-history-item-del { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; border:none; background:transparent; color:var(--text3); cursor:pointer; transition:all 0.15s; }
-.dg-history-item-del:hover { background:rgba(239,68,68,0.12); color:#ef4444; }
-.dg-upload-zone { border:1.5px dashed rgba(0,194,255,0.28); border-radius:12px; padding:18px 12px; text-align:center; cursor:pointer; transition:all 0.2s; background:rgba(0,194,255,0.02); display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--text3); }
-.dg-upload-zone:hover, .dg-upload-zone.dragover { border-color:var(--blue); background:rgba(0,194,255,0.06); color:var(--blue); box-shadow:var(--glow-blue); }
-.dg-upload-zone.scanning { border-color:var(--blue); background:rgba(0,194,255,0.06); }
-.dg-upload-zone-text { font-size:11px; line-height:1.5; color:var(--text2); font-weight:600; }
-.dg-upload-file-name { font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:8px; word-break:break-all; }
-.dg-upload-field-label { display:block; font-size:10.5px; font-weight:700; color:var(--text2); margin-bottom:4px; }
-.dg-upload-select { width:100%; padding:9px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:12.5px; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
-.dg-upload-select:focus { border-color:var(--blue); }
-.dg-upload-hint { font-size:10.5px; color:var(--text3); margin-top:8px; line-height:1.5; }
-.dg-upload-value-checks { display:flex; flex-direction:column; gap:2px; max-height:150px; overflow-y:auto; padding:6px 8px; border-radius:8px; background:var(--surface); border:1px solid var(--border); }
-.dg-upload-value-check { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); cursor:pointer; padding:6px 5px; border-radius:6px; }
-.dg-upload-value-check:hover { background:var(--surface2, rgba(0,194,255,0.06)); }
-.dg-upload-value-check input { cursor:pointer; margin:0; flex:none; width:15px; height:15px; }
-.dg-upload-value-swatch { width:10px; height:10px; border-radius:3px; flex:none; }
-.dg-upload-value-check-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.dg-upload-value-flag { flex:none; font-size:10px; color:var(--text3); white-space:nowrap; }
-.dg-export-dropdown { width:250px; }
-.dg-export-dropdown .pdfed-export-menu-item { margin-bottom:2px; }
-.dg-export-dropdown .pdfed-export-menu-item:last-child { margin-bottom:0; }
-.rdx-export-dropdown { width:250px; }
-.rdx-export-dropdown .pdfed-export-menu-item { margin-bottom:2px; }
-.rdx-export-dropdown .pdfed-export-menu-item:last-child { margin-bottom:0; }
-.dg-main-row { display:flex; gap:14px; flex:1; min-height:0; align-items:stretch; transition:gap 0.28s cubic-bezier(0.16,1,0.3,1); }
-.dg-main-row.dg-insights-collapsed { gap:0; }
-.dg-preview-wrap {
-  background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius);
-  padding:10px; display:flex; flex-direction:column; gap:8px; min-height:0;
-  flex:1; min-width:0;
-}
-.dg-preview-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.dg-preview-toolbar-spacer { flex:1; }
-.dg-show-toggles {
-  display:flex; align-items:center; gap:2px; padding:3px;
-  background:var(--surface); border:1px solid var(--border); border-radius:9px;
-}
-.dg-columns-group { position:relative; display:flex; }
-/* Always-visible quick X/Y axis pickers — sit directly in the toolbar so switching which
-   column drives each axis is a single click, no need to open the Columns dropdown first.
-   They stay in sync with (and simply drive) the fuller X-Axis select / Y-Axis checklist
-   inside the Columns panel, which remains for multi-column Y comparisons and the raw
-   data preview. */
-.dg-quick-axis-group { display:flex; align-items:center; gap:4px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:9px; }
-.dg-quick-axis-chip { display:flex; align-items:center; gap:5px; padding:2px 8px 2px 4px; border-radius:6px; }
-.dg-quick-axis-badge { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:5px; font-size:9px; font-weight:800; flex:none; }
-.dg-quick-axis-badge.x { background:rgba(0,194,255,0.15); color:var(--blue); }
-.dg-quick-axis-badge.y { background:rgba(34,197,94,0.15); color:#22C55E; }
-.dg-quick-axis-select { max-width:128px; padding:3px 5px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text); font-size:11px; font-weight:600; font-family:'Inter',sans-serif; outline:none; cursor:pointer; }
-.dg-quick-axis-select:hover { border-color:var(--blue); }
-.dg-quick-axis-select:focus { border-color:var(--blue); }
-.dg-quick-axis-select:disabled { opacity:0.45; cursor:not-allowed; }
-.dg-quick-axis-group.dg-chip-disabled { opacity:0.4; pointer-events:none; }
-/* Same quick pickers, restyled to sit in the Map Explorer modal header (dark toolbar). */
-.dg-mapx-head .dg-quick-axis-group { background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.12); }
-.dg-show-chip {
-  display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px;
-  font-size:11.5px; font-weight:600; color:var(--text2); cursor:pointer; user-select:none;
-  transition:background 0.12s ease, color 0.12s ease; white-space:nowrap;
-}
-.dg-show-chip:hover { background:var(--surface2); color:var(--text); }
-.dg-show-chip.active { background:var(--blue); color:#fff; }
-.dg-hologram-chip.active { background:#00C2FF; box-shadow:0 0 10px rgba(0,229,255,0.7); }
-.dg-show-chip input { display:none; }
-button.dg-show-chip { border:none; background:none; font-family:inherit; }
-button.dg-show-chip.active { background:var(--blue); }
-/* Applied when a toggle/group doesn't apply to the currently-selected chart type (e.g.
-   Trend on a Pie chart, or Axes on a Donut chart) — reads as inert instead of silently
-   doing nothing when clicked. */
-.dg-show-chip.dg-chip-disabled,
-.dg-rbn-dropdown-group.dg-chip-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
-.dg-canvas-holder {
-  flex:1; display:flex; align-items:center; justify-content:center;
-  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; min-height:0;
-  overflow:auto; position:relative; cursor:grab;
-}
-.dg-canvas-holder.dg-panning { cursor:grabbing; }
-.dg-canvas-holder.dg-panning * { cursor:grabbing !important; user-select:none; }
-/* ── Map Explorer: full interactive OpenStreetMap view (Leaflet), opened from the
-   "Explore Map" chip while Map mode is active — lets someone pan/zoom into real
-   geography instead of the flat offline choropleth shape. ── */
-.dg-mapx-modal { position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:9999; display:none; align-items:center; justify-content:center; }
-.dg-mapx-modal.open { display:flex; }
-.dg-mapx-panel { background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:16px; width:94vw; max-width:1180px; height:88vh; display:flex; flex-direction:column; gap:10px; }
-.dg-mapx-head { display:flex; align-items:center; gap:10px; }
-.dg-mapx-head h3 { font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; margin:0; }
-.dg-mapx-head-spacer { flex:1; }
-.dg-mapx-btn { padding:6px 12px; font-size:11.5px; font-weight:600; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:5px; }
-.dg-mapx-btn:hover { color:var(--text); border-color:var(--border2); }
-.dg-mapx-btn.active { background:var(--pdfed-accent-bg); color:var(--pdfed-accent); border-color:var(--border2); }
-.dg-mapx-close { background:none; border:none; color:var(--text2); font-size:20px; cursor:pointer; line-height:1; padding:0 4px; }
-.dg-mapx-body { flex:1; min-height:0; border-radius:12px; overflow:hidden; border:1px solid var(--border); position:relative; }
-#dgLeafletMap { width:100%; height:100%; background:#0A0F1E; }
-.dg-mapx-note { font-size:11px; color:var(--text2); opacity:0.8; }
-.dg-mapx-beta-badge { display:inline-block; font-size:9px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#f59e0b; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.35); border-radius:4px; padding:2px 6px; margin-left:8px; vertical-align:middle; cursor:default; }
-.dg-mapx-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; font-size:12.5px; color:var(--text2); background:rgba(10,15,30,0.85); z-index:500; }
-/* Leaflet's default popup/marker chrome, restyled to match the app's dark surfaces */
-.dg-mapx-body .leaflet-popup-content-wrapper { background:var(--bg2); color:var(--text); border-radius:10px; }
-.dg-mapx-body .leaflet-popup-tip { background:var(--bg2); }
-.dg-mapx-body .leaflet-container { font-family:inherit; }
-.dg-mapx-popup-title { font-weight:700; font-size:12.5px; margin-bottom:3px; }
-.dg-mapx-popup-value { font-size:12px; color:var(--text2); }
-/* Marquee (drag-to-select) rectangle, Canva/Figma-style manual multi-select.
-   Positioned in the holder's own (scrollable) coordinate space — see
-   dgMarqueeStart/Move — so it tracks correctly regardless of chart zoom. */
-.dg-marquee-box {
-  position:absolute; z-index:5; pointer-events:none;
-  border:1.5px dashed var(--blue); background:rgba(0,194,255,0.10); border-radius:2px;
-}
-.dg-canvas-zoom-wrap { position:relative; transform-origin:center center; transition:transform 0.12s ease; flex-shrink:0; display:flex; }
-.dg-canvas-zoom-wrap canvas { display:block; }
-
-/* ── 3D Statistical charts: WebGL canvas lives in the same zoom-wrap slot as
-   the 2D <canvas>, toggled via display:none so only one is ever visible.
-   Sized to match the 2D canvas's default card (1200x675) so the surrounding
-   holder/zoom logic needs no special-casing. ── */
-#dgCanvas3D { display:none; border-radius:14px; cursor:grab; background:#ffffff; box-shadow:0 3px 16px rgba(16,24,40,0.12); }
-#dgCanvas3D.dg-panning-3d { cursor:grabbing; }
-.dg-type-grid-label {
-  grid-column:1 / -1; font-size:10px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;
-  color:var(--text3); padding:8px 2px 0; margin-top:2px; border-top:1px solid var(--border);
-}
-.dg-type-grid-label:first-child { border-top:none; margin-top:0; padding-top:0; }
-.dg-type-tile .dg-3d-badge {
-  font-size:8px; font-weight:800; letter-spacing:0.03em; color:#fff; background:linear-gradient(135deg,var(--cyan),var(--purple));
-  border-radius:5px; padding:1px 5px; margin-top:-2px;
-}
-.dg-3d-rotate-hint {
-  position:absolute; left:50%; bottom:10px; transform:translateX(-50%); pointer-events:none;
-  font-size:10.5px; font-weight:600; color:var(--text3); background:var(--surface); border:1px solid var(--border);
-  padding:4px 10px; border-radius:20px; opacity:0.9; display:flex; align-items:center; gap:5px;
-}
-.dg-3d-tooltip {
-  position:absolute; z-index:15; pointer-events:none; transform:translate(-50%, -100%);
-  background:#101820; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.45;
-  box-shadow:0 8px 20px rgba(0,0,0,0.28); white-space:nowrap;
-}
-.dg-3d-tooltip .dg-3d-tt-title { font-weight:700; font-size:12px; }
-.dg-3d-tooltip .dg-3d-tt-sub { color:#9aa5b3; }
-.dg-3d-tooltip::after {
-  content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
-  border:5px solid transparent; border-top-color:#101820;
+function pdfedCloseExtractChooser() {
+  document.getElementById('pdfedExtractChooserOverlay').classList.remove('open');
 }
 
-/* ── Manual text overlay: sits directly on top of dgCanvas, INSIDE the same
-   zoom wrap, so it scales/pans as one unit with the chart via the existing
-   CSS transform (dgApplyZoom) — the same proven pattern as the PDF editor's
-   placed-text layer. Because this is a pure DOM layer, dragging or editing
-   text never touches dgCanvas or calls dgDrawChart(), so the chart itself
-   ("its environment") is never cleared or redrawn while text is moved. ── */
-.dg-text-overlay { position:absolute; top:0; left:0; width:1200px; height:675px; pointer-events:none; }
-.dg-placed-text {
-  position:absolute; min-width:24px; min-height:20px; padding:2px 4px;
-  cursor:grab; pointer-events:auto; border:1.5px solid transparent; border-radius:4px;
-  outline:none; white-space:pre-wrap; word-break:break-word; user-select:none;
-  line-height:1.3; box-sizing:border-box; -webkit-user-drag:none;
-}
-.dg-placed-text:hover { border-color:rgba(0,194,255,0.35); }
-.dg-placed-text.selected { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,194,255,0.15); cursor:grab; }
-.dg-placed-text.editing { cursor:text; user-select:text; border-color:var(--blue); background:rgba(255,255,255,0.65); }
-.dg-placed-text.dragging { cursor:grabbing; box-shadow:0 4px 14px rgba(0,0,0,0.18); }
-.dg-ptxt-del {
-  position:absolute; top:-11px; right:-11px; width:20px; height:20px; border-radius:50%;
-  background:#EF4444; color:#fff; border:2px solid #fff; display:flex; align-items:center; justify-content:center;
-  cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.25); z-index:2;
-}
-.dg-ptxt-del svg { width:11px; height:11px; }
-/* Smart-resize handle (Canva-style): dragging the corner square scales the
-   font size right along with the box, same pattern as the PDF editor's
-   te-resize-handle. Sized with --dg-inv-zoom so it stays a constant
-   on-screen size no matter the canvas zoom level. */
-.dg-ptxt-resize {
-  position:absolute;
-  width:  calc(12px * var(--dg-inv-zoom, 1));
-  height: calc(12px * var(--dg-inv-zoom, 1));
-  bottom: calc(-7px * var(--dg-inv-zoom, 1));
-  right:  calc(-7px * var(--dg-inv-zoom, 1));
-  background:var(--blue); border:1.5px solid #fff; border-radius:3px;
-  box-shadow:0 1px 4px rgba(0,0,0,0.35); cursor:nwse-resize; display:none; z-index:2;
-}
-.dg-placed-text.selected .dg-ptxt-resize { display:block; }
-/* Move handle: a dedicated grab point (Canva/PDF-editor pattern) so there's
-   an explicit affordance for "drag to reposition" distinct from the resize
-   corner — dragging the body still moves it too, this just makes the
-   handle visible/discoverable once a box is selected. */
-.dg-ptxt-move {
-  position:absolute;
-  width:  calc(16px * var(--dg-inv-zoom, 1));
-  height: calc(16px * var(--dg-inv-zoom, 1));
-  top:  calc(-20px * var(--dg-inv-zoom, 1));
-  left: calc(-20px * var(--dg-inv-zoom, 1));
-  background:var(--blue); border:1.5px solid #fff; border-radius:50%;
-  box-shadow:0 1px 4px rgba(0,0,0,0.35); cursor:move; display:none;
-  align-items:center; justify-content:center; z-index:2;
-}
-.dg-ptxt-move svg { pointer-events:none; width:60%; height:60%; }
-.dg-placed-text.selected .dg-ptxt-move { display:flex; }
+// scope: 'current' (just the page on screen) or 'all' (every page, in order).
+async function pdfedRunTextExtraction(scope) {
+  if (pdfed.active < 0) { toast('Open a PDF first', 'error'); return; }
+  const indices = scope === 'all' ? pdfed.pages.map((_, i) => i) : [pdfed.active];
 
-/* ── Smart alignment guides: thin magenta lines that flash when a dragged
-   text box's edge/center lines up with the canvas center/edges or another
-   placed text's edge/center — Canva-style. Pure visual layer, sits above
-   the overlay, never affects the chart canvas itself. ── */
-.dg-snap-guides { position:absolute; top:0; left:0; width:1200px; height:675px; pointer-events:none; z-index:5; }
-.dg-snap-line { position:absolute; background:#FF3B8D; box-shadow:0 0 4px rgba(255,59,141,0.6); }
-.dg-snap-line.v { width:1px; top:0; height:100%; }
-.dg-snap-line.h { height:1px; left:0; width:100%; }
+  pdfedShowOcrProgress('Starting OCR engine…');
+  _teOcrProgressCb = pdfedUpdateOcrProgress;
+  const results = [];
+  try {
+    const worker = await pdfedGetOcrWorker();
+    for (let n = 0; n < indices.length; n++) {
+      const idx = indices[n];
+      const pg = pdfed.pages[idx];
+      pdfedUpdateOcrProgress(
+        n / indices.length,
+        indices.length > 1 ? ('Reading page ' + (idx + 1) + ' of ' + pdfed.pages.length + '…') : 'Reading text (OCR)…'
+      );
+      const text = await pdfedExtractPlainTextForPage(pg, worker);
+      results.push({ page: idx + 1, text: text || '' });
+    }
+  } catch (err) {
+    console.warn('Text extraction failed:', err);
+    toast(err && err.ocrEngineUnavailable
+      ? 'The OCR engine couldn\'t start (check your connection and try again)'
+      : 'Something went wrong while extracting text', 'error');
+  } finally {
+    _teOcrProgressCb = null;
+    pdfedHideOcrProgress();
+  }
 
-/* Insights side panel — premium enterprise dashboard treatment */
-.dg-insights-panel {
-  width:264px; flex-shrink:0;
-  background:linear-gradient(180deg, var(--bg3) 0%, var(--bg2) 100%);
-  border:1px solid var(--border); border-radius:var(--radius);
-  display:flex; flex-direction:column; min-height:0; overflow:visible; position:relative;
-  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 28px rgba(0,0,0,0.18);
-  transition:width 0.28s cubic-bezier(0.16,1,0.3,1), min-width 0.28s cubic-bezier(0.16,1,0.3,1), border-color 0.2s ease;
-}
-.dg-insights-panel.dg-collapsed {
-  width:0; min-width:0; border:none; box-shadow:none;
-}
-.dg-insights-panel.dg-collapsed .dg-insights-head,
-.dg-insights-panel.dg-collapsed .dg-insights-scroll { display:none; }
-/* Toggle tab, attached to left edge of the panel — mirrors the PDF editor's right-panel toggle */
-#dgInsightsToggleBtn {
-  position:absolute; top:50%; left:-22px; transform:translateY(-50%); z-index:20;
-  width:22px; height:64px;
-  background:var(--surface2);
-  border:1px solid var(--border); border-right:none; border-radius:10px 0 0 10px;
-  display:flex; align-items:center; justify-content:center; cursor:pointer;
-  color:var(--dg-ink);
-  transition:left 0.22s ease, color 0.15s, background 0.15s, box-shadow 0.15s, width 0.15s;
-  box-shadow:0 1px 6px rgba(0,0,0,0.12);
-}
-#dgInsightsToggleBtn:hover {
-  color:var(--text); width:24px; left:-24px;
-  background:var(--dg-ink-soft);
-}
-.dg-insights-panel.dg-collapsed #dgInsightsToggleBtn {
-  background:var(--dg-ink-soft);
-  border-color:var(--border2);
-}
-.dg-insights-head {
-  display:flex; align-items:center; gap:8px; padding:13px 14px 12px;
-  border-bottom:1px solid var(--border); flex-shrink:0;
-}
-.dg-insights-head-icon {
-  width:22px; height:22px; border-radius:7px; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  background:var(--dg-ink-soft); color:var(--dg-ink);
-  box-shadow:0 0 0 1px rgba(0,0,0,0.03) inset;
-}
-.dg-insights-head-title { display:flex; flex-direction:column; gap:1px; }
-.dg-insights-head-title .dg-panel-title { margin:0; }
-.dg-insights-head-sub { font-size:9.5px; color:var(--text3); font-weight:600; letter-spacing:0.1px; }
-.dg-insights-scroll { flex:1; min-height:0; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
-.dg-insights-scroll::-webkit-scrollbar { width:6px; }
-.dg-insights-scroll::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
-.dg-insights-panel .dg-stat-strip { flex-direction:column; }
-.dg-insights-panel .dg-stat-card { min-width:0; flex:none; width:100%; }
-@media (max-width: 980px) {
-  .dg-main-row { flex-direction:column; }
-  .dg-insights-panel { width:100%; }
-  .dg-insights-panel.dg-collapsed { width:0; }
-  .dg-insights-panel .dg-stat-strip { flex-direction:row; }
-}
-.dg-zoom-controls {
-  display:flex; align-items:center; gap:0; flex-shrink:0;
-  border:1px solid var(--border); border-radius:6px; overflow:hidden;
-}
-.dg-zoom-btn {
-  width:26px; height:26px; display:flex; align-items:center; justify-content:center; border:none;
-  background:var(--pdfed-ribbon-btn-bg); color:var(--text2); cursor:pointer; transition:all 0.12s;
-}
-.dg-zoom-btn:hover:not(:disabled) { background:var(--pdfed-btn-hover); color:var(--text); }
-.dg-zoom-btn:disabled { opacity:0.35; cursor:default; }
-.dg-zoom-btn svg { pointer-events:none; }
-.dg-zoom-label {
-  background:transparent; border-left:1px solid var(--border); border-right:1px solid var(--border);
-  font-size:10px; font-weight:700; color:var(--text); font-family:'Inter',sans-serif;
-  min-width:42px; text-align:center; user-select:none; cursor:pointer; padding:0 2px; height:26px;
-  display:flex; align-items:center; justify-content:center;
-}
-.dg-zoom-label:hover { background:var(--pdfed-btn-hover); }
-.dg-scheme-select {
-  width:100%; padding:9px 32px 9px 12px; border-radius:10px; background-color:var(--surface); border:1px solid var(--border);
-  color:var(--text); font-size:12px; font-weight:700; letter-spacing:0.15px; outline:none; cursor:pointer;
-  appearance:none; -webkit-appearance:none; -moz-appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat:no-repeat; background-position:right 12px center; background-size:10px 10px;
-  transition:border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.dg-scheme-select:hover { border-color:var(--border2); }
-.dg-scheme-select:focus { border-color:var(--pdfed-accent); box-shadow:0 0 0 3px var(--pdfed-accent-bg); }
-.dg-custom-swatch-wrap { position:relative; display:inline-block; }
-.dg-custom-swatch-del {
-  position:absolute; top:-6px; right:-6px; width:13px; height:13px; border-radius:50%;
-  background:#ef4444; color:#fff; font-size:9px; line-height:13px; text-align:center;
-  opacity:0; transition:opacity 0.15s ease; cursor:pointer;
-}
-.dg-custom-swatch-wrap:hover .dg-custom-swatch-del { opacity:1; }
-.dg-empty-swatch-hint { font-size:11px; color:var(--text3); font-style:italic; }
-.dg-collapse-header {
-  display:flex; align-items:center; gap:8px; cursor:pointer; padding:2px 0 8px;
-  user-select:none;
-}
-.dg-collapse-header .dg-chevron {
-  margin-left:auto; font-size:9px; color:var(--text3); transition:transform 0.2s ease;
-}
-.dg-collapse-header.open .dg-chevron { transform:rotate(90deg); }
-.dg-collapse-body {
-  display:none; flex-direction:column; gap:12px;
-}
-.dg-collapse-body.open { display:flex; }
-
-.dg-template-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.dg-template-btn {
-  padding:9px 10px; border-radius:9px; cursor:pointer; text-align:left;
-  background:var(--surface); border:1px solid var(--border); color:var(--text2);
-  font-size:11.5px; font-weight:700; display:flex; flex-direction:column; gap:3px;
-  transition:all 0.15s ease;
-}
-.dg-template-btn:hover { background:var(--surface2); border-color:var(--border2); color:var(--text); }
-.dg-template-btn small { font-weight:500; color:var(--text3); font-size:9.5px; letter-spacing:0.2px; }
-
-.dg-stat-strip { display:flex; gap:10px; flex-wrap:wrap; }
-.dg-stat-card {
-  flex:1; min-width:112px; position:relative; overflow:hidden;
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:11px; padding:11px 12px 11px 14px; display:flex; flex-direction:column; gap:3px;
-  transition:border-color 0.16s ease, box-shadow 0.16s ease;
-}
-.dg-stat-card::before {
-  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:var(--dg-accent, var(--dg-ink)); opacity:0.7;
-}
-.dg-stat-card:hover {
-  border-color:var(--border2);
-  box-shadow:0 2px 10px rgba(0,0,0,0.10);
-}
-.dg-stat-card-top { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-.dg-stat-icon {
-  width:20px; height:20px; border-radius:6px; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  background:rgba(var(--dg-accent-rgb, var(--dg-ink-rgb)), 0.14);
-  color:var(--dg-accent, var(--dg-ink));
-}
-.dg-stat-icon svg { width:12px; height:12px; }
-.dg-stat-label { font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--text3); }
-.dg-stat-value { font-size:17px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; line-height:1.2; letter-spacing:-0.2px; }
-.dg-stat-sub { font-size:10px; color:var(--text3); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.dg-stat-trend {
-  display:inline-flex; align-items:center; gap:2px; font-size:10px; font-weight:800;
-  padding:1px 5px; border-radius:5px; width:fit-content; margin-top:1px;
-}
-.dg-stat-trend svg { width:9px; height:9px; }
-.dg-stat-trend.up { color:#4F9D77; background:rgba(79,157,119,0.12); }
-.dg-stat-trend.down { color:#B85C56; background:rgba(184,92,86,0.12); }
-.dg-stat-trend.flat { color:#8a94a3; background:rgba(138,148,163,0.12); }
-
-/* AI-generated narrative insight callout */
-.dg-insight-sentence {
-  position:relative; overflow:hidden;
-  font-size:12px; color:var(--text2); line-height:1.55; display:none;
-  background:var(--surface);
-  border:1px solid var(--border2); border-radius:11px;
-  padding:12px 13px 12px 14px;
-}
-.dg-insight-sentence::before {
-  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:var(--dg-ink);
-}
-.dg-insight-sentence.show { display:block; }
-.dg-insight-badge {
-  display:flex; align-items:center; gap:5px; margin-bottom:7px;
-  font-size:9px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--dg-ink);
-}
-.dg-insight-badge svg { width:11px; height:11px; }
-.dg-insight-text { color:var(--text); font-weight:500; }
-.dg-insight-text b { color:var(--text); font-weight:800; }
-
-/* Written Analysis — inline panel that sits beneath the chart in the Live Preview column
-   (not the sidebar, not a popup), shown only after the person clicks the toolbar chip. */
-.dg-analysis-panel {
-  display:none; margin-top:12px;
-  background:var(--surface);
-  border:1px solid var(--border2); border-radius:12px;
-  padding:14px 15px 15px;
-}
-.dg-analysis-panel.open { display:block; }
-.dg-analysis-panel-head {
-  display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:10px;
-}
-.dg-analysis-panel-badge {
-  display:flex; align-items:center; gap:5px;
-  font-size:10.5px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--dg-ink);
-}
-.dg-analysis-panel-badge svg { width:13px; height:13px; }
-.dg-analysis-panel-icon-btn {
-  display:flex; align-items:center; justify-content:center; width:22px; height:22px;
-  border-radius:6px; border:none; background:transparent; color:var(--text3); cursor:pointer;
-  transition:all .15s;
-}
-.dg-analysis-panel-icon-btn:hover { background:var(--dg-ink-soft); color:var(--dg-ink); }
-.dg-analysis-panel-icon-btn svg { width:13px; height:13px; }
-.dg-analysis-panel-text { color:var(--text); font-weight:500; font-size:12.5px; line-height:1.7; }
-.dg-analysis-panel-text b { color:var(--text); font-weight:800; }
-.dg-analysis-panel-actions { display:flex; gap:7px; margin-top:14px; }
-.dg-smart-analysis-btn {
-  flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
-  padding:8px 8px; border-radius:8px; font-size:11.5px; font-weight:700;
-  border:1px solid var(--border2); background:var(--bg3); color:var(--text2);
-  cursor:pointer; transition:all .15s;
-}
-.dg-smart-analysis-btn svg { width:12px; height:12px; }
-.dg-smart-analysis-btn:hover { border-color:var(--dg-ink); color:var(--dg-ink); background:var(--dg-ink-soft); }
-.dg-smart-analysis-btn.primary { background:var(--dg-ink); color:#fff; border:none; }
-.dg-smart-analysis-btn.primary:hover { opacity:0.9; }
-
-/* Upload preview — quick look at detected columns/types before mapping label & value */
-.dg-upload-preview { margin-top:10px; }
-.dg-upload-preview-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:7px; }
-.dg-upload-chip {
-  font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px;
-  background:rgba(0,194,255,0.1); color:var(--blue); border:1px solid rgba(0,194,255,0.22);
-}
-.dg-upload-chip.text { background:rgba(138,148,163,0.12); color:var(--text3); border-color:var(--border2); }
-.dg-upload-chip.date { background:rgba(16,185,129,0.12); color:var(--green); border-color:rgba(16,185,129,0.3); }
-.dg-upload-preview-table-wrap { max-height:130px; overflow:auto; border:1px solid var(--border2); border-radius:8px; }
-.dg-upload-preview-table { width:100%; border-collapse:collapse; font-size:10px; }
-.dg-upload-preview-table th, .dg-upload-preview-table td {
-  padding:5px 7px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  max-width:110px; border-bottom:1px solid var(--border);
-}
-.dg-upload-preview-table th {
-  position:sticky; top:0; background:var(--bg3); color:var(--text2); font-weight:800; z-index:1;
-}
-.dg-upload-preview-table th .dg-upload-preview-type { display:block; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; color:var(--blue); margin-top:1px; }
-.dg-upload-preview-table th .dg-upload-preview-type.text { color:var(--text3); }
-.dg-upload-preview-table th .dg-upload-preview-type.date { color:var(--green); }
-.dg-upload-preview-table td { color:var(--text2); }
-.dg-upload-preview-table tr:last-child td { border-bottom:none; }
-
-.dg-bw-row { display:flex; gap:8px; }
-.dg-bw-swatch {
-  flex:1; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-  font-size:10.5px; font-weight:700; letter-spacing:0.3px; cursor:pointer; position:relative; overflow:hidden;
-  border:1px solid var(--border2); transition:transform 0.12s ease, box-shadow 0.12s ease;
-}
-.dg-bw-swatch::after {
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(160deg, rgba(255,255,255,0.14), transparent 55%);
-}
-.dg-bw-swatch span { position:relative; z-index:1; }
-.dg-bw-swatch:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,0,0,0.18); }
-.dg-bw-black { background:#0a0a0a; color:#ffffff; border-color:#000; }
-.dg-bw-white { background:#ffffff; color:#101820; border-color:var(--border2); }
-
-.dg-custom-colour-box {
-  margin-top:2px; padding:16px; border-radius:16px; position:relative; overflow:hidden;
-  background:linear-gradient(165deg, var(--bg2) 0%, var(--surface) 100%);
-  border:1px solid var(--border2);
-  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 10px 30px -18px rgba(0,0,0,0.55);
-}
-.dg-wheel-heading { margin-bottom:12px; position:relative; z-index:1; }
-.dg-wheel-heading-title {
-  display:block; font-size:12.5px; font-weight:800; color:var(--text); letter-spacing:0.2px;
-}
-.dg-wheel-heading-sub {
-  display:block; font-size:10.5px; color:var(--text3); margin-top:2px; font-weight:500;
-}
-.dg-custom-colour-row { display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
-.dg-custom-colour-row input[type="color"] {
-  width:40px; height:40px; border-radius:10px; border:none; padding:0; cursor:pointer; flex-shrink:0;
-  box-shadow:0 0 0 1px var(--border2), 0 6px 16px -6px rgba(0,0,0,0.5);
-}
-.dg-wheel-hex {
-  font-size:13px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0.3px;
-}
-.dg-wheel-actions { display:flex; gap:8px; margin-top:14px; position:relative; z-index:1; }
-.dg-wheel-actions .btn-secondary, .dg-wheel-actions .btn-primary {
-  flex:1; padding:9px; font-size:11px; border-radius:10px; font-weight:700; letter-spacing:0.2px;
-  transition:filter 0.15s ease, transform 0.1s ease;
-}
-.dg-wheel-actions .btn-primary {
-  background:linear-gradient(135deg, var(--pdfed-accent), var(--purple, #7C5CFC)); border:none; color:#fff;
-  box-shadow:0 8px 18px -6px var(--pdfed-accent-bg);
-}
-.dg-wheel-actions .btn-primary:hover { filter:brightness(1.08); transform:translateY(-1px); }
-.dg-wheel-actions .btn-secondary:hover { transform:translateY(-1px); }
-
-
-/* ── Diagrams & Graphs ribbon: icon-only pass 2 ───────────────────────────
-   Matches the Data Arrangement icon ribbon: one slim row of 30px icon buttons,
-   hairline dividers, a dark tooltip for every name, and only the Push / Showcase
-   actions keep a text label. Text-only labels are hidden with font-size:0 so no
-   markup or JS that writes to them (dgTypeLabel, dgRadiusMainLabel...) has to change. */
-.dg-ribbon-bar {
-  height:42px; padding:0 8px; gap:0; border-radius:10px;
-  background:linear-gradient(180deg, var(--surface) 0%, var(--bg2) 100%);
-  border:1px solid var(--border);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.06);
-}
-[data-theme="light"] .dg-ribbon-bar { background:#fff; box-shadow:0 1px 2px rgba(16,40,90,0.06); }
-.dg-rbn-legacy-hidden { display:none !important; }
-
-.dg-rbn-group, .dg-rbn-dropdown-group { padding:0 1px; border-radius:8px; }
-.dg-rbn-group:hover, .dg-rbn-dropdown-group:hover { background:transparent; }
-
-/* every plain icon button */
-.dg-ribbon-bar .dg-rbn-btn {
-  position:relative; color:var(--text2); border:1px solid transparent; background:transparent;
-  transition:background .14s ease, color .14s ease, box-shadow .14s ease;
-}
-.dg-ribbon-bar .dg-rbn-btn:hover { background:var(--surface2); color:var(--text); }
-[data-theme="light"] .dg-ribbon-bar .dg-rbn-btn:hover { background:#f1f5fb; box-shadow:0 1px 3px rgba(16,40,90,0.10); }
-.dg-ribbon-bar .dg-rbn-btn:focus-visible, .dg-ribbon-bar .dg-rbn-caret:focus-visible { outline:2px solid var(--blue); outline-offset:1px; }
-.dg-ribbon-bar .dg-rbn-btn.active { background:rgba(0,194,255,0.14); color:var(--blue); }
-
-/* dropdown triggers: icon only + a slim chevron, fused into one pill */
-.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main {
-  width:30px; padding:0; gap:0; justify-content:center; font-size:0; line-height:0; border-radius:7px 0 0 7px;
-}
-.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main > span[id$="Label"] { display:none; }
-.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main svg { opacity:.88; }
-.dg-rbn-dropdown-group .dg-rbn-caret {
-  width:13px; height:30px; padding:0; border:1px solid transparent; border-radius:0 7px 7px 0; background:transparent;
-  color:var(--text3); display:flex; align-items:center; justify-content:center; cursor:pointer;
-  transition:background .14s ease, color .14s ease;
-}
-.dg-rbn-dropdown-group .dg-rbn-caret svg { opacity:.7; }
-.dg-rbn-dropdown-group:hover .dg-rbn-btn.dg-rbn-main, .dg-rbn-dropdown-group:hover .dg-rbn-caret { background:var(--surface2); color:var(--text); }
-[data-theme="light"] .dg-rbn-dropdown-group:hover .dg-rbn-btn.dg-rbn-main,
-[data-theme="light"] .dg-rbn-dropdown-group:hover .dg-rbn-caret { background:#f1f5fb; }
-.dg-rbn-dropdown-group:hover .dg-rbn-caret svg { opacity:1; }
-.dg-rbn-dropdown-group:focus-within .dg-rbn-btn.dg-rbn-main { color:var(--blue); }
-
-/* History badge becomes a small count dot on the icon */
-.dg-rbn-main .dg-history-badge {
-  position:absolute; top:1px; right:0; min-width:14px; height:14px; padding:0 3px; box-sizing:border-box;
-  font-size:9px; line-height:14px; font-weight:700; text-align:center; border-radius:99px;
-  color:#fff; background:var(--blue);
+  pdfedShowExtractTextModal(results);
 }
 
-/* thin dividers, like the Data Arrangement bar */
-.dg-rbn-sep { width:1px; height:18px; margin:0 5px; opacity:.7; background:var(--border2); align-self:center; }
+function pdfedShowExtractTextModal(results) {
+  pdfedExtractedTextResults = results;
+  const found = results.filter(r => r.text && r.text.trim());
+  const combined = results.length > 1
+    ? results.map(r => '--- Page ' + r.page + ' ---\n' + (r.text && r.text.trim() ? r.text : '(no readable text found)')).join('\n\n')
+    : (results[0] ? results[0].text : '');
 
-/* Push + Showcase: same labelled "action chip" as the Data Arrangement Push buttons
-   (soft cyan tint, cyan hairline border, blue icon). !important is needed to beat the older
-   gradient-filled .dg-rbn-btn-push rule higher up this file. */
-.dg-ribbon-bar #dgPushGroup { padding-left:2px; }
-.dg-ribbon-bar #dgPushGroup .dg-rbn-group-btns { gap:6px; }
-.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push {
-  display:inline-flex; align-items:center; justify-content:center; flex-direction:row !important;
-  width:auto !important; height:30px; padding:0 11px !important; gap:6px; margin:0;
-  font-size:11.5px !important; font-weight:600 !important; line-height:1; white-space:nowrap;
-  color:var(--text) !important; background:rgba(0,194,255,0.08) !important;
-  border:1px solid rgba(0,194,255,0.35) !important; border-radius:7px !important;
-  box-shadow:none; filter:none; transform:none; cursor:pointer;
-  transition:background .14s ease, border-color .14s ease, box-shadow .14s ease;
+  const sub = document.getElementById('pdfedExtractResultSub');
+  if (!found.length) {
+    sub.textContent = 'No readable text found — the page(s) may be blank, too blurry, or an image with nothing to read.';
+  } else {
+    sub.textContent = results.length > 1
+      ? (found.length + ' of ' + results.length + ' page' + (results.length !== 1 ? 's' : '') + ' had readable text.'
+         + ' Real PDF text where available, OCR for the rest — always double-check scanned pages.')
+      : 'Real PDF text where available, OCR for scanned/image pages — always double-check OCR\'d text.';
+  }
+  document.getElementById('pdfedExtractResultText').value = combined;
+  document.getElementById('pdfedExtractResultOverlay').classList.add('open');
 }
-.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push svg { width:14px; height:14px; opacity:1; color:var(--blue); flex-shrink:0; }
-.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:hover {
-  background:rgba(0,194,255,0.16) !important; border-color:var(--blue) !important;
-  color:var(--text) !important; box-shadow:none; transform:none; filter:none;
+
+function pdfedCloseExtractTextModal() {
+  document.getElementById('pdfedExtractResultOverlay').classList.remove('open');
 }
-.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:active { background:rgba(0,194,255,0.22) !important; }
-.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:disabled { opacity:.5; cursor:default; }
-[data-theme="light"] .dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push { background:#fff !important; box-shadow:0 1px 2px rgba(16,40,90,0.08); }
-[data-theme="light"] .dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:hover { background:rgba(0,150,210,0.08) !important; }
+
+async function pdfedCopyExtractedText() {
+  const text = document.getElementById('pdfedExtractResultText').value;
+  if (!text) { toast('Nothing to copy', 'error'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Text copied to clipboard', 'success');
+  } catch (err) {
+    // Clipboard API can be blocked (permissions, insecure context) — fall
+    // back to select-all-in-place so the person can still Ctrl/Cmd+C it.
+    const ta = document.getElementById('pdfedExtractResultText');
+    ta.focus(); ta.select();
+    toast('Press Ctrl/Cmd+C to copy the selected text', 'info');
+  }
+}
+
+function pdfedDownloadExtractedText() {
+  const text = document.getElementById('pdfedExtractResultText').value;
+  if (!text) { toast('Nothing to download', 'error'); return; }
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = sarvarcBrandFilename('extracted-text.txt');
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('Text downloaded', 'success');
+}
+
+// Samples a couple of points just outside a text run's bounding box (top-left
+// and bottom-right corners, nudged outward so we land on background rather than
+// on a glyph stroke) and averages them. This is what lets the "whiteout" patch
+// behind edited text match colored letterheads/shaded boxes instead of always
+// assuming a plain white page.
+// Two sampled colors are treated as "the same" if they're close in RGB space —
+// exact string equality is too strict since anti-aliasing noise means the same
+// visual color rarely samples to the exact identical hex twice in a row.
+function teColorsClose(a, b, threshold) {
+  const ca = teParseColorToRgb(a), cb = teParseColorToRgb(b);
+  if (!ca || !cb) return a === b;
+  const dist = Math.sqrt((ca.r - cb.r) ** 2 + (ca.g - cb.g) ** 2 + (ca.b - cb.b) ** 2);
+  return dist <= (threshold != null ? threshold : 40);
+}
+
+// A cluster's own recognized text tells us which vertical zones of the font's
+// em-square it actually occupies: letters with ascenders/caps reach up to
+// cap-height, letters with descenders reach below the baseline, and the OCR
+// bounding box only ever covers the ink that's actually present. A single
+// flat "bbox-height → font-size" ratio gets this wrong in both directions —
+// a line with descenders (e.g. "Trading" has none, but "Quantity" does) has
+// a taller bbox than cap-height-only text at the IDENTICAL font size, and a
+// short all-lowercase word with no ascenders/descenders at all (e.g. "an",
+// "was") has a bbox barely taller than its x-height, a much smaller fraction
+// of the real font size. Classifying which zones are present and picking the
+// matching ratio (calibrated against typical sans-serif metrics: cap-height
+// ≈0.72em, x-height ≈0.52em, descender depth ≈0.21em below baseline) keeps
+// extracted sizes consistent across a page, instead of descender-heavy
+// headings coming out oversized and short lowercase words coming out
+// microscopic.
+function teClassifyLineVerticalExtent(text) {
+  const hasCapOrAscender = /[A-Z0-9BDFHKLTbdfhklt]/.test(text);
+  const hasDescender = /[gjpqy]/.test(text);
+  if (hasCapOrAscender && hasDescender) return 0.82; // full span cap-height→descender depth
+  if (hasCapOrAscender && !hasDescender) return 1.05; // cap-height→baseline only
+  if (!hasCapOrAscender && hasDescender) return 1.04; // x-height→descender depth, no caps
+  return 1.45; // x-height only — smallest fraction of the em box
+}
+
+// Tesseract's default (LSTM) OCR engine, what this app uses, reports NO font
+// metadata at all: no bold flag, no font family, nothing. Every OCR'd block was
+// previously just hardcoded to normal weight regardless of what the source
+// actually looked like, which is why bold headings never came through as bold.
+// This estimates weight directly from the rendered pixels instead: bold
+// letterforms have meaningfully thicker strokes relative to their height than
+// regular weight at the same size, so we measure the median horizontal ink
+// "stroke width" through the middle band of the glyphs and compare it against
+// the glyph height.
+function teEstimateBold(ctx, x, y, w, h, bgColor) {
+  if (!ctx) return false;
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const x0 = Math.max(0, Math.round(x));
+  const y0 = Math.max(0, Math.round(y));
+  const ww = Math.max(1, Math.min(Math.round(w), cw - x0));
+  const hh = Math.max(1, Math.min(Math.round(h), ch - y0));
+  if (ww < 3 || hh < 3) return false;
+  let data;
+  try { data = ctx.getImageData(x0, y0, ww, hh).data; } catch (e) { return false; }
+  const bg = teParseColorToRgb(bgColor) || { r: 255, g: 255, b: 255 };
+
+  const runLengths = [];
+  // Middle band only, avoids ascenders/descenders/serifs skewing thickness.
+  const rowStart = Math.floor(hh * 0.3), rowEnd = Math.ceil(hh * 0.75);
+  for (let row = rowStart; row < rowEnd; row++) {
+    let runLen = 0;
+    for (let col = 0; col < ww; col++) {
+      const idx = (row * ww + col) * 4;
+      const dist = Math.sqrt((data[idx] - bg.r) ** 2 + (data[idx + 1] - bg.g) ** 2 + (data[idx + 2] - bg.b) ** 2);
+      // Raised from 45, anti-aliased halo pixels around a normal-weight
+      // stroke were dark enough to count as "ink" here, which puffed up the
+      // measured run length and made regular text look artificially thick.
+      if (dist > 70) { runLen++; }
+      else if (runLen > 0) { runLengths.push(runLen); runLen = 0; }
+    }
+    if (runLen > 0) runLengths.push(runLen);
+  }
+  if (!runLengths.length) return false;
+  runLengths.sort((a, b) => a - b);
+  const median = runLengths[Math.floor(runLengths.length / 2)];
+  // Raised from 0.11, that ratio was tripping on ordinary regular-weight
+  // text (especially once combined with the anti-aliasing noise above),
+  // which is why almost everything was coming through OCR marked bold.
+  return (median / hh) > 0.19; // bold strokes run noticeably thicker relative to letter height
+}
+
+// Detects italic/oblique slant straight from the rendered pixels, same
+// approach as teEstimateBold above: no font metadata to lean on for OCR'd
+// (image-only) text, so weight and slant both have to be read off the glyphs
+// themselves. For each row in the middle band of the block, finds the
+// horizontal center of mass of the "ink" pixels on that row, then fits a
+// straight line (simple linear regression) of that center-x against row
+// index. Upright text's ink stays centered on roughly the same x as you scan
+// down the glyph, so the fitted slope is near zero; italic text's strokes
+// lean, so the center of mass drifts steadily rightward (or leftward, for a
+// backslant font) as row increases, producing a consistent non-zero slope.
+// Slope is expressed as dx per unit of row height so the same threshold works
+// regardless of the block's actual pixel size.
+function teEstimateItalic(ctx, x, y, w, h, bgColor) {
+  if (!ctx) return false;
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const x0 = Math.max(0, Math.round(x));
+  const y0 = Math.max(0, Math.round(y));
+  const ww = Math.max(1, Math.min(Math.round(w), cw - x0));
+  const hh = Math.max(1, Math.min(Math.round(h), ch - y0));
+  if (ww < 4 || hh < 6) return false;
+  let data;
+  try { data = ctx.getImageData(x0, y0, ww, hh).data; } catch (e) { return false; }
+  const bg = teParseColorToRgb(bgColor) || { r: 255, g: 255, b: 255 };
+
+  // Skip the very top/bottom rows (ascender/descender tips are sparse and
+  // noisy) and work in the stable middle band, same idea as teEstimateBold.
+  const rowStart = Math.floor(hh * 0.15), rowEnd = Math.ceil(hh * 0.9);
+  const pts = []; // {row, centerX}
+  for (let row = rowStart; row < rowEnd; row++) {
+    let sum = 0, count = 0;
+    for (let col = 0; col < ww; col++) {
+      const idx = (row * ww + col) * 4;
+      const dist = Math.sqrt((data[idx] - bg.r) ** 2 + (data[idx + 1] - bg.g) ** 2 + (data[idx + 2] - bg.b) ** 2);
+      if (dist > 70) { sum += col; count++; }
+    }
+    if (count >= 1) pts.push({ row, cx: sum / count });
+  }
+  if (pts.length < Math.max(6, hh * 0.4)) return false; // too little ink to trust a fit (sparse glyphs, thin block)
+
+  // Ordinary least squares slope of cx vs row.
+  const n = pts.length;
+  const meanRow = pts.reduce((a, p) => a + p.row, 0) / n;
+  const meanCx  = pts.reduce((a, p) => a + p.cx, 0) / n;
+  let num = 0, den = 0;
+  for (const p of pts) { num += (p.row - meanRow) * (p.cx - meanCx); den += (p.row - meanRow) ** 2; }
+  if (den === 0) return false;
+  const slope = num / den; // horizontal drift per row
+  const slant = slope * hh; // total horizontal drift over the block's own height, normalized
+  // Real italic fonts commonly sit around a 6-12° slant; 0.12 (~7°) as a
+  // floor keeps normal upright text (which still has small nonzero slope from
+  // anti-aliasing/serif noise) from tripping this, while still catching a
+  // clearly slanted face.
+  return Math.abs(slant) > (hh * 0.12);
+}
+
+// Detects fixed-width (monospace) text — Courier-style ledger numbers,
+// invoice/reference codes, Tally-style exports — straight from the rendered
+// pixels, the same way teEstimateBold reads weight. Real-world Indian
+// accounting documents lean on monospace far more than typical office docs
+// (columnar figures need to line up), and a proportional-font guess on those
+// makes extracted numbers visibly misaligned once placed back as editable
+// text. Measures the horizontal gaps BETWEEN ink runs (glyph strokes) across
+// the block: a fixed-width font gives every character cell — and so every
+// inter-character gap — nearly the same width, while a proportional font's
+// gaps vary a lot (an "i" sits in a far narrower cell than an "m"). Low
+// variation in that gap-width distribution reads as monospace.
+function teDetectMonospace(ctx, x, y, w, h, bgColor) {
+  if (!ctx) return false;
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const x0 = Math.max(0, Math.round(x)), y0 = Math.max(0, Math.round(y));
+  const ww = Math.max(1, Math.min(Math.round(w), cw - x0));
+  const hh = Math.max(1, Math.min(Math.round(h), ch - y0));
+  if (ww < 8 || hh < 4) return false;
+  let data;
+  try { data = ctx.getImageData(x0, y0, ww, hh).data; } catch (e) { return false; }
+  const bg = teParseColorToRgb(bgColor) || { r: 255, g: 255, b: 255 };
+
+  const colInk = new Array(ww).fill(false);
+  for (let col = 0; col < ww; col++) {
+    for (let row = 0; row < hh; row++) {
+      const idx = (row * ww + col) * 4;
+      const dist = Math.sqrt((data[idx] - bg.r) ** 2 + (data[idx + 1] - bg.g) ** 2 + (data[idx + 2] - bg.b) ** 2);
+      if (dist > 60) { colInk[col] = true; break; }
+    }
+  }
+
+  const gaps = [];
+  let inRun = false, gapLen = 0, sawRun = false;
+  for (let col = 0; col < ww; col++) {
+    if (colInk[col]) {
+      if (sawRun && gapLen > 0) gaps.push(gapLen);
+      gapLen = 0; inRun = true; sawRun = true;
+    } else if (sawRun) {
+      gapLen++; inRun = false;
+    }
+  }
+  if (gaps.length < 4) return false; // not enough characters to judge reliably
+  const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  if (mean < 1) return false;
+  const variance = gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length;
+  const cv = Math.sqrt(variance) / mean; // coefficient of variation
+  return cv < 0.35; // low variation in gap width = fixed-width font
+}
+
+function teSampleBgColor(ctx, x, y, w, h) {
+  if (!ctx) return '#ffffff';
+  // Sample several points just outside each corner, nudged outward so we land on
+  // background rather than a glyph stroke. Using more points + a median (instead
+  // of a plain average) makes this resistant to any single point accidentally
+  // landing on a neighboring letter in tightly kerned/justified text, an outlier
+  // like that would otherwise skew the average and throw off ink-vs-background
+  // detection for this run.
+  const pts = [
+    [x - 3, y - 3],
+    [x + w + 3, y - 3],
+    [x - 3, y + h + 3],
+    [x + w + 3, y + h + 3],
+    [x - 3, y + h / 2],
+    [x + w + 3, y + h / 2],
+  ];
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const samples = [];
+  pts.forEach(([px, py]) => {
+    const cx = Math.max(0, Math.min(cw - 1, Math.round(px)));
+    const cy = Math.max(0, Math.min(ch - 1, Math.round(py)));
+    try {
+      const d = ctx.getImageData(cx, cy, 1, 1).data;
+      samples.push([d[0], d[1], d[2]]);
+    } catch (e) { /* tainted/unavailable canvas, fall through to default below */ }
+  });
+  if (!samples.length) return '#ffffff';
+  const mid = arr => { const s = arr.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const r = mid(samples.map(s => s[0]));
+  const g = mid(samples.map(s => s[1]));
+  const b = mid(samples.map(s => s[2]));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function teRgbToHex(r, g, b) {
+  const c = v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return '#' + c(r) + c(g) + c(b);
+}
+
+// Parses '#rgb' / '#rrggbb' / 'rgb(...)' / 'rgba(...)' strings into {r,g,b}.
+// Used so we can compare a sampled pixel against the local background color
+// regardless of which string format that background happened to be stored in.
+function teParseColorToRgb(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+  if (s[0] === '#') {
+    let hex = s.slice(1);
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    if (hex.length !== 6) return null;
+    const num = parseInt(hex, 16);
+    if (Number.isNaN(num)) return null;
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+  }
+  return null;
+}
+
+// Samples the actual glyph ("ink") color of a text run off the already-rendered
+// page canvas. We can't get fill color from PDF.js's text content API, so instead
+// we scan every pixel in the run's bounding box and take a distance-weighted
+// average of the ones that differ meaningfully from the local background color
+// (computed by teSampleBgColor) — those are the glyph strokes themselves. Weighting
+// by distance means solid glyph-body pixels count far more than the lighter
+// anti-aliased edge pixels that blend toward the background, so the result tracks
+// the true ink color instead of getting washed out. This is what makes colored
+// headings, links, and labels keep their real color once you edit them, instead
+// of every run silently turning black.
+function teSampleTextColor(ctx, x, y, w, h, bgColor) {
+  if (!ctx) return '#000000';
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const x0 = Math.max(0, Math.round(x));
+  const y0 = Math.max(0, Math.round(y));
+  const ww = Math.max(1, Math.min(Math.round(w), cw - x0));
+  const hh = Math.max(1, Math.min(Math.round(h), ch - y0));
+  if (ww < 1 || hh < 1) return '#000000';
+
+  let data;
+  try { data = ctx.getImageData(x0, y0, ww, hh).data; }
+  catch (e) { return '#000000'; } // tainted/unavailable canvas, fall back to black
+
+  const bg = teParseColorToRgb(bgColor) || { r: 255, g: 255, b: 255 };
+
+  // Small font sizes, thin strokes, and pastel/low-contrast colors leave mostly
+  // anti-aliased edge pixels (low opacity, low contrast from bg) with very few
+  // "obviously ink" pixels. A single strict threshold either catches confident
+  // colors or catches nothing, so instead we retry with progressively looser
+  // alpha/distance gates until we find *something* to average, rather than
+  // silently giving up and defaulting to black the first time a run is thin
+  // or light-colored.
+  const passes = [
+    { alpha: 200, dist: 42 },
+    { alpha: 120, dist: 24 },
+    { alpha: 60,  dist: 12 },
+  ];
+
+  for (const p of passes) {
+    let sr = 0, sg = 0, sb = 0, sw = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < p.alpha) continue;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const dist = Math.sqrt((r - bg.r) ** 2 + (g - bg.g) ** 2 + (b - bg.b) ** 2);
+      if (dist > p.dist) { sr += r * dist; sg += g * dist; sb += b * dist; sw += dist; }
+    }
+    if (sw > 0) return teRgbToHex(sr / sw, sg / sw, sb / sw);
+  }
+
+  return '#000000'; // truly nothing distinguishable from background (e.g. blank run) — black is a safe default
+}
+
+let _teBlockSeq = 0;
+function teAddBlock(opts, overlayEl, interactive) {
+  const overlay = overlayEl || document.getElementById('pdfedTextOverlay');
+  const el = document.createElement('div');
+  el.className = 'pdfed-text-block';
+  el.spellcheck = false;
+  if (opts.html) el.innerHTML = opts.html;
+  else el.textContent = opts.text != null ? opts.text : (opts.origText || '');
+
+  const fs = Math.max(6, Math.round(opts.fontSize));
+  el.style.left       = Math.round(opts.x) + 'px';
+  el.style.top        = Math.round(opts.y) + 'px';
+  el.style.fontSize   = fs + 'px';
+  el.style.fontFamily = opts.fontFamily || 'Arial, sans-serif';
+  el.style.color      = opts.color || '#000000';
+  el.style.fontWeight = opts.bold   ? 'bold'   : 'normal';
+  el.style.fontStyle  = opts.italic ? 'italic' : 'normal';
+
+  // Non-free blocks came from real text sitting on the page, cover the original
+  // glyphs with an opaque patch (sized to at least their original footprint) so
+  // the new text actually REPLACES what was there, instead of just being drawn
+  // on top of it and leaving the old text peeking out underneath/around it.
+  if (!opts.free) {
+    el.style.background = opts.bgColor || '#ffffff';
+    el.style.minWidth  = Math.round(opts.origWidth  || 0) + 'px';
+    el.style.minHeight = Math.round(opts.origHeight || fs * 1.15) + 'px';
+  }
+
+  const blockData = {
+    id: opts.id || ('tb' + (++_teBlockSeq)),
+    el, origText: opts.origText != null ? opts.origText : (opts.text || ''),
+    x: opts.x, y: opts.y,
+    fontSize: fs,
+    baseFontSize: fs,
+    origFontSize: fs, // stable reference for "Reset block" — baseFontSize itself gets overwritten by smart-resize dragging
+    fontFamily: opts.fontFamily || 'Arial, sans-serif',
+    color: opts.color || '#000000',
+    bold: opts.bold || false,
+    italic: opts.italic || false,
+    free: opts.free || false,
+    locked: opts.locked || false,
+    origWidth: opts.origWidth || 0,
+    origHeight: opts.origHeight || 0,
+    bgColor: opts.bgColor || '#ffffff',
+  };
+
+  if (!interactive) {
+    // Read-only display layer (shown on the canvas outside an active edit session)
+    el.contentEditable = 'false';
+    el.classList.add('readonly');
+    overlay.appendChild(el);
+    return blockData;
+  }
+
+  teState.blocks.push(blockData);
+  el.contentEditable = blockData.locked ? 'false' : 'true';
+  el.classList.toggle('locked', blockData.locked);
+  el.title = blockData.locked ? 'Locked, click "Lock" again to edit/move' : 'Click to edit · drag the blue dot to move, the corner square to resize';
+
+  // Resize handle, SMART resize: dragging it scales the font size right along
+  // with the box (Canva-style), instead of just stretching a fixed-size font
+  // into a bigger/smaller box. Scale factor comes from the diagonal distance
+  // dragged vs. the box's starting diagonal, so both width and height changes
+  // contribute evenly regardless of which direction the user drags in.
+  // It's a contenteditable="false" child of the block itself, anchored purely
+  // with CSS (bottom/right) — same pattern as the image-crop resize handle
+  // elsewhere in this file, so it always tracks the box with no manual
+  // left/top math to keep in sync.
+  const handle = document.createElement('div');
+  handle.className = 'te-resize-handle';
+  handle.contentEditable = 'false';
+  handle.setAttribute('unselectable', 'on');
+  el.appendChild(handle);
+  blockData.handleEl = handle;
+
+  // Move handle, a dedicated grab point so repositioning doesn't require
+  // holding Shift (which still works too, for muscle memory).
+  const moveHandle = document.createElement('div');
+  moveHandle.className = 'te-move-handle';
+  moveHandle.contentEditable = 'false';
+  moveHandle.setAttribute('unselectable', 'on');
+  moveHandle.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>';
+  el.appendChild(moveHandle);
+  blockData.moveHandleEl = moveHandle;
+
+  handle.addEventListener('mousedown', ev => {
+    if (blockData.locked) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const startW = el.offsetWidth, startH = el.offsetHeight;
+    const startFontSize = blockData.fontSize;
+    const startDiag = Math.sqrt(startW * startW + startH * startH) || 1;
+    const sx = ev.clientX, sy = ev.clientY;
+    // Switch from the initial min-width/min-height (a floor sized off the OCR
+    // guess) to an explicit width/height the moment the user takes manual
+    // control, so the box actually shrinks/grows instead of just clamping.
+    el.style.width  = startW + 'px';
+    el.style.height = startH + 'px';
+    const mm = e2 => {
+      const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
+      const dx = (e2.clientX - sx) / z, dy = (e2.clientY - sy) / z;
+      const newW = Math.max(20, startW + dx);
+      const newH = Math.max(14, startH + dy);
+      const newDiag = Math.sqrt(newW * newW + newH * newH);
+      const scale = newDiag / startDiag;
+
+      el.style.width  = newW + 'px';
+      el.style.height = newH + 'px';
+      blockData.origWidth  = newW;
+      blockData.origHeight = newH;
+
+      const newFontSize = Math.max(6, Math.round(startFontSize * scale));
+      blockData.fontSize = newFontSize;
+      blockData.baseFontSize = newFontSize; // so the +/- size slider keeps working relative to the new size
+      el.style.fontSize = newFontSize + 'px';
+
+      el.classList.add('modified');
+    };
+    const mu = () => {
+      document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
+      teState.sizeAdj = 0;
+      const slider = document.getElementById('teSizeSlider'), val = document.getElementById('teSizeVal');
+      if (slider) slider.value = 0;
+      if (val) val.textContent = '0';
+    };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  moveHandle.addEventListener('mousedown', ev => {
+    if (blockData.locked) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const ox = parseInt(el.style.left) || 0, oy = parseInt(el.style.top) || 0;
+    const sx = ev.clientX, sy = ev.clientY;
+    const mm = e2 => {
+      const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
+      el.style.left = (ox + (e2.clientX - sx) / z) + 'px';
+      el.style.top  = (oy + (e2.clientY - sy) / z) + 'px';
+      blockData.x = parseInt(el.style.left);
+      blockData.y = parseInt(el.style.top);
+      el.classList.add('modified');
+    };
+    const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  // Width-only handles (left/right edge bars) — for widening/narrowing the box
+  // (e.g. to fix wrap width or a too-tight/loose OCR cover patch) WITHOUT
+  // touching font size, unlike the corner handle's font-scaling resize.
+  const widthHandleR = document.createElement('div');
+  widthHandleR.className = 'te-width-handle right';
+  widthHandleR.contentEditable = 'false';
+  widthHandleR.setAttribute('unselectable', 'on');
+  el.appendChild(widthHandleR);
+  blockData.widthHandleR = widthHandleR;
+
+  const widthHandleL = document.createElement('div');
+  widthHandleL.className = 'te-width-handle left';
+  widthHandleL.contentEditable = 'false';
+  widthHandleL.setAttribute('unselectable', 'on');
+  el.appendChild(widthHandleL);
+  blockData.widthHandleL = widthHandleL;
+
+  widthHandleR.addEventListener('mousedown', ev => {
+    if (blockData.locked) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const startW = el.offsetWidth;
+    const sx = ev.clientX;
+    el.style.width = startW + 'px';
+    const mm = e2 => {
+      const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
+      const newW = Math.max(20, startW + (e2.clientX - sx) / z);
+      el.style.width = newW + 'px';
+      blockData.origWidth = newW;
+      el.classList.add('modified');
+    };
+    const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  // Dragging the LEFT edge grows/shrinks width in the opposite direction of
+  // the mouse AND shifts the box's x position, so the right edge stays put
+  // (matches how left-edge resize handles behave everywhere else).
+  widthHandleL.addEventListener('mousedown', ev => {
+    if (blockData.locked) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const startW = el.offsetWidth;
+    const startX = parseInt(el.style.left) || 0;
+    const sx = ev.clientX;
+    el.style.width = startW + 'px';
+    const mm = e2 => {
+      const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
+      const dx = (e2.clientX - sx) / z;
+      const newW = Math.max(20, startW - dx);
+      const actualDx = startW - newW; // clamped delta, so the right edge doesn't drift once min-width kicks in
+      el.style.width = newW + 'px';
+      el.style.left  = (startX + actualDx) + 'px';
+      blockData.origWidth = newW;
+      blockData.x = parseInt(el.style.left);
+      el.classList.add('modified');
+    };
+    const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  // Small delete (×) handle, quick one-click removal of just this block
+  // (e.g. an OCR line you don't want), without needing to click it first,
+  // find the sidebar, and press "Delete block". Only shows once the block
+  // is selected, same as the other handles.
+  const delHandle = document.createElement('div');
+  delHandle.className = 'te-delete-handle';
+  delHandle.contentEditable = 'false';
+  delHandle.setAttribute('unselectable', 'on');
+  delHandle.title = 'Delete this text';
+  delHandle.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>';
+  el.appendChild(delHandle);
+  blockData.delHandleEl = delHandle;
+
+  delHandle.addEventListener('mousedown', ev => { ev.preventDefault(); ev.stopPropagation(); });
+  delHandle.addEventListener('click', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    teDeleteBlockData(blockData);
+  });
+
+  // Enter inserts a soft line break and keeps editing, without this, the
+  // browser's default behavior on a contenteditable div splits the content
+  // into a new nested <div>/<p> on every Enter. That nested block visually
+  // looks "committed" (it renders like a separate finished line sitting under
+  // the cursor) while the whole element is still contenteditable, which is
+  // exactly the "gets saved but is also still editable" confusion. A plain
+  // <br> keeps everything inside the one block with no nested elements.
+  el.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      document.execCommand('insertLineBreak');
+      el.classList.add('modified');
+    }
+  });
+
+  el.addEventListener('focus', () => {
+    teState.focusedBlock = blockData;
+    document.querySelectorAll('.pdfed-text-block.selected').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    // Sync UI controls to this block's settings
+    document.querySelectorAll('.te-color-swatch').forEach(s => s.classList.toggle('sel', s.dataset.color === blockData.color));
+    document.getElementById('teColorPicker').value = blockData.color;
+    teState.sizeAdj = 0;
+    document.getElementById('teSizeSlider').value = 0;
+    document.getElementById('teSizeVal').textContent = '0';
+    teUpdateLockBtn();
+  });
+  // Clicking away from the box (it loses focus) deselects it and immediately
+  // syncs whatever was typed back into the page's saved text blocks, so
+  // edits stick right away instead of needing an explicit "Apply" click.
+  el.addEventListener('blur', () => {
+    el.classList.remove('selected');
+    if (teState.focusedBlock === blockData) teState.focusedBlock = null;
+    teUpdateLockBtn();
+    teAutoSaveBlocks();
+  });
+  el.addEventListener('input', () => {
+    if (el.textContent !== blockData.origText) el.classList.add('modified');
+    else el.classList.remove('modified');
+    if (blockData.handleEl && !el.contains(blockData.handleEl)) el.appendChild(blockData.handleEl);
+    if (blockData.moveHandleEl && !el.contains(blockData.moveHandleEl)) el.appendChild(blockData.moveHandleEl);
+    if (blockData.widthHandleR && !el.contains(blockData.widthHandleR)) el.appendChild(blockData.widthHandleR);
+    if (blockData.widthHandleL && !el.contains(blockData.widthHandleL)) el.appendChild(blockData.widthHandleL);
+    if (blockData.delHandleEl && !el.contains(blockData.delHandleEl)) el.appendChild(blockData.delHandleEl);
+  });
+
+  // Click selects/focuses the block even when it's locked, so the user can find
+  // it and hit "Unlock" — but locked blocks aren't directly editable until then.
+  el.addEventListener('mousedown', () => { teState.focusedBlock = blockData; teUpdateLockBtn(); });
+
+  // Shift+drag to reposition, works for any unlocked block, not just free ones.
+  el.title = blockData.locked ? 'Locked' : 'Click to edit · Shift+drag to move';
+  let dragging = false, ox = 0, oy = 0, sx = 0, sy = 0;
+  el.addEventListener('mousedown', ev => {
+    if (!ev.shiftKey || blockData.locked) return;
+    ev.preventDefault();
+    dragging = true;
+    ox = parseInt(el.style.left) || 0; oy = parseInt(el.style.top) || 0;
+    sx = ev.clientX; sy = ev.clientY;
+    const mm = e2 => {
+      if (!dragging) return;
+      // Screen-pixel mouse deltas must be divided by the current zoom level,
+      // because the overlay is displayed through a CSS scale(zoom) transform.
+      // el.style.left/top live in true canvas-pixel space (unscaled), so without
+      // this correction the block's stored x/y drift away from the cursor whenever
+      // zoom !== 100%, causing text to land in the wrong place on export/download.
+      const z = (typeof pdfed !== 'undefined' && pdfed.zoom) ? pdfed.zoom : 1;
+      el.style.left = (ox + (e2.clientX - sx) / z) + 'px';
+      el.style.top  = (oy + (e2.clientY - sy) / z) + 'px';
+      blockData.x = parseInt(el.style.left);
+      blockData.y = parseInt(el.style.top);
+      el.classList.add('modified');
+    };
+    const mu = () => { dragging = false; document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  overlay.appendChild(el);
+  return blockData;
+}
+
+function teUpdateLockBtn() {
+  const btn = document.getElementById('teLockBtn');
+  if (!btn) return;
+  const bd = teState.focusedBlock;
+  const lockIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+  const unlockIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9-3"/></svg>';
+  if (!bd) { btn.innerHTML = lockIcon; btn.classList.remove('on'); btn.title = 'Lock/unlock this block'; return; }
+  btn.innerHTML = bd.locked ? unlockIcon : lockIcon;
+  btn.classList.toggle('on', bd.locked);
+  btn.title = bd.locked ? 'Unlock this block' : 'Lock this block';
+}
+
+function teToggleLock() {
+  const bd = teState.focusedBlock;
+  if (!bd) { toast('Click a text block first', 'info'); return; }
+  bd.locked = !bd.locked;
+  bd.el.contentEditable = bd.locked ? 'false' : 'true';
+  bd.el.classList.toggle('locked', bd.locked);
+  bd.el.title = bd.locked ? 'Locked' : 'Click to edit · Shift+drag to move';
+  teUpdateLockBtn();
+  toast(bd.locked ? 'Block locked' : 'Block unlocked', 'info');
+}
+
+function teDeleteBlock() {
+  const bd = teState.focusedBlock;
+  if (!bd) { toast('Click a text block first', 'info'); return; }
+  teDeleteBlockData(bd, 'Block deleted');
+}
+
+// Shared removal logic used by both the sidebar "Delete block" button and
+// the small × handle on each individual block. Removes the block's DOM
+// (and all its handles) from the overlay, drops it from teState.blocks, and
+// immediately re-syncs the page's saved text so the deletion sticks even if
+// the user never presses "Apply".
+function teDeleteBlockData(bd, message) {
+  if (!bd) return;
+  bd.el.remove();
+  if (bd.handleEl) bd.handleEl.remove();
+  if (bd.moveHandleEl) bd.moveHandleEl.remove();
+  if (bd.widthHandleR) bd.widthHandleR.remove();
+  if (bd.widthHandleL) bd.widthHandleL.remove();
+  if (bd.delHandleEl) bd.delHandleEl.remove();
+  teState.blocks = teState.blocks.filter(b => b !== bd);
+  if (teState.focusedBlock === bd) teState.focusedBlock = null;
+  document.getElementById('teBlockCount').textContent = teState.blocks.length + ' block' + (teState.blocks.length !== 1 ? 's' : '');
+  teUpdateLockBtn();
+  teAutoSaveBlocks();
+  toast(message || 'Text deleted', 'info');
+}
+
+// ---- Side-by-side compare (before/after) ------------------------------------
+// Splits the canvas area into two panes: a static snapshot of the page as it
+// was before any text edits (left), and the real, still fully-interactive
+// canvas + text overlay (right) — so the user can keep typing/dragging text
+// on the right while watching the left pane for reference. The left pane is
+// just an <img>, built once per toggle-on from the live canvas's pixels
+// (which text edits never touch, edits live purely in the overlay layer on
+// top), so it's always an accurate "before" regardless of when it's opened.
+let teCompareSplitOn = false;
+
+function teToggleCompareSplit() {
+  if (!teState.active) { toast('Open "OCR" on a page first', 'info'); return; }
+  const canvas = document.getElementById('pdfedPageCanvas');
+  if (!canvas || !canvas.width) return;
+
+  teCompareSplitOn = !teCompareSplitOn;
+
+  const scroll     = document.getElementById('pdfedCanvasScroll');
+  const inner      = document.getElementById('pdfedCanvasInner');
+  const beforeWrap = document.getElementById('pdfedCompareBeforeWrap');
+  const beforeImg  = document.getElementById('pdfedCompareBeforeImg');
+  const beforeTag  = document.getElementById('pdfedCompareBeforeTag');
+  const divider    = document.getElementById('pdfedCompareDivider');
+  const afterTag   = document.getElementById('pdfedCompareAfterTag');
+  const btn        = document.getElementById('pdfedPgactCompare');
+
+  // Clear any in-flight hide timer from a rapid toggle-off/on so it can't
+  // hide the pane out from under a fresh entrance.
+  if (teCompareHideTimer) { clearTimeout(teCompareHideTimer); teCompareHideTimer = null; }
+
+  if (teCompareSplitOn) {
+    beforeImg.src = canvas.toDataURL('image/png');
+    // Match the live canvas's current on-screen (zoomed) size exactly, so
+    // both panes read at the same scale.
+    const dispW = canvas.style.width  || (canvas.width  + 'px');
+    const dispH = canvas.style.height || (canvas.height + 'px');
+    beforeImg.style.width  = dispW;
+    beforeImg.style.height = dispH;
+
+    beforeWrap.style.display = 'block';
+    if (divider) divider.style.display = 'block';
+    if (scroll) scroll.classList.add('compare-split');
+    if (inner) inner.classList.add('compare-split');
+    if (afterTag) afterTag.style.display = 'block';
+    if (btn) { btn.classList.add('comparing'); btn.title = 'Exit compare view'; }
+
+    // Force a reflow so the browser registers the hidden starting state
+    // before the "visible" class is applied, otherwise the transition
+    // would be skipped and the pane would just snap into place.
+    void beforeWrap.offsetWidth;
+
+    requestAnimationFrame(() => {
+      beforeWrap.classList.add('pdfed-compare-visible');
+      if (divider) divider.classList.add('pdfed-compare-visible');
+    });
+    // Tags pop in just after the panes settle, giving the reveal a light
+    // staggered rhythm instead of everything animating at once.
+    setTimeout(() => {
+      if (beforeTag) beforeTag.classList.add('pdfed-compare-visible');
+      if (afterTag) afterTag.classList.add('pdfed-compare-visible');
+    }, 180);
+
+    toast('Comparing, left is the original, right is live and still editable', 'info');
+  } else {
+    teExitCompareSplit();
+  }
+}
+
+let teCompareHideTimer = null;
+
+// Shared cleanup, also called whenever the Text Editor session itself ends
+// (Apply, Cancel, or navigating to another page), so a stale "before" snapshot
+// never lingers once its page is no longer being edited. Animates the split
+// closed rather than snapping it away instantly.
+function teExitCompareSplit() {
+  teCompareSplitOn = false;
+  const scroll     = document.getElementById('pdfedCanvasScroll');
+  const inner      = document.getElementById('pdfedCanvasInner');
+  const beforeWrap = document.getElementById('pdfedCompareBeforeWrap');
+  const beforeTag  = document.getElementById('pdfedCompareBeforeTag');
+  const divider    = document.getElementById('pdfedCompareDivider');
+  const afterTag   = document.getElementById('pdfedCompareAfterTag');
+  const btn        = document.getElementById('pdfedPgactCompare');
+
+  if (btn) { btn.classList.remove('comparing'); btn.title = 'Compare, see before vs after side by side'; }
+  if (beforeWrap) beforeWrap.classList.remove('pdfed-compare-visible');
+  if (divider) divider.classList.remove('pdfed-compare-visible');
+  if (beforeTag) beforeTag.classList.remove('pdfed-compare-visible');
+  if (afterTag) afterTag.classList.remove('pdfed-compare-visible');
+
+  if (teCompareHideTimer) clearTimeout(teCompareHideTimer);
+  teCompareHideTimer = setTimeout(() => {
+    if (beforeWrap) beforeWrap.style.display = 'none';
+    if (divider) divider.style.display = 'none';
+    if (scroll) scroll.classList.remove('compare-split');
+    if (inner) inner.classList.remove('compare-split');
+    if (afterTag) afterTag.style.display = 'none';
+    teCompareHideTimer = null;
+  }, 380); // matches the pane's fade/slide-out transition duration
+}
+
+// Shows/hides the Compare button in the top-right page-actions bar, visible
+// only while the Text Editor (Edit Text) session is active, since comparing
+// before/after only makes sense in that context.
+function pdfedSyncCompareBtnVisibility() {
+  const btn = document.getElementById('pdfedPgactCompare');
+  const sep = document.getElementById('pdfedPgactCompareSep');
+  if (!btn) return;
+  const show = !!teState.active;
+  btn.style.display = show ? 'flex' : 'none';
+  if (sep) sep.style.display = show ? '' : 'none';
+}
+
+function teAddFreeText() {
+  if (!teState.active) return;
+  const canvas = document.getElementById('pdfedPageCanvas');
+  // Place in the center of the visible canvas
+  const x = canvas.width  * 0.15;
+  const y = canvas.height * 0.45;
+  const bd = teAddBlock({
+    text: 'New text', x, y,
+    fontSize: 32, fontFamily: 'Arial, sans-serif',
+    color: teState.color, bold: false, italic: false, free: true,
+  }, null, true);
+  bd.el.classList.add('modified');
+  setTimeout(() => {
+    bd.el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(bd.el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  }, 30);
+  toast('Free text added, Shift+drag to move it', 'info');
+}
+
+function teSelectColor(el) {
+  document.querySelectorAll('.te-color-swatch').forEach(s => s.classList.remove('sel'));
+  el.classList.add('sel');
+  teState.color = el.dataset.color;
+  document.getElementById('teColorPicker').value = teState.color;
+  teApplyColorToFocused(teState.color);
+}
+
+function tePickColor(val) {
+  teState.color = val;
+  document.querySelectorAll('.te-color-swatch').forEach(s => s.classList.remove('sel'));
+  const bd = teState.focusedBlock;
+  if (bd) { bd.el.focus(); teRestoreSavedRange(); }
+  teApplyColorToFocused(val);
+}
+
+function teApplyColorToFocused(color) {
+  const bd = teState.focusedBlock;
+  if (!bd) return;
+  const sel = window.getSelection();
+  const hasRealSelection = sel && sel.rangeCount > 0 && bd.el.contains(sel.anchorNode) && !sel.isCollapsed;
+
+  // Make sure the block has focus so execCommand targets the right element/caret.
+  if (document.activeElement !== bd.el) bd.el.focus();
+
+  try {
+    document.execCommand('styleWithCSS', false, true);
+    // Works for an actual highlighted selection (recolors just that text), AND for a
+    // collapsed caret while typing (sets the color for whatever is typed next) — this
+    // is what gives the "pick a color while typing" Canva-style behavior.
+    document.execCommand('foreColor', false, color);
+  } catch (e) { /* execCommand unsupported, fall back to block-wide color below */ }
+
+  bd.color = color; // base/default color used as a fallback wherever no inline override exists
+  if (!hasRealSelection) {
+    // No text was highlighted (just clicked a swatch) — also set it as the visible
+    // block color so it's reflected immediately even before anything new is typed.
+    bd.el.style.color = color;
+  }
+  bd.el.classList.add('modified');
+}
+
+// Walk a text block's DOM and split it into lines of colored/styled runs, so the
+// export/flatten step can reproduce per-character (Canva-style) text coloring instead
+// of a single flat color for the whole block.
+function teExtractColoredLines(el, defaultColor, defaultBold, defaultItalic) {
+  const lines = [[]];
+  function styleOf(node) {
+    let n = node, color = null, bold = null, italic = null;
+    while (n && n !== el) {
+      if (n.nodeType === 1) {
+        if (color === null) {
+          if (n.style && n.style.color) color = n.style.color;
+          else if (n.tagName === 'FONT' && n.color) color = n.color;
+        }
+        if (bold === null) {
+          const fw = n.style && n.style.fontWeight;
+          if (n.tagName === 'B' || n.tagName === 'STRONG') bold = true;
+          else if (fw && (fw === 'bold' || fw === 'bolder' || parseInt(fw) >= 600)) bold = true;
+        }
+        if (italic === null) {
+          if (n.tagName === 'I' || n.tagName === 'EM') italic = true;
+          else if (n.style && n.style.fontStyle === 'italic') italic = true;
+        }
+      }
+      n = n.parentNode;
+    }
+    return {
+      color: color !== null ? color : defaultColor,
+      bold: bold !== null ? bold : defaultBold,
+      italic: italic !== null ? italic : defaultItalic,
+    };
+  }
+  function newLine() { lines.push([]); }
+  function walk(node) {
+    node.childNodes.forEach(child => {
+      if (child.nodeType === 3) {
+        if (child.nodeValue) {
+          const st = styleOf(child);
+          lines[lines.length - 1].push({ text: child.nodeValue, color: st.color, bold: st.bold, italic: st.italic });
+        }
+      } else if (child.nodeType === 1) {
+        const tag = child.tagName;
+        if (tag === 'BR') { newLine(); }
+        else if (tag === 'DIV' || tag === 'P') {
+          // Chrome/Firefox wrap each new line (after Enter) in its own block element
+          if (lines.length > 1 || lines[lines.length - 1].length > 0) newLine();
+          walk(child);
+        } else {
+          walk(child);
+        }
+      }
+    });
+  }
+  walk(el);
+  return lines;
+}
+
+function teAdjustSize(val) {
+  const delta = parseInt(val);
+  teState.sizeAdj = delta;
+  document.getElementById('teSizeVal').textContent = (delta >= 0 ? '+' : '') + delta;
+  const bd = teState.focusedBlock;
+  if (!bd) return;
+  bd.fontSize = Math.max(4, bd.baseFontSize + delta);
+  bd.el.style.fontSize = bd.fontSize + 'px';
+  bd.el.classList.add('modified');
+}
+
+function teApplyBold() {
+  const bd = teState.focusedBlock;
+  if (!bd) return;
+  bd.bold = !bd.bold;
+  bd.el.style.fontWeight = bd.bold ? 'bold' : 'normal';
+  bd.el.classList.add('modified');
+}
+
+function teApplyItalic() {
+  const bd = teState.focusedBlock;
+  if (!bd) return;
+  bd.italic = !bd.italic;
+  bd.el.style.fontStyle = bd.italic ? 'italic' : 'normal';
+  bd.el.classList.add('modified');
+}
+
+// ── "Style Specific Text" ───────────────────────────────────────────────────
+// Lives permanently at the top of the right panel (not gated behind "Edit
+// Text" mode). Type a word or sentence, pick a style, hit Apply — every
+// matching occurrence across the WHOLE document gets bold/italic/font/colour
+// applied in one shot, instead of opening each page, selecting the text by
+// hand, and clicking the toolbar buttons one at a time.
+//
+// "Smart" matching, no extra toggle to configure: a single word (no spaces/
+// punctuation) is matched as a whole word ("cat" won't also hit "category"),
+// while anything with a space or punctuation is matched exactly as typed,
+// since word boundaries don't make sense for a phrase/sentence.
+const teFafState = { bold: false, italic: false, font: '', color: null, debounceTimer: null, previewToken: 0 };
+
+function teFafToggleStyle(kind, btn) {
+  teFafState[kind] = !teFafState[kind];
+  btn.classList.toggle('on', teFafState[kind]);
+}
+
+function teFafSelectColor(el) {
+  document.querySelectorAll('#teFafColorRow .te-color-swatch').forEach(s => s.classList.remove('sel'));
+  el.classList.add('sel');
+  const c = el.dataset.color;
+  teFafState.color = c || null;
+  document.getElementById('teFafColorPicker').value = c;
+  document.getElementById('teFafClearColorBtn').classList.remove('on');
+}
+
+function teFafPickColor(val) {
+  teFafState.color = val;
+  document.querySelectorAll('#teFafColorRow .te-color-swatch').forEach(s => s.classList.remove('sel'));
+  document.getElementById('teFafClearColorBtn').classList.remove('on');
+}
+
+function teFafClearColor() {
+  teFafState.color = null;
+  document.querySelectorAll('#teFafColorRow .te-color-swatch').forEach(s => s.classList.remove('sel'));
+  document.getElementById('teFafClearColorBtn').classList.add('on');
+}
+
+function teFafEscapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Walks a container's DOM (a live block on screen, or a detached copy of a
+// saved block's HTML) and wraps every match of `regex` in its text nodes
+// with a <span> carrying whatever style `styler` sets. Skips anything sitting
+// under a contentEditable="false" element, which is how the block's own
+// drag/resize/delete handles are marked, so those are never touched even
+// though they're real DOM children of the block.
+function teFafWrapMatches(root, regex, styler) {
+  let count = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      const p = n.parentElement;
+      if (p && p.closest('[contenteditable="false"]')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+
+  nodes.forEach(tn => {
+    const text = tn.nodeValue;
+    regex.lastIndex = 0;
+    const spans = [];
+    let m;
+    while ((m = regex.exec(text))) {
+      if (!m[0].length) { regex.lastIndex++; continue; }
+      spans.push([m.index, m.index + m[0].length]);
+    }
+    if (!spans.length) return;
+
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    spans.forEach(([s, e]) => {
+      if (s > last) frag.appendChild(document.createTextNode(text.slice(last, s)));
+      const span = document.createElement('span');
+      styler(span);
+      span.textContent = text.slice(s, e);
+      frag.appendChild(span);
+      last = e;
+      count++;
+    });
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    tn.parentNode.replaceChild(frag, tn);
+  });
+
+  return count;
+}
+
+// Builds the case-insensitive search regex, deciding word-boundary matching
+// automatically from the shape of the query (see comment above teFafState).
+function teFafBuildRegex(query) {
+  const isSingleWord = /^[\w'-]+$/.test(query);
+  const escaped = teFafEscapeRegex(query);
+  const pattern = isSingleWord ? `\\b${escaped}\\b` : escaped;
+  return new RegExp(pattern, 'gi');
+}
+
+// Minimal text->HTML escape, used only as a fallback when a saved block has
+// no stored .html (older/simple blocks that only ever kept .text).
+function teFafEscapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Placed text boxes ("Add Text" on a blank page, diagram, or data table) are
+// stored separately from PDF-extracted content, on pg.placedTexts, with their
+// own x/y/fontSize — not pg.textBlocks. Style Specific Text needs to see
+// these too, or anything typed directly into a document being built from
+// scratch (rather than uploaded as a PDF) is invisible to search entirely.
+function teFafPlacedTextsGeom(pg) {
+  return ((pg && pg.placedTexts) || []).map(item => ({
+    text: item.text || '', x: item.x, y: item.y,
+    width: item.w || Math.max(40, (item.text || '').length * (item.fontSize || 14) * 0.6),
+    height: item.h || (item.fontSize || 14) * 1.3,
+    fontSize: item.fontSize, fontFamily: item.fontFamily, bold: item.bold, italic: item.italic,
+    _placed: true,
+  }));
+}
+
+// ── The crawler ─────────────────────────────────────────────────────────────
+// Every page — including ones nobody has ever opened "Edit Text" on — is
+// searchable. For a page that already has saved text blocks (or is the live
+// session on screen), those are the ground truth. For anything else, a cheap
+// geometry-only pass reads the PDF's own text layer (position + string, no
+// canvas/color sampling) just to know WHERE matches are and HOW MANY there
+// are — instant enough to run on every keystroke. The PDF/textBlocks portion
+// is cached per page so retyping doesn't re-parse the PDF each time. Placed
+// text boxes are recomputed fresh on every call instead (cheap — no async
+// work), since they're created/edited from many places across the app and a
+// cached copy would go stale the moment someone types into one.
+async function teFafGetPageGeometry(pg) {
+  const placedGeom = teFafPlacedTextsGeom(pg);
+  if (pg._teFafGeom && pg._teFafGeom.length) return pg._teFafGeom.concat(placedGeom); // only trust a non-empty cache; an empty result might just be a transient failure, so retry it rather than freezing "no text" forever
+  if (pg.textBlocks && pg.textBlocks.length) {
+    const geom = pg.textBlocks.map(tb => ({
+      text: tb.text || '', x: tb.x, y: tb.y,
+      width: tb.origWidth || 40, height: tb.origHeight || (tb.fontSize || 12) * 1.15,
+      fontSize: tb.fontSize, fontFamily: tb.fontFamily, bold: tb.bold, italic: tb.italic,
+    }));
+    pg._teFafGeom = geom;
+    return geom.concat(placedGeom);
+  }
+  if (pg.type !== 'pdf' || !(pg.srcDoc || pdfed.pdfDoc)) {
+    pg._teFafGeom = [];
+    return placedGeom;
+  }
+  try {
+    const pdfPage = await (pg.srcDoc || pdfed.pdfDoc).getPage(pg.pageNum);
+    const viewport = pdfPage.getViewport({ scale: 2.0 });
+    const textContent = await pdfPage.getTextContent();
+    const styleMap = textContent.styles || {};
+    const runs = teMergeTextRuns(textContent.items, viewport, styleMap, null); // no ctx: geometry only, no color sampling needed
+    const geom = runs.map(r => ({
+      text: r.text, x: r.x, y: r.y, width: r.width, height: r.height,
+      fontSize: r.fontSize, fontFamily: r.fontFamily, bold: r.bold, italic: r.italic,
+    }));
+    pg._teFafGeom = geom;
+    return geom.concat(placedGeom);
+  } catch (e) {
+    console.warn('Style Specific Text: could not read this page\'s text layer, will retry next keystroke', e);
+    pg._teFafGeom = [];
+    return placedGeom;
+  }
+}
+
+// The real, color-accurate extraction — identical in spirit to what opening
+// "Edit Text" on this page would produce (rasterizes the page so glyph/
+// background colors can be sampled properly). Only run for a page once the
+// cheap geometry pass above has already confirmed it's worth the cost.
+async function teFafExtractRealBlocks(pg) {
+  if (pg.type !== 'pdf' || !(pg.srcDoc || pdfed.pdfDoc)) return [];
+  try {
+    const pdfPage = await (pg.srcDoc || pdfed.pdfDoc).getPage(pg.pageNum);
+    const { ctx, viewport } = await pdfedRasterizePage(pdfPage, 2.0);
+    const textContent = await pdfPage.getTextContent();
+    const styleMap = textContent.styles || {};
+    const runs = teMergeTextRuns(textContent.items, viewport, styleMap, ctx);
+    return runs.map(r => ({
+      x: r.x, y: r.y,
+      fontSize: Math.max(6, Math.round(r.fontSize)),
+      fontFamily: r.fontFamily,
+      color: r.color,
+      bold: r.bold,
+      italic: r.italic,
+      free: false,
+      locked: false,
+      origText: r.text,
+      text: r.text,
+      html: teFafEscapeHtml(r.text),
+      origWidth: r.width,
+      origHeight: r.height,
+      bgColor: r.bgColor,
+    }));
+  } catch (e) {
+    console.warn('Style Specific Text: background extraction failed for a page', e);
+    return [];
+  }
+}
+
+// ── Live preview: highlight + status, no document changes yet ──────────────
+function teFafOnInput() {
+  clearTimeout(teFafState.debounceTimer);
+  const input = document.getElementById('teFafInput');
+  const query = input ? input.value.trim() : '';
+  teFafState.previewToken++; // invalidate any in-flight crawl immediately
+  if (!query) { teFafClearHighlights(); teFafSetStatus('idle'); return; }
+  teFafSetStatus('scanning', 'Scanning document…');
+  teFafState.debounceTimer = setTimeout(() => teFafRunPreview(query), 200);
+}
+
+function teFafSetStatus(mode, text) {
+  const el = document.getElementById('teFafStatus');
+  const textEl = document.getElementById('teFafStatusText');
+  if (!el || !textEl) return;
+  el.className = 'te-faf-status' + (mode ? ' ' + mode : '');
+  textEl.textContent = text || 'Searches the whole document';
+}
+
+function teFafClearHighlights() {
+  const layer = document.getElementById('teFafHighlightLayer');
+  if (layer) layer.innerHTML = '';
+  const placedLayer = document.getElementById('teFafPlacedHighlightLayer');
+  if (placedLayer) placedLayer.innerHTML = '';
+}
+
+// Positions the highlight layer exactly like pdfedRenderTextLayer positions
+// the real text-block overlay, so highlight elements land pixel-true on the
+// canvas at any zoom level.
+function teFafSyncHighlightTransform(pg) {
+  const layer = document.getElementById('teFafHighlightLayer');
+  const canvas = document.getElementById('pdfedPageCanvas');
+  if (!layer || !canvas || !canvas.width || !pg) return;
+  layer.style.width = canvas.width + 'px';
+  layer.style.height = canvas.height + 'px';
+  const zoomNormalize = PDFED_PX_PER_MM / (pg._pxPerMm || PDFED_PX_PER_MM);
+  const z = pdfed.zoom * zoomNormalize;
+  layer.style.transform = `scale(${z})`;
+  layer.style.transformOrigin = 'top left';
+}
+
+// Full, accurate per-page extraction (exact x/y/fontSize/fontFamily/bold/
+// italic) — the SAME data "Edit Text" and "Apply across document" already
+// build real text elements from (via teAddBlock), which is why Apply always
+// lands correctly. Cached on the page so it's only computed once, not on
+// every keystroke; invalidated automatically the moment real textBlocks
+// exist, since those become the new ground truth.
+async function teFafGetRealBlocksForHighlight(pg) {
+  if (pg.textBlocks && pg.textBlocks.length) return pg.textBlocks;
+  if (pg._teFafRealBlocksCache) return pg._teFafRealBlocksCache;
+  const blocks = await teFafExtractRealBlocks(pg);
+  pg._teFafRealBlocksCache = blocks;
+  return blocks;
+}
+
+// ── Live preview highlight ───────────────────────────────────────────────
+// No font-metric guessing here: every highlight element is built with the
+// exact same x/y/fontSize/fontFamily/bold/italic that the real, on-screen
+// text uses (from live edit blocks if the page is open for editing, or from
+// the same accurate extraction "Apply across document" already relies on
+// otherwise). The browser lays each one out itself — same as any real text
+// block — so the match position can't drift; only the matched substring
+// gets a visible background, the rest of the element stays invisible.
+async function teFafHighlightActivePage(regex, token) {
+  teFafClearHighlights();
+  if (typeof pdfed === 'undefined' || pdfed.active < 0) return;
+  const pg = pdfed.pages[pdfed.active];
+  if (!pg) return;
+
+  const layer = document.getElementById('teFafHighlightLayer');
+  if (!layer) return;
+  teFafSyncHighlightTransform(pg);
+
+  let blocks;
+  if (teState.active) {
+    // Page is open for live editing right now — highlight the actual DOM
+    // that's on screen, so the preview always matches unsaved edits too.
+    blocks = teState.blocks.map(bd => ({
+      text: bd.el.textContent || '', x: bd.x, y: bd.y,
+      fontSize: bd.fontSize, fontFamily: bd.fontFamily,
+      bold: bd.bold, italic: bd.italic,
+      origWidth: bd.origWidth, origHeight: bd.origHeight,
+    }));
+  } else {
+    blocks = await teFafGetRealBlocksForHighlight(pg);
+    if (token !== teFafState.previewToken) return; // a newer keystroke superseded this pass
+  }
+  teFafRenderHighlightBlocks(blocks, regex, layer);
+
+  // Placed/free text boxes ("Add Text") live inside their own zoom wrapper
+  // (#pdfedPlacedZoomWrap), which scales as one unit with a DIFFERENT factor
+  // than the PDF text overlay — so their highlights get their own layer
+  // that's already inside that same wrapper (see the HTML), instead of being
+  // mixed into `layer` where they'd land at the wrong scale.
+  const placedLayer = document.getElementById('teFafPlacedHighlightLayer');
+  if (placedLayer) {
+    placedLayer.innerHTML = '';
+    teFafRenderHighlightBlocks(teFafPlacedTextsGeom(pg), regex, placedLayer);
+  }
+}
+
+// Shared by both highlight layers: for each block whose text matches, build
+// a real text element with the block's own x/y/font — the browser lays it
+// out itself, so the highlight can only ever land exactly on the word.
+function teFafRenderHighlightBlocks(blocks, regex, layer) {
+  blocks.forEach(b => {
+    if (!b.text || !b.text.trim()) return;
+    regex.lastIndex = 0;
+    if (!regex.test(b.text)) return;
+    const el = document.createElement('div');
+    el.className = 'pdfed-text-block te-faf-hl-clone';
+    el.style.left       = Math.round(b.x) + 'px';
+    el.style.top        = Math.round(b.y) + 'px';
+    el.style.fontSize   = Math.max(6, Math.round(b.fontSize || 14)) + 'px';
+    el.style.fontFamily = b.fontFamily || 'Arial, sans-serif';
+    el.style.fontWeight = b.bold   ? 'bold'   : 'normal';
+    el.style.fontStyle  = b.italic ? 'italic' : 'normal';
+    if (b.origWidth)  el.style.minWidth  = Math.round(b.origWidth)  + 'px';
+    if (b.origHeight) el.style.minHeight = Math.round(b.origHeight) + 'px';
+    el.textContent = b.text;
+    regex.lastIndex = 0;
+    teFafWrapMatches(el, regex, span => span.className = 'te-faf-hl-mark');
+    layer.appendChild(el);
+  });
+}
+
+async function teFafRunPreview(query) {
+  const token = teFafState.previewToken;
+  let regex;
+  try { regex = teFafBuildRegex(query); }
+  catch (e) { teFafSetStatus('none', 'Could not search for that'); return; }
+
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    teFafSetStatus('idle');
+    return;
+  }
+
+  await teFafHighlightActivePage(regex, token);
+  if (token !== teFafState.previewToken) return;
+
+  let totalMatches = 0, pagesWithMatch = 0;
+  for (let i = 0; i < pdfed.pages.length; i++) {
+    const pg = pdfed.pages[i];
+    const isLiveActivePage = teState.active && i === pdfed.active;
+    let pageText;
+    if (isLiveActivePage) {
+      const placedText = ((pg.placedTexts || []).map(item => item.text || '')).join(' \n ');
+      pageText = teState.blocks.map(bd => bd.el.textContent || '').join(' \n ') + ' \n ' + placedText;
+    } else {
+      const geom = await teFafGetPageGeometry(pg);
+      if (token !== teFafState.previewToken) return; // superseded mid-crawl
+      pageText = geom.map(r => r.text).join(' \n ');
+    }
+    regex.lastIndex = 0;
+    const hits = pageText.match(regex);
+    if (hits && hits.length) { totalMatches += hits.length; pagesWithMatch++; }
+    teFafSetStatus(totalMatches > 0 ? 'match' : 'scanning',
+      totalMatches > 0
+        ? `${totalMatches} found`
+        : 'Scanning document…');
+  }
+  if (token !== teFafState.previewToken) return;
+  teFafSetStatus(totalMatches > 0 ? 'match' : 'none',
+    totalMatches > 0
+      ? `${totalMatches} match${totalMatches !== 1 ? 'es' : ''} found`
+      : `No matches for "${query}"`);
+}
+
+// Re-runs the live preview for whatever's still typed in the box — called
+// after page navigation/zoom, since highlight positions are page-specific.
+function teFafRefreshPreview() {
+  const input = document.getElementById('teFafInput');
+  const query = input ? input.value.trim() : '';
+  if (!query) { teFafClearHighlights(); return; }
+  teFafState.previewToken++;
+  teFafRunPreview(query);
+}
+
+// ── Undo / Redo for "Apply across document" ─────────────────────────────────
+const teFafUndoStack = [];
+const teFafRedoStack = [];
+const TE_FAF_UNDO_CAP = 25;
+
+function teFafSnapshotPage(pg) {
+  return {
+    textBlocks: pg.textBlocks ? JSON.parse(JSON.stringify(pg.textBlocks)) : null,
+    placedTexts: pg.placedTexts ? JSON.parse(JSON.stringify(pg.placedTexts)) : null,
+  };
+}
+
+function teFafRestoreChanges(changes, useBefore) {
+  changes.forEach(ch => {
+    const pg = pdfed.pages[ch.i];
+    if (!pg) return;
+    const snap = useBefore ? ch.before : ch.after;
+    pg.textBlocks = (snap && snap.textBlocks) ? JSON.parse(JSON.stringify(snap.textBlocks)) : null;
+    pg.placedTexts = (snap && snap.placedTexts) ? JSON.parse(JSON.stringify(snap.placedTexts)) : null;
+    pg._teFafGeom = null; // stale now, let it re-derive from the restored textBlocks/placedTexts
+    if (pg.textBlocks && pg.textBlocks.length) {
+      pg.modified = true;
+      if (pg.edits) pg.edits.textEdited = true;
+    }
+  });
+  if (teState.active) pdfedCancelTextEdit(); // close any live session so the restored saved state shows cleanly
+  const activePg = (typeof pdfed !== 'undefined' && pdfed.active >= 0) ? pdfed.pages[pdfed.active] : null;
+  if (activePg) {
+    pdfedRenderTextLayer(activePg, false);
+    if (typeof pdfedRenderPlacedTexts === 'function') pdfedRenderPlacedTexts(pdfed.active);
+  }
+  pdfedBuildStrip();
+}
+
+function teFafUndo() {
+  if (!teFafUndoStack.length) return false;
+  const changes = teFafUndoStack.pop();
+  changes._t = nextHistoryTick();
+  teFafRedoStack.push(changes);
+  teFafRestoreChanges(changes, true);
+  toast('↶ Style Specific Text change undone', 'info');
+  return true;
+}
+
+function teFafRedo() {
+  if (!teFafRedoStack.length) return false;
+  const changes = teFafRedoStack.pop();
+  changes._t = nextHistoryTick();
+  teFafUndoStack.push(changes);
+  teFafRestoreChanges(changes, false);
+  toast('↷ Style Specific Text change redone', 'info');
+  return true;
+}
+
+// ── Apply across document ───────────────────────────────────────────────────
+async function teFafApply() {
+  const input = document.getElementById('teFafInput');
+  const query = input ? input.value.trim() : '';
+  if (!query) { toast('Type a word or sentence first', 'info'); if (input) input.focus(); return; }
+
+  if (!teFafState.bold && !teFafState.italic && !teFafState.font && !teFafState.color) {
+    toast('Pick at least one style, bold, italic, font, or colour, to apply', 'info');
+    return;
+  }
+
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    toast('Open a document first', 'info');
+    return;
+  }
+
+  let regex;
+  try { regex = teFafBuildRegex(query); }
+  catch (e) { toast('Could not search for that text', 'error'); return; }
+
+  const styler = span => {
+    if (teFafState.bold) span.style.fontWeight = 'bold';
+    if (teFafState.italic) span.style.fontStyle = 'italic';
+    if (teFafState.font) span.style.fontFamily = teFafState.font;
+    if (teFafState.color) span.style.color = teFafState.color;
+  };
+
+  const applyBtn = document.getElementById('teFafApplyBtn');
+  if (applyBtn) applyBtn.classList.add('busy');
+
+  let total = 0, pagesHit = 0, skippedPages = 0, touchedActivePage = false;
+  const changes = [];
+
+  // Styles any typed-in text boxes on a page (pg.placedTexts) — these exist
+  // independently of PDF-extracted textBlocks, on ANY page type (blank pages,
+  // diagrams, data tables, or a PDF page someone also dropped a text box
+  // onto), so they need their own pass regardless of which branch below runs.
+  function applyToPlacedTexts(pg) {
+    let hits = 0;
+    (pg.placedTexts || []).forEach(item => {
+      const div = document.createElement('div');
+      div.innerHTML = item.html || teFafEscapeHtml(item.text || '');
+      const found = teFafWrapMatches(div, regex, styler);
+      if (found > 0) { item.html = div.innerHTML; item.text = div.textContent; hits += found; }
+    });
+    return hits;
+  }
+
+  for (let i = 0; i < pdfed.pages.length; i++) {
+    const pg = pdfed.pages[i];
+    const isLiveActivePage = teState.active && i === pdfed.active;
+    const before = teFafSnapshotPage(pg);
+    let hitOnThisPage = 0;
+    let touchedTextBlocksOrLive = false;
+
+    if (isLiveActivePage) {
+      // The page currently open in an active Text Editor session: style the
+      // real on-screen blocks directly so the change is visible immediately.
+      teState.blocks.forEach(bd => {
+        const found = teFafWrapMatches(bd.el, regex, styler);
+        if (found > 0) { hitOnThisPage += found; bd.el.classList.add('modified'); touchedTextBlocksOrLive = true; }
+      });
+      if (touchedTextBlocksOrLive) { teAutoSaveBlocks(); touchedActivePage = true; }
+    } else if (pg.textBlocks && pg.textBlocks.length) {
+      // Already-extracted page: style the saved block HTML directly, no DOM/overlay needed.
+      pg.textBlocks.forEach(tb => {
+        const div = document.createElement('div');
+        div.innerHTML = tb.html || teFafEscapeHtml(tb.text || '');
+        const found = teFafWrapMatches(div, regex, styler);
+        if (found > 0) {
+          tb.html = div.innerHTML;
+          tb.text = div.textContent;
+          hitOnThisPage += found;
+          touchedTextBlocksOrLive = true;
+        }
+      });
+      if (touchedTextBlocksOrLive) { pg.modified = true; pg.edits.textEdited = true; }
+    } else {
+      // This page has never been opened in "Edit Text" — the crawler checks it
+      // anyway. Cheap geometry pass first (no canvas rasterization) to see if
+      // it's even worth the real extraction, so pages with zero matches never
+      // pay that cost.
+      const geom = await teFafGetPageGeometry(pg);
+      regex.lastIndex = 0;
+      const hasCandidate = geom.some(r => { regex.lastIndex = 0; return r.text && regex.test(r.text); });
+      if (hasCandidate) {
+        const blocks = await teFafExtractRealBlocks(pg);
+        if (!blocks.length && pg.type === 'pdf') { skippedPages++; } // scanned/no text layer at all
+        else if (blocks.length) {
+          blocks.forEach(tb => {
+            const div = document.createElement('div');
+            div.innerHTML = tb.html;
+            const found = teFafWrapMatches(div, regex, styler);
+            if (found > 0) { tb.html = div.innerHTML; tb.text = div.textContent; hitOnThisPage += found; }
+          });
+          if (hitOnThisPage > 0) { pg.textBlocks = blocks; pg.modified = true; pg.edits.textEdited = true; touchedTextBlocksOrLive = true; }
+        }
+      }
+    }
+
+    // Placed text boxes run on every page (blank/diagram/data-table pages
+    // typically have ONLY these — no textBlocks and no live PDF at all).
+    const placedHits = applyToPlacedTexts(pg);
+    if (placedHits > 0) { hitOnThisPage += placedHits; pg.modified = true; }
+
+    if (hitOnThisPage > 0) {
+      total += hitOnThisPage; pagesHit++;
+      pg._teFafGeom = null;
+      if (i === pdfed.active) {
+        if (touchedTextBlocksOrLive && !isLiveActivePage) pdfedRenderTextLayer(pg, false);
+        if (placedHits > 0 && typeof pdfedRenderPlacedTexts === 'function') pdfedRenderPlacedTexts(i);
+      }
+      changes.push({ i, before, after: teFafSnapshotPage(pg) });
+    }
+  }
+
+  if (applyBtn) applyBtn.classList.remove('busy');
+
+  if (!total) {
+    toast(skippedPages
+      ? `No matches found for "${query}" (${skippedPages} scanned page${skippedPages !== 1 ? 's' : ''} with no text layer couldn't be searched)`
+      : `No matches found for "${query}"`, 'info');
+    return 0;
+  }
+
+  if (changes.length) {
+    changes._t = nextHistoryTick();
+    teFafUndoStack.push(changes);
+    if (teFafUndoStack.length > TE_FAF_UNDO_CAP) teFafUndoStack.shift();
+    teFafRedoStack.length = 0;
+  }
+
+  teFafClearHighlights();
+  teFafSetStatus('match', `Applied to ${total} match${total !== 1 ? 'es' : ''} · ${pagesHit} page${pagesHit !== 1 ? 's' : ''}`);
+  pdfedBuildStrip(); // refresh thumbnails so the styled text shows there too
+
+  let msg = `Styled ${total} match${total !== 1 ? 'es' : ''} across ${pagesHit} page${pagesHit !== 1 ? 's' : ''} · Ctrl+Z to undo`;
+  if (skippedPages) msg += `, ${skippedPages} scanned page${skippedPages !== 1 ? 's' : ''} skipped (no text layer)`;
+  toast(msg, 'success');
+  return total;
+}
+
+// ── Kadessa hook ────────────────────────────────────────────────────────────
+// Lets Kadessa drive this panel exactly the way a person would: type a query,
+// pick style(s), hit Apply -- except she can do it in one call instead of
+// several clicks. Deliberately re-syncs the actual on-screen panel (input
+// value, B/I toggle state, font dropdown, colour swatches) before applying,
+// not just the underlying teFafState, so if the person opens this panel
+// afterward it shows exactly what Kadessa just set rather than stale controls
+// left over from whatever they last touched by hand. Reuses teFafApply()
+// itself for the actual work, so undo/redo, the thumbnail refresh, and the
+// toast are all identical to a manual Apply click.
+//
+// bold/italic default to false, font/color default to "leave unchanged"
+// (empty string / null) when omitted -- callers must be explicit about
+// what they want, since silently inheriting whatever was left over in the
+// panel from a previous manual edit would make Kadessa's result depend on
+// state she can't see. Pass clear_color: true to explicitly remove an
+// existing colour (the same as clicking the "no colour" button) rather
+// than just leaving colour unspecified.
+async function pdfedKadessaStyleSpecificText(p) {
+  p = p || {};
+  const query = String(p.query || '').trim();
+  if (!query) throw new Error('no search text given');
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    throw new Error('open a document first');
+  }
+
+  const bold = !!p.bold;
+  const italic = !!p.italic;
+  const font = p.font ? String(p.font) : '';
+  const color = p.clear_color ? null : (p.color ? String(p.color) : null);
+
+  if (!bold && !italic && !font && !color) {
+    throw new Error('pick at least one style change -- bold, italic, a font, or a colour');
+  }
+
+  teFafState.bold = bold;
+  teFafState.italic = italic;
+  teFafState.font = font;
+  teFafState.color = color;
+
+  const input = document.getElementById('teFafInput');
+  if (input) input.value = query;
+
+  const boldBtn = document.getElementById('teFafBoldBtn');
+  if (boldBtn) boldBtn.classList.toggle('on', bold);
+  const italicBtn = document.getElementById('teFafItalicBtn');
+  if (italicBtn) italicBtn.classList.toggle('on', italic);
+  const fontSelect = document.getElementById('teFafFontSelect');
+  if (fontSelect) fontSelect.value = font;
+
+  document.querySelectorAll('#teFafColorRow .te-color-swatch').forEach(function (s) {
+    s.classList.toggle('sel', !!(color && s.dataset.color === color));
+  });
+  const colorPicker = document.getElementById('teFafColorPicker');
+  if (colorPicker && color) colorPicker.value = color;
+  const clearColorBtn = document.getElementById('teFafClearColorBtn');
+  if (clearColorBtn) clearColorBtn.classList.toggle('on', !color);
+
+  teFafRefreshPreview();
+
+  // v39: teFafApply() never loaded the font itself (the manual
+  // #teFafFontSelect dropdown only ever offered the 8 fonts already
+  // baked into the page, so this was never needed before free-text
+  // fonts existed here). Now that `font` can be anything, it has to be
+  // fetched and ready before teFafApply() measures/applies it, same as
+  // the other two font-setting paths (pdfedKadessaEnsureFont is already
+  // called for pdfed_insert_page/pdfed_add_text_to_page's heading_font/
+  // body_font, and for pdfed_create_table's font_family).
+  if (font) await pdfedKadessaEnsureFont(font);
+
+  const total = await teFafApply();
+  if (!total) throw new Error('no matches found for "' + query + '"');
+  return total;
+}
+
+// ── Kadessa hooks: RESIZE & OPACITY for placed images/text (programmatic,
+// no panel needed) ──────────────────────────────────────────────────────
+// Gives Kadessa the same hands-on control over a placed image or text box
+// that a person gets from the drag-resize handles and the opacity
+// popover/toolbar slider — set a size directly, scale by a percentage,
+// or dial opacity up/down — all in one call instead of walking her
+// through "select it, then drag this handle". Every setter below writes
+// straight to the same item.x/y/w/h/fontSize/opacity fields the manual
+// UI already reads (see pdfedPositionPlacedEl, pdfedPtxtSetSize,
+// pdfedPtxtSetOpacity, pdfedOpacityPopoverInput above), then reuses
+// pdfedMarkModified + a real re-render so the result is pixel-identical
+// to a manual edit — same undo/redo, same thumbnail refresh.
+
+function pdfedKadessaActivePage(p) {
+  if (typeof pdfed === 'undefined' || pdfed.active < 0 || !pdfed.pages || !pdfed.pages.length) {
+    throw new Error('open a document first');
+  }
+  const idx = (p && p.page_idx !== undefined && p.page_idx !== null && p.page_idx !== '')
+    ? Math.max(0, Math.min(pdfed.pages.length - 1, parseInt(p.page_idx, 10)))
+    : pdfed.active;
+  const pg = pdfed.pages[idx];
+  if (!pg) throw new Error('that page does not exist');
+  return { pg, idx };
+}
+
+// Picks one image out of pg.placedImages: by explicit id, by 1-based
+// z-order position ("which": a number), or by "first"/"last" (z-order,
+// default "last" — the most recently placed/most likely one someone
+// means by "the image" when there's more than one). Throws a clear error
+// rather than silently acting on the wrong picture when nothing matches.
+function pdfedKadessaFindImage(pg, p) {
+  const list = pg.placedImages || [];
+  if (!list.length) throw new Error('this page has no placed images');
+  if (p.id) {
+    const byId = list.find(it => it.id === p.id);
+    if (!byId) throw new Error('no image with that id on this page');
+    return byId;
+  }
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  if (p.which === 'first') return ordered[0];
+  if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') return ordered[ordered.length - 1];
+  const n = parseInt(p.which, 10);
+  if (n >= 1 && n <= ordered.length) return ordered[n - 1];
+  throw new Error('could not find image #' + p.which + ' — this page only has ' + ordered.length + ' image' + (ordered.length === 1 ? '' : 's'));
+}
+
+// Picks one text box out of pg.placedTexts by a case-insensitive substring
+// match against its content (mirrors the "query" semantics of
+// pdfedKadessaStyleSpecificText above, just scoped to placed text boxes
+// rather than the document's underlying text layer). Falls back to
+// "which"/"first"/"last" the same way pdfedKadessaFindImage does when no
+// query is given, so "resize the last text box" still works.
+function pdfedKadessaFindPlacedText(pg, p) {
+  const list = pg.placedTexts || [];
+  if (!list.length) throw new Error('this page has no placed text boxes');
+  if (p.id) {
+    const byId = list.find(it => it.id === p.id);
+    if (!byId) throw new Error('no text box with that id on this page');
+    return byId;
+  }
+  const query = p.query ? String(p.query).trim().toLowerCase() : '';
+  if (query) {
+    const hits = list.filter(it => String(it.text || '').toLowerCase().includes(query));
+    if (!hits.length) throw new Error('no text box matching "' + p.query + '" on this page');
+    if (hits.length > 1) {
+      // Same disambiguation Kadessa already has to do for pdfed_style_specific_text --
+      // rather than silently picking one, prefer the most recently placed match.
+      hits.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    }
+    return hits[hits.length - 1];
+  }
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  if (p.which === 'first') return ordered[0];
+  if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') return ordered[ordered.length - 1];
+  const n = parseInt(p.which, 10);
+  if (n >= 1 && n <= ordered.length) return ordered[n - 1];
+  throw new Error('could not find that text box — give a query to search its text, or "first"/"last".');
+}
+
+// Picks one placed TABLE out of pg.placedTables: by explicit id, by
+// 1-based z-order position ("which": a number), or by "first"/"last"
+// (z-order, default "last" — the most recently placed table). Mirrors
+// pdfedKadessaFindImage exactly, just scoped to placedTables.
+function pdfedKadessaFindPlacedTable(pg, p) {
+  const list = pg.placedTables || [];
+  if (!list.length) throw new Error('this page has no placed tables');
+  if (p.id) {
+    const byId = list.find(it => it.id === p.id);
+    if (!byId) throw new Error('no table with that id on this page');
+    return byId;
+  }
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  if (p.which === 'first') return ordered[0];
+  if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') return ordered[ordered.length - 1];
+  const n = parseInt(p.which, 10);
+  if (n >= 1 && n <= ordered.length) return ordered[n - 1];
+  throw new Error('could not find table #' + p.which + ' — this page only has ' + ordered.length + ' table' + (ordered.length === 1 ? '' : 's'));
+}
+
+// Resizes a placed IMAGE. Either give an explicit target size
+// (width_px/height_px, in the same raw canvas-pixel units item.w/item.h
+// already use), or a scale_pct (e.g. 150 = 150% of its current size,
+// 50 = half). Aspect ratio is preserved by default (matching the
+// Shift-drag behaviour of the manual resize handle) unless
+// lock_aspect: false and both width_px and height_px are given.
+async function pdfedKadessaResizeImage(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const item = pdfedKadessaFindImage(pg, p);
+  if (item.locked) throw new Error('that image is locked — unlock it first');
+
+  const MIN = 12; // matches the manual drag-resize handle's own floor
+  const curW = item.w, curH = item.h;
+  const aspect = curW / (curH || 1);
+  let newW, newH;
+
+  if (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '') {
+    const scale = Math.max(0.05, Number(p.scale_pct) / 100);
+    newW = curW * scale;
+    newH = curH * scale;
+  } else if (p.width_px || p.height_px) {
+    const lockAspect = p.lock_aspect !== false;
+    if (p.width_px && p.height_px && !lockAspect) {
+      newW = Number(p.width_px);
+      newH = Number(p.height_px);
+    } else if (p.width_px) {
+      newW = Number(p.width_px);
+      newH = lockAspect ? newW / aspect : curH;
+    } else {
+      newH = Number(p.height_px);
+      newW = lockAspect ? newH * aspect : curW;
+    }
+  } else {
+    throw new Error('give scale_pct, or width_px and/or height_px, to resize by');
+  }
+
+  item.w = Math.max(MIN, Math.round(newW));
+  item.h = Math.max(MIN, Math.round(newH));
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedImages(idx);
+  return { w: item.w, h: item.h };
+}
+
+// Resizes a placed TEXT box's font size, exactly like dragging the size
+// handle or typing into the toolbar's size field (pdfedPtxtSetSize),
+// clamped to the same 6–300px range that control already enforces. Give
+// either font_size_px directly, or scale_pct to grow/shrink relative to
+// its current size (e.g. 150 = 150%). If resize_box is true (default),
+// the box's own width/height are scaled by the same factor so long text
+// doesn't suddenly overflow its container -- set it to false to change
+// only the type size and leave the box as-is.
+async function pdfedKadessaResizeText(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const item = pdfedKadessaFindPlacedText(pg, p);
+  if (item.locked) throw new Error('that text box is locked — unlock it first');
+
+  const curSize = item.fontSize || 14;
+  let newSize;
+  let factor = 1;
+  if (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '') {
+    factor = Math.max(0.05, Number(p.scale_pct) / 100);
+    newSize = curSize * factor;
+  } else if (p.font_size_px) {
+    newSize = Number(p.font_size_px);
+    factor = curSize ? (newSize / curSize) : 1;
+  } else {
+    throw new Error('give font_size_px, or scale_pct, to resize the text by');
+  }
+  item.fontSize = Math.max(6, Math.min(300, Math.round(newSize)));
+
+  if (p.resize_box !== false && item.w) {
+    item.w = Math.max(24, Math.round(item.w * factor));
+    if (item.h) item.h = Math.max(20, Math.round(item.h * factor));
+  }
+
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTexts(idx);
+  return { fontSize: item.fontSize, w: item.w, h: item.h };
+}
+
+// Resizes a placed TABLE the same way its corner handle does
+// (pdfedAttachPlacedTableResizeHandler): every column width, row height,
+// and the table's own font size scale together by ONE factor, so the
+// table's proportions and its text-to-cell fit never change, just its
+// overall size. Unlike pdfed_resize_image there is no independent
+// width-only/height-only stretch (lock_aspect:false) -- the manual drag
+// handle itself doesn't support that for tables, it's always uniform.
+// Give scale_pct directly, or width_px/height_px to derive the factor
+// from the table's current total width/height (if both are given,
+// width_px wins). Clamped to the same 0.3–4x range as the manual handle.
+async function pdfedKadessaResizeTable(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const item = pdfedKadessaFindPlacedTable(pg, p);
+  if (item.locked) throw new Error('that table is locked — unlock it first');
+
+  const curColWidths = item.colWidths.slice();
+  const curRowHeights = item.rowHeights.slice();
+  const curFontSize = item.fontSize;
+  const totalW = curColWidths.reduce((a, b) => a + b, 0);
+  const totalH = curRowHeights.reduce((a, b) => a + b, 0);
+
+  let scale;
+  if (p.scale_pct !== undefined && p.scale_pct !== null && p.scale_pct !== '') {
+    scale = Number(p.scale_pct) / 100;
+  } else if (p.width_px) {
+    scale = Number(p.width_px) / (totalW || 1);
+  } else if (p.height_px) {
+    scale = Number(p.height_px) / (totalH || 1);
+  } else {
+    throw new Error('give scale_pct, or width_px or height_px, to resize the table by');
+  }
+  scale = Math.max(0.3, Math.min(4, scale)); // same clamp as the manual drag handle
+
+  item.colWidths = curColWidths.map(w => Math.max(30, Math.round(w * scale)));
+  item.rowHeights = curRowHeights.map(h => Math.max(14, Math.round(h * scale)));
+  item.fontSize = Math.max(8, Math.round(curFontSize * scale));
+
+  pdfedMarkModified(idx);
+  pdfedRenderPlacedTables(idx);
+  const newW = item.colWidths.reduce((a, b) => a + b, 0);
+  const newH = item.rowHeights.reduce((a, b) => a + b, 0);
+  return { w: newW, h: newH, fontSize: item.fontSize };
+}
+
+// Sets opacity on any placed object -- image, text box, table, shape, or
+// border -- reusing the exact same item.opacity field and 10–100% clamp
+// the manual opacity popover/slider already use (see pdfedGetOpacity,
+// pdfedOpacityPopoverInput, pdfedPtxtSetOpacity above), so a Kadessa-set
+// opacity is indistinguishable from one dragged in by hand.
+async function pdfedKadessaSetOpacity(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const kind = String(p.kind || 'image').toLowerCase();
+  const validKinds = ['image', 'text', 'table', 'shape', 'border'];
+  if (validKinds.indexOf(kind) === -1) throw new Error('unknown kind "' + p.kind + '" — use image, text, table, shape, or border');
+  const key = pdfedPlacedKeyForKind(kind);
+  const list = pg[key] || [];
+  if (!list.length) throw new Error('this page has no placed ' + kind + 's');
+
+  let item;
+  if (p.id) {
+    item = list.find(it => it.id === p.id);
+    if (!item) throw new Error('no ' + kind + ' with that id on this page');
+  } else if (kind === 'text' && p.query) {
+    item = pdfedKadessaFindPlacedText(pg, p);
+  } else {
+    const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    if (p.which === 'first') item = ordered[0];
+    else if (p.which === 'last' || p.which === undefined || p.which === null || p.which === '') item = ordered[ordered.length - 1];
+    else {
+      const n = parseInt(p.which, 10);
+      item = (n >= 1 && n <= ordered.length) ? ordered[n - 1] : null;
+    }
+    if (!item) throw new Error('could not find that ' + kind + ' — give an id, or "first"/"last"/a position number');
+  }
+  if (item.locked) throw new Error('that ' + kind + ' is locked — unlock it first');
+
+  if (p.opacity === undefined || p.opacity === null || p.opacity === '') {
+    throw new Error('give an opacity from 0-100');
+  }
+  const v = Math.max(0.1, Math.min(1, Number(p.opacity) / 100));
+  item.opacity = v;
+
+  pdfedMarkModified(idx);
+  pdfedRenderAllPlaced(idx);
+  return { opacity: Math.round(v * 100) };
+}
+
+// ── Kadessa hooks: MOVE, LAYER ORDER, BEHIND-TEXT OPACITY and OVERLAPS (build 278) ──
+// Gives Kadessa the same hands a person has on the canvas, driven by words alone:
+//   pdfed_move_item        move any placed image, logo, SIGNATURE, text box, table or shape
+//   pdfed_arrange_layer    put something behind or in front of the text, and pick an
+//                          opacity that keeps the writing readable
+//   pdfed_resolve_overlaps pull apart text boxes that were sitting on top of each other
+// Every write goes to the same item.x / item.y / item.zIndex / item.opacity fields the
+// manual drag, Arrange menu and opacity slider already use, then re-renders through
+// pdfedRenderAllPlaced, so the result is identical to a hand edit and each action is
+// undoable with "undo that" (pushKadessaAppHistory) or Ctrl+Z.
+//
+// A success returns { say: '...' }. kadessaExecuteAction posts that line in the chat, which is
+// how Kadessa can tell the person the number she picked (the reply text is written BEFORE the
+// action runs, so she cannot know an auto-chosen opacity in advance).
+
+const PDFED_KADESSA_DECOR_FLAGS = ['_sectionIcon', '_sectionDivider', '_sectionBar', '_headerDivider', '_watermark'];
+function pdfedKadessaIsDecor(it) {
+  return !!(it && PDFED_KADESSA_DECOR_FLAGS.some(function (k) { return it[k]; }));
+}
+
+// image / signature / logo / text / header text / table / shape / border
+function pdfedKadessaAssetLabel(kind, item) {
+  if (kind === 'image') return item.kind === 'logo' ? 'logo' : (item.kind === 'signature' ? 'signature' : 'image');
+  if (kind === 'text') return item._reportHeaderText ? 'header text' : 'text';
+  return kind;
+}
+
+// Every placed object on a page, whatever its type.
+function pdfedKadessaAllPlaced(pg) {
+  const out = [];
+  [['image', 'placedImages'], ['text', 'placedTexts'], ['table', 'placedTables'], ['shape', 'placedShapes'], ['border', 'placedBorders']].forEach(function (kk) {
+    ((pg && pg[kk[1]]) || []).forEach(function (it) {
+      out.push({ kind: kk[0], key: kk[1], item: it, label: pdfedKadessaAssetLabel(kk[0], it) });
+    });
+  });
+  return out;
+}
+
+// id -> stack position (1 = very back). Used by getKadessaContext.
+function pdfedKadessaZRankMap(pg) {
+  const map = {};
+  try { pdfedGetZOrderedItems(pg).forEach(function (c, i) { map[c.item.id] = i + 1; }); } catch (e) { /* no ranks */ }
+  return map;
+}
+
+// Picks ONE placed object: by id, by a few words of a text box, or by kind
+// (signature / logo / image / text / table / shape / border) plus first / last / number.
+function pdfedKadessaFindPlaced(pg, p, prefix) {
+  prefix = prefix || '';
+  const id = p[prefix + 'id'];
+  const query = p[prefix + 'query'] ? String(p[prefix + 'query']).trim().toLowerCase() : '';
+  const kindWanted = prefix ? '' : String(p.kind || '').trim().toLowerCase();
+  const all = pdfedKadessaAllPlaced(pg);
+  if (!all.length) throw new Error('this page has nothing placed on it yet');
+  const byZ = function (a, b) { return (a.item.zIndex || 0) - (b.item.zIndex || 0); };
+  if (id) {
+    const hit = all.find(function (c) { return c.item.id === id; });
+    if (!hit) throw new Error('no item with that id on this page');
+    return hit;
+  }
+  const pool = all.filter(function (c) { return !pdfedKadessaIsDecor(c.item); });
+  if (query) {
+    const hits = pool.filter(function (c) { return c.kind === 'text' && String(c.item.text || '').toLowerCase().indexOf(query) !== -1; });
+    if (!hits.length) throw new Error('no text box matching "' + (p[prefix + 'query']) + '" on this page');
+    hits.sort(byZ);
+    return hits[hits.length - 1];
+  }
+  if (kindWanted) {
+    let sub;
+    if (kindWanted === 'signature' || kindWanted === 'logo') {
+      sub = pool.filter(function (c) { return c.kind === 'image' && c.item.kind === kindWanted; });
+    } else if (kindWanted === 'image' || kindWanted === 'photo' || kindWanted === 'picture') {
+      sub = pool.filter(function (c) { return c.kind === 'image' && c.item.kind !== 'signature' && c.item.kind !== 'logo'; });
+      if (!sub.length) sub = pool.filter(function (c) { return c.kind === 'image'; });
+    } else {
+      sub = pool.filter(function (c) { return c.kind === kindWanted || c.label === kindWanted; });
+    }
+    if (!sub.length) throw new Error('this page has no ' + kindWanted);
+    sub.sort(byZ);
+    if (p.which === 'first') return sub[0];
+    if (p.which === undefined || p.which === null || p.which === '' || p.which === 'last') return sub[sub.length - 1];
+    const n = parseInt(p.which, 10);
+    if (n >= 1 && n <= sub.length) return sub[n - 1];
+    throw new Error('this page only has ' + sub.length + ' ' + kindWanted + (sub.length === 1 ? '' : 's'));
+  }
+  throw new Error('say which item: its id from the page list, a few words of its text, or a kind such as signature');
+}
+
+// Real box of an item in canvas px. Text boxes are measured from the live DOM (they have no
+// stored height); tables are the sum of their columns and rows.
+function pdfedKadessaBoxOf(pg, idx, c) {
+  const it = c.item;
+  if (c.kind === 'table') {
+    const w = (it.colWidths || []).reduce(function (a, b) { return a + b; }, 0);
+    const h = (it.rowHeights || []).reduce(function (a, b) { return a + b; }, 0);
+    return { x: it.x || 0, y: it.y || 0, w: w, h: h };
+  }
+  if (c.kind === 'text') {
+    let w = it.w || 0, h = it.h || 0;
+    if (typeof pdfed !== 'undefined' && idx === pdfed.active) {
+      const el = document.querySelector('.pdfed-placed-text[data-id="' + it.id + '"]');
+      if (el) { w = el.offsetWidth || w; h = el.offsetHeight || h; }
+    }
+    if (!w) w = 200;
+    if (!h) h = Math.round((it.fontSize || 14) * 1.45);
+    return { x: it.x || 0, y: it.y || 0, w: w, h: h };
+  }
+  return { x: it.x || 0, y: it.y || 0, w: it.w || 0, h: it.h || 0 };
+}
+
+// Tight box around the words a text box really shows (not the whole, often much wider, box),
+// in canvas px. Null when the page is not the open one.
+function pdfedKadessaTextInk(idx, item) {
+  try {
+    if (typeof pdfed === 'undefined' || idx !== pdfed.active) return null;
+    const el = document.querySelector('.pdfed-placed-text[data-id="' + item.id + '"]');
+    const content = el && el.querySelector('.pdfed-ptxt-content');
+    const pc = document.getElementById('pdfedPageCanvas');
+    if (!content || !pc || !pc.width) return null;
+    const cr = pc.getBoundingClientRect();
+    const k = cr.width / pc.width;
+    if (!k) return null;
+    const r = document.createRange();
+    r.selectNodeContents(content);
+    const rects = Array.prototype.slice.call(r.getClientRects()).filter(function (rc) { return rc.width > 0.5 && rc.height > 0.5; });
+    if (!rects.length) return null;
+    let l = Infinity, t = Infinity, rt = -Infinity, b = -Infinity;
+    rects.forEach(function (rc) { l = Math.min(l, rc.left); t = Math.min(t, rc.top); rt = Math.max(rt, rc.right); b = Math.max(b, rc.bottom); });
+    return { x: (l - cr.left) / k, y: (t - cr.top) / k, w: (rt - l) / k, h: (b - t) / k };
+  } catch (e) { return null; }
+}
+
+// [w, h] for getKadessaContext.
+function pdfedKadessaCtxSize(pg, kind, item) {
+  try {
+    const b = pdfedKadessaBoxOf(pg, pdfed.active, { kind: kind, item: item });
+    return [Math.round(b.w), Math.round(b.h)];
+  } catch (e) { return [item.w || 0, item.h || 0]; }
+}
+
+function pdfedKadessaRerender(idx) {
+  if (typeof pdfed !== 'undefined' && idx === pdfed.active) pdfedRenderAllPlaced(idx);
+}
+
+function pdfedKadessaLookup(pg, id) {
+  return pdfedKadessaAllPlaced(pg).find(function (c) { return c.item.id === id; }) || null;
+}
+
+function pdfedKadessaShortText(item) {
+  const s = String(item.text || '').replace(/\s+/g, ' ').trim();
+  return s ? '"' + s.slice(0, 26) + (s.length > 26 ? '...' : '') + '"' : '';
+}
+
+function pdfedKadessaNiceName(c) {
+  const t = c.kind === 'text' ? pdfedKadessaShortText(c.item) : '';
+  return t ? 'the text ' + t : 'the ' + c.label;
+}
+
+// ── MOVE ────────────────────────────────────────────────────────────────
+const PDFED_KADESSA_ANCHORS = {
+  top_left: [0, 0], top_center: [0.5, 0], top_right: [1, 0],
+  middle_left: [0, 0.5], center: [0.5, 0.5], middle_right: [1, 0.5],
+  bottom_left: [0, 1], bottom_center: [0.5, 1], bottom_right: [1, 1]
+};
+const PDFED_KADESSA_ANCHOR_ALIASES = {
+  top: 'top_center', bottom: 'bottom_center', left: 'middle_left', right: 'middle_right',
+  middle: 'center', centre: 'center', centered: 'center'
+};
+function pdfedKadessaAnchorKey(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const s = String(v).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (PDFED_KADESSA_ANCHORS[s]) return s;
+  return PDFED_KADESSA_ANCHOR_ALIASES[s] || null;
+}
+function pdfedKadessaNum(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function pdfedKadessaMoveItem(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const c = pdfedKadessaFindPlaced(pg, p);
+  const it = c.item;
+  if (it.locked) throw new Error('that ' + c.label + ' is locked, unlock it first');
+  const size = pdfedKadessaPageSizePx(pg, idx);
+  const PW = size[0], PH = size[1];
+  const box = pdfedKadessaBoxOf(pg, idx, c);
+  const before = { x: it.x, y: it.y, rotation: it.rotation };
+  let nx = box.x, ny = box.y;
+  let didSomething = false;
+
+  // 1. a named spot on the page
+  const spot = pdfedKadessaAnchorKey(p.position);
+  if (p.position && !spot) throw new Error('"' + p.position + '" is not a spot I know, use top left, top center, top right, middle left, center, middle right, bottom left, bottom center or bottom right');
+  if (spot) {
+    const m = (pdfedKadessaNum(p.margin_pct) !== null ? Math.max(0, Math.min(30, pdfedKadessaNum(p.margin_pct))) : 4) / 100 * PW;
+    const a = PDFED_KADESSA_ANCHORS[spot];
+    nx = m + (PW - 2 * m - box.w) * a[0];
+    ny = m + (PH - 2 * m - box.h) * a[1];
+    didSomething = true;
+  }
+
+  // 2. an exact point, in percent of the page, that lines up with one anchor of the item
+  const xp = pdfedKadessaNum(p.x_pct), yp = pdfedKadessaNum(p.y_pct);
+  if (xp !== null || yp !== null) {
+    const anc = PDFED_KADESSA_ANCHORS[pdfedKadessaAnchorKey(p.anchor) || 'top_left'];
+    if (xp !== null) nx = Math.max(0, Math.min(100, xp)) / 100 * PW - anc[0] * box.w;
+    if (yp !== null) ny = Math.max(0, Math.min(100, yp)) / 100 * PH - anc[1] * box.h;
+    didSomething = true;
+  }
+
+  // 3. next to another item
+  if (p.relative_to_id || p.relative_to_query) {
+    const ref = pdfedKadessaFindPlaced(pg, p, 'relative_to_');
+    if (ref.item === it) throw new Error('an item cannot be placed relative to itself');
+    const rb = pdfedKadessaBoxOf(pg, idx, ref);
+    const rink = ref.kind === 'text' ? pdfedKadessaTextInk(idx, ref.item) : null;
+    const r = rink || rb;
+    const gap = pdfedKadessaNum(p.gap_px) !== null ? Math.max(0, Math.min(400, pdfedKadessaNum(p.gap_px))) : 12;
+    const rel = String(p.relation || 'below').toLowerCase().replace(/[\s-]+/g, '_');
+    const al = String(p.align || '').toLowerCase();
+    const alignX = function () {
+      if (al === 'start') return r.x;
+      if (al === 'end') return r.x + r.w - box.w;
+      if (al === 'center') return r.x + r.w / 2 - box.w / 2;
+      return null;
+    };
+    const alignY = function () {
+      if (al === 'start') return r.y;
+      if (al === 'end') return r.y + r.h - box.h;
+      if (al === 'center') return r.y + r.h / 2 - box.h / 2;
+      return null;
+    };
+    if (rel === 'below') { ny = r.y + r.h + gap; const ax = alignX(); if (ax !== null) nx = ax; }
+    else if (rel === 'above') { ny = r.y - box.h - gap; const ax = alignX(); if (ax !== null) nx = ax; }
+    else if (rel === 'right_of') { nx = r.x + r.w + gap; const ay = alignY(); if (ay !== null) ny = ay; }
+    else if (rel === 'left_of') { nx = r.x - box.w - gap; const ay = alignY(); if (ay !== null) ny = ay; }
+    else if (rel === 'center_on' || rel === 'over' || rel === 'on_top_of') { nx = r.x + r.w / 2 - box.w / 2; ny = r.y + r.h / 2 - box.h / 2; }
+    else throw new Error('relation must be below, above, left_of, right_of or center_on');
+    didSomething = true;
+  }
+
+  // 4. centre on the page
+  if (p.center_h === true || p.center_h === 'true') { nx = (PW - box.w) / 2; didSomething = true; }
+  if (p.center_v === true || p.center_v === 'true') { ny = (PH - box.h) / 2; didSomething = true; }
+
+  // 5. nudges
+  const dxp = pdfedKadessaNum(p.dx_pct), dyp = pdfedKadessaNum(p.dy_pct), dxx = pdfedKadessaNum(p.dx_px), dyy = pdfedKadessaNum(p.dy_px);
+  if (dxp !== null) { nx += dxp / 100 * PW; didSomething = true; }
+  if (dyp !== null) { ny += dyp / 100 * PH; didSomething = true; }
+  if (dxx !== null) { nx += dxx; didSomething = true; }
+  if (dyy !== null) { ny += dyy; didSomething = true; }
+
+  // 6. tilt
+  const rot = pdfedKadessaNum(p.rotation_deg);
+  if (rot !== null) { it.rotation = Math.max(-360, Math.min(360, Math.round(rot * 10) / 10)); didSomething = true; }
+
+  if (!didSomething) throw new Error('say where it should go: a spot like top right, an x and y in percent, next to another item, centred, or a nudge');
+
+  // keep the whole item on the page (unless the person really wants it hanging off)
+  let clamped = false;
+  if (!(p.allow_off_page === true || p.allow_off_page === 'true')) {
+    const maxX = PW - box.w, maxY = PH - box.h;
+    const cx = Math.min(Math.max(nx, Math.min(0, maxX)), Math.max(0, maxX));
+    const cy = Math.min(Math.max(ny, Math.min(0, maxY)), Math.max(0, maxY));
+    if (Math.abs(cx - nx) > 1 || Math.abs(cy - ny) > 1) clamped = true;
+    nx = cx; ny = cy;
+  }
+  it.x = Math.round(nx);
+  it.y = Math.round(ny);
+
+  const id = it.id;
+  const after = { x: it.x, y: it.y, rotation: it.rotation };
+  pdfedMarkModified(idx);
+  pdfedKadessaRerender(idx);
+
+  const restore = function (s) {
+    const cur = pdfedKadessaLookup(pdfed.pages[idx], id);
+    if (!cur) return;
+    cur.item.x = s.x; cur.item.y = s.y;
+    if (s.rotation === undefined) delete cur.item.rotation; else cur.item.rotation = s.rotation;
+    pdfedMarkModified(idx);
+    pdfedKadessaRerender(idx);
+  };
+  pushKadessaAppHistory({
+    label: 'Move ' + c.label + ' (Kadessa)',
+    undo: function () { restore(before); toast('Put back where it was', 'info'); },
+    redo: function () { restore(after); }
+  });
+
+  const moved = Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1 || after.rotation !== before.rotation;
+  let say = null;
+  if (!moved) say = pdfedKadessaNiceName(c) + ' was already there, so nothing moved.';
+  else if (clamped) say = 'I kept ' + pdfedKadessaNiceName(c) + ' inside the page edge, so it sits a little short of where that pointed.';
+  return { id: id, kind: c.label, from: { x: before.x, y: before.y }, to: { x: it.x, y: it.y }, clamped: clamped, say: say };
+}
+
+// ── BEHIND / IN FRONT, AND THE OPACITY THAT KEEPS TEXT READABLE ──────────────
+function pdfedKadessaLoadImg(src) {
+  return new Promise(function (res, rej) {
+    const im = new Image();
+    im.onload = function () { res(im); };
+    im.onerror = function () { rej(new Error('could not read that picture')); };
+    im.src = src;
+  });
+}
+function pdfedKadessaLin(c) {
+  c = c / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+function pdfedKadessaHexLum(hex) {
+  const s = String(hex || '').trim();
+  let h = null;
+  if (/^#[0-9a-f]{6}$/i.test(s)) h = s.slice(1);
+  else if (/^#[0-9a-f]{3}$/i.test(s)) h = s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+  if (!h) {
+    const m = s.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+    if (!m) return null;
+    return 0.2126 * pdfedKadessaLin(+m[1]) + 0.7152 * pdfedKadessaLin(+m[2]) + 0.0722 * pdfedKadessaLin(+m[3]);
+  }
+  return 0.2126 * pdfedKadessaLin(parseInt(h.slice(0, 2), 16)) + 0.7152 * pdfedKadessaLin(parseInt(h.slice(2, 4), 16)) + 0.0722 * pdfedKadessaLin(parseInt(h.slice(4, 6), 16));
+}
+function pdfedKadessaContrast(l1, l2) {
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+// Looks at the picture under every text box and table that sits on it and returns the
+// strongest opacity (0.1 to 1) at which ALL of that text still reads comfortably: WCAG contrast of
+// at least 7 for normal text, 4.5 for large text, judged against the brightest and darkest
+// parts of the picture in that spot (a busy photo has to be fainter than a calm one).
+async function pdfedKadessaSuggestBackdropOpacity(pg, idx, imgItem) {
+  const size = pdfedKadessaPageSizePx(pg, idx);
+  const ib = { x: imgItem.x, y: imgItem.y, w: imgItem.w, h: imgItem.h };
+  const covered = [];
+  pdfedKadessaAllPlaced(pg).forEach(function (c) {
+    if ((c.kind !== 'text' && c.kind !== 'table') || pdfedKadessaIsDecor(c.item)) return;
+    const b = c.kind === 'text' ? (pdfedKadessaTextInk(idx, c.item) || pdfedKadessaBoxOf(pg, idx, c)) : pdfedKadessaBoxOf(pg, idx, c);
+    const ix = Math.min(ib.x + ib.w, b.x + b.w) - Math.max(ib.x, b.x);
+    const iy = Math.min(ib.y + ib.h, b.y + b.h) - Math.max(ib.y, b.y);
+    if (ix <= 2 || iy <= 2) return;
+    if (ix * iy < 0.05 * Math.max(1, b.w * b.h)) return;
+    covered.push({ c: c, box: b, region: { x: Math.max(ib.x, b.x), y: Math.max(ib.y, b.y), w: ix, h: iy } });
+  });
+  if (!covered.length) return { texts: 0 };
+
+  const img = await pdfedKadessaLoadImg(imgItem.dataUrl);
+  const cw = 80;
+  const ch = Math.max(8, Math.min(240, Math.round(cw * ib.h / Math.max(1, ib.w))));
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const cx = cv.getContext('2d');
+  cx.drawImage(img, 0, 0, cw, ch);
+  let data = null;
+  try { data = cx.getImageData(0, 0, cw, ch).data; } catch (e) { data = null; }
+  if (!data) return { texts: covered.length, unreadable: true };
+
+  const spots = [];
+  let busy = false;
+  for (let t = 0; t < covered.length; t++) {
+    const cvd = covered[t];
+    const rx0 = Math.max(0, Math.min(cw - 1, Math.floor((cvd.region.x - ib.x) / ib.w * cw)));
+    const ry0 = Math.max(0, Math.min(ch - 1, Math.floor((cvd.region.y - ib.y) / ib.h * ch)));
+    const rx1 = Math.max(rx0 + 1, Math.min(cw, Math.ceil((cvd.region.x + cvd.region.w - ib.x) / ib.w * cw)));
+    const ry1 = Math.max(ry0 + 1, Math.min(ch, Math.ceil((cvd.region.y + cvd.region.h - ib.y) / ib.h * ch)));
+    let sum = 0, sum2 = 0, n = 0;
+    for (let yy = ry0; yy < ry1; yy++) {
+      for (let xx = rx0; xx < rx1; xx++) {
+        const o = (yy * cw + xx) * 4;
+        if (data[o + 3] < 25) continue;
+        const L = 0.2126 * pdfedKadessaLin(data[o]) + 0.7152 * pdfedKadessaLin(data[o + 1]) + 0.0722 * pdfedKadessaLin(data[o + 2]);
+        sum += L; sum2 += L * L; n++;
+      }
+    }
+    if (!n) continue; // the picture is see-through here, nothing to protect
+    const mean = sum / n;
+    const sd = Math.sqrt(Math.max(0, sum2 / n - mean * mean));
+    if (sd > 0.2) busy = true;
+
+    // what the page looks like without the picture, in this spot
+    let pageL;
+    try {
+      const luma = await pdfedKadessaBackdropLuma(pg, cvd.region, size); // 0 to 255
+      pageL = pdfedKadessaLin(luma);
+    } catch (e) { pageL = pdfedKadessaLin(pdfedKadessaLuma(pg && pg.bgColor)); }
+
+    // the text colour (tables are assumed dark)
+    let textL = cvd.c.kind === 'text' ? pdfedKadessaHexLum(cvd.c.item.color) : null;
+    if (textL === null) textL = pageL > 0.35 ? 0.006 : 0.9;
+    const fs = cvd.c.item.fontSize || 14;
+    const large = fs >= 24 || (cvd.c.item.bold && fs >= 19);
+    // Text laid over a picture reads worse than the same colours on flat paper, so aim for
+    // comfortable contrast: 7 for body text (WCAG AAA), 4.5 for large text.
+    spots.push({
+      lo: Math.max(0, mean - 1.3 * sd), mean: mean, hi: Math.min(1, mean + 1.3 * sd),
+      pageL: pageL, textL: textL, need: large ? 4.5 : 7
+    });
+  }
+  if (!spots.length) return { texts: covered.length, transparent: true };
+
+  // worst contrast any of the text gets if the picture is shown at strength a
+  const worstAt = function (sp, a) {
+    return Math.min.apply(null, [sp.lo, sp.mean, sp.hi].map(function (Li) {
+      return pdfedKadessaContrast(sp.textL, a * Li + (1 - a) * sp.pageL);
+    }));
+  };
+  let pick = 0.1, fail = false;
+  for (let a = 1; a >= 0.1 - 1e-9; a -= 0.05) {
+    if (spots.every(function (sp) { return worstAt(sp, a) >= sp.need; })) { pick = a; break; }
+    if (a <= 0.1 + 1e-9) fail = true;
+  }
+  pick = Math.max(0.1, Math.min(1, Math.round(pick * 20) / 20));
+  const contrast = Math.min.apply(null, spots.map(function (sp) { return worstAt(sp, pick); }));
+  return { texts: covered.length, opacity: pick, contrast: Math.round(contrast * 10) / 10, fail: fail, busy: busy };
+}
+
+// Crops a picture to exactly the page's shape, no stretching, and returns a data URL.
+async function pdfedKadessaCoverBake(dataUrl, PW, PH) {
+  const img = await pdfedKadessaLoadImg(dataUrl);
+  const nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height;
+  const s = Math.max(PW / nw, PH / nh);
+  const sw = PW / s, sh = PH / s;
+  const sx = (nw - sw) / 2, sy = (nh - sh) / 2;
+  const k = Math.min(2, 4096 / Math.max(PW, PH));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(PW * k)); cv.height = Math.max(1, Math.round(PH * k));
+  cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  return /^data:image\/jpe?g/i.test(dataUrl) ? cv.toDataURL('image/jpeg', 0.92) : cv.toDataURL('image/png');
+}
+
+async function pdfedKadessaArrangeLayer(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const c = pdfedKadessaFindPlaced(pg, p);
+  const it = c.item;
+  if (it.locked) throw new Error('that ' + c.label + ' is locked, unlock it first');
+  const mode = String(p.mode || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const MODES = ['behind_text', 'in_front_of_text', 'to_back', 'to_front', 'behind', 'in_front_of'];
+  if (MODES.indexOf(mode) === -1) throw new Error('mode must be behind_text, in_front_of_text, to_back, to_front, behind or in_front_of');
+  const fit = String(p.fit || 'keep').toLowerCase();
+  if (fit !== 'keep' && c.kind !== 'image') throw new Error('only a picture can be fitted to the page');
+
+  // snapshot for undo: the whole stacking order plus this item's own geometry, picture and opacity
+  const snap = function () {
+    const z = {};
+    pdfedKadessaAllPlaced(pg).forEach(function (c2) { z[c2.item.id] = c2.item.zIndex; });
+    return { z: z, zSeq: pg._zSeq, x: it.x, y: it.y, w: it.w, h: it.h, rotation: it.rotation, dataUrl: it.dataUrl, opacity: it.opacity };
+  };
+  const before = snap();
+
+  // 1. size and place on the page
+  const size = pdfedKadessaPageSizePx(pg, idx);
+  const PW = size[0], PH = size[1];
+  if (fit === 'cover_page') {
+    it.dataUrl = await pdfedKadessaCoverBake(it.dataUrl, PW, PH);
+    it.x = 0; it.y = 0; it.w = PW; it.h = PH; delete it.rotation;
+  } else if (fit === 'contain_page') {
+    const s = Math.min(PW / Math.max(1, it.w), PH / Math.max(1, it.h));
+    it.w = Math.round(it.w * s); it.h = Math.round(it.h * s);
+    it.x = Math.round((PW - it.w) / 2); it.y = Math.round((PH - it.h) / 2);
+  }
+
+  // 2. stacking order
+  const others = pdfedGetZOrderedItems(pg).filter(function (o) { return o.item !== it; });
+  const isTextish = function (o) { return o.kind === 'text' || o.kind === 'table'; };
+  let at;
+  let hasText = others.some(isTextish);
+  if (mode === 'to_back') at = 0;
+  else if (mode === 'to_front') at = others.length;
+  else if (mode === 'behind_text') {
+    at = others.findIndex(isTextish);
+    if (at < 0) at = others.length;
+  } else if (mode === 'in_front_of_text') {
+    at = -1;
+    others.forEach(function (o, i) { if (isTextish(o)) at = i; });
+    at = at < 0 ? others.length : at + 1;
+  } else {
+    const ref = pdfedKadessaFindPlaced(pg, p, 'other_');
+    const ri = others.findIndex(function (o) { return o.item === ref.item; });
+    if (ri < 0) throw new Error('cannot layer an item against itself');
+    at = mode === 'behind' ? ri : ri + 1;
+  }
+  others.splice(at, 0, { kind: c.kind, item: it });
+  others.forEach(function (o, i) { o.item.zIndex = i + 1; });
+  pg._zSeq = Math.max(pg._zSeq || 0, others.length);
+
+  // 3. opacity: the number the person gave, or the strongest one that keeps the text readable
+  let say = null;
+  const given = pdfedKadessaNum(p.opacity);
+  if (given !== null) {
+    it.opacity = Math.max(0.1, Math.min(1, given / 100));
+  } else if (mode === 'behind_text' && c.kind === 'image' && p.auto_opacity !== false && p.auto_opacity !== 'false') {
+    let adv = null;
+    try { adv = await pdfedKadessaSuggestBackdropOpacity(pg, idx, it); } catch (e) { adv = null; }
+    if (adv && adv.opacity) {
+      const pct = Math.round(adv.opacity * 100);
+      it.opacity = adv.opacity >= 1 ? undefined : adv.opacity;
+      if (adv.opacity >= 1) delete it.opacity;
+      if (adv.fail) say = 'Image is behind the text at ' + pct + '%. Even that faint, the text is still hard to read against it (contrast ' + adv.contrast + '), so a lighter or darker text colour would help more than fading further.';
+      else if (adv.opacity >= 1) say = 'Image is behind the text at full strength. The text already reads clearly against it (contrast ' + adv.contrast + '), so I left it solid.';
+      else say = 'Image is behind the text at ' + pct + '%. That is the strongest it can be while the text stays easy to read (contrast ' + adv.contrast + ')' + (adv.busy ? ', and the picture is busy so it needed to be on the faint side' : '') + '.';
+    } else if (adv && adv.texts === 0) {
+      say = 'Image is behind the text. Nothing sits on top of it right now, so I left its opacity alone.';
+    }
+  }
+  if (!say && mode === 'behind_text' && !hasText) say = 'There is no text on this page yet, so the image is just at the back for now.';
+
+  const id = it.id;
+  const after = snap();
+  pdfedMarkModified(idx);
+  pdfedKadessaRerender(idx);
+
+  const restore = function (s) {
+    const pgNow = pdfed.pages[idx];
+    pdfedKadessaAllPlaced(pgNow).forEach(function (c2) { if (s.z[c2.item.id] !== undefined) c2.item.zIndex = s.z[c2.item.id]; });
+    pgNow._zSeq = s.zSeq;
+    const cur = pdfedKadessaLookup(pgNow, id);
+    if (cur) {
+      cur.item.x = s.x; cur.item.y = s.y; cur.item.w = s.w; cur.item.h = s.h;
+      if (s.rotation === undefined) delete cur.item.rotation; else cur.item.rotation = s.rotation;
+      if (s.dataUrl !== undefined) cur.item.dataUrl = s.dataUrl;
+      if (s.opacity === undefined) delete cur.item.opacity; else cur.item.opacity = s.opacity;
+    }
+    pdfedMarkModified(idx);
+    pdfedKadessaRerender(idx);
+  };
+  pushKadessaAppHistory({
+    label: 'Change layer order (Kadessa)',
+    undo: function () { restore(before); toast('Layering put back', 'info'); },
+    redo: function () { restore(after); }
+  });
+  return { id: id, mode: mode, opacityPct: Math.round(pdfedGetOpacity(it) * 100), say: say };
+}
+
+// ── OVERLAPS: find them (for the context) and pull text apart ────────────────
+// Returns the overlaps worth knowing about, most serious first. Overlaps a designer would
+// call intentional (a picture behind text, a big background picture) are listed but marked.
+function pdfedKadessaAnalyzeOverlaps(pg, idx) {
+  const out = [];
+  if (!pg) return out;
+  const entries = [];
+  pdfedGetZOrderedItems(pg).forEach(function (c, rank) {
+    if (c.kind === 'border' || c.kind === 'shape') return;
+    if (pdfedKadessaIsDecor(c.item)) return;
+    const cc = { kind: c.kind, item: c.item, label: pdfedKadessaAssetLabel(c.kind, c.item) };
+    const ink = c.kind === 'text' ? pdfedKadessaTextInk(idx, c.item) : null;
+    const b = ink || pdfedKadessaBoxOf(pg, idx, cc);
+    if (b.w < 4 || b.h < 4) return;
+    entries.push({ id: c.item.id, kind: c.kind, label: cc.label, z: rank + 1, box: b, item: c.item });
+  });
+  const textish = function (e) { return e.kind === 'text' || e.kind === 'table'; };
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const a = entries[i], b = entries[j];
+      const ix = Math.min(a.box.x + a.box.w, b.box.x + b.box.w) - Math.max(a.box.x, b.box.x);
+      const iy = Math.min(a.box.y + a.box.h, b.box.y + b.box.h) - Math.max(a.box.y, b.box.y);
+      if (ix <= 2 || iy <= 2) continue;
+      const areaA = a.box.w * a.box.h, areaB = b.box.w * b.box.h;
+      const pct = Math.round(ix * iy / Math.max(1, Math.min(areaA, areaB)) * 100);
+      if (pct < 5) continue;
+      const under = a.z < b.z ? a : b, over = a.z < b.z ? b : a;
+      let type = null, note = '', intentional = false;
+      if (textish(a) && textish(b)) {
+        type = 'text-on-text';
+        note = 'the words collide, so both are hard to read';
+      } else if (textish(under) && over.kind === 'image') {
+        const op = Math.round(pdfedGetOpacity(over.item) * 100);
+        if (over.label === 'signature') {
+          if (pct >= 25) { type = 'signature-on-text'; note = 'the signature covers some of the writing'; }
+        } else if (op >= 85) {
+          type = 'text-hidden-by-image';
+          note = 'a nearly solid image sits above the text and hides it';
+        } else {
+          type = 'image-over-text';
+          note = 'a see-through image (' + op + '%) sits above the text';
+        }
+      } else if (under.kind === 'image' && textish(over)) {
+        type = 'image-behind-text';
+        note = 'picture behind the text at ' + Math.round(pdfedGetOpacity(under.item) * 100) + '% opacity, layered on purpose';
+        intentional = true;
+      } else if (a.kind === 'image' && b.kind === 'image') {
+        const big = areaA >= areaB ? a : b, small = areaA >= areaB ? b : a;
+        if (big.box.w * big.box.h > 2.5 * small.box.w * small.box.h && big.z < small.z) {
+          type = 'image-background'; note = 'a larger picture sits behind a smaller one'; intentional = true;
+        } else if (a.label !== 'signature' && b.label !== 'signature') {
+          type = 'image-on-image'; note = 'two pictures cover each other';
+        }
+      }
+      if (type) out.push({ a: under.id, b: over.id, type: type, overlapPct: pct, lowerLayer: under.z, upperLayer: over.z, intentional: intentional, note: note });
+    }
+  }
+  const rankOf = function (o) { return o.intentional ? 9 : (o.type === 'text-hidden-by-image' ? 0 : (o.type === 'text-on-text' ? 1 : 5)); };
+  out.sort(function (x, y) { return rankOf(x) - rankOf(y) || y.overlapPct - x.overlapPct; });
+  return out;
+}
+
+// Pulls apart text boxes and tables that sit on each other by moving the lower one down until
+// there is a gap. Locked boxes never move. If it would push anything off the bottom of the
+// page nothing is changed and the person is told how much room is missing.
+async function pdfedKadessaResolveOverlaps(p) {
+  p = p || {};
+  const { pg, idx } = pdfedKadessaActivePage(p);
+  const size = pdfedKadessaPageSizePx(pg, idx);
+  const PH = size[1];
+  const gap = pdfedKadessaNum(p.gap_px) !== null ? Math.max(2, Math.min(80, pdfedKadessaNum(p.gap_px))) : 10;
+  const onlyIds = Array.isArray(p.ids) && p.ids.length ? p.ids.map(String) : null;
+
+  const blocks = [];
+  pdfedKadessaAllPlaced(pg).forEach(function (c) {
+    if ((c.kind !== 'text' && c.kind !== 'table') || pdfedKadessaIsDecor(c.item)) return;
+    const ink = (c.kind === 'text' && pdfedKadessaTextInk(idx, c.item)) || pdfedKadessaBoxOf(pg, idx, c);
+    blocks.push({
+      c: c, id: c.item.id, ink: { x: ink.x, y: ink.y, w: ink.w, h: ink.h },
+      locked: !!c.item.locked, movable: !onlyIds || onlyIds.indexOf(c.item.id) !== -1, moved: 0
+    });
+  });
+  if (blocks.length < 2) return { fixed: 0, say: 'There are not enough text boxes on this page to overlap.' };
+
+  const overlapping = function (A, B) {
+    const ix = Math.min(A.ink.x + A.ink.w, B.ink.x + B.ink.w) - Math.max(A.ink.x, B.ink.x);
+    const iy = Math.min(A.ink.y + A.ink.h, B.ink.y + B.ink.h) - Math.max(A.ink.y, B.ink.y);
+    return ix > 4 && iy > 2;
+  };
+  const stuck = {};
+  for (let guard = 0; guard < 300; guard++) {
+    blocks.sort(function (a, b) { return a.ink.y - b.ink.y || a.ink.x - b.ink.x; });
+    let changed = false;
+    outer:
+    for (let j = 1; j < blocks.length; j++) {
+      for (let i = 0; i < j; i++) {
+        const A = blocks[i], B = blocks[j];
+        if (!overlapping(A, B)) continue;
+        if (B.locked || !B.movable) { stuck[A.id + '|' + B.id] = [A, B]; continue; }
+        const dy = (A.ink.y + A.ink.h + gap) - B.ink.y;
+        if (dy <= 0) continue;
+        B.ink.y += dy; B.moved += dy; changed = true;
+        break outer;
+      }
+    }
+    if (!changed) break;
+  }
+  const movers = blocks.filter(function (b) { return b.moved > 0; });
+  const stillStuck = Object.keys(stuck).map(function (k) { return stuck[k]; }).filter(function (pair) { return overlapping(pair[0], pair[1]); });
+  if (!movers.length) {
+    return { fixed: 0, say: stillStuck.length
+      ? 'The text that overlaps is locked, so I could not move it. Unlock it and ask again.'
+      : 'Nothing on this page overlaps by mistake, so I left it as it is.' };
+  }
+  const lowest = Math.max.apply(null, movers.map(function (b) { return b.ink.y + b.ink.h; }));
+  if (lowest > PH - 12) {
+    return { fixed: 0, say: 'Pulling the text apart would push it off the bottom of the page (about ' + Math.round(lowest - (PH - 12)) + ' px short). Shrink the text a little, or move some of it to a new page, and I will separate it.' };
+  }
+
+  const beforeY = {};
+  movers.forEach(function (b) { beforeY[b.id] = b.c.item.y; });
+  movers.forEach(function (b) { b.c.item.y = Math.round(b.c.item.y + b.moved); });
+  const afterY = {};
+  movers.forEach(function (b) { afterY[b.id] = b.c.item.y; });
+  pdfedMarkModified(idx);
+  pdfedKadessaRerender(idx);
+
+  const apply = function (ys) {
+    const pgNow = pdfed.pages[idx];
+    Object.keys(ys).forEach(function (id) {
+      const cur = pdfedKadessaLookup(pgNow, id);
+      if (cur) cur.item.y = ys[id];
+    });
+    pdfedMarkModified(idx);
+    pdfedKadessaRerender(idx);
+  };
+  pushKadessaAppHistory({
+    label: 'Separate overlapping text (Kadessa)',
+    undo: function () { apply(beforeY); toast('Text put back where it was', 'info'); },
+    redo: function () { apply(afterY); }
+  });
+  const names = movers.slice(0, 3).map(function (b) { return b.c.kind === 'text' ? (pdfedKadessaShortText(b.c.item) || 'a text box') : 'a table'; });
+  let say = 'Pulled ' + movers.length + ' overlapping ' + (movers.length === 1 ? 'box' : 'boxes') + ' apart by moving ' + (movers.length === 1 ? 'it' : 'them') + ' down: ' + names.join(', ') + (movers.length > 3 ? ' and more' : '') + '.';
+  if (stillStuck.length) say += ' A locked box still touches something, unlock it if you want that one moved too.';
+  return { fixed: movers.length, say: say };
+}
+
+function teResetBlock() {
+  const bd = teState.focusedBlock;
+  if (!bd) return;
+  bd.el.textContent = bd.origText; // wipes all children, including the resize/move/width/delete handles, re-add below
+  if (bd.handleEl) bd.el.appendChild(bd.handleEl);
+  if (bd.moveHandleEl) bd.el.appendChild(bd.moveHandleEl);
+  if (bd.widthHandleR) bd.el.appendChild(bd.widthHandleR);
+  if (bd.widthHandleL) bd.el.appendChild(bd.widthHandleL);
+  if (bd.delHandleEl) bd.el.appendChild(bd.delHandleEl);
+  bd.el.style.color      = bd.color = '#000000';
+  bd.el.style.fontWeight = 'normal'; bd.bold = false;
+  bd.el.style.fontStyle  = 'normal'; bd.italic = false;
+  bd.fontSize = bd.baseFontSize = bd.origFontSize;
+  bd.el.style.fontSize   = bd.fontSize + 'px';
+  bd.el.style.width  = '';
+  bd.el.style.height = '';
+  bd.el.classList.remove('modified');
+  document.getElementById('teSizeSlider').value = 0;
+  teState.sizeAdj = 0;
+  document.getElementById('teSizeVal').textContent = '0';
+  toast('Block reset', 'info');
+}
+
+function pdfedCancelTextEdit() {
+  const pg = pdfed.active >= 0 ? pdfed.pages[pdfed.active] : null;
+  teState.active = false;
+  teState.blocks = [];
+  teState.focusedBlock = null;
+  if (typeof teExitCompareSplit === 'function') teExitCompareSplit();
+  pdfedSyncCompareBtnVisibility();
+  document.getElementById('pdfedTextBtn').classList.remove('active');
+  document.getElementById('pdfedApplyTextBtn').style.display = 'none';
+  document.getElementById('pdfedCancelTextBtn').style.display = 'none';
+  document.getElementById('pdfedTextPanel').style.display = 'none';
+  // Revert to the last-saved state (any unsaved edits in this session are discarded)
+  if (pg) pdfedRenderTextLayer(pg, false);
+}
+
+// Renders pg.textBlocks onto the overlay. interactive=true makes them editable/
+// draggable/lockable (used during an active Text Editor session); interactive=false
+// shows them read-only on the normal canvas view, so saved text is always visible
+// without needing to re-open the editor.
+function pdfedRenderTextLayer(pg, interactive) {
+  const overlay = document.getElementById('pdfedTextOverlay');
+  if (!overlay || !pg) return;
+  overlay.innerHTML = '';
+  overlay.classList.toggle('active', !!interactive);
+  const canvas = document.getElementById('pdfedPageCanvas');
+  if (canvas && canvas.width) {
+    overlay.style.width  = canvas.width  + 'px';
+    overlay.style.height = canvas.height + 'px';
+  }
+  // Same density correction as pdfedApplyZoom()/pdfedStartTextEdit() — without
+  // it, native PDF pages (rendered at 144dpi vs. the 96dpi on-screen baseline)
+  // show their OCR/text boxes oversized and drifting away from the real text
+  // the further a box sits from the top-left corner.
+  const pdfedTlZoomNormalize = PDFED_PX_PER_MM / ((pg._pxPerMm) || PDFED_PX_PER_MM);
+  const z = pdfed.zoom * pdfedTlZoomNormalize;
+  overlay.style.transform = `scale(${z})`;
+  overlay.style.setProperty('--pdfed-inv-zoom', (1 / (z || 1)).toFixed(4));
+  overlay.style.transformOrigin = 'top left';
+  if (!interactive) {
+    (pg.textBlocks || []).forEach(tb => teAddBlock(tb, overlay, false));
+  }
+}
+
+// Serializes the live, in-session DOM blocks (teState.blocks) into plain data
+// for persistence on pg.textBlocks, this is what lets the user leave the editor
+// and come back later to keep dragging/recoloring/locking/unlocking the same text.
+function teSerializeBlocks() {
+  return teState.blocks
+    .filter(bd => bd.el.isConnected) // skip anything deleted mid-session
+    .filter(bd => !(bd.free && !bd.el.textContent.trim())) // drop emptied-out free blocks
+    .map(bd => ({
+      x: bd.x, y: bd.y,
+      fontSize: bd.fontSize,
+      fontFamily: bd.fontFamily,
+      color: bd.color,
+      bold: bd.bold,
+      italic: bd.italic,
+      free: bd.free,
+      locked: bd.locked,
+      origText: bd.origText,
+      text: bd.el.textContent,
+      html: bd.el.innerHTML,
+      origWidth: bd.origWidth,
+      origHeight: bd.origHeight,
+      bgColor: bd.bgColor,
+    }));
+}
+
+// Keeps pg.textBlocks in sync with whatever's on screen right now, WITHOUT
+// exiting the Text Editor session (unlike "Apply", which also closes the
+// panel and rebuilds thumbnails). Called on blur, i.e. clicking outside a
+// box, and on delete, so edits stick immediately instead of requiring an
+// explicit "Apply" click every time.
+function teAutoSaveBlocks() {
+  if (!teState.active || pdfed.active < 0) return;
+  const pg = pdfed.pages[pdfed.active];
+  if (!pg) return;
+  pg.textBlocks = teSerializeBlocks();
+  if (pg.textBlocks.length) {
+    pg.modified = true;
+    pg.edits.textEdited = true;
+  }
+}
+
+async function pdfedApplyTextEdits() {
+  if (pdfed.active < 0) return;
+  const pg = pdfed.pages[pdfed.active];
+
+  pg.textBlocks = teSerializeBlocks();
+  if (pg.textBlocks.length) {
+    pg.modified = true;
+    pg.edits.textEdited = true;
+  }
+
+  pdfedCancelTextEdit(); // re-renders the saved blocks read-only on the canvas
+  await pdfedBuildStrip(); // refreshes thumbnails with text baked in
+  toast(pg.textBlocks.length
+    ? 'Saved, ' + pg.textBlocks.length + ' text block' + (pg.textBlocks.length !== 1 ? 's' : '') + ' on this page. Click "OCR" anytime to keep editing.'
+    : 'No text blocks to save', 'success');
+}
+
+// Returns a flattened (text baked onto the base image) dataURL for a page, used
+// for thumbnails and export only. The page's actual base image (pg.dataUrl) is
+// left untouched, so the text layer (pg.textBlocks) stays a live, editable object
+// indefinitely instead of being permanently rasterized the moment it's saved.
+async function pdfedFlattenPageDataUrl(pg) {
+  const baseUrl = await pdfedPageUrl(pg);
+  if (!pg.textBlocks || !pg.textBlocks.length) return baseUrl;
+
+  const baseImg = new Image();
+  await new Promise((res, rej) => { baseImg.onload = res; baseImg.onerror = rej; baseImg.src = baseUrl; });
+
+  const out = document.createElement('canvas');
+  out.width  = baseImg.naturalWidth;
+  out.height = baseImg.naturalHeight;
+  const ctx = out.getContext('2d');
+  ctx.drawImage(baseImg, 0, 0);
+
+  // Off-screen container so offsetWidth/offsetHeight (needed for the white-out
+  // rect under edited PDF text) measure correctly, without ever being visible.
+  const meas = document.createElement('div');
+  meas.style.cssText = 'position:fixed; left:-99999px; top:0; visibility:hidden; white-space:pre;';
+  document.body.appendChild(meas);
+
+  pg.textBlocks.forEach(tb => {
+    const el = document.createElement('div');
+    el.className = 'pdfed-text-block';
+    el.style.position = 'absolute';
+    el.style.left = '0px'; el.style.top = '0px';
+    el.style.fontSize = tb.fontSize + 'px';
+    el.style.fontFamily = tb.fontFamily || 'Arial, sans-serif';
+    el.style.color = tb.color || '#000000';
+    el.style.fontWeight = tb.bold ? 'bold' : 'normal';
+    el.style.fontStyle = tb.italic ? 'italic' : 'normal';
+    if (tb.html) el.innerHTML = tb.html;
+    else el.textContent = tb.text || tb.origText || '';
+    meas.appendChild(el);
+
+    const displayedSize = tb.fontSize;
+    const text = el.textContent || '';
+    if (text.trim() || tb.free) {
+      if (!tb.free) {
+        // Cover whichever is bigger, the original glyphs' footprint or the new
+        // text's, so a shorter replacement doesn't leave old text peeking out
+        // the sides, and a longer one still gets a clean patch under it.
+        const w = Math.max(tb.origWidth  || 0, el.offsetWidth  || 200);
+        const h = Math.max(tb.origHeight || 0, el.offsetHeight || displayedSize * 1.4);
+        ctx.fillStyle = tb.bgColor || '#ffffff';
+        ctx.fillRect(tb.x - 2, tb.y - 2, w + 4, h + 4);
+      }
+      ctx.textBaseline = 'top';
+      const lines = teExtractColoredLines(el, tb.color || '#000000', tb.bold, tb.italic);
+      lines.forEach((segments, li) => {
+        let penX = tb.x;
+        const lineY = tb.y + li * displayedSize * 1.2;
+        segments.forEach(seg => {
+          if (!seg.text) return;
+          let fontStr = '';
+          if (seg.italic) fontStr += 'italic ';
+          if (seg.bold)   fontStr += 'bold ';
+          fontStr += displayedSize + 'px ';
+          fontStr += (tb.fontFamily || 'Arial, sans-serif');
+          ctx.font = fontStr;
+          ctx.fillStyle = seg.color || tb.color || '#000000';
+          ctx.fillText(seg.text, penX, lineY);
+          penX += ctx.measureText(seg.text).width;
+        });
+      });
+    }
+    meas.removeChild(el);
+  });
+
+  document.body.removeChild(meas);
+  return out.toDataURL('image/png');
+}
+
+// Draws every placed object (images, text boxes, tables) onto a canvas
+// context IN THEIR UNIFIED Z-ORDER, so exported/baked/thumbnail output
+// matches on-screen stacking exactly, an image sent to front actually
+// paints over text underneath it, and vice versa, instead of images always
+// being drawn first no matter what Arrange says.
+async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages, itemFilter) {
+  const ordered = pdfedGetZOrderedItems(pg);
+  for (const { kind, item } of ordered) {
+    if (itemFilter && !itemFilter(kind, item)) continue;
+    // skipTexts lets the "editable PDF" export path leave text boxes OUT of
+    // the flattened raster entirely, so they can be re-added a moment later
+    // as real, selectable/editable vector text (see pdfedRenderPlacedTextsAsPdfText)
+    // instead of being permanently baked into pixels. skipImages is the same
+    // idea, used when rotating a page: images now carry their own rotation
+    // and stay live objects instead of being flattened (see pdfedRotatePage).
+    if (skipTexts && kind === 'text') continue;
+    if (skipImages && kind === 'image') continue;
+    // Every placed object's own opacity (default fully opaque) is honored at
+    // bake time via globalAlpha, so exports/thumbnails/permanent-bakes match
+    // whatever the user dialed in on screen, reset right after so one faded
+    // object never bleeds transparency into the next thing drawn.
+    ctx.globalAlpha = pdfedGetOpacity(item);
+    if (kind === 'border') {
+      pdfedDrawBorderOnCtx(ctx, item.w, item.h, {
+        style: item.style,
+        marginPct: item.marginPct,
+        thickness: item.thickness,
+        color: item.color
+      }, item.x, item.y);
+    } else if (kind === 'shape') {
+      const isDirectional = (item.tool === 'line' || item.tool === 'arrow' || item.tool === 'dblarrow');
+      const sx1 = isDirectional && item.flipX ? item.w : 0;
+      const sy1 = isDirectional && item.flipY ? item.h : 0;
+      const sx2 = isDirectional && item.flipX ? 0 : item.w;
+      const sy2 = isDirectional && item.flipY ? 0 : item.h;
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, sx1, sy1, sx2, sy2);
+      ctx.restore();
+    } else if (kind === 'image') {
+      try {
+        const im = await new Promise((res, rej) => {
+          const i2 = new Image();
+          i2.onload = () => res(i2);
+          i2.onerror = rej;
+          i2.src = item.dataUrl;
+        });
+        // Fill the exact box (matches the on-screen object-fit:fill), instead
+        // of the old letterboxed/aspect-preserving math — otherwise the
+        // exported PDF would show blank gaps around the picture that the
+        // editor itself no longer shows.
+        const dw = item.w, dh = item.h, dx = item.x, dy = item.y;
+        // Rotate around the image's own box center (mirrors the CSS
+        // transform: rotate() the live on-screen box gets), so a rotated,
+        // still-editable image bakes at export time exactly where it
+        // visually sits on screen instead of snapping back upright.
+        if (item.rotation) {
+          const icx = item.x + item.w / 2, icy = item.y + item.h / 2;
+          ctx.save();
+          ctx.translate(icx, icy);
+          ctx.rotate(item.rotation * Math.PI / 180);
+          ctx.translate(-icx, -icy);
+          ctx.drawImage(im, dx, dy, dw, dh);
+          ctx.restore();
+        } else {
+          ctx.drawImage(im, dx, dy, dw, dh);
+        }
+      } catch (e) { /* skip broken image, keep going */ }
+    } else if (kind === 'text') {
+      pdfedDrawPlacedTextsOnCtx(ctx, [item]);
+    } else if (kind === 'table') {
+      pdfedDrawPlacedTablesOnCtx(ctx, [item]);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
