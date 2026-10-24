@@ -149,7 +149,8 @@ async function pdfedThumbQueueRun() {
       let done = false;
       for (let attempt = 0; attempt < 3 && !done; attempt++) {
         try {
-          const url = await pdfedComposeThumb(job.pg, job.i);
+          // If the text engine file (js/17) did not load, still show the plain page picture.
+          const url = (typeof pdfedFlattenPageDataUrl === 'function') ? await pdfedComposeThumb(job.pg, job.i) : await pdfedPageUrl(job.pg);
           if (job.tok !== pdfedThumbQueue.tok || !job.card.isConnected) { done = true; break; }
           job.img.src = await pdfedThumbShrink(url, 360);
           done = true;
@@ -360,7 +361,8 @@ async function pdfedGoto(idx) {
   // Show this page's saved text blocks as a read-only layer on the canvas —
   // they stay visible without needing to re-open the Text Editor, and clicking
   // "Edit Text" will make them live/draggable/lockable again.
-  pdfedRenderTextLayer(pg, false);
+  if (typeof pdfedRenderTextLayer === 'function') pdfedRenderTextLayer(pg, false);
+  else console.error('SARVARC: js/17-pdfed-text-engine.js did not load, check the Network tab for it (404 or old cached copy)');
   pdfedSearchSyncOverlaySize();
   pdfedSearchRenderHighlights();
   pdfedRenderAllPlaced(idx); // rebuilds every placed-object layer (borders/shapes/images/texts/tables) fresh for THIS page; also syncs the grid-snap overlay to this page's canvas size
