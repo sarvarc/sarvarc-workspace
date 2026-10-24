@@ -978,3 +978,142 @@ function pdfedQueueAutoContinueAfter() {
   if (!hasNext) { pdfedQueueAdvance(); return; }
   setTimeout(() => pdfedQueueAdvance(), 1100);
 }
+
+// ─────────────────────────────────────────────────
+// POWERPOINT (.pptx) EXPORT
+// Each selected page is rendered exactly like the PDF / Image export
+// (same pdfedComposeThumb compositor, so placed text, tables, images and
+// annotations are baked in) and becomes one full-slide picture. The .pptx
+// is assembled by hand with JSZip (already loaded for the Image ZIP), so no
+// extra library is needed. Slide size follows the first page's shape.
+// ─────────────────────────────────────────────────
+async function pdfedBuildPptxBlob(images, ZipCtor) {
+  // images: [{ b64: <png base64>, w: <px>, h: <px> }]
+  const EMU_H = 6858000;                                   // 7.5 in tall, the PowerPoint default
+  const first = images[0];
+  const slideW = Math.max(1000000, Math.round(EMU_H * (first.w / first.h)));
+  const slideH = EMU_H;
+  const NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+  const HDR = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const zip = new ZipCtor();
+  const n = images.length;
+
+  let ct = HDR + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Default Extension="png" ContentType="image/png"/>' +
+    '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>' +
+    '<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>' +
+    '<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>' +
+    '<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>';
+  for (let i = 1; i <= n; i++) ct += '<Override PartName="/ppt/slides/slide' + i + '.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
+  ct += '</Types>';
+  zip.file('[Content_Types].xml', ct);
+
+  zip.file('_rels/.rels', HDR + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + REL + '/officeDocument" Target="ppt/presentation.xml"/></Relationships>');
+
+  let sldIds = '', presRels = '<Relationship Id="rId1" Type="' + REL + '/slideMaster" Target="slideMasters/slideMaster1.xml"/>';
+  for (let i = 1; i <= n; i++) {
+    sldIds += '<p:sldId id="' + (255 + i) + '" r:id="rId' + (i + 1) + '"/>';
+    presRels += '<Relationship Id="rId' + (i + 1) + '" Type="' + REL + '/slide" Target="slides/slide' + i + '.xml"/>';
+  }
+  presRels += '<Relationship Id="rId' + (n + 2) + '" Type="' + REL + '/theme" Target="theme/theme1.xml"/>';
+  zip.file('ppt/presentation.xml', HDR + '<p:presentation ' + NS + '>' +
+    '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>' +
+    '<p:sldIdLst>' + sldIds + '</p:sldIdLst>' +
+    '<p:sldSz cx="' + slideW + '" cy="' + slideH + '"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>');
+  zip.file('ppt/_rels/presentation.xml.rels', HDR + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + presRels + '</Relationships>');
+
+  const grp = '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
+  zip.file('ppt/slideMasters/slideMaster1.xml', HDR + '<p:sldMaster ' + NS + '><p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg><p:spTree>' + grp + '</p:spTree></p:cSld>' +
+    '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>' +
+    '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>');
+  zip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', HDR + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + REL + '/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>' +
+    '<Relationship Id="rId2" Type="' + REL + '/theme" Target="../theme/theme1.xml"/></Relationships>');
+  zip.file('ppt/slideLayouts/slideLayout1.xml', HDR + '<p:sldLayout ' + NS + ' type="blank" preserve="1"><p:cSld name="Blank"><p:spTree>' + grp + '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>');
+  zip.file('ppt/slideLayouts/_rels/slideLayout1.xml.rels', HDR + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + REL + '/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>');
+
+  const clr = (nm, v) => '<a:' + nm + '><a:srgbClr val="' + v + '"/></a:' + nm + '>';
+  const fillLst = '<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>';
+  const lnLst = '<a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>';
+  const effLst = '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>';
+  const bgLst = '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>';
+  zip.file('ppt/theme/theme1.xml', HDR + '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="SARVARC"><a:themeElements>' +
+    '<a:clrScheme name="SARVARC">' + clr('dk1', '000000') + clr('lt1', 'FFFFFF') + clr('dk2', '1F2937') + clr('lt2', 'F3F4F6') +
+    clr('accent1', '00C2FF') + clr('accent2', '818CF8') + clr('accent3', '22C55E') + clr('accent4', 'FB923C') + clr('accent5', 'F472B6') + clr('accent6', '14B8A6') +
+    clr('hlink', '0563C1') + clr('folHlink', '954F72') + '</a:clrScheme>' +
+    '<a:fontScheme name="SARVARC"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>' +
+    '<a:fmtScheme name="SARVARC">' + fillLst + lnLst + effLst + bgLst + '</a:fmtScheme></a:themeElements></a:theme>');
+
+  for (let i = 1; i <= n; i++) {
+    const im = images[i - 1];
+    // "Contain" fit: the whole page is visible, centred, never stretched.
+    const s = Math.min(slideW / im.w, slideH / im.h);
+    const cw = Math.round(im.w * s), ch = Math.round(im.h * s);
+    const ox = Math.round((slideW - cw) / 2), oy = Math.round((slideH - ch) / 2);
+    zip.file('ppt/slides/slide' + i + '.xml', HDR + '<p:sld ' + NS + '><p:cSld><p:spTree>' + grp +
+      '<p:pic><p:nvPicPr><p:cNvPr id="2" name="Page ' + i + '" descr="Page ' + i + '"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>' +
+      '<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>' +
+      '<p:spPr><a:xfrm><a:off x="' + ox + '" y="' + oy + '"/><a:ext cx="' + cw + '" cy="' + ch + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>' +
+      '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>');
+    zip.file('ppt/slides/_rels/slide' + i + '.xml.rels', HDR + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="' + REL + '/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>' +
+      '<Relationship Id="rId2" Type="' + REL + '/image" Target="../media/image' + i + '.png"/></Relationships>');
+    zip.file('ppt/media/image' + i + '.png', im.b64, { base64: true });
+  }
+  return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }, (m) => {
+    try { updateExportProgress(80 + m.percent * 0.18, 'Building PowerPoint… ' + Math.round(m.percent) + '%'); } catch (e) {}
+  });
+}
+
+function pdfedImageSize(url) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve({ w: im.naturalWidth, h: im.naturalHeight });
+    im.onerror = () => reject(new Error('Could not read page image'));
+    im.src = url;
+  });
+}
+
+async function pdfedExportPPTX(pageIndices) {
+  if (pdfedLiveBlock(pageIndices)) return;
+  if (pdfed.pages.length === 0) { toast('No PDF loaded', 'error'); return; }
+  pdfedAutoStampPendingGhost();
+  await pdfedFinalizePendingCanvasTint();
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) {}
+  const indices = (pageIndices && pageIndices.length) ? pageIndices : pdfed.pages.map((_, i) => i);
+  const total = indices.length;
+  const base = (pdfed.file ? pdfed.file.name.replace(/\.pdf$/i, '') : 'workspace');
+  showExportOverlay('Exporting PowerPoint…', 'Rendering page 1 of ' + total + '…');
+  try {
+    const images = [];
+    for (let k = 0; k < total; k++) {
+      const i = indices[k];
+      const pg = pdfed.pages[i];
+      if (!pg) continue;
+      updateExportProgress((k / total) * 80, 'Rendering page ' + (k + 1) + ' of ' + total + '…');
+      let url = await pdfedComposeThumb(pg, i);
+      if (!url) continue;
+      if (window.sarvarcApplyFreeWatermark) url = await sarvarcStampDataUrlWatermark(url);
+      const sz = await pdfedImageSize(url);
+      images.push({ b64: url.split(',')[1], w: sz.w, h: sz.h });
+    }
+    if (!images.length) { hideExportOverlay(); toast('Nothing to export', 'error'); return; }
+    const blob = await pdfedBuildPptxBlob(images, JSZip);
+    updateExportProgress(98, 'Saving file…');
+    pdfedDownloadBlob(blob, base + '.pptx');
+    state.stats.exports += images.length;
+    updateStats();
+    completeExportOverlay('PowerPoint exported', { module: 'pdf_editor', format: 'pptx' });
+    toast('Exported ' + images.length + (images.length === 1 ? ' slide' : ' slides'), 'success');
+    pdfedQueueAutoContinueAfter();
+  } catch (e) {
+    hideExportOverlay();
+    toast('Export error: ' + e.message, 'error');
+    console.error(e);
+  }
+}
