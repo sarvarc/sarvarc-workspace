@@ -411,13 +411,15 @@ let pdfedExportLogoMode = 'normal'; // 'normal' | 'logo' — only used for docx 
 
 const PDFED_EXPORT_FORMAT_META = {
   pdf:  { name: 'PDF Document',      badge: 'Editable',    color: 'var(--blue)', bg: 'rgba(0,194,255,0.12)',
-          icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' },
+          icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><text x="12" y="18.6" text-anchor="middle" font-size="7.6" font-weight="800" font-family="Inter,Arial,sans-serif" fill="currentColor" stroke="none">PDF</text></svg>' },
   csv:  { name: 'CSV',               badge: 'Table data',  color: '#14B8A6',     bg: 'rgba(20,184,166,0.15)',
           icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>' },
   xlsx: { name: 'Excel Spreadsheet', badge: 'Spreadsheet', color: '#22C55E',     bg: 'rgba(34,197,94,0.15)',
           icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="12" y1="13" x2="12" y2="20"/></svg>' },
   docx: { name: 'Word Document',     badge: 'Editable',    color: '#818CF8',     bg: 'rgba(129,140,248,0.15)',
           icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="16" x2="16" y2="16"/><line x1="8" y1="19" x2="13" y2="19"/></svg>' },
+  pptx: { name: 'PowerPoint',        badge: 'Slides',      color: '#EF5B3C',     bg: 'rgba(239,91,60,0.16)',
+          icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><line x1="12" y1="16" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>' },
   image: { name: 'Image (PNG)',      badge: 'Picture',     color: '#F472B6',     bg: 'rgba(244,114,182,0.15)',
           icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' },
   video: { name: 'Slideshow Clip',   badge: 'Presentation',color: '#FB923C',     bg: 'rgba(251,146,60,0.15)',
@@ -447,7 +449,7 @@ async function pdfedOpenExportModal() {
   const liveDoc = pdfedDocHasLive();
   if (liveDoc) startFmt = 'video';
   pdfedApplyExportFormat(startFmt);
-  document.querySelectorAll('#pdfedExportTypeMenu .pdfed-export-menu-item').forEach(el => {
+  document.querySelectorAll('#pdfedExportTypeMenu .pdfed-fmt-tile').forEach(el => {
     el.classList.toggle('sel', el.dataset.fmt === startFmt);
     const off = liveDoc && el.dataset.fmt !== 'video';
     el.style.opacity = off ? '.4' : '';
@@ -460,7 +462,7 @@ async function pdfedOpenExportModal() {
 
   document.getElementById('pdfedExportTotalPages').textContent = pdfed.pages.length;
   pdfedApplyExportPagesMode('all');
-  document.querySelectorAll('#pdfedExportPagesMenu .pdfed-export-menu-item').forEach(el => el.classList.toggle('sel', el.dataset.mode === 'all'));
+  document.querySelectorAll('#pdfedExportPagesMenu .pdfed-seg-btn').forEach(el => el.classList.toggle('sel', el.dataset.mode === 'all'));
   const input = document.getElementById('pdfedExportRangeInput');
   input.value = '';
   input.style.display = 'none';
@@ -489,10 +491,8 @@ function pdfedCloseExportModal() {
 }
 
 function pdfedCloseExportMenus() {
-  document.getElementById('pdfedExportTypeMenu').classList.remove('open');
-  document.getElementById('pdfedExportTypeSelect').classList.remove('open');
-  document.getElementById('pdfedExportPagesMenu').classList.remove('open');
-  document.getElementById('pdfedExportPagesSelect').classList.remove('open');
+  // Format tiles and the pages switch are always visible now, so there are no dropdowns left to close.
+  // Kept as a harmless no-op because older code still calls it.
 }
 
 function pdfedApplyExportLogoMode(mode) {
@@ -504,27 +504,7 @@ function pdfedExportPickLogoMode(mode, el) {
   pdfedApplyExportLogoMode(mode);
 }
 
-function pdfedToggleExportTypeMenu(e) {
-  if (e) e.stopPropagation();
-  const menu = document.getElementById('pdfedExportTypeMenu');
-  const wasOpen = menu.classList.contains('open');
-  pdfedCloseExportMenus();
-  if (!wasOpen) {
-    menu.classList.add('open');
-    document.getElementById('pdfedExportTypeSelect').classList.add('open');
-  }
-}
-
-function pdfedToggleExportPagesMenu(e) {
-  if (e) e.stopPropagation();
-  const menu = document.getElementById('pdfedExportPagesMenu');
-  const wasOpen = menu.classList.contains('open');
-  pdfedCloseExportMenus();
-  if (!wasOpen) {
-    menu.classList.add('open');
-    document.getElementById('pdfedExportPagesSelect').classList.add('open');
-  }
-}
+// (File type and Pages are no longer dropdowns, so the old toggle functions were removed.)
 
 // Close any open dropdown when clicking elsewhere in the modal.
 document.addEventListener('mousedown', function(e) {
@@ -536,16 +516,12 @@ document.addEventListener('mousedown', function(e) {
 function pdfedApplyExportFormat(fmt) {
   pdfedExportModalFmt = fmt;
   const meta = PDFED_EXPORT_FORMAT_META[fmt];
-  document.getElementById('pdfedExportTypeIcon').innerHTML = meta.icon;
-  document.getElementById('pdfedExportTypeIcon').style.background = meta.bg;
-  document.getElementById('pdfedExportTypeIcon').style.color = meta.color;
-  document.getElementById('pdfedExportTypeName').textContent = meta.name;
-  const badge = document.getElementById('pdfedExportTypeBadge');
-  badge.textContent = meta.badge;
-  badge.style.background = meta.color;
+  // Highlight the matching tile (also covers callers that switch format without clicking a tile).
+  document.querySelectorAll('#pdfedExportTypeMenu .pdfed-fmt-tile').forEach(el => el.classList.toggle('sel', el.dataset.fmt === fmt));
   document.getElementById('pdfedExportCsvNote').style.display = (fmt === 'csv' || fmt === 'xlsx' || fmt === 'docx') ? 'block' : 'none';
   document.getElementById('pdfedExportPdfNote').style.display = (fmt === 'pdf') ? 'block' : 'none';
   document.getElementById('pdfedExportImageNote').style.display = (fmt === 'image') ? 'block' : 'none';
+  document.getElementById('pdfedExportPptxNote').style.display = (fmt === 'pptx') ? 'block' : 'none';
   document.getElementById('pdfedExportVideoNote').style.display = (fmt === 'video') ? 'block' : 'none';
   try { pdfedAnimUpdateExportWarn(fmt); } catch (e) {}
   // Logo/background-removal choice only makes sense for Word exports, since
@@ -577,9 +553,6 @@ function pdfedExportPasswordChanged() {
 function pdfedExportPickFormat(fmt, el) {
   if (fmt !== 'video' && pdfedDocHasLive()) { pdfedLiveBlock(); return; }
   pdfedApplyExportFormat(fmt);
-  document.querySelectorAll('#pdfedExportTypeMenu .pdfed-export-menu-item').forEach(c => c.classList.remove('sel'));
-  el.classList.add('sel');
-  pdfedCloseExportMenus();
   // Slideshow Clip isn't a file the modal can hand over directly — it's an
   // interactive preview first. So picking it jumps straight into the preview
   // with its controls, instead of making the person also click "Export"
@@ -595,7 +568,7 @@ function pdfedExportPickFormat(fmt, el) {
 function pdfedApplyExportPagesMode(mode) {
   pdfedExportPagesMode = mode;
   const total = pdfed.pages.length;
-  document.getElementById('pdfedExportPagesName').textContent = (mode === 'custom') ? 'Custom range' : 'All pages (' + total + ')';
+  document.querySelectorAll('#pdfedExportPagesMenu .pdfed-seg-btn').forEach(el => el.classList.toggle('sel', el.dataset.mode === mode));
   const input = document.getElementById('pdfedExportRangeInput');
   input.style.display = (mode === 'custom') ? 'block' : 'none';
   if (mode !== 'custom') document.getElementById('pdfedExportRangeError').style.display = 'none';
@@ -603,9 +576,6 @@ function pdfedApplyExportPagesMode(mode) {
 
 function pdfedExportPickPages(mode, el) {
   pdfedApplyExportPagesMode(mode);
-  document.querySelectorAll('#pdfedExportPagesMenu .pdfed-export-menu-item').forEach(c => c.classList.remove('sel'));
-  el.classList.add('sel');
-  pdfedCloseExportMenus();
   if (mode === 'custom') document.getElementById('pdfedExportRangeInput').focus();
 }
 
