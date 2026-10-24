@@ -1634,6 +1634,8 @@ function daCellFocus(el, ri, ci) {
   }
   daUpdateFormulaBar(ri, ci, raw);
   daFillPlaceHandle();
+  daMarkActiveHeaders();
+  daUpdateStatusBar();
 }
 
 // Shared keydown handler for every grid cell (both contenteditable text
@@ -1675,8 +1677,10 @@ function daHandleCellKeydown(e, ri, ci) {
     } else {
       r += e.shiftKey ? -1 : 1;
     }
-    if (r < 0 || r >= nRows) {   // off the edge: just commit and stay put
+    if (r < 0 || r >= nRows) {   // off the edge: commit, then put focus back so keys keep working
       if (e.target && typeof e.target.blur === 'function') e.target.blur();
+      const stay = document.getElementById(`daCell_${dsN.id}_${ri}_${ci}`);
+      if (stay && typeof stay.focus === 'function') stay.focus();
       return;
     }
     daShiftAnchor = null;
@@ -1715,7 +1719,15 @@ function daHandleCellKeydown(e, ri, ci) {
     if (daHasSelection()) daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
   }
 
-  if (newRow === ri && newCol === ci) { daRenderTable(); return; } // already at the edge -- nothing to move to, just refresh in case the selection changed
+  if (newRow === ri && newCol === ci) {
+    // Already at the edge/corner. The rebuild below tears out the focused
+    // cell, and nothing re-focused it, so every later arrow key went nowhere.
+    // Put focus back on the same cell after refreshing the selection.
+    daRenderTable();
+    const stayEl = document.getElementById(`daCell_${ds.id}_${ri}_${ci}`);
+    if (stayEl && typeof stayEl.focus === 'function') stayEl.focus();
+    return;
+  }
 
   // Commit whatever's in the cell we're leaving BEFORE rebuilding the
   // grid, so onblur's own daUpdateCell/daRenderTable runs first -- then we
@@ -2332,23 +2344,25 @@ function daRenderTable() {
     </div>`;
   }
 
-  let html = emptyHintHtml + titleHtml + `<table class="da-table${ds.frozen ? ' da-frozen' : ''}"><thead>`;
-  html += `<tr class="da-collabels-row"><th class="da-rownum"></th>`;
+  let html = emptyHintHtml + titleHtml + `<table class="da-table${ds.frozen ? ' da-frozen' : ''}${ds.wrap ? ' da-wrap' : ''}"><thead>`;
+  html += `<tr class="da-collabels-row"><th class="da-rownum da-corner" title="Select all cells" onmousedown="daSelectAll(event)"></th>`;
   ds.headers.forEach((_, ci) => {
     const colHl = ds.colHighlights[ci];
     const colSelCls = daIsColSelected(ci) ? ' da-collabel-selected' : '';
     const colStyle = colHl ? ` style="background:${daHlBg(colHl.color)}"` : '';
-    html += `<th class="da-collabel${colSelCls}"${colStyle} title="${colHl && colHl.tag ? daEsc(colHl.tag) + ' — click to select this column' : 'Click to select this column'}" onmousedown="daSelectCol(${ci}, event)">${daColToLetters(ci)}</th>`;
+    html += `<th class="da-collabel${colSelCls}" data-ci="${ci}"${colStyle} title="${colHl && colHl.tag ? daEsc(colHl.tag) + ' — click to select this column' : 'Click to select this column'}" onmousedown="daSelectCol(${ci}, event)">${daColToLetters(ci)}<span class="da-col-resize" title="Drag to resize, double-click to fit" onmousedown="daColResizeStart(event, ${ci})" ondblclick="daColAutoFit(${ci}, event)"></span></th>`;
   });
   html += `</tr><tr>`;
   html += `<th class="da-rownum">#</th>`;
   ds.headers.forEach((h, ci) => {
-    html += `<th oncontextmenu="daCellContextMenu(event, -1, ${ci});return false;">
-      <div class="da-th-cell" title="Right-click for a column-wide dropdown list">
+    const cwDecl = daColWidthDecl(ds, ci);
+    const opFlag = ds.colOps && ds.colOps[ci] ? `<span class="da-th-opflag" title="Live column total is on">${({'+':'Σ','-':'−','*':'×','/':'÷','avg':'AVG'})[ds.colOps[ci]] || 'Σ'}</span>` : '';
+    html += `<th data-ci="${ci}" oncontextmenu="daCellContextMenu(event, -1, ${ci});return false;">
+      <div class="da-th-cell"${cwDecl ? ` style="${cwDecl}"` : ''} title="Right-click for a column-wide dropdown list">
         <span class="da-th-name" contenteditable="true" spellcheck="false"
              onblur="daRenameHeader(${ci}, this.textContent)"
              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${daEsc(h)}</span>
-        <span class="da-th-type">${colTypes[ci]}</span>
+        ${opFlag}<span class="da-th-type">${colTypes[ci]}</span>
         <span class="da-th-del" title="Delete column" onmousedown="event.preventDefault();event.stopPropagation();" onclick="daDeleteColumn(${ci})">×</span>
       </div>
       ${colTypes[ci] === 'NUM' ? `<div class="da-th-ops">
@@ -2395,7 +2409,8 @@ function daRenderTable() {
         const dropdownColors = daGetEffectiveDropdownColors(ds, ri, ci);
         const linkUrl = daGetCellLink(ds, ri, ci);
         const hl = daGetEffectiveHighlight(ds, ri, ci);
-        const hlStyle = hl ? ` style="background:${daHlBg(hl.color)}"` : '';
+        const cwD = daColWidthDecl(ds, ci);
+        const hlStyle = (hl || cwD) ? ` style="${hl ? 'background:' + daHlBg(hl.color) + ';' : ''}${cwD}"` : '';
         const hlTitle = hl && hl.tag ? daEsc(hl.tag) : '';
         const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' : '';
         const linkBadge = linkUrl ? `<span class="da-td-link-badge" title="Open link: ${daEsc(linkUrl)}"
@@ -2434,7 +2449,7 @@ function daRenderTable() {
           // closed select the same way a highlighted cell would look.
           const selValColor = dropdownColors && dropdownColors[val];
           const selectBg = hl ? daHlBg(hl.color) : (selValColor ? daHlBg(selValColor) : '');
-          const selectStyle = selectBg ? ` style="background:${selectBg}"` : '';
+          const selectStyle = (selectBg || cwD) ? ` style="${selectBg ? 'background:' + selectBg + ';' : ''}${cwD}"` : '';
           const unsetCls = (isUnset && val === '') ? ' da-td-select-unset' : '';
           html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}${unsetCls}${daXIsMissing(ds, ri, ci, val) ? ' da-cell-missing' : ''}" data-da-dropdown="1"${selectStyle}
                onmousedown="daDropdownCellMouseDown(event, ${ri}, ${ci})"
@@ -2459,10 +2474,177 @@ function daRenderTable() {
   html += `</tbody></table>`;
   gridWrap.innerHTML = html;
   daFillPlaceHandle();
+  daMarkActiveHeaders();
+  daUpdateStatusBar();
+  daEnsureWrapBtn(ds);
   daRenderHighlightSummary(ds);
   daFilterSyncUI(ds);
   daGridUpdateNavButtons();
 }
+
+
+// ─── Excel-style grid helpers: select-all corner, drag-to-resize columns,
+// active row/column header highlight, and the Sum / Average / Count status
+// bar. Column widths live in ds.colWidths ({ colIndex: px }); a column with
+// no entry keeps the original content-based auto width. ───
+function daColWidthDecl(ds, ci) {
+  const w = ds && ds.colWidths && ds.colWidths[ci];
+  return w ? `--da-cw:${Math.round(w)}px;` : '';
+}
+
+function daSelectAll(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const ds = daGetActive(); if (!ds || !ds.rows.length || !ds.headers.length) return;
+  daShiftAnchor = null;
+  daSelection = { rows: new Set(), cols: new Set(), cellRanges: [{ r1: 0, c1: 0, r2: ds.rows.length - 1, c2: ds.headers.length - 1 }] };
+  daRenderTable();
+}
+
+let daResizeDrag = null;
+function daApplyColWidthLive(ci, w) {
+  const gridWrap = document.getElementById('daGridWrap'); if (!gridWrap) return;
+  gridWrap.querySelectorAll(`td[data-c="${ci}"] > .da-td-cell, td[data-c="${ci}"] > select, th[data-ci="${ci}"] .da-th-cell`)
+    .forEach(el => el.style.setProperty('--da-cw', w + 'px'));
+}
+function daColResizeStart(e, ci) {
+  e.preventDefault(); e.stopPropagation();
+  const th = e.currentTarget.closest('th');
+  daResizeDrag = { ci, x: e.clientX, w: th ? th.getBoundingClientRect().width : 120 };
+  document.body.classList.add('da-resizing');
+  document.addEventListener('mousemove', daColResizeMove);
+  document.addEventListener('mouseup', daColResizeEnd);
+}
+function daColResizeMove(e) {
+  if (!daResizeDrag) return;
+  const w = Math.max(48, Math.min(700, Math.round(daResizeDrag.w + (e.clientX - daResizeDrag.x))));
+  daResizeDrag.cur = w;
+  daApplyColWidthLive(daResizeDrag.ci, w);
+}
+function daColResizeEnd() {
+  document.removeEventListener('mousemove', daColResizeMove);
+  document.removeEventListener('mouseup', daColResizeEnd);
+  document.body.classList.remove('da-resizing');
+  const d = daResizeDrag; daResizeDrag = null;
+  if (!d || !d.cur) return;
+  const ds = daGetActive(); if (!ds) return;
+  ds.colWidths = ds.colWidths || {};
+  ds.colWidths[d.ci] = d.cur;
+  daPersist();
+  daRenderTable();
+}
+// Double-click a column edge: fit the column to its longest value.
+function daColAutoFit(ci, e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  const ds = daGetActive(); if (!ds) return;
+  const list = Array.isArray(ci) ? ci : [ci];
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = '13px Inter, sans-serif';
+  ds.colWidths = ds.colWidths || {};
+  list.forEach(c => {
+    let max = ctx.measureText(String(ds.headers[c] ?? '')).width + 40;
+    ds.rows.forEach((r, ri) => {
+      const res = daFormulaDisplayValue(ds, ri, c);
+      max = Math.max(max, ctx.measureText(String(res.display ?? '')).width + 24);
+    });
+    ds.colWidths[c] = Math.max(60, Math.min(600, Math.ceil(max)));
+  });
+  daPersist();
+  daRenderTable();
+}
+
+// Excel highlights the letter and number of whichever cell is active.
+function daMarkActiveHeaders() {
+  const gridWrap = document.getElementById('daGridWrap'); if (!gridWrap) return;
+  gridWrap.querySelectorAll('.da-hdr-active').forEach(el => el.classList.remove('da-hdr-active'));
+  const ds = daGetActive();
+  if (!ds || !daActiveCell || daSelectionDsId !== ds.id) return;
+  if (daActiveCell.row >= ds.rows.length || daActiveCell.col >= ds.headers.length) return;
+  const colEl = gridWrap.querySelector(`.da-collabel[data-ci="${daActiveCell.col}"]`);
+  if (colEl) colEl.classList.add('da-hdr-active');
+  const cellEl = gridWrap.querySelector(`td[data-r="${daActiveCell.row}"]`);
+  const numEl = cellEl && cellEl.parentElement && cellEl.parentElement.querySelector('.da-rownum');
+  if (numEl) numEl.classList.add('da-hdr-active');
+}
+
+// Bottom status bar: like Excel, selecting several cells shows Average /
+// Count / Sum of the numbers in them.
+function daEnsureStatusBar() {
+  let bar = document.getElementById('daStatusBar');
+  if (bar) return bar;
+  const outer = document.querySelector('#daWorkspace .da-grid-outer');
+  if (!outer) return null;
+  bar = document.createElement('div');
+  bar.id = 'daStatusBar'; bar.className = 'da-statusbar';
+  bar.innerHTML = '<span class="da-sb-left">Ready</span><span class="da-sb-stats"></span>';
+  outer.insertAdjacentElement('afterend', bar);
+  return bar;
+}
+function daSelectedCellList(ds) {
+  const out = []; const seen = new Set();
+  const add = (r, c) => { const k = r + ',' + c; if (!seen.has(k)) { seen.add(k); out.push([r, c]); } };
+  const nR = ds.rows.length, nC = ds.headers.length;
+  daSelection.cellRanges.forEach(g => { for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) add(r, c); });
+  daSelection.rows.forEach(r => { for (let c = 0; c < nC; c++) add(r, c); });
+  daSelection.cols.forEach(c => { for (let r = 0; r < nR; r++) add(r, c); });
+  return out;
+}
+function daUpdateStatusBar() {
+  const bar = daEnsureStatusBar(); if (!bar) return;
+  const ds = daGetActive();
+  const left = bar.querySelector('.da-sb-left'), stats = bar.querySelector('.da-sb-stats');
+  if (!ds || !daHasSelection() || daSelectionDsId !== ds.id) { left.textContent = 'Ready'; stats.innerHTML = ''; return; }
+  const cells = daSelectedCellList(ds);
+  if (cells.length > 50000) { left.textContent = cells.length.toLocaleString() + ' cells selected'; stats.innerHTML = ''; return; }
+  const rg = daSelection.cellRanges.length === 1 && !daSelection.rows.size && !daSelection.cols.size ? daSelection.cellRanges[0] : null;
+  left.textContent = rg ? `${daColToLetters(rg.c1)}${rg.r1 + 1}:${daColToLetters(rg.c2)}${rg.r2 + 1} · ${cells.length} cell${cells.length === 1 ? '' : 's'}`
+    : daSelection.rows.size ? `${daSelection.rows.size} row${daSelection.rows.size === 1 ? '' : 's'} selected`
+    : daSelection.cols.size ? `${daSelection.cols.size} column${daSelection.cols.size === 1 ? '' : 's'} selected`
+    : `${cells.length} cells selected`;
+  let sum = 0, n = 0;
+  ds.rows.length && cells.forEach(([r, c]) => {
+    let v;
+    try { v = daGetCellComputedValue(ds, r, c, new Set()); } catch (err) { return; }
+    if (typeof v === 'number' && isFinite(v)) { sum += v; n++; }
+  });
+  if (!n) { stats.innerHTML = ''; return; }
+  const f = x => x.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  stats.innerHTML = `<span>Average: <b>${f(sum / n)}</b></span><span>Count: <b>${n}</b></span><span>Sum: <b>${f(sum)}</b></span>`;
+}
+
+
+// ─── Long text: "Wrap text" toggle + full-text tooltip ───
+// A long value is clipped with "…" so the grid stays tidy. Wrap text (like
+// Excel's button) lets every cell grow to show its whole text; and any cell
+// that is still clipped shows its full text when the pointer rests on it.
+function daEnsureWrapBtn(ds) {
+  let btn = document.getElementById('daWrapBtn');
+  if (!btn) {
+    const anchor = document.getElementById('daFreezeBtn'); if (!anchor) return;
+    btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'daWrapBtn'; btn.className = 'da-tool-btn da-icon-btn';
+    btn.setAttribute('data-tip', 'Wrap Text'); btn.setAttribute('aria-label', 'Wrap long text inside cells');
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><path d="M3 12h15a3 3 0 0 1 0 6h-4"/><polyline points="16 16 14 18 16 20"/><line x1="3" y1="18" x2="8" y2="18"/></svg>';
+    btn.onclick = daToggleWrap;
+    anchor.insertAdjacentElement('afterend', btn);
+  }
+  btn.classList.toggle('active', !!(ds && ds.wrap));
+}
+function daToggleWrap() {
+  const ds = daGetActive(); if (!ds) return;
+  ds.wrap = !ds.wrap;
+  daPersist();
+  daRenderTable();
+}
+document.addEventListener('mouseover', e => {
+  const el = e.target && e.target.closest && e.target.closest('#daGridWrap .da-td-cell, #daGridWrap .da-th-name');
+  if (!el || el === document.activeElement) return;
+  if (el.scrollWidth > el.clientWidth + 1) {
+    const ds = daGetActive(); const td = el.closest('td');
+    let full = el.textContent;
+    if (ds && td && td.dataset.r !== undefined) { const r = daFormulaDisplayValue(ds, +td.dataset.r, +td.dataset.c); full = r.display; }
+    el.title = full;
+  }
+});
 
 // Left/right step buttons overlaid on the grid, for tables with more
 // columns than fit on screen — click to step across instead of only
@@ -2664,6 +2846,15 @@ function daDeleteColumn(colIdx) {
       shifted[ci > colIdx ? ci - 1 : ci] = ds.colOps[k];
     });
     ds.colOps = shifted;
+  }
+  if (ds.colWidths) {
+    const shiftedW = {};
+    Object.keys(ds.colWidths).forEach(k => {
+      const ci = Number(k);
+      if (ci === colIdx) return;
+      shiftedW[ci > colIdx ? ci - 1 : ci] = ds.colWidths[k];
+    });
+    ds.colWidths = shiftedW;
   }
   // Same left-shift for any dropdown lists, cell- or column-level, so they
   // keep pointing at the right column/cell after the delete.
