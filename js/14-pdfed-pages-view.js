@@ -1,6 +1,22 @@
 // ─── GET PAGE DATA URL ───
 async function pdfedPageUrl(pg) {
   if (pg.dataUrl) return pg.dataUrl;
+  // The thumbnail strip and the main canvas both ask for the same page at the same
+  // moment right after a file loads. Share ONE in-flight render per page instead of
+  // starting several big renders of it at once (they raced and left thumbnails blank).
+  if (pg.type === 'pdf') {
+    let p = pdfedUrlPending.get(pg);
+    if (!p) {
+      p = pdfedRenderPdfPageUrl(pg).finally(() => { pdfedUrlPending.delete(pg); });
+      pdfedUrlPending.set(pg, p);
+    }
+    return p;
+  }
+  return pg.dataUrl;
+}
+const pdfedUrlPending = new WeakMap();
+async function pdfedRenderPdfPageUrl(pg) {
+  if (pg.dataUrl) return pg.dataUrl;
   if (pg.type === 'pdf') {
     const scale = 2.0;
     const page = await (pg.srcDoc || pdfed.pdfDoc).getPage(pg.pageNum);
@@ -25,60 +41,6 @@ async function pdfedPageUrl(pg) {
 // monkey-patched to do, e.g. during export) should call this instead, to avoid
 // accidental infinite recursion if pdfedPageUrl ever wraps itself indirectly.
 const pdfedPageUrlBase = pdfedPageUrl;
-
-// ─── RELIABLE THUMBNAIL LOADER ───
-// Thumbnails used to all start at once, and any failure was swallowed with a
-// quiet console.warn, which left empty boxes. Now they render one at a time
-// (so the main page render is not fighting 5 to 50 renders for the PDF worker),
-// each step has a timeout, a failed composite falls back to the plain page
-// image, and one retry runs before giving up. The real error is logged.
-const pdfedThumbQueue = { list: [], running: false, gen: 0 };
-function pdfedThumbWithTimeout(promise, ms, label) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(label + ' timed out')), ms);
-    promise.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
-  });
-}
-function pdfedThumbLoadImg(imgEl, url) {
-  return new Promise((resolve, reject) => {
-    imgEl.onload = () => resolve();
-    imgEl.onerror = () => reject(new Error('thumbnail image failed to decode'));
-    imgEl.src = url;
-  });
-}
-function pdfedThumbQueueAdd(card, pg, imgEl, i) {
-  pdfedThumbQueue.list.push({ card, pg, imgEl, i, tries: 0, gen: pdfedThumbQueue.gen });
-  if (!pdfedThumbQueue.running) pdfedThumbQueueRun();
-}
-async function pdfedThumbQueueRun() {
-  pdfedThumbQueue.running = true;
-  try {
-    while (pdfedThumbQueue.list.length) {
-      const job = pdfedThumbQueue.list.shift();
-      if (!job.card.isConnected) continue; // strip was rebuilt, skip stale card
-      let ok = false, lastErr = null;
-      try {
-        const url = await pdfedThumbWithTimeout(pdfedComposeThumb(job.pg, job.i), 20000, 'compose');
-        await pdfedThumbLoadImg(job.imgEl, url);
-        ok = true;
-      } catch (e) {
-        lastErr = e;
-        // fallback: plain page image without edits layered on
-        try {
-          const raw = await pdfedThumbWithTimeout(pdfedPageUrl(job.pg), 20000, 'page render');
-          await pdfedThumbLoadImg(job.imgEl, raw);
-          ok = true;
-        } catch (e2) { lastErr = e2; }
-      }
-      if (ok) {
-        try { if (pdfedPageHasLive(job.pg)) pdfedThumbLiveAttach(job.card, job.imgEl, job.pg); } catch (e) { console.warn(e); }
-      } else {
-        console.error('[Thumbnail] page ' + (job.i + 1) + ' failed:', lastErr);
-        if (job.tries < 1) { job.tries++; setTimeout(() => { pdfedThumbQueue.list.push(job); if (!pdfedThumbQueue.running) pdfedThumbQueueRun(); }, 1500); }
-      }
-    }
-  } finally { pdfedThumbQueue.running = false; }
-}
 
 // ─── BUILD STRIP ───
 // ─── LIVE CLIPS IN THE THUMBNAIL STRIP ───
@@ -158,11 +120,57 @@ function pdfedThumbLiveTick() {
   if (pdfedThumbLive.set.size) pdfedThumbLive.raf = requestAnimationFrame(pdfedThumbLiveTick);
 }
 
+
+// ─── THUMBNAIL LOAD QUEUE ───
+// Thumbnails load one after another (open page first) instead of all at once, each with a
+// retry, and are shrunk to strip size so five big page renders never pile up in memory.
+const pdfedThumbQueue = []; pdfedThumbQueue.tok = 0; pdfedThumbQueue.running = false;
+async function pdfedThumbShrink(url, maxW) {
+  try {
+    const im = await new Promise((res, rej) => { const x = new Image(); x.onload = () => res(x); x.onerror = rej; x.src = url; });
+    if (!im.naturalWidth || im.naturalWidth <= maxW) return url;
+    const r = maxW / im.naturalWidth;
+    const c = document.createElement('canvas');
+    c.width = maxW; c.height = Math.max(1, Math.round(im.naturalHeight * r));
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85);
+  } catch (e) { return url; }
+}
+async function pdfedThumbQueueRun() {
+  if (pdfedThumbQueue.running) return;
+  pdfedThumbQueue.running = true;
+  try {
+    while (pdfedThumbQueue.length) {
+      // open page first, then the rest in order
+      let k = pdfedThumbQueue.findIndex(j => j.i === pdfed.active);
+      if (k < 0) k = 0;
+      const job = pdfedThumbQueue.splice(k, 1)[0];
+      if (job.tok !== pdfedThumbQueue.tok || !job.card.isConnected) continue;
+      let done = false;
+      for (let attempt = 0; attempt < 3 && !done; attempt++) {
+        try {
+          const url = await pdfedComposeThumb(job.pg, job.i);
+          if (job.tok !== pdfedThumbQueue.tok || !job.card.isConnected) { done = true; break; }
+          job.img.src = await pdfedThumbShrink(url, 360);
+          done = true;
+          if (pdfedPageHasLive(job.pg)) pdfedThumbLiveAttach(job.card, job.img, job.pg);
+        } catch (err) {
+          console.warn('Thumbnail failed (try ' + (attempt + 1) + ')', err);
+          await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+        }
+      }
+      await new Promise(r => setTimeout(r, 0)); // let the page breathe between thumbnails
+    }
+  } finally { pdfedThumbQueue.running = false; }
+}
+
 async function pdfedBuildStrip() {
   pdfedPersist();
   const strip = document.getElementById('pdfedStrip');
   if (!strip) return;
   strip.innerHTML = '';
+  pdfedThumbQueue.length = 0;
+  pdfedThumbQueue.tok++;
   document.getElementById('pdfedPageCount').textContent = '(' + pdfed.pages.length + ')';
   document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
 
@@ -187,9 +195,8 @@ async function pdfedBuildStrip() {
     const img = document.createElement('img');
     img.style.cssText = 'width:100%;display:block;border-radius:5px;min-height:60px;background:var(--bg3);pointer-events:none;';
     card.appendChild(img);
-    // lazy load (queued one at a time, with timeout, fallback and retry)
-    pdfedThumbQueueAdd(card, pg, img, i);
-
+    // lazy load (queued, retried, so a slow or failed render never leaves a blank card)
+    pdfedThumbQueue.push({ pg, img, card, i, tok: pdfedThumbQueue.tok });
     // page number
     const num = document.createElement('div');
     num.className = 'pdfed-thumb-num';
@@ -238,6 +245,7 @@ async function pdfedBuildStrip() {
   // final insert zone after last page
   strip.appendChild(pdfedMakeInsertZone(pdfed.pages.length - 1));
   pdfedRefreshEditCount();
+  pdfedThumbQueueRun();
 }
 
 function pdfedMakeInsertZone(afterIdx) {
