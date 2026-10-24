@@ -1511,6 +1511,7 @@ async function pdfedRunExportFromModal() {
   else if (pdfedExportModalFmt === 'xlsx') await pdfedExportXLSX(indices);
   else if (pdfedExportModalFmt === 'docx') await pdfedExportDOCX(indices);
   else if (pdfedExportModalFmt === 'image') await pdfedExportImages(indices);
+  else if (pdfedExportModalFmt === 'pptx') await pdfedExportPPTX(indices);
 }
 
 // Slideshow Clip is a preview-first format, not an instant file hand-off, so
