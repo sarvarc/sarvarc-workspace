@@ -346,13 +346,42 @@ async function wsBuild() {
   let cutNote = '';
   if (text.length > WSF_MAX_CONTENT) { text = text.slice(0, WSF_MAX_CONTENT); cutNote = ' Only the first ' + WSF_MAX_CONTENT.toLocaleString('en-US') + ' characters were used.'; }
   wsSetBusy(true, 'Kadessa is getting ready…');
+  // The box gets out of the way at once, so the person sees the whole build on the editor, not the panel on top of it.
+  wsClose();
+  try { if (typeof wsbEnsureEditorOpen === 'function') wsbEnsureEditorOpen(); } catch (e0) { /* the editor is probably showing */ }
+  wsShowWait('Kadessa is getting ready…');
   try {
-    const r = await wstyleBuildFromContent(wsRefId, text, { onStage: function (m) { wsStatus(m, ''); } });
-    wsClose();
-    if (typeof toast === 'function') toast('Built from your reference', 'success');
-    wsStatus(r.say + cutNote, r.via === 'basic' ? '' : 'ok');
-  } catch (e) { wsStatus(wsErrText(e), 'err'); }
+    const r = await wstyleBuildFromContent(wsRefId, text, { onStage: function (m) { wsStatus(m, ''); wsShowWait(m); } });
+    wsHideWait();
+    if (typeof toast === 'function') {
+      toast('Built from your reference', 'success');
+      if (r.via === 'basic') toast('Kadessa\'s engine could not be reached, so your lines were matched by simple rules. Please check the result.', 'info');
+    }
+    wsStatus(r.say + cutNote, r.via === 'basic' ? '' : 'ok');   // the full note waits in the panel (Workstyle button)
+  } catch (e) {
+    // Something went wrong: bring the box back with the reason, nothing typed or attached is lost.
+    wsHideWait();
+    wsStatus(wsErrText(e), 'err');
+    const pn = wsEl('wsPanel'); if (pn) pn.classList.add('open');
+  }
   wsSetBusy(false);
+}
+
+// A slim "Kadessa is working" pill for the short wait before the build starts on the page (the build's own bar,
+// js/62 wsbDock, takes over from it the moment the first page is ready).
+function wsShowWait(msg) {
+  let w = document.getElementById('wsWait');
+  if (!w) {
+    w = document.createElement('div');
+    w.id = 'wsWait'; w.className = 'ws-wait'; w.setAttribute('role', 'status'); w.setAttribute('aria-live', 'polite');
+    w.innerHTML = '<i class="ws-wait-dot" aria-hidden="true"></i><span class="ws-wait-t"></span>';
+    document.body.appendChild(w);
+  }
+  w.querySelector('.ws-wait-t').textContent = msg || 'Kadessa is working…';
+}
+function wsHideWait() {
+  const w = document.getElementById('wsWait');
+  if (w && w.parentNode) w.parentNode.removeChild(w);
 }
 
 // Close when the person clicks anywhere outside the panel and its button, or presses Escape.
