@@ -1929,6 +1929,8 @@ function dgSyncRibbonForType() {
   if (dgActiveMode === 'map' || !type) return; // map mode's own gating already hides these entirely
   setDisabled('dgTrendChip', DG_TREND_TYPES.includes(type));
   setDisabled('dgGrowthChip', DG_GROWTH_TYPES.includes(type));
+  setDisabled('dgBarLayoutChip', type === 'bar');
+  setDisabled('dgTopNChip', type === 'bar');
   setDisabled('dgHologramChip', dgIs3DType(type));
   setGroupDisabled('dgRadiusGroup', 'dgRadiusDropdown', DG_RADIUS_TYPES.includes(type));
   setGroupDisabled('dgAxesGroup', 'dgAxesDropdown', DG_AXES_TYPES.includes(type));
@@ -3797,6 +3799,89 @@ function dgBuildSmartGroupedCharts() {
   if (firstGroupedIdx !== -1) dgLoadMultiChart(firstGroupedIdx);
 }
 
+// ── Chart-choice picker (shown after data is pushed / uploaded) ─────────────────────────
+// Each option is a card with a LIVE THUMBNAIL drawn from the person's own data, a plain-words
+// title, and one "best for…" line — so the choice is made by looking, not by reading. The
+// thumbnails reuse the real chart renderers (dgDrawChartSpec / dgDrawRadar), so what's
+// pictured is what gets built.
+function dgSuggestCleanRows(info, maxRows) {
+  const out = [];
+  for (let i = 0; i < info.rows.length && out.length < maxRows; i++) {
+    const r = info.rows[i];
+    const label = String(r[info.labelIdx] ?? '').trim() || ('Item ' + (out.length + 1));
+    if (dgIsAggregateLabel(label)) continue;
+    out.push({ label, row: r });
+  }
+  return out;
+}
+
+function dgSuggestBarSpec(info, colIdx, maxRows, withOther) {
+  const scheme = dgCurrentScheme();
+  let items = [];
+  info.rows.forEach(r => {
+    const label = String(r[info.labelIdx] ?? '').trim();
+    const v = dgParseNumericCell(r[colIdx]);
+    if (!label || isNaN(v) || dgIsAggregateLabel(label)) return;
+    items.push({ label, value: v });
+  });
+  let rows;
+  if (withOther) {
+    items.sort((x, y) => y.value - x.value);
+    const top = items.slice(0, maxRows - 1);
+    const rest = items.slice(maxRows - 1).reduce((t, x) => t + x.value, 0);
+    rows = top.map((x, i) => ({ label: x.label, value: x.value, color: scheme[i % scheme.length] }));
+    rows.push({ label: 'Other', value: rest, color: '#9aa4b2' });
+  } else {
+    rows = items.slice(0, maxRows).map((x, i) => ({ label: x.label, value: x.value, color: scheme[i % scheme.length] }));
+  }
+  return { title: '', type: 'bar', rows, leftPad: 62 };
+}
+
+function dgSuggestDrawThumb(canvas, key, info) {
+  const scheme = dgCurrentScheme();
+  const ctx = canvas.getContext('2d');
+  if (key === 'grouped') {
+    const groups = dgGroupNumericColumns(info.headers, info.numericIdxs, info.rows).filter(g => g.length >= 2);
+    const g = groups[0] || info.numericIdxs.slice(0, 2);
+    const items = dgSuggestCleanRows(info, 5);
+    dgDrawChartSpec(canvas, {
+      title: '', type: 'grouped', leftPad: 62, categories: items.map(x => x.label),
+      series: g.slice(0, 3).map((ci, si) => ({
+        name: String(info.headers[ci] || ''), color: scheme[si % scheme.length],
+        values: items.map(x => { const v = dgParseNumericCell(x.row[ci]); return isNaN(v) ? 0 : v; })
+      }))
+    });
+  } else if (key === 'compare') {
+    const cols = info.numericIdxs.slice(0, 4);
+    const items = dgSuggestCleanRows(info, 6);
+    const series = cols.map((ci, si) => ({ name: String(info.headers[ci] || ''), color: scheme[si % scheme.length], values: [], rawValues: [] }));
+    items.forEach(it => {
+      const vals = cols.map(ci => { const v = dgParseNumericCell(it.row[ci]); return isNaN(v) ? 0 : v; });
+      const mn = Math.min(...vals), mx = Math.max(...vals);
+      vals.forEach((v, si) => { series[si].values.push(mx > mn ? Math.round(((v - mn) / (mx - mn)) * 100) : 50); series[si].rawValues.push(v); });
+    });
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    dgDrawRadar(ctx, items.map(x => x.label), series, { x: 10, y: 6, w: canvas.width - 20, h: canvas.height - 12 }, { legend: false, title: '', values: false, numberFormat: 'auto' });
+  } else if (key === 'perColumn') {
+    const cols = info.numericIdxs.slice(0, 3);
+    const w = Math.floor(canvas.width / cols.length);
+    const tmp = document.createElement('canvas');
+    tmp.width = w - 8; tmp.height = canvas.height;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    cols.forEach((ci, i) => {
+      const spec = dgSuggestBarSpec(info, ci, 5, false);
+      spec.title = String(info.headers[ci] || ''); spec.leftPad = 46;
+      dgDrawChartSpec(tmp, spec);
+      ctx.drawImage(tmp, i * w + 4, 0);
+      if (i) { ctx.strokeStyle = '#e2e6ec'; ctx.beginPath(); ctx.moveTo(i * w, 10); ctx.lineTo(i * w, canvas.height - 10); ctx.stroke(); }
+    });
+  } else if (key === 'topGrouped') {
+    dgDrawChartSpec(canvas, dgSuggestBarSpec(info, info.numericIdxs[0], 8, true));
+  } else {
+    dgDrawChartSpec(canvas, dgSuggestBarSpec(info, info.numericIdxs[0], 8, false));
+  }
+}
+
 function dgMaybeSuggestMultiChart() {
   const info = dgAnalyzeUpload();
   if (!info) return;
@@ -3807,60 +3892,65 @@ function dgMaybeSuggestMultiChart() {
   if (!manyMetrics && !bigRowCount) return; // a plain small table — the single auto-built chart is enough
 
   const statsEl = document.getElementById('dgMultiSuggestStats');
-  const groupedBtn = document.getElementById('dgMultiSuggestGroupedBtn');
-  const groupedHead = document.getElementById('dgMultiSuggestGroupedHead');
-  const groupedDesc = document.getElementById('dgMultiSuggestGroupedDesc');
-  const compareBtn = document.getElementById('dgMultiSuggestCompareBtn');
-  const compareHead = document.getElementById('dgMultiSuggestCompareHead');
-  const compareDesc = document.getElementById('dgMultiSuggestCompareDesc');
-  const perColBtn = document.getElementById('dgMultiSuggestPerColumnBtn');
-  const perColHead = document.getElementById('dgMultiSuggestPerColumnHead');
-  const perColDesc = document.getElementById('dgMultiSuggestPerColumnDesc');
   const subEl = document.getElementById('dgMultiSuggestSub');
   const titleEl = document.getElementById('dgMultiSuggestTitle');
+  const bodyEl = document.getElementById('dgMultiSuggestBody');
+  if (!bodyEl) return;
   if (statsEl) {
     statsEl.innerHTML = `
-      <div class="dg-multi-suggest-stat"><b>${info.rowCount}</b><span>Rows detected</span></div>
-      <div class="dg-multi-suggest-stat"><b>${info.numericIdxs.length}</b><span>Numeric columns</span></div>
-      <div class="dg-multi-suggest-stat"><b>${info.headers.length}</b><span>Total columns</span></div>
-    `;
+      <div class="dg-multi-suggest-stat"><b>${info.rowCount}</b><span>Rows</span></div>
+      <div class="dg-multi-suggest-stat"><b>${info.numericIdxs.length}</b><span>Number columns</span></div>
+      <div class="dg-multi-suggest-stat"><b>${info.headers.length}</b><span>Total columns</span></div>`;
   }
-  if (titleEl) {
-    titleEl.textContent = isGrouped ? 'This looks like a per-category comparison'
-      : isComparison ? 'This looks like a comparison table' : 'This looks like a rich dataset';
-  }
-  if (subEl) {
-    const numHeaders = info.headers.filter((_, i) => info.numericIdxs.includes(i)).join(', ');
-    subEl.textContent = isGrouped
-      ? `Found ${info.numericIdxs.length} numeric columns (${numHeaders}) tracked per row — comparable ones (e.g. matching units, same measure across periods) can be grouped into one clustered bar chart per row.`
-      : isComparison
-        ? `Found ${info.numericIdxs.length} columns (${numHeaders}) measured across ${info.rowCount} metrics — that reads like a side-by-side comparison.`
-        : manyMetrics && bigRowCount
-          ? `Found ${info.numericIdxs.length} numeric columns across ${info.rowCount} rows — that's more than one chart usually shows cleanly.`
-          : manyMetrics
-            ? `Found ${info.numericIdxs.length} separate numeric columns — each could be its own chart.`
-            : `Found ${info.rowCount} rows — one chart may get crowded. Here's how you'd like it handled.`;
-  }
-  if (groupedBtn) groupedBtn.style.display = isGrouped ? '' : 'none';
-  if (groupedHead && groupedDesc) {
-    const groups = dgGroupNumericColumns(info.headers, info.numericIdxs, info.rows).filter(g => g.length >= 2);
-    const exampleGroup = groups[0];
-    groupedHead.textContent = 'Grouped bar chart (recommended)';
-    groupedDesc.textContent = exampleGroup
-      ? `Builds a clustered chart with ${exampleGroup.map(i => info.headers[i]).join(' and ')} shown as side-by-side coloured bars for every row${groups.length > 1 ? `, plus ${groups.length - 1} more grouped chart${groups.length - 1 === 1 ? '' : 's'} for the other comparable columns` : ''}.`
-      : `Puts side-by-side coloured bars per row for every group of comparable columns.`;
-  }
-  if (compareBtn) compareBtn.style.display = (isComparison && !isGrouped) ? '' : 'none';
-  if (compareHead && compareDesc) {
-    compareHead.textContent = `Compare side-by-side (recommended)`;
-    compareDesc.textContent = `Treats each row as its own metric and each numeric column as an entity being compared — one bar chart per metric, plus a normalized radar overview. Better fit when columns are options (e.g. competitors) rather than repeated measures.`;
-  }
-  if (perColBtn) perColBtn.style.display = manyMetrics ? '' : 'none';
-  if (perColHead && perColDesc) {
-    perColHead.textContent = (isGrouped || isComparison)
-      ? `One chart per column instead (${info.numericIdxs.length} charts)`
-      : `One chart per numeric column (${info.numericIdxs.length} charts)`;
-  }
+  if (titleEl) titleEl.textContent = 'How would you like to see your data?';
+  if (subEl) subEl.textContent = 'Pick a picture below — each preview is drawn from your own numbers.';
+
+  const colName = i => String(info.headers[i] || ('Column ' + (i + 1)));
+  const groups = dgGroupNumericColumns(info.headers, info.numericIdxs, info.rows).filter(g => g.length >= 2);
+  const cards = [];
+  if (isGrouped) cards.push({
+    key: 'grouped', title: 'Grouped bars',
+    best: groups[0] ? `Compare ${groups[0].slice(0, 3).map(colName).join(' vs ')} for every ${colName(info.labelIdx)}.` : 'Compare related columns side by side for every row.'
+  });
+  if (isComparison && !isGrouped) cards.push({
+    key: 'compare', title: 'Compare side-by-side',
+    best: `Rows are metrics, columns are options (${info.numericIdxs.slice(0, 3).map(colName).join(', ')}). One chart per metric + a radar overview.`
+  });
+  if (manyMetrics) cards.push({
+    key: 'perColumn', title: `One chart per column (${info.numericIdxs.length})`,
+    best: 'Each measure gets its own chart and scale — best when columns are different kinds of numbers.'
+  });
+  if (info.rowCount > 8) cards.push({
+    key: 'topGrouped', title: 'Top entries + Other',
+    best: 'Shows the biggest items and rolls the rest into one "Other" bar, so the total still adds up.'
+  });
+  cards.push({
+    key: 'single', title: 'Just one chart',
+    best: `Only ${colName(info.numericIdxs[0])} by ${colName(info.labelIdx)}, as already built.`
+  });
+  // The first card is the engine's best guess; for long single-measure lists, Top entries is.
+  const recKey = (bigRowCount && !isGrouped && !isComparison) ? 'topGrouped' : cards[0].key;
+
+  bodyEl.innerHTML = '';
+  bodyEl.style.setProperty('--dg-cols', Math.min(4, cards.length));
+  cards.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dg-suggest-card' + (c.key === recKey ? ' recommended' : '');
+    btn.onclick = () => dgConfirmMultiSuggest(c.key);
+    const thumb = document.createElement('div');
+    thumb.className = 'dg-suggest-thumb';
+    const cv = document.createElement('canvas');
+    cv.width = 480; cv.height = 270;
+    thumb.appendChild(cv);
+    try { dgSuggestDrawThumb(cv, c.key, info); }
+    catch (e) { console.warn('[suggest thumb]', c.key, e); thumb.classList.add('empty'); }
+    if (c.key === recKey) { const bd = document.createElement('span'); bd.className = 'dg-suggest-badge'; bd.textContent = 'Recommended'; thumb.appendChild(bd); }
+    const h = document.createElement('h4'); h.textContent = c.title;
+    const pp = document.createElement('p'); pp.textContent = c.best;
+    btn.appendChild(thumb); btn.appendChild(h); btn.appendChild(pp);
+    bodyEl.appendChild(btn);
+  });
   const overlay = document.getElementById('dgMultiSuggestOverlay');
   if (overlay) overlay.classList.add('open');
 }
@@ -4172,7 +4262,11 @@ function dgRenderSpecFullCanvas(spec) {
   const bottom = H - (opts.rotateLabels ? 90 : 64);
   const rightMargin = spec.type === 'pareto' ? 84 : 46;
   const area = { x: 78, y: top, w: W - 78 - rightMargin, h: bottom - top };
-  if (spec.type === 'bar' || spec.type === 'stacked') dgDrawBars(ctx, rows, area, opts, spec.type === 'stacked');
+  if (spec.type === 'bar' && rows.length >= DG_HBAR_AUTO_MIN) {
+    const lm = dgHBarLeftMargin(ctx, rows, W * 0.3);
+    dgDrawHBars(ctx, rows, { x: lm, y: top, w: W - lm - 30, h: H - top - 46 }, opts);
+  }
+  else if (spec.type === 'bar' || spec.type === 'stacked') dgDrawBars(ctx, rows, area, opts, spec.type === 'stacked');
   else if (spec.type === 'line' || spec.type === 'area') dgDrawLine(ctx, rows, area, opts, spec.type === 'area');
   else if (spec.type === 'pie' || spec.type === 'donut') dgDrawPie(ctx, rows, { x: W / 2, y: top + area.h / 2, r: Math.min(area.w, area.h) / 2 - 12 }, opts, spec.type === 'donut');
   else if (spec.type === 'waterfall') dgDrawWaterfall(ctx, rows, area, opts);
@@ -4487,9 +4581,14 @@ function dgDrawChartSpec(canvas, spec) {
   ctx.textAlign = 'center';
   ctx.fillText(dgFitLabel(ctx, spec.title, W - 20), W / 2, 18);
   const opts = { title: '', values: false, legend: spec.type === 'radar', numberFormat: 'auto', trendline: false };
-  const area = { x: 34, y: 28, w: W - 34 - 14, h: H - 28 - 24 };
+  const leftPad = spec.leftPad || 34;
+  const area = { x: leftPad, y: spec.title ? 28 : 12, w: W - leftPad - 14, h: H - (spec.title ? 28 : 12) - 24 };
   const rows = spec.rows || [];
-  if (spec.type === 'bar' || spec.type === 'stacked') dgDrawBars(ctx, rows, area, opts, spec.type === 'stacked');
+  if (spec.type === 'bar' && rows.length >= DG_HBAR_AUTO_MIN) {
+    const lm = dgHBarLeftMargin(ctx, rows, W * 0.3);
+    dgDrawHBars(ctx, rows, { x: lm, y: area.y, w: W - lm - 10, h: area.h - 6 }, opts);
+  }
+  else if (spec.type === 'bar' || spec.type === 'stacked') dgDrawBars(ctx, rows, area, opts, spec.type === 'stacked');
   else if (spec.type === 'line' || spec.type === 'area') dgDrawLine(ctx, rows, area, opts, spec.type === 'area');
   else if (spec.type === 'pie' || spec.type === 'donut') dgDrawPie(ctx, rows, { x: W / 2, y: area.y + area.h / 2, r: Math.min(area.w, area.h) / 2 - 6 }, opts, spec.type === 'donut');
   else if (spec.type === 'waterfall') dgDrawWaterfall(ctx, rows, area, opts);
@@ -6480,6 +6579,137 @@ function dgLayoutLegend(ctx, rows, opts, maxW) {
   return lines;
 }
 
+
+// ── Dense bar charts ────────────────────────────────────────────────────────────────────
+// A vertical bar chart stops working somewhere past ~15 categories: slots get so narrow that
+// labels are chopped to a few letters and value labels disappear. A HORIZONTAL bar chart gives
+// every category its own full-width row (labels read in full, values sit at the bar tip) and
+// simply grows taller instead of squeezing wider — so "Bar" flips to horizontal automatically
+// once there are DG_HBAR_AUTO_MIN+ rows (the user can force either layout from the ribbon), and
+// "Top N" can collapse the long tail into a single "Others" bar.
+const DG_HBAR_AUTO_MIN = 15;
+dgState.barLayout = dgState.barLayout || 'auto';   // 'auto' | 'horizontal' | 'vertical'
+dgState.topN = dgState.topN || 0;                  // 0 = show all
+
+function dgCycleBarLayout() {
+  const order = ['auto', 'horizontal', 'vertical'];
+  dgState.barLayout = order[(order.indexOf(dgState.barLayout || 'auto') + 1) % order.length];
+  const b = document.getElementById('dgBarLayoutChip');
+  if (b) b.textContent = 'Layout: ' + ({ auto: 'Auto', horizontal: 'Horizontal', vertical: 'Vertical' })[dgState.barLayout];
+  dgRefreshChart();
+}
+function dgCycleTopN() {
+  const order = [0, 10, 15, 20];
+  dgState.topN = order[(order.indexOf(dgState.topN || 0) + 1) % order.length];
+  const b = document.getElementById('dgTopNChip');
+  if (b) b.textContent = 'Top: ' + (dgState.topN ? dgState.topN : 'All');
+  dgRefreshChart();
+}
+
+let dgTopNNote = '';
+// Keeps the N biggest bars. The hidden tail is NOT added back as one "Others" bar — that sum
+// is usually far larger than any single bar and flattens the very bars the person asked to
+// focus on — it is reported in a one-line note on the chart instead.
+function dgApplyTopN(rows, topN) {
+  dgTopNNote = '';
+  if (!topN || rows.length <= topN) return rows;
+  const sorted = rows.slice().sort((a, b) => b.value - a.value);
+  const rest = sorted.slice(topN);
+  const restTotal = rest.reduce((s, r) => s + r.value, 0);
+  dgTopNNote = 'Top ' + topN + ' of ' + rows.length + ' shown \u00B7 ' + rest.length + ' more not shown (combined ' + dgFormatNumber(restTotal, dgGetOpts().numberFormat) + ')';
+  return sorted.slice(0, topN);
+}
+
+function dgShouldUseHBar(rows) {
+  const lay = dgState.barLayout || 'auto';
+  return lay === 'horizontal' || (lay === 'auto' && rows.length >= DG_HBAR_AUTO_MIN);
+}
+
+// Width the category-label column needs: the widest real label, capped so a few very long
+// names can't squeeze the bars themselves (those get an ellipsis via dgFitLabel).
+function dgHBarLeftMargin(ctx, rows, maxCap) {
+  ctx.save();
+  ctx.font = '12px Inter, sans-serif';
+  let w = 0;
+  rows.forEach(r => { w = Math.max(w, ctx.measureText(String(r.label == null ? '' : r.label)).width); });
+  ctx.restore();
+  return Math.max(70, Math.min(maxCap || 280, Math.ceil(w) + 26));
+}
+
+// Horizontal bar chart: one row per category, labels on the left, value at each bar's tip,
+// vertical gridlines + value axis along the bottom, faint zebra striping to guide the eye
+// across long lists. `area.x` is where the bars start (the label column is to its left).
+function dgDrawHBars(ctx, rows, area, opts) {
+  const n = rows.length;
+  if (!n) return;
+  const vals = rows.map(r => r.value);
+  const dataMax = Math.max(0, ...vals), dataMin = Math.min(0, ...vals);
+  const span = (dataMax - dataMin) || Math.abs(dataMax) || 1;
+  const tickTarget = Math.max(3, Math.min(8, Math.round(area.w / 120)));
+  const step = dgNiceNum(span / tickTarget, true) || 1;
+  const min = dataMin < 0 ? Math.floor(dataMin / step) * step : 0;
+  let max = Math.ceil(dataMax / step) * step;
+  if (max <= min) max = min + step;
+  const range = (max - min) || step;
+  const valPad = opts.values ? 80 : 12;                   // room past the bar tip for its number
+  const negPad = (min < 0 && opts.values) ? 72 : 0;       // …and before a negative bar's tip
+  const plotX = area.x + negPad;
+  const plotW = Math.max(40, area.w - valPad - negPad);
+  const toX = v => plotX + ((v - min) / range) * plotW;
+  const zeroX = toX(0);
+  const rowH = area.h / n;
+  const barH = Math.max(2, Math.min(28, rowH * 0.7));
+  const fs = rowH >= 22 ? 12 : (rowH >= 15 ? 11 : 9.5);
+  const labelW = Math.max(20, area.x - 22);
+
+  ctx.save();
+  // zebra stripes
+  if (n >= 8) {
+    ctx.fillStyle = 'rgba(16,24,40,0.028)';
+    for (let i = 0; i < n; i += 2) ctx.fillRect(8, area.y + i * rowH, area.x + area.w - 8, rowH);
+  }
+  // gridlines + value-axis tick labels
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  const ticks = Math.max(1, Math.round(range / step));
+  for (let t = 0; t <= ticks; t++) {
+    const v = min + step * t;
+    const x = toX(v);
+    ctx.strokeStyle = (Math.abs(v) < 1e-9) ? '#9aa4b2' : '#e8ebf0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, area.y); ctx.lineTo(x, area.y + area.h); ctx.stroke();
+    ctx.fillStyle = '#5b6474';
+    ctx.fillText(dgFormatNumber(v, opts.numberFormat), x, area.y + area.h + 18);
+  }
+  rows.forEach((r, i) => {
+    const cy = area.y + i * rowH + rowH / 2;
+    const bk = dgAK(i, n);
+    const vx = toX(r.value);
+    const x0 = Math.min(zeroX, vx), w = Math.max(1, Math.abs(vx - zeroX) * bk);
+    const bx = r.value >= 0 ? zeroX : zeroX - w;
+    ctx.fillStyle = r.color;
+    const rad = Math.min(opts.barRadius != null ? opts.barRadius : 8, barH / 2, w / 2);
+    dgRoundRectPath(ctx, bx, cy - barH / 2, w, barH, rad);
+    ctx.fill();
+    // category label (right-aligned against the bar baseline column)
+    ctx.fillStyle = '#3b4453';
+    ctx.font = fs + 'px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(dgFitLabel(ctx, r.label, labelW), area.x - 10, cy);
+    if (opts.values) {
+      ctx.globalAlpha = Math.min(1, bk * bk);
+      ctx.fillStyle = '#101820';
+      ctx.font = '700 ' + fs + 'px Inter, sans-serif';
+      ctx.textAlign = r.value >= 0 ? 'left' : 'right';
+      const txt = dgFormatValueLabelFit(ctx, r.value, opts, 76);
+      ctx.fillText(txt, r.value >= 0 ? bx + w + 6 : bx - 6, cy);
+      ctx.globalAlpha = 1;
+    }
+  });
+  ctx.restore();
+}
+
 // exportCanvas/exportScale: optional — when omitted, this renders straight onto the
 // live #dgCanvas at 1x exactly as before (every existing call site passes no args).
 // When dgDownloadPNG4K() wants a crisp high-resolution copy (built for the World Map's
@@ -6494,7 +6724,7 @@ function dgDrawChart(exportCanvas, exportScale) {
   const ctx = canvas.getContext('2d');
   const opts = dgGetOpts();
   let rows = dgState.rows;
-  const type = dgState.type;
+  let type = dgState.type;
   const isGrouped = type === 'grouped' || type === 'hstacked' || type === 'tornado';
   const gcats = dgState.groupedCategories || [];
   const gseries = dgState.groupedSeries || [];
@@ -6514,6 +6744,12 @@ function dgDrawChart(exportCanvas, exportScale) {
     // Asked for growth mode but it can't be computed (zero baseline) — fall back to plain
     // values rather than silently ignoring the toggle, and say why.
     toast('Growth % needs a non-zero first value — showing raw values instead', 'info');
+  }
+  // Dense single-series bar chart: optional Top-N + "Others" collapse, then auto-flip to
+  // horizontal rows once there are too many categories for vertical slots to stay legible.
+  if (type === 'bar') {
+    rows = dgApplyTopN(rows, dgState.topN);
+    if (dgShouldUseHBar(rows)) { type = 'hbar'; opts.legend = false; opts.trendline = false; }
   }
   // Grouped charts always show their series legend — that's the only thing that tells
   // "Profit 2025" bars apart from "Profit 2026" bars — regardless of the global legend toggle.
@@ -6578,6 +6814,12 @@ function dgDrawChart(exportCanvas, exportScale) {
     const axisSpace = (opts.rotateLabels ? 84 : 60) + xTitleExtra;
     const minChartH = 260;
     H = Math.max(BASE_H, Math.min(MAX_H, topSpace + minChartH + axisSpace + legendH));
+    if (type === 'hbar') {
+      // Horizontal bars: height follows the row count (one comfortable row each) instead of
+      // being capped — the chart grows taller rather than squeezing every bar thinner.
+      const rowPx = dataLen <= 20 ? 30 : (dataLen <= 40 ? 26 : (dataLen <= 80 ? 22 : 18));
+      H = Math.max(420, Math.min(3200, topSpace + dataLen * rowPx + 58));
+    }
   }
 
   const physW = Math.round(W * scale), physH = Math.round(H * scale);
@@ -6634,7 +6876,7 @@ function dgDrawChart(exportCanvas, exportScale) {
     return;
   }
 
-  const baseAxisSpace = opts.rotateLabels ? 84 : 60;
+  const baseAxisSpace = type === 'hbar' ? 40 : (opts.rotateLabels ? 84 : 60);
   const bottom = H - baseAxisSpace - xTitleExtra - legendH;
   const rightMargin = type === 'pareto' ? 74 : 40;
   // Left margin sizes itself to the widest y-axis tick label instead of a fixed
@@ -6655,6 +6897,8 @@ function dgDrawChart(exportCanvas, exportScale) {
       if (w > maxLabelW) maxLabelW = w;
     }
     dynLeftMargin = Math.max(70, Math.ceil(maxLabelW) + 11 /* tick mark */ + 20 /* padding */);
+  } else if (type === 'hbar') {
+    dynLeftMargin = dgHBarLeftMargin(ctx, rows, 280);
   } else if (type === 'hstacked') {
     // Diverging stacked bars carry their category labels (month names, department names,
     // etc.) in the left margin instead of along a bottom axis, so the margin needs to fit
@@ -6672,6 +6916,8 @@ function dgDrawChart(exportCanvas, exportScale) {
     dgDrawDivergingStackedBars(ctx, gcats, gseries, chartArea, opts);
   } else if (type === 'tornado') {
     dgDrawTornadoBars(ctx, gcats, gseries, chartArea, opts);
+  } else if (type === 'hbar') {
+    dgDrawHBars(ctx, rows, chartArea, opts);
   } else if (type === 'bar' || type === 'stacked') {
     dgDrawBars(ctx, rows, chartArea, opts, type === 'stacked');
   } else if (type === 'line' || type === 'area') {
@@ -6714,6 +6960,17 @@ function dgDrawChart(exportCanvas, exportScale) {
     }
   }
 
+  if (type === 'bar' || type === 'hbar') {
+    if (dgTopNNote) {
+      ctx.save();
+      ctx.fillStyle = '#7a8394';
+      ctx.font = 'italic 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(dgFitLabel(ctx, dgTopNNote, W - 40), W / 2, opts.title ? 66 : 20);
+      ctx.restore();
+    }
+  }
   if (legendLines.length) dgDrawLegend(ctx, legendLines, W, H - legendH + 10, opts);
   dgDrawCardBorder();
   if (!isExport) dgRenderInsightsStrip();
@@ -6893,7 +7150,7 @@ function dgDrawBars(ctx, rows, area, opts, stacked) {
   // once there are 30-40+ categories (24px × 41 gaps ≈ 980px of a ~1090px-wide chart area),
   // leaving each bar a hairline sliver. Scale the gap down as n grows, with a small floor so
   // bars stay visually separated, and floor the bar width itself so it never goes to zero.
-  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const gap = Math.max(2, Math.min(24, (area.w / n) * 0.3)); // scales down in small areas (thumbnails) too
   const barW = Math.max(2, Math.min(70, (area.w - gap * (n + 1)) / n));
   const usedW = barW * n + gap * (n + 1);
   const startX = area.x + (area.w - usedW) / 2 + gap;
@@ -6963,7 +7220,7 @@ function dgDrawGroupedBars(ctx, categories, series, area, opts) {
   const s = series.length;
   // Same fix as the other bar charts: a fixed 24px gap between clusters swallows the width
   // once there are 20-30 categories, squeezing every cluster (and the bars inside it) thin.
-  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const gap = Math.max(2, Math.min(24, (area.w / n) * 0.3)); // scales down in small areas (thumbnails) too
   const barGap = Math.max(2, 6 - s); // tighter inner gap as more series get packed in
   const clusterW = Math.min(s * 44, (area.w - gap * (n + 1)) / n);
   const barW = Math.max(3, (clusterW - barGap * (s - 1)) / s);
@@ -7350,7 +7607,7 @@ function dgDrawWaterfall(ctx, rows, area, opts) {
 
   // Same fix as the regular bar chart: a fixed 24px gap eats most of the chart width once
   // there are 20-40 waterfall steps, leaving hairline bars. Scale the gap down as n grows.
-  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const gap = Math.max(2, Math.min(24, (area.w / n) * 0.3)); // scales down in small areas (thumbnails) too
   const barW = Math.max(2, Math.min(70, (area.w - gap * (n + 1)) / n));
   const usedW = barW * n + gap * (n + 1);
   const startX = area.x + (area.w - usedW) / 2 + gap;
@@ -7427,7 +7684,7 @@ function dgDrawPareto(ctx, rows, area, opts) {
   const n = sorted.length;
   // Same fix as the bar/waterfall charts: scale the gap down as category count grows instead
   // of a fixed 24px that swallows the chart width once there are many bars.
-  const gap = n <= 8 ? 24 : Math.max(2, Math.min(24, (area.w / n) * 0.3));
+  const gap = Math.max(2, Math.min(24, (area.w / n) * 0.3)); // scales down in small areas (thumbnails) too
   const barW = Math.max(2, Math.min(70, (area.w - gap * (n + 1)) / n));
   const usedW = barW * n + gap * (n + 1);
   const startX = area.x + (area.w - usedW) / 2 + gap;
@@ -9530,6 +9787,8 @@ window.dgConfirmAnalysisPushChoice = dgConfirmAnalysisPushChoice;
 window.dgInsertAnalysisIntoWorkspace = dgInsertAnalysisIntoWorkspace;
 window.dgRenderUploadPreview = dgRenderUploadPreview;
 window.dgSetType = dgSetType;
+window.dgCycleBarLayout = dgCycleBarLayout;
+window.dgCycleTopN = dgCycleTopN;
 window.dgToggleInfoPopover = dgToggleInfoPopover;
 window.dgToggleTypeDropdown = dgToggleTypeDropdown;
 window.dgToggleTitleDropdown = dgToggleTitleDropdown;
