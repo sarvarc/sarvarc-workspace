@@ -875,7 +875,8 @@
     else if (m === 'whip') { var wq = eo(clamp(tn / 0.2, 0, 1)); z = 1.05 + 0.45 * (1 - wq) + 0.05 * tn; px = -(1 - wq); }
     else if (FILLX[m]) z = 1.03 + 0.08 * k;
     var s = Math.max(W / c.width, H / c.height) * z, dw = c.width * s, dh = c.height * s;
-    var img = mipFor(c, Math.max(c.width, c.height) * Math.max(W / c.width, H / c.height) * 1.12);
+    var zTop = m === 'whip' ? 1.6 : (m === 'kenburns' || m === 'drift' || m === 'pan' ? 1.2 : 1.15);   // deepest zoom this motion reaches, so the mip is never stretched past its size
+    var img = mipFor(c, Math.max(c.width, c.height) * Math.max(W / c.width, H / c.height) * zTop);
     ctx.save(); ctx.imageSmoothingQuality = 'high';
     var fx0 = (W - dw) / 2 + px * (dw - W) / 2, fy0 = (H - dh) / 2 + py * (dh - H) / 2;
     if (FILLX[m]) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); fillExtra(ctx, img, fx0, fy0, dw, dh, W, H, tn, m); }
@@ -2354,12 +2355,30 @@
   }
   function galMix(p, q, t) { return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t]; }
   function galRgb(c, m, a) { return 'rgba(' + Math.round(c[0] * m) + ',' + Math.round(c[1] * m) + ',' + Math.round(c[2] * m) + ',' + (a == null ? 1 : a) + ')'; }
-  // Soft self-fill: a tiny copy stretched up is a cheap, smooth blur
+  // Soft self-fill behind photos that do not match the frame. The photo is shrunk to a small cover-fit copy, then grown back
+  // in 2x steps with high-quality smoothing (one big jump from a tiny copy is what made it blocky), and finished with a real
+  // blur where the browser supports canvas filters. Cached per size, so the cost is paid once.
   function galBlurBg(c, W, H) {
     var key = W + 'b' + H, h = c._bl2 || (c._bl2 = {}); if (h[key]) return h[key];
-    var t = mk(32, Math.max(2, Math.round(32 * H / W))), x = t.getContext('2d'), s = Math.max(t.width / c.width, t.height / c.height);
+    var bw = 96, t = mk(bw, Math.max(2, Math.round(bw * H / W))), x = t.getContext('2d'), s = Math.max(t.width / c.width, t.height / c.height);
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
     x.drawImage(c, (t.width - c.width * s) / 2, (t.height - c.height * s) / 2, c.width * s, c.height * s);
-    var cv = mk(W, H), y = cv.getContext('2d'); y.imageSmoothingQuality = 'high'; y.drawImage(t, 0, 0, W, H);
+    var cur = t, nx, nxt;
+    while (cur.width * 2 < W) {
+      nxt = mk(Math.min(W, cur.width * 2), Math.min(H, Math.max(2, cur.height * 2)));
+      nx = nxt.getContext('2d'); nx.imageSmoothingEnabled = true; nx.imageSmoothingQuality = 'high';
+      nx.drawImage(cur, 0, 0, nxt.width, nxt.height); cur = nxt;
+    }
+    var cv = mk(W, H), y = cv.getContext('2d'); y.imageSmoothingEnabled = true; y.imageSmoothingQuality = 'high';
+    y.drawImage(cur, 0, 0, W, H);
+    try {
+      if ('filter' in y) {   // final polish: a true blur, drawn slightly oversized so the edges do not fade out
+        var bl = mk(W, H), by = bl.getContext('2d'), pad = 0.06;
+        by.imageSmoothingQuality = 'high'; by.filter = 'blur(' + Math.max(2, Math.round(Math.min(W, H) * 0.012)) + 'px)';
+        by.drawImage(cv, -W * pad / 2, -H * pad / 2, W * (1 + pad), H * (1 + pad)); by.filter = 'none';
+        y.clearRect(0, 0, W, H); y.drawImage(bl, 0, 0, W, H);
+      }
+    } catch (e) { /* filter unsupported: the stepped upscale above is already smooth */ }
     y.fillStyle = 'rgba(0,0,0,0.3)'; y.fillRect(0, 0, W, H);
     var ks = Object.keys(h); if (ks.length >= 2) delete h[ks[0]];
     return (h[key] = cv);
