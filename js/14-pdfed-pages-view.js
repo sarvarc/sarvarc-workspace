@@ -1,22 +1,6 @@
 // ─── GET PAGE DATA URL ───
 async function pdfedPageUrl(pg) {
   if (pg.dataUrl) return pg.dataUrl;
-  // The thumbnail strip and the main canvas both ask for the same page at the same
-  // moment right after a file loads. Share ONE in-flight render per page instead of
-  // starting several big renders of it at once (they raced and left thumbnails blank).
-  if (pg.type === 'pdf') {
-    let p = pdfedUrlPending.get(pg);
-    if (!p) {
-      p = pdfedRenderPdfPageUrl(pg).finally(() => { pdfedUrlPending.delete(pg); });
-      pdfedUrlPending.set(pg, p);
-    }
-    return p;
-  }
-  return pg.dataUrl;
-}
-const pdfedUrlPending = new WeakMap();
-async function pdfedRenderPdfPageUrl(pg) {
-  if (pg.dataUrl) return pg.dataUrl;
   if (pg.type === 'pdf') {
     const scale = 2.0;
     const page = await (pg.srcDoc || pdfed.pdfDoc).getPage(pg.pageNum);
@@ -120,58 +104,11 @@ function pdfedThumbLiveTick() {
   if (pdfedThumbLive.set.size) pdfedThumbLive.raf = requestAnimationFrame(pdfedThumbLiveTick);
 }
 
-
-// ─── THUMBNAIL LOAD QUEUE ───
-// Thumbnails load one after another (open page first) instead of all at once, each with a
-// retry, and are shrunk to strip size so five big page renders never pile up in memory.
-const pdfedThumbQueue = []; pdfedThumbQueue.tok = 0; pdfedThumbQueue.running = false;
-async function pdfedThumbShrink(url, maxW) {
-  try {
-    const im = await new Promise((res, rej) => { const x = new Image(); x.onload = () => res(x); x.onerror = rej; x.src = url; });
-    if (!im.naturalWidth || im.naturalWidth <= maxW) return url;
-    const r = maxW / im.naturalWidth;
-    const c = document.createElement('canvas');
-    c.width = maxW; c.height = Math.max(1, Math.round(im.naturalHeight * r));
-    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.85);
-  } catch (e) { return url; }
-}
-async function pdfedThumbQueueRun() {
-  if (pdfedThumbQueue.running) return;
-  pdfedThumbQueue.running = true;
-  try {
-    while (pdfedThumbQueue.length) {
-      // open page first, then the rest in order
-      let k = pdfedThumbQueue.findIndex(j => j.i === pdfed.active);
-      if (k < 0) k = 0;
-      const job = pdfedThumbQueue.splice(k, 1)[0];
-      if (job.tok !== pdfedThumbQueue.tok || !job.card.isConnected) continue;
-      let done = false;
-      for (let attempt = 0; attempt < 3 && !done; attempt++) {
-        try {
-          // If the text engine file (js/17) did not load, still show the plain page picture.
-          const url = (typeof pdfedFlattenPageDataUrl === 'function') ? await pdfedComposeThumb(job.pg, job.i) : await pdfedPageUrl(job.pg);
-          if (job.tok !== pdfedThumbQueue.tok || !job.card.isConnected) { done = true; break; }
-          job.img.src = await pdfedThumbShrink(url, 360);
-          done = true;
-          if (pdfedPageHasLive(job.pg)) pdfedThumbLiveAttach(job.card, job.img, job.pg);
-        } catch (err) {
-          console.warn('Thumbnail failed (try ' + (attempt + 1) + ')', err);
-          await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
-        }
-      }
-      await new Promise(r => setTimeout(r, 0)); // let the page breathe between thumbnails
-    }
-  } finally { pdfedThumbQueue.running = false; }
-}
-
 async function pdfedBuildStrip() {
   pdfedPersist();
   const strip = document.getElementById('pdfedStrip');
   if (!strip) return;
   strip.innerHTML = '';
-  pdfedThumbQueue.length = 0;
-  pdfedThumbQueue.tok++;
   document.getElementById('pdfedPageCount').textContent = '(' + pdfed.pages.length + ')';
   document.getElementById('prrTotalPages').textContent = pdfed.pages.length;
 
@@ -196,8 +133,15 @@ async function pdfedBuildStrip() {
     const img = document.createElement('img');
     img.style.cssText = 'width:100%;display:block;border-radius:5px;min-height:60px;background:var(--bg3);pointer-events:none;';
     card.appendChild(img);
-    // lazy load (queued, retried, so a slow or failed render never leaves a blank card)
-    pdfedThumbQueue.push({ pg, img, card, i, tok: pdfedThumbQueue.tok });
+    // lazy load
+    (async (pgRef, imgEl, i) => {
+      try {
+        const url = await pdfedComposeThumb(pgRef, i);
+        imgEl.src = url;
+        if (pdfedPageHasLive(pgRef)) pdfedThumbLiveAttach(card, imgEl, pgRef);
+      } catch(err) { console.warn(err); }
+    })(pg, img, i);
+
     // page number
     const num = document.createElement('div');
     num.className = 'pdfed-thumb-num';
@@ -246,7 +190,6 @@ async function pdfedBuildStrip() {
   // final insert zone after last page
   strip.appendChild(pdfedMakeInsertZone(pdfed.pages.length - 1));
   pdfedRefreshEditCount();
-  pdfedThumbQueueRun();
 }
 
 function pdfedMakeInsertZone(afterIdx) {
@@ -361,12 +304,11 @@ async function pdfedGoto(idx) {
   // Show this page's saved text blocks as a read-only layer on the canvas —
   // they stay visible without needing to re-open the Text Editor, and clicking
   // "Edit Text" will make them live/draggable/lockable again.
-  if (typeof pdfedRenderTextLayer === 'function') pdfedRenderTextLayer(pg, false);
-  else console.error('SARVARC: js/17-pdfed-text-engine.js did not load, check the Network tab for it (404 or old cached copy)');
+  pdfedRenderTextLayer(pg, false);
   pdfedSearchSyncOverlaySize();
   pdfedSearchRenderHighlights();
   pdfedRenderAllPlaced(idx); // rebuilds every placed-object layer (borders/shapes/images/texts/tables) fresh for THIS page; also syncs the grid-snap overlay to this page's canvas size
-  teFafRefreshPreview(); // re-crawl/highlight for whatever's still typed in Style Specific Text, this page has different geometry
+  try { if (typeof teFafRefreshPreview === 'function') teFafRefreshPreview(); } catch (e) { console.warn('Style Specific Text preview refresh failed:', e); } // re-crawl/highlight for whatever's still typed in Style Specific Text, this page has different geometry
 
   // update strip highlight
   document.querySelectorAll('#pdfedStrip .pdfed-thumb').forEach((el, i) => {
