@@ -203,52 +203,75 @@
 }
 .dg-multi-suggest-stat b { display: block; font-size: 17px; color: var(--blue); font-weight: 800; }
 .dg-multi-suggest-stat span { font-size: 10.5px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.03em; }
-/* Multi-chart gallery — a LEFT side panel inside .dg-main-row (beside the live preview and the
-   Insights panel), so the thumbnails are always visible instead of hiding below the chart.
-   The card list scrolls inside the panel; the push/showcase actions stay pinned at the bottom. */
+/* Multi-chart gallery: a slim VERTICAL rail on the left of .dg-main-row (beside the live preview
+   and the Insights panel). Small thumbnails stack top to bottom and scroll inside the rail; the
+   push/showcase buttons stay pinned at the bottom. The ‹ button collapses it to a thin tab
+   (dg-multi-gallery-reopen) and clicking that tab brings it back, so the charts are never lost. */
 .dg-multi-gallery {
-  display: none; width: 208px; flex: 0 0 208px; min-height: 0; box-sizing: border-box;
-  flex-direction: column; gap: 10px; padding: 10px;
+  display: none; width: 104px; flex: 0 0 104px; min-height: 0; box-sizing: border-box;
+  flex-direction: column; gap: 8px; padding: 8px 6px;
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
 }
 .dg-multi-gallery.open { display: flex; }
-.dg-multi-gallery-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.dg-multi-gallery-title { font-size: 12.5px; font-weight: 700; color: var(--text); line-height: 1.25; min-width: 0; }
-.dg-multi-gallery-title span { display: block; font-weight: 400; font-size: 10.5px; color: var(--text2); margin-top: 3px; }
+.dg-multi-gallery.open.collapsed { display: none; }
+.dg-multi-gallery-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 4px; }
+.dg-multi-gallery-title { font-size: 11px; font-weight: 700; color: var(--text); line-height: 1.2; min-width: 0; }
+.dg-multi-gallery-title span { display: block; font-weight: 400; font-size: 9.5px; color: var(--text2); margin-top: 2px; }
 .dg-multi-gallery-close {
-  flex: 0 0 auto; width: 22px; height: 22px; line-height: 20px; padding: 0; text-align: center;
+  flex: 0 0 auto; width: 20px; height: 20px; line-height: 17px; padding: 0; text-align: center;
   border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text2);
-  font-size: 15px; cursor: pointer; transition: all 0.15s;
+  font-size: 16px; cursor: pointer; transition: all 0.15s;
 }
 .dg-multi-gallery-close:hover { color: var(--text); border-color: var(--border2); background: var(--surface); }
-.dg-multi-gallery-actions { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.dg-multi-gallery-actions { display: flex; flex-direction: column; gap: 5px; flex: 0 0 auto; }
+.dg-multi-gallery-actions .btn-primary, .dg-multi-gallery-actions .btn-secondary { padding: 6px 4px !important; font-size: 10.5px !important; }
 .dg-multi-gallery-strip {
-  display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0;
-  overflow-y: auto; overflow-x: hidden; padding: 2px 4px 2px 2px;
+  display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden; padding: 2px 3px 2px 1px;
 }
-.dg-multi-gallery-strip::-webkit-scrollbar { width: 6px; }
+.dg-multi-gallery-strip::-webkit-scrollbar { width: 4px; }
 .dg-multi-gallery-strip::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
 .dg-multi-gallery-card {
   flex: 0 0 auto; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; overflow: hidden; cursor: pointer; transition: all 0.15s;
+  border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.15s;
 }
-.dg-multi-gallery-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+.dg-multi-gallery-card:hover { border-color: var(--border2); transform: translateY(-1px); box-shadow: var(--shadow-card-hover); }
 .dg-multi-gallery-card.active { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,194,255,0.25); }
 .dg-multi-gallery-card canvas { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #fff; }
 .dg-multi-gallery-card-label {
-  font-size: 11px; font-weight: 600; color: var(--text); padding: 7px 9px 8px;
+  font-size: 9.5px; font-weight: 600; color: var(--text); padding: 4px 5px 5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* With the Insights panel collapsed the row's gap drops to 0 — keep the gallery off the chart. */
-.dg-main-row.dg-insights-collapsed .dg-multi-gallery { margin-right: 14px; }
-/* Narrow screens stack the row, so the gallery becomes a horizontal strip above the chart. */
+/* Thin tab shown only while the gallery is collapsed (and charts still exist). */
+.dg-multi-gallery-reopen {
+  display: none; flex: 0 0 26px; width: 26px; min-height: 0; box-sizing: border-box;
+  flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; padding: 10px 0;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text2); cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.dg-multi-gallery-reopen.show { display: flex; }
+.dg-multi-gallery-reopen:hover { color: var(--text); border-color: var(--blue); background: var(--surface); }
+.dg-multi-gallery-reopen .dg-mgr-arrow { font-size: 17px; line-height: 1; }
+.dg-multi-gallery-reopen .dg-mgr-text { writing-mode: vertical-rl; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; }
+.dg-multi-gallery-reopen .dg-mgr-count {
+  font-size: 9.5px; font-weight: 700; color: #fff; background: var(--blue); border-radius: 99px; padding: 1px 5px;
+}
+/* With the Insights panel collapsed the row's gap drops to 0, so keep the rail/tab off the chart. */
+.dg-main-row.dg-insights-collapsed .dg-multi-gallery,
+.dg-main-row.dg-insights-collapsed .dg-multi-gallery-reopen { margin-right: 14px; }
+/* Narrow screens stack the row, so the gallery turns into a horizontal strip above the chart. */
 @media (max-width: 980px) {
   .dg-multi-gallery { width: 100%; flex: 0 0 auto; max-height: none; }
   .dg-multi-gallery-strip { flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 6px; }
-  .dg-multi-gallery-card { flex: 0 0 168px; }
+  .dg-multi-gallery-card { flex: 0 0 140px; }
   .dg-multi-gallery-actions { flex-direction: row; }
   .dg-multi-gallery-actions .btn-primary, .dg-multi-gallery-actions .btn-secondary { width: auto !important; flex: 1; }
-  .dg-main-row.dg-insights-collapsed .dg-multi-gallery { margin-right: 0; margin-bottom: 10px; }
+  .dg-multi-gallery-close { transform: rotate(90deg); }
+  .dg-multi-gallery-reopen { width: 100%; flex: 0 0 auto; flex-direction: row; justify-content: center; padding: 6px 0; }
+  .dg-multi-gallery-reopen .dg-mgr-arrow { transform: rotate(90deg); }
+  .dg-multi-gallery-reopen .dg-mgr-text { writing-mode: horizontal-tb; }
+  .dg-main-row.dg-insights-collapsed .dg-multi-gallery,
+  .dg-main-row.dg-insights-collapsed .dg-multi-gallery-reopen { margin-right: 0; margin-bottom: 10px; }
 }
 
 .pdfed-insert-type-tabs {
