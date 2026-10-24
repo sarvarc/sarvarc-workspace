@@ -1132,27 +1132,101 @@ function wsbSyncSideBtn() {
 }
 
 // Kadessa's ring, the same one she uses on Data Arrangement (.kfx-ring in css/26-kadessa.css).
-function wsbRingTo(ctl, el, ms) {
-  if (!el || ctl.skipped || ctl.instant) return;
+// Smooth motion: the ring glides with one soft ease, the time of each hop follows the distance (short hop = quick,
+// long glide = a little longer, always fast), and a hop that starts while the last one is still running carries on
+// from where the ring is right now (no jump).
+const WSB_EASE = 'cubic-bezier(.25,.9,.25,1)';
+function wsbFrame() { return new Promise(function (r) { requestAnimationFrame(function () { r(); }); }); }
+
+// Screen box of an element, or of several elements together.
+function wsbRectOf(target) {
+  if (!target) return null;
+  const list = Array.isArray(target) ? target : [target];
+  let l = 1e9, t = 1e9, r = -1e9, b = -1e9;
+  list.forEach(function (e) {
+    if (!e || !e.getBoundingClientRect) return;
+    const q = e.getBoundingClientRect();
+    if (q.width < 1 && q.height < 1) return;
+    l = Math.min(l, q.left); t = Math.min(t, q.top); r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+  });
+  return l > r ? null : { left: l, top: t, width: r - l, height: b - t };
+}
+
+function wsbRingPlace(d, R) {
+  d.style.left = (R.left - 4) + 'px'; d.style.top = (R.top - 4) + 'px';
+  d.style.width = (R.width + 8) + 'px'; d.style.height = (R.height + 8) + 'px';
+  d.classList.toggle('below', R.top < 34);
+}
+
+// Moves the ring onto `target` (an element, a list of elements, or a {left,top,width,height} box).
+// k scales the time (1 = normal). `ms` forces a time. Returns the time the move takes (already divided by the speed).
+function wsbRingTo(ctl, target, k, ms) {
+  if (!target || ctl.skipped || ctl.instant) return 0;
+  const R = (target.left !== undefined && target.width !== undefined) ? target : wsbRectOf(target);
+  if (!R || R.width < 2 || R.height < 2) return 0;
   if (!ctl.ring || !ctl.ring.isConnected) {
-    const d = wsbEl('div', 'kfx-ring'); d.style.zIndex = '99991';
+    const d = wsbEl('div', 'kfx-ring wsb-ring'); d.style.zIndex = '99991';
     const t = wsbEl('span', 'kfx-tag'); t.textContent = 'Kadessa'; d.appendChild(t);
     document.body.appendChild(d); ctl.ring = d;
-    const b0 = el.getBoundingClientRect();
-    d.style.transitionDuration = '0ms';
-    d.style.left = (b0.left - 4) + 'px'; d.style.top = (b0.top - 4) + 'px';
-    d.style.width = (b0.width + 8) + 'px'; d.style.height = (b0.height + 8) + 'px';
+    d.style.transition = 'none';
+    wsbRingPlace(d, R);
     void d.offsetWidth;
   }
-  const b = el.getBoundingClientRect();
-  if (b.width < 2 || b.height < 2) return;
   const d = ctl.ring;
   d.classList.remove('done');
-  d.style.transitionDuration = Math.round(ms / ctl.speed) + 'ms';
-  d.style.left = (b.left - 4) + 'px'; d.style.top = (b.top - 4) + 'px';
-  d.style.width = (b.width + 8) + 'px'; d.style.height = (b.height + 8) + 'px';
-  d.classList.toggle('below', b.top < 34);
+  if (ms == null) {
+    const cur = d.getBoundingClientRect();
+    const dist = Math.hypot((R.left + R.width / 2) - (cur.left + cur.width / 2), (R.top + R.height / 2) - (cur.top + cur.height / 2));
+    ms = Math.max(70, Math.min(220, 60 + dist * 0.16)) * (k || 1);
+  }
+  ms = Math.max(40, Math.round(ms / ctl.speed));
+  const tr = ms + 'ms ' + WSB_EASE;
+  d.style.transition = 'opacity .18s ease, left ' + tr + ', top ' + tr + ', width ' + tr + ', height ' + tr;
+  wsbRingPlace(d, R);
   d.classList.add('on');
+  return ms;
+}
+
+// ── reveal helpers: every part is hidden (.wsb-pend) first, then shown with a short wipe ──
+function wsbTableCells(el) {
+  const g = el && el.querySelector ? el.querySelector('.pdfed-table-grid') : null;
+  return g ? Array.prototype.slice.call(g.children).filter(function (c) { return c.classList && c.classList.contains('pdfed-table-cell'); }) : [];
+}
+// How a part appears: 'h' wipes left to right (a one-line text), 'v' wipes top to bottom (a paragraph), 'iris' opens from the middle (a picture), 'fade'.
+function wsbRevealEl(el, mode, ms, delay) {
+  if (!el) return;
+  el.classList.remove('wsb-pend');
+  if (!el.animate || !ms) return;
+  const op = parseFloat(getComputedStyle(el).opacity); const o1 = isNaN(op) ? 1 : op;
+  let kf;
+  if (mode === 'h') kf = { clipPath: ['inset(0 100% 0 0)', 'inset(0 0 0 0)'], opacity: [0, o1] };
+  else if (mode === 'v') kf = { clipPath: ['inset(0 0 100% 0)', 'inset(0 0 0 0)'], opacity: [0, o1] };
+  else if (mode === 'iris') kf = { clipPath: ['inset(50% 50% 50% 50%)', 'inset(0 0 0 0)'], opacity: [0, o1] };
+  else kf = { opacity: [0, o1] };
+  try { el.animate(kf, { duration: ms, delay: delay || 0, easing: WSB_EASE, fill: 'backwards' }); } catch (e) { /* shown without the wipe */ }
+}
+function wsbUnhide(els) {
+  els.forEach(function (e) {
+    if (!e || !e.classList) return;
+    e.classList.remove('wsb-pend');
+    wsbTableCells(e).forEach(function (c) { c.classList.remove('wsb-pend'); });
+  });
+}
+// A loaded-image safety net: picture parts need a moment to decode before they are revealed, or they pop in half drawn.
+function wsbDecode(els) {
+  const ps = [];
+  els.forEach(function (e) { if (e && e.querySelectorAll) Array.prototype.forEach.call(e.querySelectorAll('img'), function (im) { if (im.decode && !im.complete) ps.push(im.decode().catch(function () {})); }); });
+  if (!ps.length) return Promise.resolve();
+  return Promise.race([Promise.all(ps), new Promise(function (r) { setTimeout(r, 260); })]);
+}
+
+// Costs (in ms at normal speed) used to fit a build into a fixed time, so a long document still feels fast.
+const WSB_BUDGET_MS = 11000;   // whole build, at x1, for a long document
+const WSB_PACE = 1.7;          // 1 = very quick, 2 = relaxed. Normal-size documents run at this pace; long ones speed up to fit the budget.
+function wsbEstimate(it) {
+  if (it.kind === 'table') return 140 + Math.min(14, it.rows || 1) * 95;
+  if (it.kind === 'text') return 190 + Math.min(110, String(it.text || '').length * 0.9);
+  return 230;
 }
 
 // ─── 4. BUILD, LIVE ──────────────────────────────────────────────────────────
@@ -1179,27 +1253,105 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
     for (let pi = 0; pi < plan.pages.length; pi++) {
       const P = plan.pages[pi], pg = made[pi], idx = where.at + pi;
       if (ctl && !ctl.closed) {
-        if (pi > 0) { if (ctl.ring) ctl.ring.classList.remove('on'); await pdfedGoto(idx); }
+        if (pi > 0) {
+          // a new page: the ring starts fresh there instead of flying across from the old page
+          if (ctl.ring) { if (ctl.ring.parentNode) ctl.ring.parentNode.removeChild(ctl.ring); ctl.ring = null; }
+          await pdfedGoto(idx);
+        }
         ctl.showPage(P.index);
-        await ctl.sleep(150);
+        await wsbFrame(); await wsbFrame();
       }
-      for (let k = 0; k < P.items.length; k++) {
-        const it = P.items[k];
-        const sel = wsbAddItem(pg, it);
-        count++;
-        if (!ctl || ctl.closed || ctl.skipped || ctl.instant) continue;
-        ctl.hot(it.src, true);
+      // 1. the whole page goes into the editor in ONE go (before, the editor rebuilt every part again after each new
+      //    part, which is what made it stutter and flicker)
+      const sels = P.items.map(function (it) { return wsbAddItem(pg, it); });
+      count += P.items.length;
+      const animating = ctl && !ctl.closed && !ctl.skipped && !ctl.instant;
+      if (!animating) { await pdfedGoto(idx); if (ctl && !ctl.closed) ctl.progress(count / total); continue; }
+      pdfedRenderAllPlaced(idx);
+      const find = function (i) { return sels[i] ? document.querySelector(sels[i]) : null; };
+      let els = P.items.map(function (it, i) { return find(i); });
+      // 2. everything is hidden, then shown part by part
+      els.forEach(function (el, i) {
+        if (!el) return;
+        if (P.items[i].kind === 'table') wsbTableCells(el).forEach(function (c) { c.classList.add('wsb-pend'); });
+        else el.classList.add('wsb-pend');
+      });
+      const live = function (i) { if (!els[i] || !els[i].isConnected) els[i] = find(i); return els[i]; };
+
+      // boxes, bands and rules are the backdrop: they fade in together first, no stop for each one
+      const back = [];
+      P.items.forEach(function (it, i) { if (it.kind === 'shape' && els[i]) back.push(els[i]); });
+      if (back.length) {
+        await wsbDecode(back);
+        back.forEach(function (e) { wsbRevealEl(e, 'fade', Math.round(280 / ctl.speed)); });
+        ctl.say('Setting the page…');
+        await ctl.sleep(200);
+      }
+
+      // the time per part shrinks for a long document, so the whole build stays quick
+      const est = P.items.reduce(function (n, it) { return n + (it.kind === 'shape' ? 0 : wsbEstimate(it)); }, 0) || 1;
+      const k = Math.max(0.6, Math.min(WSB_PACE, (WSB_BUDGET_MS / Math.max(1, plan.pages.length)) / est));
+      let prevSrc = null;
+
+      for (let i = 0; i < P.items.length; i++) {
+        const it = P.items[i];
+        if (it.kind === 'shape') continue;
+        if (ctl.closed || ctl.skipped) break;
+        if (prevSrc != null) ctl.hot(prevSrc, false);
+        ctl.hot(it.src, true); prevSrc = it.src;
         ctl.say((it.kind === 'table' ? 'Drawing ' : (it.kind === 'text' ? 'Writing ' : 'Placing ')) + (WSB_NAMES[it.role] || it.role) + '…');
-        pdfedRenderAllPlaced(idx);
-        const el = sel ? document.querySelector(sel) : null;
-        if (el) { el.classList.add('kfx-reveal'); wsbRingTo(ctl, el, 230); }
-        ctl.progress(count / total);
-        await ctl.sleep(it.kind === 'table' ? 330 : 190);
-        ctl.hot(it.src, false);
+        ctl.progress(Math.min(1, (count - P.items.length + i + 1) / total));
+        const el = live(i);
+        if (!el) continue;
+        if (typeof el.scrollIntoView === 'function') {
+          const r0 = el.getBoundingClientRect(), sc0 = document.getElementById('pdfedCanvasScroll'), sr = sc0 ? sc0.getBoundingClientRect() : null;
+          if (sr && (r0.bottom > sr.bottom - 24 || r0.top < sr.top + 8)) { try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e1) { /* stays */ } }
+        }
+
+        if (it.kind === 'table') {
+          // the ring walks down the table row by row, each row fades in cell by cell
+          const cells = wsbTableCells(el), cols = Math.max(1, it.cols || 1), rows = Math.ceil(cells.length / cols);
+          const stepRows = Math.max(1, Math.ceil(rows / 14));
+          for (let r0 = 0; r0 < rows; r0 += stepRows) {
+            if (ctl.closed || ctl.skipped) break;
+            const grp = cells.slice(r0 * cols, Math.min(rows, r0 + stepRows) * cols);
+            const t = wsbRingTo(ctl, grp, r0 === 0 ? k : 0.55 * k);
+            await ctl.sleep(Math.max(0, t * ctl.speed * 0.5));
+            grp.forEach(function (c, ci) { wsbRevealEl(c, 'fade', Math.round(150 * k / ctl.speed), Math.round(((ci % cols) * 14 * k) / ctl.speed)); c.classList.remove('wsb-pend'); });
+            await ctl.sleep(Math.max(28, 52 * k));
+          }
+          wsbUnhide([el]);
+          await ctl.sleep(40 * k);
+          continue;
+        }
+
+        const R = wsbRectOf(el);
+        if (!R) { wsbRevealEl(el, 'fade', 120); continue; }
+        let mode = 'iris';
+        let first = R;                                    // where the ring first lands
+        if (it.kind === 'text') {
+          const fs = parseFloat(getComputedStyle(el).fontSize) || 14, sx = el.offsetWidth ? R.width / el.offsetWidth : 1;
+          const lineH = fs * 1.45 * sx;
+          if (R.height > lineH * 1.75) { mode = 'v'; first = { left: R.left, top: R.top, width: R.width, height: Math.min(R.height, lineH) }; }
+          else { mode = 'h'; first = { left: R.left, top: R.top, width: Math.min(R.width, Math.max(30, R.width * 0.1)), height: R.height }; }
+        }
+        // the ring lands at the start of the part, then opens along it at the same pace the words appear
+        const travel = wsbRingTo(ctl, first, k);
+        await ctl.sleep(Math.max(0, travel * ctl.speed * 0.6));
+        if (ctl.closed || ctl.skipped) break;
+        const chars = String(it.text || '').length;
+        const rd = it.kind === 'text' ? Math.max(100, Math.min(300, 80 + chars * 0.9)) * k : 170 * k;
+        wsbRevealEl(el, mode, Math.round(rd / ctl.speed));
+        if (first !== R) wsbRingTo(ctl, R, 1, rd);
+        await ctl.sleep(rd * 0.8);                       // the next part's ring leaves before this one has finished writing
       }
-      // Draw this page once more so everything (including anything skipped past) is on screen.
-      if (!ctl || ctl.closed || ctl.skipped || ctl.instant) { await pdfedGoto(idx); }
-      else pdfedRenderAllPlaced(idx);
+      if (prevSrc != null) ctl.hot(prevSrc, false);
+
+      // 3. whatever the animation did not reach (Skip, Close) is shown at once; nothing stays hidden
+      els = els.map(function (e, i) { return live(i); });
+      wsbUnhide(els);
+      await ctl.sleep(120);
+      if (!ctl.closed) await wsbFrame();
     }
   } catch (e) {
     console.error('Workstyle live build:', e);
