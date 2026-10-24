@@ -972,6 +972,7 @@ function wsbBackground(bg) {
 // and two small tags. A slim control pill floats at the bottom of the canvas (speed, Skip / Close, status).
 function wsbDock(refPlan, name, opts) {
   opts = opts || {};
+  try { if (typeof wsHideWait === 'function') wsHideWait(); } catch (e) { /* no wait pill */ }
   const old = document.getElementById('wsbDock');
   if (old && old._ctl) { try { old._ctl.close(true); } catch (e) { /* ignore */ } }
   // The OCR Compare view uses the same left slot: only one of the two at a time.
@@ -1316,7 +1317,7 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
             if (ctl.closed || ctl.skipped) break;
             const grp = cells.slice(r0 * cols, Math.min(rows, r0 + stepRows) * cols);
             const t = wsbRingTo(ctl, grp, r0 === 0 ? k : 0.55 * k);
-            await ctl.sleep(Math.max(0, t * ctl.speed * 0.5));
+            await ctl.sleep(Math.max(0, t * ctl.speed * 0.8));
             grp.forEach(function (c, ci) { wsbRevealEl(c, 'fade', Math.round(150 * k / ctl.speed), Math.round(((ci % cols) * 14 * k) / ctl.speed)); c.classList.remove('wsb-pend'); });
             await ctl.sleep(Math.max(28, 52 * k));
           }
@@ -1337,7 +1338,7 @@ async function wsbBuildLive(refPlan, plan, name, animate) {
         }
         // the ring lands at the start of the part, then opens along it at the same pace the words appear
         const travel = wsbRingTo(ctl, first, k);
-        await ctl.sleep(Math.max(0, travel * ctl.speed * 0.6));
+        await ctl.sleep(Math.max(0, travel * ctl.speed * 0.9));        // she arrives first, THEN the part is written
         if (ctl.closed || ctl.skipped) break;
         const chars = String(it.text || '').length;
         const rd = it.kind === 'text' ? Math.max(100, Math.min(300, 80 + chars * 0.9)) * k : 170 * k;
