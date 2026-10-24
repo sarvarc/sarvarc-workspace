@@ -1597,7 +1597,7 @@ function dgBuildBusinessMindMapCode() {
       return 'mindmap\n  root((Business Mind))\n    No data loaded yet\n      Upload a spreadsheet or table in Data Arrangement\n      Or build a chart here in Data Charts\n    Then reopen Business Mind\n      to auto-map its key insights';
     }
     const opts = (typeof dgGetOpts === 'function') ? dgGetOpts() : {};
-    const stats = dgComputeStats(dgState.rows);
+    const stats = dgComputeStats(dgState.rows, dgState.type);
     const chartTitle = dgState.title || (document.getElementById('dgTitleInput') || {}).value || '';
     const domain = dgDetectDomain(dgState.rows, chartTitle, dgState.type);
     const fmt = v => (typeof dgFormatNumber === 'function') ? dgFormatNumber(v, opts.numberFormat) : String(Math.round(v));
@@ -1616,12 +1616,14 @@ function dgBuildBusinessMindMapCode() {
       lines.push(`      Top ${stats.vitalFewCount} of ${stats.n} drive 80% of the total`);
     }
 
-    lines.push('    Trend');
-    const trendWord = stats.trend === 'up' ? 'Trending up' : stats.trend === 'down' ? 'Trending down' : 'Holding steady';
-    const growthLine = stats.growthPct !== null
-      ? `${trendWord}, ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% first to last`
-      : trendWord;
-    lines.push(`      ${dgMindSanitize(growthLine, 44)}`);
+    if (stats.ordered) {
+      lines.push('    Trend');
+      const trendWord = stats.trend === 'up' ? 'Trending up' : stats.trend === 'down' ? 'Trending down' : 'Holding steady';
+      const growthLine = stats.growthPct !== null
+        ? `${trendWord}, ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% first to last`
+        : trendWord;
+      lines.push(`      ${dgMindSanitize(growthLine, 44)}`);
+    }
 
     if (stats.outliers && stats.outliers.length) {
       lines.push('    Watch');
@@ -4101,6 +4103,7 @@ function dgCloseMultiGallery() {
   dgActiveMultiChartIdx = null;
   const gallery = document.getElementById('dgMultiGallery');
   if (gallery) gallery.classList.remove('open');
+  if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); // preview is wider again
 }
 
 function dgRenderMultiChartGallery() {
@@ -4112,9 +4115,10 @@ function dgRenderMultiChartGallery() {
   // is always a fresh batch — whatever slot the editor was previously synced
   // to no longer means anything against the new array.
   dgActiveMultiChartIdx = null;
-  if (!dgMultiCharts.length) { gallery.classList.remove('open'); return; }
+  if (!dgMultiCharts.length) { gallery.classList.remove('open'); if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); return; }
   gallery.classList.add('open');
-  if (countEl) countEl.textContent = ` \u00b7 ${dgMultiCharts.length} chart${dgMultiCharts.length === 1 ? '' : 's'} \u00b7 click one to edit it, or push them all at once`;
+  if (typeof dgFitZoomToHolder === 'function') setTimeout(dgFitZoomToHolder, 0); // panel took width from the preview
+  if (countEl) countEl.textContent = `${dgMultiCharts.length} chart${dgMultiCharts.length === 1 ? '' : 's'} \u00b7 click one to edit it`;
   strip.innerHTML = dgMultiCharts.map((c, i) => `
     <div class="dg-multi-gallery-card" data-idx="${i}" onclick="dgLoadMultiChart(${i})">
       <canvas width="320" height="200" data-thumb="${i}"></canvas>
@@ -4617,10 +4621,30 @@ function dgDrawChartSpec(canvas, spec) {
 //     point; the other is thousands grouping to discard.
 //   • Scientific notation — "1.2e6" previously lost its "e" in the character
 //     strip and became 1.26. Detected and parsed directly instead.
+// Magnitude suffixes on a value cell: "1.5K", "2M", "3.2 bn", "4 crore", "5 lakh". Matched
+// only when the WHOLE cell is a number plus one of these, so ordinary text never triggers it.
+// (Single "t"/"tn" are deliberately left out — "5t" is far more likely tonnes than trillions.)
+const DG_NUM_SUFFIX = {
+  k: 1e3, thousand: 1e3, m: 1e6, mn: 1e6, million: 1e6, b: 1e9, bn: 1e9, billion: 1e9, trillion: 1e12,
+  lakh: 1e5, lakhs: 1e5, lac: 1e5, lacs: 1e5, cr: 1e7, crore: 1e7, crores: 1e7
+};
+
 function dgParseNumericCell(v) {
   if (typeof v === 'number') return v;
   let s = String(v ?? '').trim();
   if (s === '') return NaN;
+
+  // Typographic minus signs — U+2212 (−), en/em/figure dashes — are what PDFs and many
+  // Excel/Sheets exports use for negatives. Left alone they were stripped as "non-digits"
+  // and a loss silently became a gain. Normalise to an ASCII hyphen first.
+  s = s.replace(/[\u2212\u2012\u2013\u2014\u2015\uFE63\uFF0D]/g, '-');
+
+  // Currency words/symbols are removed BEFORE the sign checks, so "$-20", "-$20", "Rs. -20"
+  // and "($500)" all keep their sign. Leading "Rs." used to leave a stray dot that was then
+  // read as a decimal separator ("Rs. 1,00,000" parsed as 1).
+  s = s.replace(/^(?:rs\.?|inr|usd|aud|cad|eur|gbp|nzd|sgd|aed)\s*/i, '');
+  s = s.replace(/\s*(?:usd|inr|aud|eur|gbp|rs\.?|dollars?|rupees?)$/i, '');
+  s = s.replace(/R\$|CHF/g, '').replace(/[$€£¥₹₩₽₺₦₫]/g, '').trim();
 
   let negative = false;
   if (/^\(.*\)$/.test(s)) { negative = true; s = s.slice(1, -1).trim(); }
@@ -4632,6 +4656,12 @@ function dgParseNumericCell(v) {
     const n = parseFloat(s);
     return isNaN(n) ? NaN : (negative && n > 0 ? -n : n);
   }
+
+  // "1.5K" → 1,500 · "2M" → 2,000,000 · "1.2 Cr" → 12,000,000. Previously the letter was
+  // stripped and the value silently came out 1000x / 1,000,000x too small.
+  let mult = 1;
+  const suf = s.match(/^(-?[\d.,\s]*\d)\s*(thousand|million|billion|trillion|crores?|lakhs?|lacs?|cr|mn|bn|k|m|b)\.?$/i);
+  if (suf) { s = suf[1]; mult = DG_NUM_SUFFIX[suf[2].toLowerCase()]; }
 
   s = s.replace(/[^0-9.,]/g, '');
   const lastDot = s.lastIndexOf('.');
@@ -4653,8 +4683,10 @@ function dgParseNumericCell(v) {
   // case here), matching prior behaviour for the everyday "1234.56" case.
 
   if (s === '' || s === '.') return NaN;
-  const n = parseFloat(s);
+  let n = parseFloat(s);
   if (isNaN(n)) return NaN;
+  if (mult !== 1) n = parseFloat((n * mult).toPrecision(12)); // 1.1 * 1000 → 1100, not 1100.0000000000002
+  if (n === 0) return 0;
   return negative ? -Math.abs(n) : n;
 }
 
@@ -4746,7 +4778,7 @@ function dgApplyDetectedSign(detected) {
 // age chart without doing the subtraction by hand, and someone uploading monthly sales gets a
 // properly time-ordered line/x-axis instead of whatever order the rows happened to be typed in.
 const DG_MONTH_NAMES = {
-  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
   january: 0, february: 1, march: 2, april: 3, june: 5, july: 6, august: 7,
   september: 8, october: 9, november: 10, december: 11
 };
@@ -5808,7 +5840,126 @@ function dgLinearRegression(vals) {
   return { slope, intercept };
 }
 
-function dgComputeStats(rows) {
+// ── Chronology detection. "Growth first→last" and "trending up/down" only mean something when
+// the rows are a SEQUENCE (months, quarters, dates, week numbers…). For plain categories —
+// Apples, Bananas, Cherries — the order is arbitrary, so calling the data "trending upward,
+// +300%" was a made-up claim. This works out whether the labels form a sequence and, if so,
+// returns the rows in true chronological order (so newest-first exports, or rows sorted by
+// value, no longer flip growth or the trend direction).
+const DG_WEEKDAY_IDX = {
+  mon: 0, monday: 0, tue: 1, tues: 1, tuesday: 1, wed: 2, wednesday: 2,
+  thu: 3, thur: 3, thurs: 3, thursday: 3, fri: 4, friday: 4, sat: 5, saturday: 5, sun: 6, sunday: 6
+};
+
+function dgSeriesLabelKey(label) {
+  const s = String(label == null ? '' : label).trim();
+  if (!s) return null;
+  const yr = y => { y = +y; return y < 100 ? y + (y < 50 ? 2000 : 1900) : y; };
+  const low = s.toLowerCase().replace(/\.$/, '');
+  let m;
+  // Cyclic labels (no year attached): a sequence may start anywhere and wrap once (Apr…Mar).
+  if (DG_MONTH_NAMES[low] != null) return { kind: 'month', key: DG_MONTH_NAMES[low], cyclic: true };
+  if (DG_WEEKDAY_IDX[low] != null) return { kind: 'weekday', key: DG_WEEKDAY_IDX[low], cyclic: true };
+  m = low.match(/^q([1-4])$/);
+  if (m) return { kind: 'quarter', key: +m[1], cyclic: true };
+  // Year + quarter: "Q1 2024", "2024 Q1", "Q1-24", "FY24 Q3"
+  m = low.match(/^q([1-4])[\s\-\/']*(?:fy)?(\d{4}|\d{2})$/) || low.match(/^(?:fy)?(\d{4})[\s\-\/']*q([1-4])$/);
+  if (m) {
+    const q = /^q/.test(low) ? +m[1] : +m[2], y = /^q/.test(low) ? m[2] : m[1];
+    return { kind: 'yq', key: yr(y) * 4 + (q - 1) };
+  }
+  // Year + month: "Mar 2024", "March-24", "Mar'24", "2024-03", "2024/3"
+  m = low.match(/^([a-z]{3,9})[\s,\-\/']*(\d{4})$/) || low.match(/^([a-z]{3,9})[\-']+(\d{2})$/);
+  if (m && DG_MONTH_NAMES[m[1]] != null) return { kind: 'ym', key: yr(m[2]) * 12 + DG_MONTH_NAMES[m[1]] };
+  m = low.match(/^(\d{4})[\-\/](\d{1,2})$/);
+  if (m && +m[2] >= 1 && +m[2] <= 12) return { kind: 'ym', key: +m[1] * 12 + (+m[2] - 1) };
+  // Fiscal year: "FY24", "FY2024"
+  m = low.match(/^fy[\s\-']*(\d{4}|\d{2})$/);
+  if (m) return { kind: 'year', key: yr(m[1]) };
+  // "Week 12", "Day 3", "Period 4", "Stage 2", "Sprint 5", "#7"
+  m = low.match(/^(?:week|wk|w|day|d|month|mo|period|p|year|yr|step|stage|phase|round|sprint|season|session|batch|#)\s*[-#:]?\s*(\d{1,4})$/);
+  if (m) return { kind: 'index', key: +m[1] };
+  // Full dates and bare years
+  const d = (typeof dgParseDateCell === 'function') ? dgParseDateCell(s) : null;
+  if (d) return { kind: /^(19|20)\d{2}$/.test(s) ? 'year' : 'date', key: d.getTime() };
+  // Plain whole numbers (1, 2, 3 / 0, 5, 10) — checked for even spacing by the caller
+  if (/^\d{1,6}$/.test(s)) return { kind: 'plainnum', key: +s };
+  return null;
+}
+
+function dgDetectSeriesOrder(rows, chartType) {
+  const n = rows ? rows.length : 0;
+  if (n < 2) return { ordered: false, rows: rows || [], kind: 'too-few', reordered: false };
+  const parsed = rows.map(r => dgSeriesLabelKey(r.label));
+  if (parsed.every(Boolean)) {
+    // 'year' and 'date' labels can mix (a "2024" row beside real dates); treat them as one time axis.
+    const kinds = new Set(parsed.map(p => (p.kind === 'year' || p.kind === 'date') ? 'time' : p.kind));
+    if (kinds.size === 1) {
+      const kind = [...kinds][0];
+      const keys = parsed.map(p => p.key);
+      if (new Set(keys).size === n) {
+        if (parsed[0].cyclic) {
+          // Keep the person's row order when it already runs forward (allowing one wrap, e.g. the
+          // Apr–Mar financial year), or reverse it when it runs backward. Never re-sort a cycle.
+          let descents = 0;
+          for (let i = 1; i < n; i++) if (keys[i] < keys[i - 1]) descents++;
+          // A single wrap is only a real cycle when the series ends BEFORE the month/quarter/day it
+          // started on (Apr…Mar). "Mar, Jan, Feb, Dec" overlaps itself, so it is just scrambled.
+          if (descents === 0 || (descents === 1 && keys[n - 1] < keys[0])) return { ordered: true, rows, kind, reordered: false };
+          if (descents === n - 1) return { ordered: true, rows: [...rows].reverse(), kind, reordered: true };
+        } else {
+          let evenlySpaced = true;
+          if (kind === 'plainnum') {
+            const ks = [...keys].sort((a, b) => a - b);
+            const step = ks[1] - ks[0];
+            evenlySpaced = ks.every((k, i) => i === 0 || k - ks[i - 1] === step);
+          }
+          if (evenlySpaced) {
+            const idx = rows.map((_, i) => i).sort((a, b) => keys[a] - keys[b]);
+            return { ordered: true, rows: idx.map(i => rows[i]), kind, reordered: idx.some((v, i) => v !== i) };
+          }
+        }
+      }
+    }
+  }
+  // The person explicitly picked a trend-over-sequence chart — respect that as their statement
+  // that row order is meaningful, even when the labels aren't recognisable periods.
+  if (chartType === 'line' || chartType === 'area') return { ordered: true, rows, kind: 'chart-type', reordered: false };
+  return { ordered: false, rows, kind: 'none', reordered: false };
+}
+
+// ── Outliers. The old rule (more than 1.8 standard deviations from the mean) had two real
+// problems: the outlier itself inflates the standard deviation (two huge values hide each other),
+// and with 4 or fewer rows it can never fire at all. This uses the median and the median absolute
+// deviation instead (the Iglewicz–Hoaglin modified z-score, flagged above 3.5), which isn't
+// distorted by the extreme values it is trying to find. Needs 5+ points to say anything.
+function dgFindOutliers(rows) {
+  if (!rows || rows.length < 5) return [];
+  const vals = rows.map(r => r.value);
+  const med = dgMedian(vals);
+  const absDev = vals.map(v => Math.abs(v - med));
+  const mad = dgMedian(absDev);
+  let scale;
+  if (mad > 0) scale = mad / 0.6745;
+  else {
+    // More than half the values are identical, so MAD is 0 — fall back to the mean absolute deviation.
+    const meanAD = absDev.reduce((a, b) => a + b, 0) / absDev.length;
+    if (!(meanAD > 0)) return [];
+    scale = meanAD * 1.253314;
+  }
+  return rows.filter(r => Math.abs(r.value - med) / scale > 3.5);
+}
+
+// Used by the Median card: is the median meaningfully different from the mean? Compared
+// against the SIZE of the mean (|avg|), so negative-average data (losses, deltas) no longer
+// always reads as "skewed".
+function dgMedianDiffersFromMean(median, avg, stdDev) {
+  const base = Math.abs(avg) > 0 ? Math.abs(avg) * 0.1 : (stdDev > 0 ? stdDev * 0.1 : 0);
+  return base > 0 && Math.abs(median - avg) > base;
+}
+
+function dgComputeStats(rows, chartType) {
+  if (chartType === undefined) chartType = (typeof dgState !== 'undefined' && dgState) ? dgState.type : undefined;
   const vals = rows.map(r => r.value);
   const n = vals.length || 1;
   const total = vals.reduce((a, b) => a + b, 0);
@@ -5816,13 +5967,18 @@ function dgComputeStats(rows) {
   let maxRow = rows[0] || { value: 0, label: '' };
   let minRow = rows[0] || { value: 0, label: '' };
   rows.forEach(r => { if (r.value > maxRow.value) maxRow = r; if (r.value < minRow.value) minRow = r; });
-  const first = vals[0] || 0, last = vals[vals.length - 1] || 0;
+
+  // Growth and trend are only computed for a real sequence (see dgDetectSeriesOrder). For plain
+  // categories they are reported as unavailable instead of invented.
+  const order = dgDetectSeriesOrder(rows, chartType);
+  const seq = order.ordered ? order.rows.map(r => r.value) : null;
+  const first = seq ? seq[0] : 0, last = seq ? seq[seq.length - 1] : 0;
   // Growth % from a zero baseline is mathematically undefined (division by
   // zero), not "100% if positive, 0% otherwise" — that was a guess dressed
   // up as a number. We surface it as null and let the UI show "N/A" instead
   // of a confident-looking but made-up figure.
-  const growthPct = first !== 0 ? ((last - first) / Math.abs(first)) * 100 : (last === 0 ? 0 : null);
-  const { slope } = dgLinearRegression(vals.length > 1 ? vals : [0, 0]);
+  const growthPct = seq ? (first !== 0 ? ((last - first) / Math.abs(first)) * 100 : (last === 0 ? 0 : null)) : null;
+  const slope = (seq && seq.length > 1) ? dgLinearRegression(seq).slope : 0;
   // The up/down/flat call needs a threshold that reflects how spread out
   // the data actually is. Basing it on the average alone breaks down for
   // data that crosses zero (average can land near 0 even with a strong,
@@ -5831,15 +5987,20 @@ function dgComputeStats(rows) {
   // data itself.
   const dataRange = (Math.max(...vals, 0) - Math.min(...vals, 0)) || Math.abs(avg) || 1;
   const threshold = Math.max(Math.abs(avg) * 0.01, dataRange * 0.02);
-  const trend = slope > threshold ? 'up' : (slope < -threshold ? 'down' : 'flat');
+  const trend = !seq ? 'none' : (slope > threshold ? 'up' : (slope < -threshold ? 'down' : 'flat'));
   // Extra signals purely for the written Smart Analysis paragraph below — spread/volatility,
   // how concentrated the total is in the top item, and any values that sit far outside the pack.
   const variance = vals.reduce((a, v) => a + Math.pow(v - avg, 2), 0) / n;
   const stdDev = Math.sqrt(variance);
-  const coefVar = avg !== 0 ? Math.abs(stdDev / avg) : 0;
-  const topShare = total !== 0 ? (maxRow.value / total) * 100 : 0;
+  // Variation as a % of the mean is only meaningful when every value is positive; with values
+  // on both sides of zero the mean can be near 0 and this blows up ("1551% variation").
+  const coefVar = (vals.every(v => v >= 0) && avg > 0) ? stdDev / avg : null;
+  // "Share of the total" only exists when every value is non-negative. With mixed signs the
+  // total can be tiny (100, -90, 5 → total 15) and the top item came out as "667%" of it.
+  const allNonNeg = vals.every(v => v >= 0);
+  const topShare = (allNonNeg && total > 0) ? (maxRow.value / total) * 100 : null;
   const sorted = [...rows].sort((a, b) => b.value - a.value);
-  const outliers = rows.filter(r => Math.abs(r.value - avg) > stdDev * 1.8 && stdDev > 0);
+  const outliers = dgFindOutliers(rows);
   const aboveAvgCount = vals.filter(v => v > avg).length;
   // Vital-few (80/20) read: with all-positive data, how many of the top items
   // (sorted descending) does it take to reach 80% of the total? A small number
@@ -5847,7 +6008,7 @@ function dgComputeStats(rows) {
   // most of the outcome, which is a business-relevant fact on its own, not
   // just a spread/volatility statistic.
   let vitalFewCount = null;
-  if (total > 0 && vals.every(v => v >= 0)) {
+  if (total > 0 && allNonNeg) {
     let running = 0;
     for (let i = 0; i < sorted.length; i++) {
       running += sorted[i].value;
@@ -5858,8 +6019,19 @@ function dgComputeStats(rows) {
   return {
     total, avg, max: maxRow.value, min: minRow.value,
     maxLabel: maxRow.label, minLabel: minRow.label,
-    growthPct, trend, stdDev, coefVar, topShare, sorted, outliers, aboveAvgCount, vitalFewCount, n
+    growthPct, trend, stdDev, coefVar, topShare, sorted, outliers, aboveAvgCount, vitalFewCount, n,
+    ordered: !!order.ordered, orderKind: order.kind, reordered: !!order.reordered
   };
+}
+
+// When the first→last change and the fitted trend point opposite ways (e.g. 100, 50, 60, 70, 90,
+// 95 ends 5% below where it started yet climbs overall) the summary should say so, not state
+// one and contradict the Growth card.
+function dgTrendConflict(stats) {
+  if (!stats.ordered || stats.growthPct === null) return null;
+  if (stats.trend === 'up' && stats.growthPct < -0.5) return 'below';
+  if (stats.trend === 'down' && stats.growthPct > 0.5) return 'above';
+  return null;
 }
 
 // ── Business-domain detection: sniffs the chart's title + row labels for
@@ -5908,22 +6080,51 @@ const DG_DOMAINS = {
   }
 };
 
+// Whole-word keyword matching. The old version used substring search, so "age" fired on
+// "usage", "package" and "percentage", "trial" on "industrial", "unit" on "community" — and two
+// such hits were enough to label a chart confidently and write advice for the wrong business area.
+function dgKeywordInTokens(tokens, kw) {
+  const parts = String(kw).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!parts.length) return false;
+  const same = (t, w) => t === w || t === w + 's' || t === w + 'es' || (w.endsWith('y') && t === w.slice(0, -1) + 'ies');
+  for (let i = 0; i + parts.length <= tokens.length; i++) {
+    let ok = true;
+    for (let j = 0; j < parts.length; j++) {
+      const t = tokens[i + j], w = parts[j];
+      if (!(j === parts.length - 1 ? same(t, w) : t === w)) { ok = false; break; }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
 function dgDetectDomain(rows, title, type) {
-  const haystack = (String(title || '') + ' ' + (rows || []).map(r => r.label || '').join(' ')).toLowerCase();
-  let bestKey = null, bestScore = 0;
+  const tok = t => String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const titleTokens = tok(title);
+  const labelTokens = tok((rows || []).map(r => r.label || '').join(' '));
+  const scores = {};
   Object.entries(DG_DOMAINS).forEach(([key, def]) => {
     let score = 0;
-    def.keywords.forEach(kw => { if (haystack.includes(kw.toLowerCase())) score += kw.includes(' ') ? 2 : 1; });
+    def.keywords.forEach(kw => {
+      const base = kw.includes(' ') ? 2 : 1;
+      // A chart title is typed on purpose, so a keyword there counts double a keyword that merely
+      // appears in a row label.
+      if (dgKeywordInTokens(titleTokens, kw)) score += base * 2;
+      else if (dgKeywordInTokens(labelTokens, kw)) score += base;
+    });
     // A small nudge from chart type toward the domain it's typically used for —
     // never enough on its own to override a real keyword match elsewhere.
     if (type === 'funnel' && key === 'marketing_funnel') score += 1;
     if (type === 'waterfall' && key === 'profit_margin') score += 1;
     if (type === 'pareto' && key === 'customer_support') score += 0.5;
-    if (score > bestScore) { bestScore = score; bestKey = key; }
+    scores[key] = score;
   });
-  return bestKey
-    ? { key: bestKey, label: DG_DOMAINS[bestKey].label, confident: bestScore >= 2 }
-    : { key: 'general', label: 'General Dataset', confident: false };
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const [bestKey, bestScore] = ranked[0] || [null, 0];
+  const secondScore = ranked[1] ? ranked[1][1] : 0;
+  if (!bestKey || bestScore <= 0) return { key: 'general', label: 'General Dataset', confident: false };
+  // Confident only with real evidence AND a clear winner — a tie between two domains is a guess.
+  return { key: bestKey, label: DG_DOMAINS[bestKey].label, confident: bestScore >= 2 && bestScore > secondScore };
 }
 
 // ── Turns a detected domain + the stats already computed into one plain-
@@ -5933,6 +6134,9 @@ function dgDetectDomain(rows, title, type) {
 // domain-specific read doesn't clearly apply (too few rows, no negatives
 // to point at, etc.) it returns '' rather than forcing a weak sentence in.
 function dgBuildBusinessReadSentence(domain, stats, rows, opts) {
+  // A domain-specific "what this means for your sales/budget/funnel" sentence is only worth saying
+  // when the domain is a confident call — a weak guess would give advice for the wrong business.
+  if (!domain || !domain.confident) return '';
   const fmt = v => dgFormatNumber(v, opts.numberFormat);
   const n = rows.length;
   switch (domain.key) {
@@ -5947,12 +6151,13 @@ function dgBuildBusinessReadSentence(domain, stats, rows, opts) {
       return `Sales are holding roughly flat rather than compounding — fine as a stable base, but worth asking what would need to change to reignite growth.`;
     }
     case 'budget_cost': {
-      if (stats.topShare >= 35 && n > 2) {
+      if (stats.topShare !== null && stats.topShare >= 35 && stats.topShare >= 150 / n && n > 2) {
         return `<b>${dgEsc(stats.maxLabel)}</b> alone absorbs ${Math.round(stats.topShare)}% of the budget — that's the line worth the tightest governance, since an overrun there moves the whole total more than an overrun anywhere else.`;
       }
       if (stats.trend === 'up') {
         return `Spend is trending upward across the period — worth confirming that's planned investment rather than budget creep before it's locked into next cycle's baseline.`;
       }
+      if (stats.topShare === null) return '';
       return `Spend is fairly evenly spread across line items — that limits single-line risk, but it also means savings have to come from several places at once rather than one big cut.`;
     }
     case 'profit_margin': {
@@ -6053,7 +6258,7 @@ function dgRenderInsightsStrip() {
     return;
   }
   const opts = dgGetOpts();
-  const stats = dgComputeStats(dgState.rows);
+  const stats = dgComputeStats(dgState.rows, dgState.type);
   const chartTitle = dgState.title || document.getElementById('dgTitleInput')?.value || '';
   const domain = dgDetectDomain(dgState.rows, chartTitle, dgState.type);
   const subEl = document.getElementById('dgInsightsHeadSub');
@@ -6117,17 +6322,17 @@ function dgRenderInsightsStrip() {
     <div class="dg-stat-card" style="--dg-accent:${growthColor};--dg-accent-rgb:${hexToRgbStr(growthColor)}">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Growth 1st→Last</span><div class="dg-stat-icon">${ICONS.growth}</div></div>
       <span class="dg-stat-value" style="color:${growthColor}">${growthDisplay}</span>
-      <span class="dg-stat-trend ${growthTrendClass}">${growthArrow}${growthTrendClass === 'up' ? 'Rising' : growthTrendClass === 'down' ? 'Falling' : 'Flat'}</span>
+      <span class="dg-stat-trend ${growthTrendClass}">${hasGrowth ? growthArrow : ''}${!hasGrowth ? (stats.ordered ? 'Starts at zero — n/a' : 'Not a time series') : growthTrendClass === 'up' ? 'Rising' : growthTrendClass === 'down' ? 'Falling' : 'Flat'}</span>
     </div>
     <div class="dg-stat-card" style="--dg-accent:#7A8CA8;--dg-accent-rgb:122, 140, 168">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Median</span><div class="dg-stat-icon">${ICONS.median}</div></div>
       <span class="dg-stat-value">${fmt(medianVal)}</span>
-      <span class="dg-stat-sub">${Math.abs(medianVal - stats.avg) > stats.avg * 0.1 ? 'Differs from mean — data is skewed' : 'Close to mean — evenly spread'}</span>
+      <span class="dg-stat-sub">${dgMedianDiffersFromMean(medianVal, stats.avg, stats.stdDev) ? 'Differs from mean — data is skewed' : 'Close to mean — evenly spread'}</span>
     </div>
     <div class="dg-stat-card" style="--dg-accent:#8B7CA6;--dg-accent-rgb:139, 124, 166">
       <div class="dg-stat-card-top"><span class="dg-stat-label">Std Deviation</span><div class="dg-stat-icon">${ICONS.spread}</div></div>
       <span class="dg-stat-value">${fmt(stats.stdDev)}</span>
-      <span class="dg-stat-sub">${(stats.coefVar * 100).toFixed(0)}% coefficient of variation</span>
+      <span class="dg-stat-sub">${stats.coefVar === null ? 'Values cross zero — % variation n/a' : (stats.coefVar * 100).toFixed(0) + '% coefficient of variation'}</span>
     </div>
     ${outlierCount ? `
     <div class="dg-stat-card" style="--dg-accent:#B8863E;--dg-accent-rgb:184, 134, 62;border-color:rgba(184,134,62,0.35)">
@@ -6138,11 +6343,16 @@ function dgRenderInsightsStrip() {
     ${negativeWarning}
   `;
   if (sentenceEl) {
-    const trendWord = stats.trend === 'up' ? 'trending upward overall' : stats.trend === 'down' ? 'trending downward overall' : 'holding roughly steady';
     const domainPrefix = domain.confident ? `<b>${dgEsc(domain.label)}</b> read — ` : '';
+    const conflict = dgTrendConflict(stats);
+    const trendWord = stats.trend === 'up' ? 'trending upward overall' : stats.trend === 'down' ? 'trending downward overall' : 'holding roughly steady';
+    const trendCaveat = conflict ? ` (though the last entry finished ${conflict} the first)` : '';
+    // Only talk about direction when the rows really are a sequence; for plain categories the
+    // order is arbitrary, so the takeaway sticks to what is true of any category list.
+    const trendPart = stats.ordered ? `The data is <b>${dgEsc(trendWord)}</b>${trendCaveat}. ` : '';
     sentenceEl.innerHTML = `
       <div class="dg-insight-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.5.4.9 1.1 1 1.8v.5h6v-.5c.1-.7.5-1.4 1-1.8A7 7 0 0 0 12 2Z"/></svg>Key takeaway</div>
-      <span class="dg-insight-text">${domainPrefix}The data is <b>${dgEsc(trendWord)}</b>. <b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)}, while <b>${dgEsc(stats.minLabel)}</b> is lowest at ${fmt(stats.min)} — a spread of ${fmt(stats.max - stats.min)}.</span>
+      <span class="dg-insight-text">${domainPrefix}${trendPart}<b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)}, while <b>${dgEsc(stats.minLabel)}</b> is lowest at ${fmt(stats.min)} — a spread of ${fmt(stats.max - stats.min)}.</span>
     `;
     sentenceEl.classList.add('show');
   }
@@ -6175,18 +6385,31 @@ function dgBuildSmartAnalysisText(stats, rows, opts) {
 
   // 2. Trajectory sentence — where it's leading.
   let trajectory;
-  if (stats.growthPct !== null) {
+  const conflict = dgTrendConflict(stats);
+  const reorderNote = stats.reordered ? ' (rows were read in chronological order)' : '';
+  if (stats.ordered && stats.growthPct !== null && conflict) {
+    trajectory = `From first to last entry the series moved ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}%${reorderNote}, yet the fitted trend across all points runs <b>${stats.trend === 'up' ? 'upward' : 'downward'}</b> — the endpoints and the overall pattern disagree, so read the middle of the series before leaning on either number.`;
+  } else if (stats.ordered && stats.growthPct !== null) {
     const dir = stats.trend === 'up' ? 'climbing' : stats.trend === 'down' ? 'declining' : 'holding flat';
-    trajectory = `From first to last entry the series is <b>${dir}</b>, moving ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% overall — if that pace continues, expect the next few points to keep ${stats.trend === 'up' ? 'pushing above' : stats.trend === 'down' ? 'sliding below' : 'sitting near'} the current average of ${fmt(stats.avg)}.`;
+    // Extrapolating a line through just two or three points is noise, so only project from 4+.
+    const outlook = n >= 4
+      ? ` — if that pattern continues, expect the next few points to keep ${stats.trend === 'up' ? 'pushing above' : stats.trend === 'down' ? 'sliding below' : 'sitting near'} the current average of ${fmt(stats.avg)}.`
+      : '.';
+    trajectory = `From first to last entry the series is <b>${dir}</b>, moving ${stats.growthPct >= 0 ? '+' : ''}${Math.round(stats.growthPct)}% overall${reorderNote}${outlook}`;
   } else {
+    // Plain categories (or a zero starting point): describe the spread, never a direction.
     trajectory = `<b>${dgEsc(stats.maxLabel)}</b> leads at ${fmt(stats.max)} while <b>${dgEsc(stats.minLabel)}</b> sits lowest at ${fmt(stats.min)}, a spread of ${fmt(stats.max - stats.min)}.`;
   }
 
   // 3. Concentration / volatility sentence — how the values are distributed.
   let distribution;
-  if (stats.topShare >= 40 && n > 2) {
+  // "Outsized" has to be relative to the item count: 40% is a dominant share of 10 items but
+  // barely above an even split of 3 (33%) or 4 (25%) — so it must be at least twice the even share.
+  if (stats.topShare !== null && stats.topShare >= 40 && stats.topShare >= 200 / n && n > 2) {
     distribution = `A single item, <b>${dgEsc(stats.maxLabel)}</b>, accounts for roughly ${Math.round(stats.topShare)}% of the total — the rest of the set is comparatively thin, so this chart is really a story about one outsized contributor.`;
-  } else if (stats.coefVar > 0.6 && n > 2) {
+  } else if (stats.topShare === null && n > 2) {
+    distribution = `Values run from ${fmt(stats.min)} to ${fmt(stats.max)} and cross zero, so share-of-total and percentage-variation figures aren't meaningful for this set — read the individual values instead.`;
+  } else if (stats.coefVar !== null && stats.coefVar > 0.6 && n > 2) {
     distribution = `Values swing widely around the average (about ${Math.round(stats.coefVar * 100)}% relative variation), so the underlying pattern is more volatile than the average alone suggests.`;
   } else if (n > 2) {
     distribution = `The values are fairly evenly spread — only ${stats.aboveAvgCount} of ${n} items sit above the ${fmt(stats.avg)} average, and no single item dominates the total.`;
@@ -6206,7 +6429,7 @@ function dgBuildSmartAnalysisText(stats, rows, opts) {
   if ((type === 'bar' || type === 'line' || type === 'area') && n > 15) {
     improvementIdeas.push('trimming to the top items or adding a trendline so the overall direction reads faster than scanning every point');
   }
-  if (stats.growthPct === null && (type === 'line' || type === 'area' || type === 'bar')) {
+  if (stats.ordered && stats.growthPct === null && (type === 'line' || type === 'area' || type === 'bar')) {
     improvementIdeas.push('adding a zero-baseline check on the first value — growth % couldn\'t be calculated because it starts at zero');
   }
   if (stats.growthPct !== null && !opts.growthMode && (type === 'line' || type === 'area' || type === 'bar')) {
@@ -6234,7 +6457,7 @@ function dgBuildSmartAnalysisText(stats, rows, opts) {
 function dgRenderSmartAnalysis(precomputedStats) {
   const textEl = document.getElementById('dgSmartAnalysisText');
   if (!textEl || !dgState.rows.length) return;
-  const stats = precomputedStats || dgComputeStats(dgState.rows);
+  const stats = precomputedStats || dgComputeStats(dgState.rows, dgState.type);
   const opts = dgGetOpts();
   textEl.innerHTML = dgBuildSmartAnalysisText(stats, dgState.rows, opts);
 }
