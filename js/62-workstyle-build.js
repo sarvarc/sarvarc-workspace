@@ -151,12 +151,19 @@ const WSB_POLY = {
   upArrow: [[0.25, 1], [0.25, 0.4], [0, 0.4], [0.5, 0], [1, 0.4], [0.75, 0.4], [0.75, 1]],
   downArrow: [[0.25, 0], [0.25, 0.6], [0, 0.6], [0.5, 1], [1, 0.6], [0.75, 0.6], [0.75, 0]]
 };
+function wsbGradColors(g) { return (g && Array.isArray(g.stops) && g.stops.length >= 2) ? g.stops : [g.c1, g.c2]; }
+function wsbSlantPts(geom) {
+  const m = /^slant([du]):([0-9.]+)$/.exec(String(geom || ''));
+  if (!m) return null;
+  const t = Math.max(0.002, Math.min(0.5, parseFloat(m[2]) || 0.02));
+  return m[1] === 'd' ? [[0, 0], [t, 0], [1, 1], [1 - t, 1]] : [[0, 1], [t, 1], [1, 0], [1 - t, 0]];
+}
 function wsbGeomPoints(geom, w, h) {
-  const pts = WSB_POLY[geom];
+  const pts = WSB_POLY[geom] || wsbSlantPts(geom);
   return pts ? pts.map(function (p) { return wsbR(p[0] * w, 2) + ',' + wsbR(p[1] * h, 2); }).join(' ') : null;
 }
 function wsbGeomClip(geom) {
-  const pts = WSB_POLY[geom];
+  const pts = WSB_POLY[geom] || wsbSlantPts(geom);
   return pts ? 'polygon(' + pts.map(function (p) { return (p[0] * 100) + '% ' + (p[1] * 100) + '%'; }).join(',') + ')' : null;
 }
 
@@ -369,7 +376,7 @@ function wsbReflow(parts, shapesRaw, W, H) {
     const x = (sh.xPct || 0) / 100 * W, y0 = (sh.yPct || 0) / 100 * H, w = (sh.wPct || 0) / 100 * W, h0 = (sh.hPct || 0) / 100 * H;
     const stat = y0 > H * 0.9 || (y0 + h0 <= H * 0.15) || (h0 >= H * 0.6 && w <= W * 0.12) || (w >= W * 0.9 && h0 >= H * 0.85);
     let k = 'box';
-    if (stat) k = 'static';
+    if (stat || /^slant[du]:/.test(String(sh.geom || ''))) k = 'static';
     else if (sh.shape === 'line' || h0 < 4 || w < 4) k = (w >= h0) ? 'rule' : 'static';
     E.push({ k: k, sh: sh, si: r.si, x: x, w: w, y0: y0, h0: h0, h: h0, pin: false, y: y0, done: false, busy: false, group: null, container: null });
   });
@@ -707,7 +714,7 @@ function wsbAddItem(pg, it) {
       const hs = sw / 2;
       const rx = Math.max(0, Math.min(it.r || 0, w / 2, h / 2));                       // rounded corners
       const g = it.grad;                                                              // a fade
-      const gd = g ? '<defs><linearGradient id="wsg" x1="0" y1="0" x2="' + (g.dir === 'vertical' ? 0 : 1) + '" y2="' + (g.dir === 'horizontal' ? 0 : 1) + '"><stop offset="0" stop-color="' + g.c1 + '"/><stop offset="1" stop-color="' + g.c2 + '"/></linearGradient></defs>' : '';
+      const gd = g ? '<defs><linearGradient id="wsg" x1="0" y1="0" x2="' + (g.dir === 'vertical' ? 0 : 1) + '" y2="' + (g.dir === 'horizontal' ? 0 : 1) + '">' + wsbGradColors(g).map(function (c, i, a) { return '<stop offset="' + (i / (a.length - 1)) + '" stop-color="' + c + '"/>'; }).join('') + '</linearGradient></defs>' : '';
       const paint = ' fill="' + (g ? 'url(#wsg)' : (it.fill || 'none')) + '"' + (it.stroke && sw > 0 ? ' stroke="' + it.stroke + '" stroke-width="' + sw + '"' : '');
       const polyPts = it.geom ? wsbGeomPoints(it.geom, w, h) : null;
       let shapeTag;
@@ -973,7 +980,7 @@ function wsbMakeItem(it) {
     });
   } else if (it.kind === 'shape') {
     e = wsbEl('div', 'wsb-el', wsbBoxCss(it) + 'height:' + it.hPct + '%;' + (it.shape === 'line' ? 'min-height:1px;background:' + (it.stroke || it.fill || '#000') :
-      'box-sizing:border-box;' + (it.grad ? 'background:linear-gradient(' + (it.grad.dir === 'horizontal' ? 'to right' : it.grad.dir === 'vertical' ? 'to bottom' : 'to bottom right') + ',' + it.grad.c1 + ',' + it.grad.c2 + ');' : (it.fill ? 'background:' + it.fill + ';' : '')) +
+      'box-sizing:border-box;' + (it.grad ? 'background:linear-gradient(' + (it.grad.dir === 'horizontal' ? 'to right' : it.grad.dir === 'vertical' ? 'to bottom' : 'to bottom right') + ',' + wsbGradColors(it.grad).join(',') + ');' : (it.fill ? 'background:' + it.fill + ';' : '')) +
         (it.geom === 'ellipse' ? 'border-radius:50%;' : (it.rPct ? 'border-radius:' + it.rPct + 'cqw;' : '')) + (wsbGeomClip(it.geom) ? 'clip-path:' + wsbGeomClip(it.geom) + ';' : '') + (it.stroke ? 'border:1px solid ' + it.stroke : '')));
   } else {
     e = wsbEl('div', 'wsb-el wsb-im', wsbBoxCss(it) + 'height:' + it.hPct + '%;opacity:' + it.opacity);

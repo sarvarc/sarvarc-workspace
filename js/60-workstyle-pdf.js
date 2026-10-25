@@ -11,6 +11,7 @@
 //
 // Honest limits (v1):
 //   - Rounded boxes and simple fades (left to right, top to bottom, corner to corner) are copied. Free-form curves are not.
+//   - A picture file, and a scanned PDF page, also get their boxes, lines and picture spots read from the pixels (js/70).
 //   - A scanned or picture-only PDF, or a picture file, is read with OCR (js/16). Sizes are close, not exact,
 //     and the PDF has no fonts to read, so the font is Arial.
 //   - Tables are found by ALIGNED COLUMNS of text (3 or more rows). Tables drawn
@@ -397,7 +398,18 @@ async function wstyleReadImageFile(file) {
     if (!iw || !ih) throw new Error('that picture has no size');
     // Fit it on a page 595 points wide (A4 width), keeping its own shape.
     const W = 595, H = Math.round(595 * ih / iw);
+    // The pixels, kept for js/70 (boxes, lines, picture spots). Up to 900 px wide so thin lines survive.
+    let pic = null;
+    try {
+      const aw = Math.min(iw, 900), ah = Math.max(1, Math.round(aw * ih / iw));
+      const ac = document.createElement('canvas'); ac.width = aw; ac.height = ah;
+      const ax = ac.getContext('2d', { willReadFrequently: true });
+      ax.fillStyle = '#ffffff'; ax.fillRect(0, 0, aw, ah);
+      ax.drawImage(img, 0, 0, aw, ah);
+      pic = { data: ax.getImageData(0, 0, aw, ah).data, w: aw, h: ah };
+    } catch (e) { pic = null; }
     const fake = {
+      _wsPic: pic,
       getViewport: function (o) { const sc = (o && o.scale) || 1; return { width: W * sc, height: H * sc, scale: sc }; },
       getOperatorList: function () { return Promise.resolve({ fnArray: [], argsArray: [] }); },
       getTextContent: function () { return Promise.resolve({ items: [] }); },
@@ -622,6 +634,29 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   });
 
   const slots = await wstylePdfImageSlots(pdfPage, H, W);
+  // A picture file has no drawing instructions, so its picture spots and boxes are read from the pixels (js/70).
+  // Only picture references carry _wsPic; a real PDF never takes this path. If it fails, the words still stand.
+  // A scanned PDF page (no real text, read by OCR) is a picture too, so it gets the same pixel reading.
+  // A PDF with real text never does: viaOcr is false for it.
+  let scanPic = null;
+  if (viaOcr && pdfPage && !pdfPage._wsPic) {
+    try {
+      const v2 = pdfPage.getViewport({ scale: Math.max(1, Math.min(2, 900 / W)) });
+      const c2 = document.createElement('canvas'); c2.width = Math.max(1, Math.round(v2.width)); c2.height = Math.max(1, Math.round(v2.height));
+      const x2 = c2.getContext('2d', { willReadFrequently: true });
+      x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, c2.width, c2.height);
+      await pdfPage.render({ canvasContext: x2, viewport: v2 }).promise;
+      scanPic = { data: x2.getImageData(0, 0, c2.width, c2.height).data, w: c2.width, h: c2.height };
+    } catch (e) { scanPic = null; }
+  }
+  let picRead = null;
+  const picSrc = (pdfPage && pdfPage._wsPic) || scanPic;
+  if (picSrc && typeof wstylePicRead === 'function') {
+    try {
+      picRead = wstylePicRead(picSrc, W, H, runs);
+      picRead.slots.forEach(function (sl) { slots.push(sl); });
+    } catch (e) { picRead = null; }
+  }
   const placedImages = slots.filter(function (s) { return !s.full; }).map(function (s, i) {
     return { id: 'pdf_i' + i, x: s.x * S, y: s.y * S, w: s.w * S, h: s.h * S };
   });
@@ -629,6 +664,7 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   // Boxes and lines. Anything sitting inside a table is left out: a table grows with its rows, so its
   // grid and row fills are rebuilt by the table itself, not copied as fixed shapes.
   const rawShapes = await wstylePdfShapes(pdfPage, H, W);
+  if (picRead) picRead.shapes.forEach(function (sh) { rawShapes.push(sh); });
   const inTable = function (sh, tb, pad) {
     const cxm = sh.x + sh.w / 2, cym = sh.y + sh.h / 2;
     const tw = tb.colWidths.reduce(function (a, b) { return a + b; }, 0) / S, th = tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S;
@@ -643,8 +679,9 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   const placedShapes = rawShapes.filter(function (sh) {
     return !placedTables.some(function (tb) { return inTable(sh, tb, 4); });
   }).map(function (sh) {
-    const g = wstylePdfShapeGradient(cx, CW, CH, sh);
-    return { x: sh.x * S, y: sh.y * S, w: sh.w * S, h: sh.h * S, fill: g ? g.c1 : sh.fill, stroke: sh.stroke, sw: sh.sw * S, rule: sh.rule, r: (sh.r || 0) * S, grad: g };
+    const g = sh.grad || wstylePdfShapeGradient(cx, CW, CH, sh);
+    return { x: sh.x * S, y: sh.y * S, w: sh.w * S, h: sh.h * S, fill: g ? g.c1 : sh.fill, stroke: sh.stroke, sw: sh.sw * S, rule: sh.rule, r: (sh.r || 0) * S, grad: g,
+      geom: sh.geom || null };
   });
 
   const fakePg = {
