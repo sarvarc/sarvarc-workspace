@@ -75,8 +75,8 @@ function wsbCellStyles(it, cells) {
   return out;
 }
 
-function wsbMeasureText(text, fam, size, bold, italic, w, fallbackH) {
-  try { if (typeof pdfedKadessaMeasure === 'function') return pdfedKadessaMeasure(text, fam, size, bold, italic, w) || fallbackH; } catch (e) { /* fall through */ }
+function wsbMeasureText(text, fam, size, bold, italic, w, fallbackH, ls) {
+  try { if (typeof pdfedKadessaMeasure === 'function') return pdfedKadessaMeasure(text, fam, size, bold, italic, w, ls) || fallbackH; } catch (e) { /* fall through */ }
   return fallbackH;
 }
 
@@ -107,7 +107,7 @@ function wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, margins, bounds) {
     if (typeof pdfedKadessaMeasureTextWidth !== 'function') return { x: x, w: w };
     if (/\n/.test(text) || /\n/.test(String(it.text || '')) || oldH > fs * 1.9) return { x: x, w: w };
     const pad = (typeof PDFED_PTXT_BORDER !== 'undefined' && typeof PDFED_PTXT_PAD_X !== 'undefined') ? 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_X) : 16;
-    const tw = pdfedKadessaMeasureTextWidth(text, fam, fs, !!it.bold) + pad + Math.max(4, Math.ceil(fs * 0.12));   // headroom: canvas (thumbnail/export) and DOM text widths differ by a few px
+    const tw = pdfedKadessaMeasureTextWidth(text, fam, fs, !!it.bold, it.letterSpacing) + pad + Math.max(4, Math.ceil(fs * 0.12));   // headroom: canvas (thumbnail/export) and DOM text widths differ by a few px
     if (!(tw > w)) return { x: x, w: w };
     let lim = Math.max(W * 0.04, ((margins && margins.leftPct) || 0) / 100 * W);
     let limR = W - Math.max(W * 0.04, ((margins && margins.rightPct) || 0) / 100 * W);
@@ -175,7 +175,7 @@ function wsbSplitText(it, y, limit) {
   const avail = limit - y;
   const fs = it.fontSize, lineH = fs * 1.3;
   if (avail < lineH * 2) return { head: null, rest: it };         // fewer than two lines of room: move it whole
-  const measure = function (t) { return wsbMeasureText(t, it.fontFamily, fs, it.bold, it.italic, it.w, lineH * Math.max(1, String(t).split('\n').length)); };
+  const measure = function (t) { return wsbMeasureText(t, it.fontFamily, fs, it.bold, it.italic, it.w, lineH * Math.max(1, String(t).split('\n').length), it.letterSpacing); };
   const lines = String(it.text).split('\n');
   // 1. how many whole lines (paragraphs) fit
   let lo = 0, hi = lines.length;
@@ -540,11 +540,11 @@ function wstyleBuildPlan(style, fill) {
         let bx = x, bw = w;
         { const wd = wsbWidenOneLine(it, text, fs, fam, x, w, W, oldH, sp.margins, wsbSideBounds(sp, it, W)); bx = wd.x; bw = wd.w; }
         if (template) {
-          h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, bw, oldH));
+          h = Math.max(oldH * 0.5, wsbMeasureText(text, fam, fs, it.bold, it.italic, bw, oldH, it.letterSpacing));
         }
         parts.push({ kind: 'text', src: si, slot: slotId, role: it.role, x: bx, y: y, w: bw, h: h, fontSize: fs, sizePct: it.sizePct || 3,
           fontFamily: fam, color: it.color || '#111111', gradient: it.gradient || null, bold: !!it.bold, italic: !!it.italic,
-          underline: !!it.underline, align: it.align || 'left', opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity, text: text,
+          underline: !!it.underline, letterSpacing: it.letterSpacing || 0, align: it.align || 'left', opacity: (it.opacity === undefined || it.opacity === null) ? 1 : it.opacity, text: text,
           _by: baseY, _oh: oldH, _rx: x, _rw: w, _pin: pinned });
         return;
       }
@@ -690,6 +690,7 @@ function wsbAddItem(pg, it) {
       underline: it.underline, align: it.align, locked: false, zIndex: pdfedNextZ(pg) };
     if (it.opacity !== 1) t.opacity = it.opacity;
     if (it.gradient) t.gradient = it.gradient;
+    if (it.letterSpacing) t.letterSpacing = it.letterSpacing;
     pg.placedTexts.push(t);
     return '.pdfed-placed-text[data-id="' + t.id + '"]';
   }
@@ -963,7 +964,7 @@ function wsbMakeItem(it) {
   let e;
   if (it.kind === 'text') {
     e = wsbEl('div', 'wsb-el wsb-t', wsbBoxCss(it) + 'font:' + (it.italic ? 'italic ' : '') + (it.bold ? '700 ' : '400 ') + it.sizePct + 'cqw/1.25 ' + wsbFontCss(it.fontFamily) +
-      ';color:' + it.color + ';text-align:' + it.align + ';opacity:' + it.opacity + (it.underline ? ';text-decoration:underline' : ''));
+      ';color:' + it.color + ';text-align:' + it.align + ';opacity:' + it.opacity + (it.underline ? ';text-decoration:underline' : '') + (it.letterSpacing ? ';letter-spacing:' + it.letterSpacing + 'em' : ''));
     e.textContent = it.text;
   } else if (it.kind === 'table') {
     e = wsbEl('div', 'wsb-el wsb-tb', wsbBoxCss(it) + 'height:' + it.hPct + '%;grid-template-columns:' + it.colWidths.map(function (v) { return v + 'fr'; }).join(' ') +

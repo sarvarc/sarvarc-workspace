@@ -4489,7 +4489,36 @@
     }
     return { fills: Array.isArray(data.fills) ? data.fills : [], note: data.note || '' };
   }
+  // v66 WORKSTYLE VISION: one picture of a flattened page (plus rough OCR hints) goes to the Worker's "workstyle_vision" mode,
+  // which answers with every line of text, its look, and the boxes, rules and picture spots (fractions of the picture).
+  // Throws an Error; e.limit is true when today's cap is used up. Used by js/71-workstyle-vision.js, which falls back to
+  // the local reading when this throws.
+  async function callKadessaWorkstyleVision(imageDataUrl, hints){
+    let accessToken = '';
+    try{
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      accessToken = session ? session.access_token : '';
+    } catch(e){ /* not signed in, or Supabase not ready yet */ }
+    if (!accessToken){ throw new Error('you are not signed in'); }
+    const response = await fetch(KADESSA_API.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+      body: JSON.stringify({ mode: 'workstyle_vision', image: imageDataUrl, hints: hints || [] })
+    });
+    let data = {};
+    try{ data = await response.json(); } catch(e){ /* not JSON */ }
+    if (data && data.limitReached){
+      const err = new Error(data.error || 'you have used all of today\'s messages with Kadessa');
+      err.limit = true;
+      throw err;
+    }
+    if (!response.ok || !data || data.error || !data.vision){
+      throw new Error((data && data.error) ? String(data.error).replace(/[.]$/, '') : 'the engine answered with an error');
+    }
+    return data.vision;
+  }
   window.kadessaWorkstyleFillCall = callKadessaWorkstyleFill;
+  window.kadessaWorkstyleVisionCall = callKadessaWorkstyleVision;
   window.kadessaVisionOcrCall = callKadessaVisionOcr;   // used by js/64-workstyle-readers.js for flattened files
 
   // -----------------------------------------------------------------

@@ -1064,7 +1064,7 @@ async function pdfedKadessaEnsureFont(fam) {
 
 // Height a text box will really have, using the same font stack, wrapping,
 // line height, border and padding the on-canvas box uses.
-function pdfedKadessaMeasure(text, fam, size, bold, italic, boxW) {
+function pdfedKadessaMeasure(text, fam, size, bold, italic, boxW, ls) {
   const inner = Math.max(10, boxW - 2 * (PDFED_PTXT_BORDER + PDFED_PTXT_PAD_X));
   const d = document.createElement('div');
   d.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;line-height:1.25;';
@@ -1072,6 +1072,7 @@ function pdfedKadessaMeasure(text, fam, size, bold, italic, boxW) {
   d.style.fontSize = size + 'px';
   d.style.fontWeight = bold ? '700' : '400';
   d.style.fontStyle = italic ? 'italic' : 'normal';
+  if (ls) d.style.letterSpacing = ls + 'em';             // letter spacing in em, same as the live box
   d.style.width = inner + 'px';
   d.textContent = text;
   document.body.appendChild(d);
@@ -1465,12 +1466,13 @@ const PDFED_TABLE_MIN_ROW_H = 24;
 // Natural single-line width of `text` in the given font -- how wide the
 // column would need to be for this one cell to show on one line with no
 // wrap at all. Used as the column's "ideal" width before any squeezing.
-function pdfedKadessaMeasureTextWidth(text, fam, size, bold) {
+function pdfedKadessaMeasureTextWidth(text, fam, size, bold, ls) {
   const span = document.createElement('span');
   span.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;white-space:nowrap;';
   span.style.fontFamily = pdfedFontCss(fam);
   span.style.fontSize = size + 'px';
   span.style.fontWeight = bold ? '700' : '400';
+  if (ls) span.style.letterSpacing = ls + 'em';
   span.textContent = text || '';
   document.body.appendChild(span);
   const w = span.offsetWidth;

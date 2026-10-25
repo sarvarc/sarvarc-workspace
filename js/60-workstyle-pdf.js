@@ -12,6 +12,8 @@
 // Honest limits (v1):
 //   - Rounded boxes and simple fades (left to right, top to bottom, corner to corner) are copied. Free-form curves are not.
 //   - A picture file, and a scanned PDF page, also get their boxes, lines and picture spots read from the pixels (js/70).
+//   - A flattened page or a picture is also LOOKED AT by Kadessa (js/71, Worker mode workstyle_vision): exact words, a font family guess,
+//     and the boxes, rules and picture spots the pixel reader missed. A PDF with real text is never sent. If she cannot be reached, it falls back to OCR + pixels.
 //   - A scanned or picture-only PDF, or a picture file, is read with OCR (js/16). Sizes are close, not exact,
 //     and the PDF has no fonts to read, so the font is Arial.
 //   - Tables are found by ALIGNED COLUMNS of text (3 or more rows). Tables drawn
@@ -117,7 +119,7 @@ function wstylePdfBuildLines(runs) {
         s.right = Math.max(s.right, r.x + r.w);
         s.bold = s.bold || r.bold;
       } else {
-        segs.push({ text: r.str, x: r.x, right: r.x + r.w, font: r.font, bold: r.bold, italic: r.italic, size: r.size });
+        segs.push({ text: r.str, x: r.x, right: r.x + r.w, font: r.font, bold: r.bold, italic: r.italic, size: r.size, ls: r.ls || 0 });
       }
     });
     segs.forEach(function (s) { s.text = s.text.replace(/\s+/g, ' ').trim(); });
@@ -171,7 +173,7 @@ function wstylePdfBuildBlocks(lines) {
     const seg = ln.segs[0];
     const text = ln.segs.map(function (s) { return s.text; }).join(' ');
     const last = blocks[blocks.length - 1];
-    const sameLook = last && Math.abs(last.size - ln.size) <= 0.6 && last.font === seg.font && last.bold === seg.bold && last.italic === seg.italic;
+    const sameLook = last && Math.abs(last.size - ln.size) <= 0.6 && last.font === seg.font && last.bold === seg.bold && last.italic === seg.italic && Math.abs((last.ls || 0) - (seg.ls || 0)) <= 0.02;
     const vgap = last ? ln.base - last.lastBase : 0;
     const leftAligned = last && Math.abs(last.x - ln.x) <= 3;
     const centred = last && Math.abs((last.x + last.right) / 2 - (ln.x + ln.right) / 2) <= 4;
@@ -183,7 +185,7 @@ function wstylePdfBuildBlocks(lines) {
       last.centredHits += centred && !leftAligned ? 1 : 0;
     } else {
       blocks.push({ lines: [text], base: ln.base, lastBase: ln.base, size: ln.size, x: ln.x, right: ln.right,
-        font: seg.font, bold: seg.bold, italic: seg.italic, centredHits: 0 });
+        font: seg.font, bold: seg.bold, italic: seg.italic, ls: seg.ls || 0, centredHits: 0 });
     }
   });
   return blocks;
@@ -545,11 +547,35 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
 
   // A flattened page (a scan, or a PDF made of pictures) has no text to measure. Read it with OCR instead.
   let viaOcr = false;
+  // Kadessa's vision (js/71): ONLY for a flattened page or a picture. A page with real text never takes it.
+  let vision = null, visionNote = '';
   if (!runs.length) {
     if (!cvs) throw new Error('page ' + pageNo + ' has no real text and could not be drawn to read it');
-    const ocrRuns = await wstyleOcrRuns(pdfPage, vp, W, H);
-    ocrRuns.forEach(function (r) { runs.push(r); });
+    let ocrRuns = [], ocrError = null;
+    try { ocrRuns = await wstyleOcrRuns(pdfPage, vp, W, H); } catch (e) { ocrError = e; }
     viaOcr = true;
+    if (typeof wstyleVisionRead === 'function') {
+      try {
+        try { if (typeof pdfedShowOcrProgress === 'function') pdfedShowOcrProgress('Kadessa is looking at the reference…'); } catch (e) {}
+        vision = await wstyleVisionRead(pdfPage, W, H, ocrRuns);
+        const merged = wstyleVisionMerge(ocrRuns, vision, W, H);
+        ocrRuns = merged.runs;
+        visionNote = 'Kadessa read ' + merged.stats.lines + ' lines (' + merged.stats.matched + ' matched to OCR, ' + merged.stats.added + ' placed from her view)';
+        // closer fonts (measured against the picture) and letter-spacing; if it cannot run, her family guess stands
+        try {
+          const rf = (typeof wstyleVisionRefine === 'function') ? await wstyleVisionRefine(ocrRuns) : null;
+          if (rf) visionNote += '; fonts matched for ' + rf.fitted + ' of ' + rf.looks + ' looks, spacing on ' + rf.tracked + ' lines';
+        } catch (e4) { /* keep the merged runs as they are */ }
+      } catch (e) {
+        vision = null;
+        visionNote = (e && e.limit) ? 'Kadessa\'s daily limit is used up, so this reference was read locally' : 'Kadessa could not look at this reference (' + ((e && e.message) || 'unknown') + '), so it was read locally';
+        try { console.warn('[workstyle vision]', visionNote); } catch (e2) {}
+      } finally {
+        try { if (typeof pdfedHideOcrProgress === 'function') pdfedHideOcrProgress(); } catch (e3) {}
+      }
+    }
+    if (!ocrRuns.length && ocrError) throw ocrError;
+    ocrRuns.forEach(function (r) { runs.push(r); });
     if (!runs.length) {
       throw new Error('page ' + pageNo + ' has no readable text, even with OCR. It may be blank or too blurry');
     }
@@ -571,8 +597,8 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
     return {
       id: 'pdf_t' + Math.random().toString(36).slice(2, 7),
       text: b.lines.join('\n'),
-      x: box.x * S, y: box.y * S, w: Math.max(box.w, 10) * S,
-      fontSize: b.size * S, fontFamily: b.font, bold: b.bold, italic: b.italic, underline: false,
+      x: box.x * S, y: box.y * S, w: Math.max(box.w + (b.ls || 0) * b.size, 10) * S,   // spaced text also has spacing after its last letter
+      fontSize: b.size * S, fontFamily: b.font, bold: b.bold, italic: b.italic, underline: false, letterSpacing: b.ls || 0,
       align: centred ? 'center' : 'left',
       color: ink(box, '#111111'),
       _hOverride: h * S
@@ -657,6 +683,10 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
       picRead.slots.forEach(function (sl) { slots.push(sl); });
     } catch (e) { picRead = null; }
   }
+  // Picture spots Kadessa saw that the pixel reader missed (a leaf sprig, a plate, a drink). Exact edges from the pixels win.
+  if (vision) {
+    try { wstyleVisionNewSlots(vision, W, H, slots).forEach(function (sl) { slots.push(sl); }); } catch (e) { /* keep what was read */ }
+  }
   const placedImages = slots.filter(function (s) { return !s.full; }).map(function (s, i) {
     return { id: 'pdf_i' + i, x: s.x * S, y: s.y * S, w: s.w * S, h: s.h * S };
   });
@@ -665,6 +695,10 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   // grid and row fills are rebuilt by the table itself, not copied as fixed shapes.
   const rawShapes = await wstylePdfShapes(pdfPage, H, W);
   if (picRead) picRead.shapes.forEach(function (sh) { rawShapes.push(sh); });
+  // Boxes, rules and fades Kadessa saw that the pixel reader missed.
+  if (vision) {
+    try { wstyleVisionNewShapes(vision, W, H, rawShapes).forEach(function (sh) { rawShapes.push(sh); }); } catch (e) { /* keep what was read */ }
+  }
   const inTable = function (sh, tb, pad) {
     const cxm = sh.x + sh.w / 2, cym = sh.y + sh.h / 2;
     const tw = tb.colWidths.reduce(function (a, b) { return a + b; }, 0) / S, th = tb.rowHeights.reduce(function (a, b) { return a + b; }, 0) / S;
@@ -694,6 +728,8 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   measured.index = pageNo - 1;
   measured.fromPdfFile = true;
   if (viaOcr) measured.readByOcr = true;
+  if (vision) measured.readByVision = true;
+  if (visionNote) measured.visionNote = visionNote;
   return measured;
 }
 

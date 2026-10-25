@@ -204,6 +204,8 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
     const fam = famRaw.includes(',') ? famRaw : `'${famRaw}'`;
     mctx.font = `${style} ${weight} ${item.fontSize}px ${fam}, Inter, sans-serif`;
     mctx.textBaseline = 'top';
+    const lsPx = (item.letterSpacing || 0) * item.fontSize;     // letter spacing (em of the font size) -> px
+    if ('letterSpacing' in mctx) mctx.letterSpacing = lsPx ? lsPx + 'px' : '0px';
     const lineHeight = item.fontSize * 1.25;
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
     const anchorX = item.x + padX;
@@ -263,7 +265,7 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
           try { pdf.setFont('helvetica', runPdfStyle); } catch(e) { pdf.setFont('helvetica', 'normal'); }
           const rgb = pdfedHexToRgb(r.color || item.color || '#000000');
           pdf.setTextColor(rgb.r, rgb.g, rgb.b);
-          pdf.text(r.text, cx * px2mm, tyTopPx * px2mm, { baseline: 'top' });
+          pdf.text(r.text, cx * px2mm, tyTopPx * px2mm, lsPx ? { baseline: 'top', charSpace: lsPx * px2mm } : { baseline: 'top' });
           if (item.underline || r.underline || r.link) {
             const uW = widths[ri] * px2mm;
             const uy = (tyTopPx + item.fontSize * 1.05) * px2mm;

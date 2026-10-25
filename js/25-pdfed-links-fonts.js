@@ -565,6 +565,7 @@ function pdfedShowPtxtToolbar(item, idx, content, el) {
   if (!tb) return;
   { const fb = document.getElementById('pdfedPtxtFontBtn'); if (fb) fb.textContent = (item.fontFamily || 'Inter').split(',')[0].replace(/['"]/g, ''); }
   document.getElementById('pdfedPtxtSizeInput').value = Math.round(item.fontSize || 18);
+  { const sp = document.getElementById('pdfedPtxtSpacingInput'); if (sp) sp.value = Math.round((item.letterSpacing || 0) * 100); }
   document.getElementById('pdfedPtxtBoldBtn').classList.toggle('active', !!item.bold);
   document.getElementById('pdfedPtxtItalicBtn').classList.toggle('active', !!item.italic);
   document.getElementById('pdfedPtxtUnderlineBtn').classList.toggle('active', !!item.underline);
@@ -785,6 +786,7 @@ function pdfedMaybeHidePtxtToolbar() {
   if (!tb) return;
   if (document.activeElement === document.getElementById('pdfedPtxtFontBtn') ||
       document.activeElement === document.getElementById('pdfedPtxtSizeInput') ||
+      document.activeElement === document.getElementById('pdfedPtxtSpacingInput') ||
       document.activeElement === document.getElementById('pdfedPtxtColorInput') ||
       (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('sarvarc-font-search')) ||
       sarvarcFontPickerEl) return;
@@ -1821,6 +1823,17 @@ function pdfedPtxtSetSize(value) {
   // looked one size while editing, then visibly jumped bigger the moment
   // the box was deselected or locked and re-rendered at the true size.
   if (content) content.style.fontSize = v + 'px';
+  if (el) pdfedPositionPtxtToolbar();
+  pdfedMarkModified(idx);
+}
+
+// Letter spacing, typed as a percent of the font size (0 = the font's own spacing). Stored in em so it scales with the text.
+function pdfedPtxtSetSpacing(value) {
+  const { item, idx, content, el } = pdfedPtxtTb;
+  if (!item) return;
+  const pct = Math.max(-10, Math.min(100, parseFloat(value) || 0));
+  if (pct) item.letterSpacing = Math.round(pct) / 100; else delete item.letterSpacing;
+  if (content) content.style.letterSpacing = item.letterSpacing ? item.letterSpacing + 'em' : '';
   if (el) pdfedPositionPtxtToolbar();
   pdfedMarkModified(idx);
 }

@@ -573,6 +573,8 @@ function pdfedPositionPlacedTextEl(el, item) {
   }
   const content = el.querySelector('.pdfed-ptxt-content');
   if (content) content.style.fontSize = item.fontSize + 'px';
+  // Letter spacing is stored in em (a fraction of the font size), so it scales with the text. Absent or 0 = the font's own spacing.
+  if (content) content.style.letterSpacing = item.letterSpacing ? item.letterSpacing + 'em' : '';
   // A page rotate (pdfedRotatePage) no longer bakes text boxes into pixels —
   // each one carries its own accumulated rotation through instead, applied
   // here as a plain CSS rotate around the box's own center. Position (x/y)
@@ -989,6 +991,10 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     const fam = famRaw.includes(',') ? famRaw : `'${famRaw}'`;
     ctx.font = `${style} ${weight} ${item.fontSize}px ${fam}, Inter, sans-serif`;
     ctx.textBaseline = 'top';
+    // Letter spacing (em of the font size). Modern canvases track it natively and measureText includes it; an older one is drawn letter by letter below.
+    const lsPx = (item.letterSpacing || 0) * item.fontSize;
+    const lsNative = ('letterSpacing' in ctx);
+    if (lsNative) ctx.letterSpacing = lsPx ? lsPx + 'px' : '0px';
     const lineHeight = item.fontSize * 1.25;
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER; // mirrors the on-screen box's border+padding offset
     const anchorX = item.x + padX;
@@ -1113,7 +1119,10 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
         if (r.text) {
           setRunFont(r);
           ctx.fillStyle = color;
-          ctx.fillText(r.text, cx, tyTop);
+          if (lsPx && !lsNative) {
+            let px = cx;
+            Array.from(r.text).forEach(ch => { ctx.fillText(ch, px, tyTop); px += ctx.measureText(ch).width + lsPx; });
+          } else ctx.fillText(r.text, cx, tyTop);
           if (item.underline || r.underline) {
             const w = widths[ri];
             const uy = tyTop + item.fontSize * 1.05;
@@ -1132,6 +1141,7 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     });
     if (boxRotation) ctx.restore();
   });
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
 }
 
 // ── PLACED TABLE LAYER (Excel-style insert; Canva-style move/resize/lock) ──

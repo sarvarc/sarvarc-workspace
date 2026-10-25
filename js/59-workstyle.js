@@ -17,7 +17,7 @@
 // so a style learned on an A4 page can later be applied to any page shape):
 //   page   { pageMM, ratio, bg, margins, rhythm }
 //   items  text  { role, xPct, yPct, wPct, hPct, sizePct, fontFamily, color,
-//                  gradient, bold, italic, underline, align, opacity, chars, text }
+//                  gradient, bold, italic, underline, letterSpacing (em), align, opacity, chars, text }
 //          table { role:'table', xPct, yPct, wPct, hPct, colPct[], rowHPct[],
 //                  sizePct, fontFamily, headerRow, headerCell, bodyCell,
 //                  lastRowCell, colAlign[], zebra, rows, cols, cells,
@@ -321,7 +321,7 @@ function wstyleTextHeight(pg, idx, t, W) {
       const el = document.querySelector('.pdfed-placed-text[data-id="' + t.id + '"]');
       if (el && el.offsetHeight) return el.offsetHeight;
     }
-    return pdfedKadessaMeasure(t.text || '', t.fontFamily || 'Inter', t.fontSize || 13, !!t.bold, !!t.italic, t.w || W * 0.8);
+    return pdfedKadessaMeasure(t.text || '', t.fontFamily || 'Inter', t.fontSize || 13, !!t.bold, !!t.italic, t.w || W * 0.8, t.letterSpacing || 0);
   } catch (e) {
     return (t.fontSize || 13) * 1.4;
   }
@@ -423,6 +423,7 @@ async function wstyleMeasurePage(pg, idx) {
       color: wstyleHex(t.color) || '#111111',
       gradient: wstyleClone(t.gradient),
       bold: !!t.bold, italic: !!t.italic, underline: !!t.underline,
+      letterSpacing: t.letterSpacing ? wstyleRound(t.letterSpacing, 3) : 0,
       align: t.align || 'left',
       opacity: (t.opacity === undefined || t.opacity === null) ? 1 : wstyleRound(t.opacity, 2),
       chars: String(t.text || '').length,
