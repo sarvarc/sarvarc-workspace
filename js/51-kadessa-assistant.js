@@ -1703,7 +1703,7 @@
                 return { type: f.type, label: f.label, required: !!f.required };
               }),
               isPublished: !!form.publishedId,
-              shareUrl: form.publishedId ? (SARVARC_FORMS_PUBLIC_BASE_URL + '/?f=' + form.shareSlug) : null,
+              shareUrl: form.publishedId ? (typeof window.mfShareLink === 'function' ? window.mfShareLink(form) : (SARVARC_FORMS_PUBLIC_BASE_URL + '/?f=' + form.shareSlug)) : null,
               responseCount: responses.length
             };
           }

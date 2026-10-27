@@ -2269,6 +2269,14 @@ function mfGetResponses(f) {
 // sit alongside hand-filled/local ones without duplicating on repeat sync.
 const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://sarvarc-forms.pages.dev';
 
+// The public link for a published form. A Guided form carries &style=guided in the
+// link itself, so respondents get the one-question-at-a-time layout even when the
+// Worker does not return form_style yet. Standard forms keep the plain link.
+function mfShareLink(f) {
+  const slug = (f && f.shareSlug) || '';
+  return `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${slug}` + (f && f.formStyle === 'guided' ? '&style=guided' : '');
+}
+
 function mfSlug() {
   return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
 }
@@ -2426,7 +2434,7 @@ async function mfPublishForm() {
     mfRegisterPublish(f.id, { publishedId: f.publishedId, shareSlug: f.shareSlug, publishedAt: f.publishedAt, expiresAt: f.expiresAt || null });
     mfRenderExpiryControls();
 
-    const link = `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${row.share_slug}`;
+    const link = mfShareLink(f);
     completeExportOverlay(isUpdate ? 'Link updated!' : 'Form published!', { module: 'make-forms', format: 'publish' });
     try { await navigator.clipboard.writeText(link); toast('Form published! Link copied to clipboard', 'success'); }
     catch(e) { toast('Form published!', 'success'); }
@@ -4933,6 +4941,7 @@ window.MF_TEMPLATES = MF_TEMPLATES;
 window.mfState = mfState;
 window.mfGetResponses = mfGetResponses;
 window.SARVARC_FORMS_PUBLIC_BASE_URL = SARVARC_FORMS_PUBLIC_BASE_URL;
+window.mfShareLink = mfShareLink;
 window.mfGetCurrentForm = mfGetCurrentForm;
 window.mfNewField = mfNewField;
 window.mfRenderFieldList = mfRenderFieldList;
