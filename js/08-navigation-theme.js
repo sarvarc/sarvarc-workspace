@@ -533,3 +533,38 @@ function toggleTheme() {
   }
   toast(isDark ? 'Dark mode' : 'Light mode', 'info');
 }
+
+// ─── LEGAL POPUP (sidebar Legal icon) ───
+function closeLegalMenu() {
+  var m = document.getElementById('legalMenu');
+  var b = document.getElementById('legalMenuBtn');
+  if (m) m.classList.remove('open');
+  if (b) { b.classList.remove('active-menu'); b.setAttribute('aria-expanded', 'false'); }
+}
+function toggleLegalMenu(ev) {
+  if (ev) ev.stopPropagation();
+  var m = document.getElementById('legalMenu');
+  var b = document.getElementById('legalMenuBtn');
+  if (!m || !b) return;
+  if (m.classList.contains('open')) { closeLegalMenu(); return; }
+  var r = b.getBoundingClientRect();
+  m.classList.add('open');
+  var h = m.offsetHeight;
+  var left = r.right + 8;
+  var top = Math.min(Math.max(8, r.bottom - h), window.innerHeight - h - 8);
+  // not enough room on the right (narrow screens): sit above the icon instead
+  if (left + m.offsetWidth > window.innerWidth - 8) {
+    left = Math.max(8, r.left);
+    top = Math.max(8, r.top - h - 8);
+  }
+  m.style.left = left + 'px';
+  m.style.top = top + 'px';
+  b.classList.add('active-menu');
+  b.setAttribute('aria-expanded', 'true');
+}
+document.addEventListener('click', function (e) {
+  var m = document.getElementById('legalMenu');
+  if (m && m.classList.contains('open') && !m.contains(e.target)) closeLegalMenu();
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLegalMenu(); });
+window.addEventListener('resize', closeLegalMenu);
