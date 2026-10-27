@@ -74,6 +74,7 @@ function mfTplEnsureColors(f) {
     f.logoColors = (cols || []).slice(0, 3); f.logoColorsSig = sig; mfTouch(f);
     if (document.getElementById('mfGdOverlay') && mfGetCurrentForm() === f) mfGdRender();
     if (document.getElementById('mfTplModal')) mfTplDraw();
+    mfLookSync();
   }).catch(function () { f.logoColorsSig = sig; });
 }
 
@@ -108,6 +109,8 @@ function mfTplCard(t, on, brand) {
 
 function mfTplOpen() {
   var f = mfGetCurrentForm(); if (!f) return;
+  // Templates only apply to Guided forms: opening them from a Standard form switches it to Guided first.
+  if (f.formStyle !== 'guided' && typeof mfSetFormStyle === 'function') mfSetFormStyle('guided');
   mfTplClose();
   var m = document.createElement('div');
   m.id = 'mfTplModal'; m.className = 'mf-tpl-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Choose a template');
@@ -157,6 +160,32 @@ function mfTplSet(id) {
   var f = mfGetCurrentForm(); if (!f) return;
   f.formTemplate = mfTplGet(id) ? id : '';
   mfTouch(f);
+  mfLookSync();
   if (document.getElementById('mfGdOverlay')) mfGdRender();
   if (typeof toast === 'function' && f.publishedId) toast('Template changed. Press Update Link to publish it, and share the new link.', 'info');
+}
+
+// ─── Form look card (top of Make Forms > Design) ───
+// Shows which style is on (Standard | Guided tiles) and the template in use with a Browse button.
+function mfLookSync() {
+  var card = document.getElementById('mfLookCard'), f = mfGetCurrentForm(); if (!card || !f) return;
+  var guided = f.formStyle === 'guided';
+  card.querySelectorAll('.mf-look-tile').forEach(function (b) { b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')); });
+  var box = document.getElementById('mfLookTpl'); if (!box) return;
+  if (!guided) {
+    box.innerHTML = '<span class="mf-look-note">Guided forms can use ready-made templates: colours, moving backgrounds and animations.</span>' +
+      '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplOpen()">Try templates</button>';
+    return;
+  }
+  var t = mfTplEff(mfTplGet(f.formTemplate), f), sw, name, sub;
+  if (t) {
+    sw = 'linear-gradient(135deg,' + t.c1 + ',' + t.c2 + ')'; name = t.name;
+    sub = (MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase();
+  } else {
+    var acc = f.accentColor || '#0073E6';
+    sw = 'linear-gradient(135deg,' + mixHex(acc, 55, '#0b1020') + ',' + acc + ')'; name = 'Brand colour'; sub = 'Your own accent colour';
+  }
+  box.innerHTML = '<span class="mf-look-sw" style="background:' + sw + '"></span>' +
+    '<span class="mf-look-tn"><b>' + mfEsc(name) + '</b><small>' + mfEsc(sub) + '</small></span>' +
+    '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplOpen()">Browse templates</button>';
 }

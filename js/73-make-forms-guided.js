@@ -4,7 +4,7 @@
 // The Standard | Guided toggle lives in the Live Preview header. The choice is
 // saved on the form as f.formStyle and published as the `form_style` column.
 // Print, PDF export and Push to Workspace always use Standard (A4 sheets).
-var mfGd = { i: 0, a: {}, done: false, fill: false, mode: null };
+var mfGd = { i: 0, a: {}, done: false, fill: false, mode: null, dir: 'fwd', moving: false };
 
 function mfSetFormStyle(style) {
   const f = mfGetCurrentForm(); if (!f) return;
@@ -59,6 +59,7 @@ function mfGdRender() {
   const f = mfGetCurrentForm(), ov = document.getElementById('mfGdOverlay');
   if (!f || !ov) return;
   ov.classList.toggle('mf-gd-fill', !!mfGd.fill);
+  ov.setAttribute('data-dir', mfGd.dir === 'back' ? 'back' : 'fwd'); // which way the new screen slides in
   const acc = f.accentColor || '#0073E6';
   const rgb = (typeof hexToRgbStr === 'function' ? hexToRgbStr(acc) : null);
   const lum = rgb ? (() => { const [r, g, b] = rgb.split(',').map(Number); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; })() : 0;
@@ -85,7 +86,7 @@ function mfGdRender() {
     const content = s.t === 'heading' ? `<h1>${mfEsc(s.label)}</h1>`
       : s.t === 'label' ? `<p style="font-size:18px">${mfEsc(s.label)}</p>`
       : `<div class="mf-gd-num">${qn} / ${qTotal}</div><h2>${mfEsc(s.label)}${s.required ? ' *' : ''}</h2>${mfGdControl(s)}<div class="mf-gd-err" id="mfGdErr">Please answer this one to continue</div>`;
-    body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back">↑</button><button class="mf-gd-btn" data-go="next">${i === n ? (mfGd.fill ? 'Finish' : 'Submit') : isSec ? 'Continue' : 'OK ✓'}</button><span class="mf-gd-hint">press Enter</span></div>`;
+    body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back" aria-label="Previous question"><span class="mf-gd-arr" aria-hidden="true">←</span><span>Back</span></button><button class="mf-gd-btn" data-go="next" aria-label="Next question"><span>${i === n ? (mfGd.fill ? 'Finish' : 'Submit') : isSec ? 'Continue' : 'Next'}</span>${i === n ? '' : '<span class="mf-gd-arr" aria-hidden="true">→</span>'}</button><span class="mf-gd-hint">press Enter</span></div>`;
   }
   // The blob layer is created once and kept, so its animation keeps running when the question changes.
   let blobs = ov.querySelector(':scope > .gdx-blobs');
@@ -106,7 +107,22 @@ function mfGdFocus() {
   if (el) el.focus({ preventScroll: true });
 }
 
+// Moves between screens with a smooth exit (current screen slides/fades away) and a matching entrance.
+// dir = 'fwd' | 'back'. apply() changes mfGd.i / mfGd.done. Motion is skipped for "reduce motion".
+function mfGdMove(dir, apply) {
+  if (mfGd.moving) return;
+  const ov = document.getElementById('mfGdOverlay'), sc = ov && ov.querySelector('.mf-gd-screen');
+  const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const finish = () => { mfGd.moving = false; apply(); mfGd.dir = dir; mfGdRender(); mfGdFocus(); };
+  if (!ov || !sc || calm) { finish(); return; }
+  mfGd.moving = true;
+  sc.classList.remove('mf-gd-shake');
+  sc.classList.add('mf-gd-out-' + dir);
+  setTimeout(finish, 190);
+}
+
 function mfGdNext() {
+  if (mfGd.moving) return;
   const f = mfGetCurrentForm(); if (!f) return;
   const S = mfGdScreens(f), s = S[mfGd.i];
   const cur = (mfGd.fill && s.t === 'signature' && typeof window.mfGetDraft === 'function') ? (window.mfGetDraft() || {})[s.id] : mfGd.a[s.id];
@@ -116,8 +132,7 @@ function mfGdNext() {
     if (sc) { sc.classList.remove('mf-gd-shake'); void sc.offsetWidth; sc.classList.add('mf-gd-shake'); }
     return;
   }
-  if (mfGd.i >= S.length - 1) mfGd.done = true; else mfGd.i++;
-  mfGdRender(); mfGdFocus();
+  mfGdMove('fwd', () => { if (mfGd.i >= S.length - 1) mfGd.done = true; else mfGd.i++; });
 }
 
 function mfGdWire(ov) {
@@ -126,10 +141,10 @@ function mfGdWire(ov) {
     if (go) {
       const g = go.dataset.go;
       if (g === 'next') mfGdNext();
-      else if (g === 'back') { if (mfGd.i > 0) { mfGd.i--; mfGdRender(); mfGdFocus(); } }
-      else if (g === 'again') { mfGd.i = 0; mfGd.a = {}; mfGd.done = false; mfGdRender(); }
+      else if (g === 'back') { if (mfGd.i > 0) mfGdMove('back', () => { mfGd.i--; }); }
+      else if (g === 'again') { mfGd.a = {}; mfGdMove('back', () => { mfGd.i = 0; mfGd.done = false; }); }
       else if (g === 'save') { if (typeof window.mfSaveResponse === 'function') window.mfSaveResponse(); }
-      else if (g === 'review') { mfGd.done = false; mfGd.i = 1; mfGdRender(); }
+      else if (g === 'review') mfGdMove('back', () => { mfGd.done = false; mfGd.i = 1; });
       return;
     }
     const f = mfGetCurrentForm(); if (!f) return;
@@ -227,8 +242,7 @@ function mfGdSync() {
   if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')));
   const size = document.getElementById('mfDesignPreviewSize');
   if (size) size.style.display = guided ? 'none' : '';
-  const tb = document.getElementById('mfTplBtn');
-  if (tb) tb.style.display = guided ? 'inline-block' : 'none';
+  if (typeof mfLookSync === 'function') mfLookSync(); // the Form look card (Standard | Guided tiles + current template)
   const mode = typeof window.mfGetMode === 'function' ? window.mfGetMode() : null;
   const dSlot = document.getElementById('mfDesignPreviewSlot');
   const fSlot = document.getElementById('mfFillPreviewSlot');
@@ -275,10 +289,11 @@ function mfGdShowField(fieldId) {
   const f = mfGetCurrentForm(); if (!f) return;
   const k = mfGdScreens(f).findIndex(sc => sc.id === fieldId);
   if (k < 1) return;
+  mfGd.dir = k >= mfGd.i ? 'fwd' : 'back';
   mfGd.i = k; mfGd.done = false;
   mfGdRender();
 }
-function mfGdShowIntro() { mfGd.i = 0; mfGd.done = false; mfGdRender(); }
+function mfGdShowIntro() { mfGd.dir = 'back'; mfGd.i = 0; mfGd.done = false; mfGdRender(); }
 
 (function wireFollow() {
   const isGuided = () => { const f = mfGetCurrentForm(); return !!f && f.formStyle === 'guided'; };
