@@ -2840,12 +2840,21 @@
     mf_create_from_template: {
       risk: 'safe',
       run: function(p){
-        if (!p.template || !MF_TEMPLATES[p.template]) throw new Error('unknown template "' + p.template + '"');
+        // v68: read the form-content templates from MF_FORM_TEMPLATES. window.MF_TEMPLATES gets overwritten by js/74
+        // (the Guided looks, an array), which made every template look "unknown" here.
+        const FT = window.MF_FORM_TEMPLATES || {};
+        if (!p.template || !FT[p.template]){
+          // No such ready-made form: start a blank one instead of failing, so she can keep going with mf_add_field.
+          mfCreateFromTemplate('blank');
+          const nf = mfGetCurrentForm();
+          if (nf && p.look) return kmfApplyLook(nf, p.look);
+          return { say: 'I did not have a ready-made form for that, so I started a blank one.' };
+        }
         mfCreateFromTemplate(p.template);
         if (p.look) return kmfApplyLook(mfGetCurrentForm(), p.look); // v67
       },
       label: function(p){
-        const tpl = MF_TEMPLATES[p.template];
+        const tpl = (window.MF_FORM_TEMPLATES || {})[p.template];
         return 'Start a new form from the "' + (tpl ? tpl.name : p.template) + '" template.';
       }
     },

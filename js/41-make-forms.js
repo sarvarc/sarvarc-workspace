@@ -4952,6 +4952,9 @@ async function mfcPushToWorkspace(mode) {
 window.mfToggleTemplatePicker = mfToggleTemplatePicker;
 window.mfCreateFromTemplate = mfCreateFromTemplate;
 window.MF_TEMPLATES = MF_TEMPLATES;
+// js/74 declares a global `var MF_TEMPLATES` (the 20 Guided looks, an array) that loads later and OVERWRITES window.MF_TEMPLATES,
+// so anything outside this file that needs the form-content templates (Kadessa) must read this separate name.
+window.MF_FORM_TEMPLATES = MF_TEMPLATES;
 window.mfState = mfState;
 window.mfGetResponses = mfGetResponses;
 window.SARVARC_FORMS_PUBLIC_BASE_URL = SARVARC_FORMS_PUBLIC_BASE_URL;
