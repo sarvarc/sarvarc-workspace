@@ -29,9 +29,58 @@ var MF_TEMPLATES = [
 
 function mfTplGet(id) { return MF_TEMPLATES.find(function (t) { return t.id === id; }) || null; }
 
+// ─── Match the template to the logo ───
+// When a logo is uploaded, Make Forms already reads its brand colours (pdfedExtractLogoColors) and sets
+// the accent colour. Templates now reuse those colours: the shapes and motion stay, the colours become
+// the logo's. Saved on the form as f.tplAdapt (true / false). Not set = on whenever the form has a logo.
+function mfTplPalette(t, cols) {
+  // Recolours a template from brand colours (first = main accent), keeping its moving effects.
+  var P = function (h) { h = String(h || '').replace('#', ''); if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join(''); var n = parseInt(h, 16); return (h.length === 6 && !isNaN(n)) ? [(n >> 16) & 255, (n >> 8) & 255, n & 255] : null; };
+  var H = function (a) { return '#' + a.map(function (v) { return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0'); }).join(''); };
+  var M = function (a, p, b) { return a.map(function (v, i) { return v * p / 100 + b[i] * (1 - p / 100); }); };
+  var L = function (a) { return (0.299 * a[0] + 0.587 * a[1] + 0.114 * a[2]) / 255; };
+  var rgbs = (cols || []).map(P).filter(Boolean);
+  if (!t || !rgbs.length) return t;
+  var W = [255, 255, 255], D = [5, 8, 22], a = rgbs[0];
+  var lift = function (c) { return L(c) < 0.38 ? M(c, 30, W) : c; };          // blobs must show on a dark background
+  var c2 = L(a) > 0.6 ? M(a, 50, [11, 16, 32]) : a, c1 = M(c2, 40, D);       // light brand colours get darkened (white text)
+  var b1 = lift(a), b2 = lift(rgbs[1] || M(a, 55, W)), b3 = lift(rgbs[2] || M(a, 40, W));
+  var rg = function (c, al) { return 'rgba(' + c.map(Math.round).join(',') + ',' + al + ')'; };
+  return Object.assign({}, t, { c1: H(c1), c2: H(c2), b1: H(b1), b2: H(b2), b3: H(b3), k1: rg(b1, 0.35), k2: rg(b2, 0.3) });
+}
+function mfTplDist(a, b) {
+  var p = function (h) { h = String(h).replace('#', ''); var n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  var x = p(a), y = p(b); return Math.sqrt(Math.pow(x[0] - y[0], 2) + Math.pow(x[1] - y[1], 2) + Math.pow(x[2] - y[2], 2));
+}
+function mfTplAdaptOn(f) { return !!f && (f.tplAdapt === true || (f.tplAdapt !== false && !!f.logoDataUrl)); }
+function mfTplCols(f) {
+  var out = [f.accentColor || '#0073E6'];
+  (f.logoColors || []).forEach(function (c) {
+    if (out.length < 3 && out.every(function (o) { return mfTplDist(c, o) > 70; })) out.push(c);
+  });
+  return out;
+}
+// The template as it should look for this form (recoloured when matching is on).
+function mfTplEff(t, f) { return (t && mfTplAdaptOn(f)) ? mfTplPalette(t, mfTplCols(f)) : t; }
+
+// Reads the logo's colours once per logo (works for every way a logo can be set) and refreshes the look.
+var mfTplBusy = '';
+function mfTplEnsureColors(f) {
+  if (!f || !f.logoDataUrl || typeof pdfedExtractLogoColors !== 'function') return;
+  var sig = f.logoDataUrl.length + ':' + f.logoDataUrl.slice(-24);
+  if (f.logoColorsSig === sig || mfTplBusy === sig) return;
+  mfTplBusy = sig;
+  pdfedExtractLogoColors(f.logoDataUrl).then(function (cols) {
+    f.logoColors = (cols || []).slice(0, 3); f.logoColorsSig = sig; mfTouch(f);
+    if (document.getElementById('mfGdOverlay') && mfGetCurrentForm() === f) mfGdRender();
+    if (document.getElementById('mfTplModal')) mfTplDraw();
+  }).catch(function () { f.logoColorsSig = sig; });
+}
+
 // Called by mfGdRender() on every render: puts the chosen template on the overlay.
 function mfGdTplApply(ov, f) {
-  var t = mfTplGet(f && f.formTemplate);
+  var t = mfTplEff(mfTplGet(f && f.formTemplate), f);
+  mfTplEnsureColors(f);
   if (!t) {
     ['data-tpl', 'data-fx', 'data-tr', 'data-bl'].forEach(function (a) { ov.removeAttribute(a); });
     ['--fx1', '--fx2', '--b1', '--b2', '--b3', '--bs'].forEach(function (v) { ov.style.removeProperty(v); });
@@ -60,24 +109,43 @@ function mfTplCard(t, on, brand) {
 function mfTplOpen() {
   var f = mfGetCurrentForm(); if (!f) return;
   mfTplClose();
-  var acc = f.accentColor || '#0073E6';
-  var lum = 0; var rgb = (typeof hexToRgbStr === 'function') ? hexToRgbStr(acc) : null;
-  if (rgb) { var p = rgb.split(',').map(Number); lum = (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255; }
-  var brand = '--gd1:' + (lum > 0.6 ? mixHex(acc, 25, '#0b1020') : mixHex(acc, 55, '#0b1020')) + ';--gd2:' + (lum > 0.6 ? mixHex(acc, 55, '#0b1020') : acc);
-  var cur = f.formTemplate || '';
   var m = document.createElement('div');
   m.id = 'mfTplModal'; m.className = 'mf-tpl-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Choose a template');
-  m.innerHTML = '<div class="mf-tpl-panel"><div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Changes the look of your Guided form: colours, moving background and how questions appear. Hover a card to see it move.</p></div>' +
-    '<button type="button" class="mf-tpl-x" data-tclose aria-label="Close">×</button></div>' +
-    '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) + MF_TEMPLATES.map(function (t) { return mfTplCard(t, cur === t.id); }).join('') + '</div></div>';
   m.addEventListener('click', function (e) {
     if (e.target === m || e.target.closest('[data-tclose]')) { mfTplClose(); return; }
     var c = e.target.closest('.mf-tpl-card'); if (!c) return;
     mfTplSet(c.dataset.tid);
     m.querySelectorAll('.mf-tpl-card').forEach(function (x) { x.classList.toggle('on', x === c); });
   });
+  m.addEventListener('change', function (e) {
+    if (!e.target.matches('[data-tadapt]')) return;
+    var g = mfGetCurrentForm(); if (!g) return;
+    g.tplAdapt = !!e.target.checked; mfTouch(g);
+    if (document.getElementById('mfGdOverlay')) mfGdRender();
+    mfTplDraw();
+  });
   document.body.appendChild(m);
   document.addEventListener('keydown', mfTplEsc);
+  mfTplEnsureColors(f);
+  mfTplDraw();
+}
+
+// (Re)draws the picker contents, e.g. after the match switch or once the logo colours are read.
+function mfTplDraw() {
+  var f = mfGetCurrentForm(), m = document.getElementById('mfTplModal'); if (!f || !m) return;
+  var grid = m.querySelector('.mf-tpl-grid'), keep = grid ? grid.scrollTop : 0;
+  var acc = f.accentColor || '#0073E6';
+  var lum = 0; var rgb = (typeof hexToRgbStr === 'function') ? hexToRgbStr(acc) : null;
+  if (rgb) { var p = rgb.split(',').map(Number); lum = (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255; }
+  var brand = '--gd1:' + (lum > 0.6 ? mixHex(acc, 25, '#0b1020') : mixHex(acc, 55, '#0b1020')) + ';--gd2:' + (lum > 0.6 ? mixHex(acc, 55, '#0b1020') : acc);
+  var cur = f.formTemplate || '', on = mfTplAdaptOn(f), hasLogo = !!f.logoDataUrl;
+  var dots = on ? mfTplCols(f).map(function (c) { return '<i class="mf-tpl-dot" style="background:' + mfEsc(c) + '"></i>'; }).join('') : '';
+  var note = hasLogo ? (on ? 'Using your logo colours' : 'Using each template\'s own colours') : 'No logo yet. Upload one in Design and the templates recolour to match it. Switch on to use your accent colour.';
+  m.innerHTML = '<div class="mf-tpl-panel"><div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Changes the look of your Guided form: colours, moving background and how questions appear. Hover a card to see it move.</p></div>' +
+    '<button type="button" class="mf-tpl-x" data-tclose aria-label="Close">×</button></div>' +
+    '<label class="mf-tpl-match"><input type="checkbox" data-tadapt' + (on ? ' checked' : '') + '><span><b>Match my logo colours</b><small>' + mfEsc(note) + '</small></span>' + dots + '</label>' +
+    '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) + MF_TEMPLATES.map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id); }).join('') + '</div></div>';
+  var g2 = m.querySelector('.mf-tpl-grid'); if (g2) g2.scrollTop = keep;
 }
 function mfTplEsc(e) { if (e.key === 'Escape') mfTplClose(); }
 function mfTplClose() {
