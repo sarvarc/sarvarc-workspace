@@ -3613,6 +3613,17 @@ async function pdfedApplyReportRefinement(opts) {
   const inScope = pg => !(scopeToInsertedOnly && pg.fromMakeForm);
   let headingsSynced = 0, tablesFormatted = 0, bulletsApplied = 0, sectionIconsApplied = 0, bodyFontsSynced = 0, overflowPagesAdded = 0, pagesConsolidated = 0;
 
+  // Pass -1: smart structure. A whole report pasted (or typed) into ONE text
+  // box has no separate headings or tables for the passes below to work on, so
+  // read each such box first and split it into real heading / paragraph / list
+  // text boxes and real tables (parsed and styled by Data Arrangement's own
+  // table engine). Boxes that are already a single piece are left untouched,
+  // so running Refine Report again changes nothing here.
+  let smartResult = { boxesSplit: 0, headingsFound: 0, tablesBuilt: 0 };
+  if (typeof pdfedSmartSplitPagesForRefine === 'function') {
+    smartResult = pdfedSmartSplitPagesForRefine(pages, inScope);
+  }
+
   // Maps get pulled out and re-laid out into their own grid page(s) FIRST,
   // before any other pass ever sees them — so the baseline-snapshot pass
   // just below, the auto-align pass, and the overflow-flow pass all treat
@@ -3960,7 +3971,7 @@ async function pdfedApplyReportRefinement(opts) {
     if (pageTouched) pdfedMarkModified(idx);
   });
 
-  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, pagesConsolidated, mapsLaidOut, mapPagesAdded, pages: pages.length };
+  return { headingsSynced, tablesFormatted, bulletsApplied, sectionIconsApplied, bodyFontsSynced, overflowPagesAdded, pagesConsolidated, mapsLaidOut, mapPagesAdded, smartBoxesSplit: smartResult.boxesSplit, smartTablesBuilt: smartResult.tablesBuilt, pages: pages.length };
 }
 
 async function pdfedRunRefineReportFromModal() {
@@ -4217,6 +4228,10 @@ async function pdfedExecuteRefineReport(opts) {
     } else if (a4Result.details.length > 1) {
       parts.push(`all pages already ${sizeLabel}`);
     }
+  }
+  if (summary.smartBoxesSplit) {
+    const t = summary.smartTablesBuilt;
+    parts.push(`pasted text organised into headings${t ? ` and ${t} table${t !== 1 ? 's' : ''}` : ''}`);
   }
   if (summary.tablesFormatted) parts.push(`${summary.tablesFormatted} table${summary.tablesFormatted !== 1 ? 's' : ''} formatted`);
   if (summary.headingsSynced) parts.push(`${summary.headingsSynced} heading${summary.headingsSynced !== 1 ? 's' : ''} synced`);

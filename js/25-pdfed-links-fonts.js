@@ -1279,6 +1279,20 @@ document.addEventListener('paste', async function (e) {
   // text box.
   const html = cd.getData('text/html');
   const plain = cd.getData('text/plain');
+
+  // 2a) A whole report pasted in one go (title, headings, paragraphs, a table …)
+  // is read the way a person reads it and dropped as separate, properly typed
+  // pieces — so Refine Report sees real headings and real tables instead of one
+  // big text box. A clipboard that is ONLY a table skips this and keeps using
+  // the table paths just below.
+  if (plain && plain.trim() && typeof pdfedSmartSegmentText === 'function') {
+    const smartSegs = pdfedSmartSegmentText(plain);
+    if (pdfedSmartIsStructured(smartSegs) && smartSegs.some(sg => sg.kind !== 'table')) {
+      e.preventDefault();
+      if (pdfedSmartPastePlainText(plain, pos.x, pos.y)) return;
+    }
+  }
+
   let rowsData = null;
   if (html && /<table[\s>]/i.test(html)) {
     rowsData = pdfedParseHtmlTableClipboard(html);
