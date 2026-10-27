@@ -2126,6 +2126,9 @@ function mfRenderPreview() {
   });
   page.innerHTML = watermarkHtml + `<div class="mf-pv-content">${html}</div>`;
   mfUpdatePreviewPagination();
+  // Keep the Guided (one-question-at-a-time) preview in step with every edit.
+  // Defined in js/73-make-forms-guided.js; must never break the normal preview.
+  if (typeof window.mfGdSync === 'function') { try { window.mfGdSync(); } catch (e) {} }
 }
 
 // Shared A4 page margins for every paginated form surface — the live
@@ -4935,6 +4938,10 @@ window.mfNewField = mfNewField;
 window.mfRenderFieldList = mfRenderFieldList;
 window.mfRenderPreview = mfRenderPreview;
 window.mfTouch = mfTouch;
+window.mfEsc = mfEsc;
+window.mixHex = mixHex;
+window.hexToRgbStr = hexToRgbStr;
+window.mfGetMode = function () { return mfMode; };
 window.mfSetLogoFromDataUrl = mfSetLogoFromDataUrl;
 window.mfSetBannerFromDataUrl = mfSetBannerFromDataUrl;
 window.mfRenderSocialLinks = mfRenderSocialLinks;

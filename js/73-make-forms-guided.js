@@ -50,8 +50,10 @@ function mfGdRender() {
   const f = mfGetCurrentForm(), ov = document.getElementById('mfGdOverlay');
   if (!f || !ov) return;
   const acc = f.accentColor || '#0073E6';
-  ov.style.setProperty('--gd1', mixHex(acc, 55, '#0b1020'));
-  ov.style.setProperty('--gd2', acc);
+  const rgb = (typeof hexToRgbStr === 'function' ? hexToRgbStr(acc) : null);
+  const lum = rgb ? (() => { const [r, g, b] = rgb.split(',').map(Number); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; })() : 0;
+  ov.style.setProperty('--gd1', lum > 0.6 ? mixHex(acc, 25, '#0b1020') : mixHex(acc, 55, '#0b1020'));
+  ov.style.setProperty('--gd2', lum > 0.6 ? mixHex(acc, 55, '#0b1020') : acc);
   const S = mfGdScreens(f), n = S.length - 1;
   if (mfGd.i > n) mfGd.i = n;
   const i = mfGd.i, s = S[i];
@@ -64,7 +66,13 @@ function mfGdRender() {
   } else if (i === 0 || n === 0) {
     body = `<div class="mf-gd-screen"><h1>${mfEsc(f.title || 'Untitled Form')}</h1><p>${mfEsc(f.desc || '')}</p><div><button class="mf-gd-btn" data-go="next">${n === 0 ? 'Submit' : 'Start →'}</button> <span class="mf-gd-hint">press Enter</span></div></div>`;
   } else {
-    body = `<div class="mf-gd-screen" id="mfGdScreen"><div class="mf-gd-num">${i} / ${n}</div><h2>${mfEsc(s.label)}${s.required ? ' *' : ''}</h2>${mfGdControl(s)}<div class="mf-gd-err" id="mfGdErr">Please answer this one to continue</div></div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back">↑</button><button class="mf-gd-btn" data-go="next">${i === n ? 'Submit' : 'OK ✓'}</button><span class="mf-gd-hint">press Enter</span></div>`;
+    const isSec = s.t === 'heading' || s.t === 'label';
+    const isQ = x => x.t !== 'intro' && x.t !== 'heading' && x.t !== 'label';
+    const qn = S.slice(0, i + 1).filter(isQ).length, qTotal = S.filter(isQ).length;
+    const content = s.t === 'heading' ? `<h1>${mfEsc(s.label)}</h1>`
+      : s.t === 'label' ? `<p style="font-size:18px">${mfEsc(s.label)}</p>`
+      : `<div class="mf-gd-num">${qn} / ${qTotal}</div><h2>${mfEsc(s.label)}${s.required ? ' *' : ''}</h2>${mfGdControl(s)}<div class="mf-gd-err" id="mfGdErr">Please answer this one to continue</div>`;
+    body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back">↑</button><button class="mf-gd-btn" data-go="next">${i === n ? 'Submit' : isSec ? 'Continue' : 'OK ✓'}</button><span class="mf-gd-hint">press Enter</span></div>`;
   }
   ov.innerHTML = `${banner}<div class="mf-gd-bar"><i style="width:${pct}%"></i></div>${logo}${body}`;
   ov.querySelectorAll('canvas[data-sig]').forEach(c => {
@@ -163,24 +171,49 @@ function mfGdSync() {
   const size = document.getElementById('mfDesignPreviewSize');
   if (size) size.style.display = guided ? 'none' : '';
   const slot = document.getElementById('mfDesignPreviewSlot');
-  const show = guided && !!slot && typeof mfMode !== 'undefined' && mfMode === 'design';
+  const show = guided && !!slot && typeof window.mfGetMode === 'function' && window.mfGetMode() === 'design';
   let ov = document.getElementById('mfGdOverlay');
   if (slot) slot.classList.toggle('mf-gd-host', show);
-  if (!show) { if (ov) ov.remove(); return; }
+  if (!show) { if (ov) ov.remove(); mfGd.n = undefined; return; }
   if (!ov) {
     ov = document.createElement('div'); ov.id = 'mfGdOverlay'; ov.className = 'mf-gd'; ov.tabIndex = -1;
     slot.appendChild(ov); mfGdWire(ov);
   }
+  if (typeof mfGd.n === 'number' && f.fields.length > mfGd.n) {
+    const last = f.fields[f.fields.length - 1];
+    const k = mfGdScreens(f).findIndex(sc => sc.id === last.id);
+    if (k > 0) { mfGd.i = k; mfGd.done = false; }
+  }
+  mfGd.n = f.fields.length;
   mfGdRender();
 }
 
-// Re-sync whenever the normal preview redraws (every edit, mode switch, form switch).
-(function () {
-  const orig = window.mfRenderPreview;
-  if (typeof orig !== 'function') return;
-  window.mfRenderPreview = function () {
-    const r = orig.apply(this, arguments);
-    try { mfGdSync(); } catch (e) { /* preview helper must never break editing */ }
-    return r;
-  };
+window.mfGdSync = mfGdSync;
+
+// ─── Follow the editor ───
+// The respondent sees ONE question at a time, so the preview must show the
+// question the user is working on. Clicking or typing in a field on the left
+// jumps the preview to that question; clicking the title or description jumps
+// to the first screen; adding a field jumps to the new question.
+function mfGdShowField(fieldId) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const k = mfGdScreens(f).findIndex(sc => sc.id === fieldId);
+  if (k < 1) return;
+  mfGd.i = k; mfGd.done = false;
+  mfGdRender();
+}
+function mfGdShowIntro() { mfGd.i = 0; mfGd.done = false; mfGdRender(); }
+
+(function wireFollow() {
+  const isGuided = () => { const f = mfGetCurrentForm(); return !!f && f.formStyle === 'guided'; };
+  document.addEventListener('focusin', e => {
+    if (!isGuided() || !e.target || !e.target.closest) return;
+    const item = e.target.closest('#mfFieldList .mf-field-item');
+    if (item) {
+      const f = mfGetCurrentForm(), idx = [...item.parentNode.children].indexOf(item);
+      if (f && f.fields[idx]) mfGdShowField(f.fields[idx].id);
+      return;
+    }
+    if (e.target.id === 'mfFormTitleInput' || e.target.id === 'mfFormDescInput') mfGdShowIntro();
+  });
 })();
