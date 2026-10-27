@@ -2369,6 +2369,8 @@ async function mfPublishForm() {
       banner_image_data_url: f.bannerImageDataUrl || null,
       banner_image_opacity: f.bannerImageOpacity == null ? 15 : f.bannerImageOpacity,
       accent_color: f.accentColor || '#0073E6',
+      // Standard (all questions on one page) or Guided (one question at a time).
+      form_style: f.formStyle === 'guided' ? 'guided' : 'standard',
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
       social_links: f.socialLinks || {},
@@ -2392,20 +2394,20 @@ async function mfPublishForm() {
     updateExportProgress(72, isUpdate ? 'Saving your changes…' : 'Making your form live…');
 
     let row;
-    if (f.publishedId) {
-      const { data, error } = await sarvarcSupabase
-        .from('forms').update(payload).eq('id', f.publishedId)
-        .select('id, share_slug').single();
-      if (error) throw error;
-      row = data;
-    } else {
-      payload.share_slug = mfSlug();
-      const { data, error } = await sarvarcSupabase
-        .from('forms').insert(payload)
-        .select('id, share_slug').single();
-      if (error) throw error;
-      row = data;
+    const mfWrite = (pl) => f.publishedId
+      ? sarvarcSupabase.from('forms').update(pl).eq('id', f.publishedId).select('id, share_slug').single()
+      : sarvarcSupabase.from('forms').insert(pl).select('id, share_slug').single();
+    if (!f.publishedId) payload.share_slug = mfSlug();
+    let res = await mfWrite(payload);
+    // A database that has not run supabase/11-form-style.sql yet has no form_style
+    // column. Publishing still works, in Standard style.
+    if (res.error && /form_style/i.test(res.error.message || '')) {
+      delete payload.form_style;
+      res = await mfWrite(payload);
+      if (!res.error && f.formStyle === 'guided') toast('Published in Standard style. Run supabase/11-form-style.sql once to turn Guided on.', 'info');
     }
+    if (res.error) throw res.error;
+    row = res.data;
 
     updateExportProgress(92, 'Generating your public link…');
     await mfWait(150);
