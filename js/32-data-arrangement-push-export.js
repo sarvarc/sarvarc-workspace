@@ -2019,34 +2019,76 @@ function pdfedAnchorSlotXForced(img, pageW, margin, slot) {
 // height — the box always auto-sizes to its content), so item.h is not
 // meaningful here; height has to be worked out the same way the browser
 // would actually wrap it. Images/shapes just report their own w/h.
+// Real rendered height of a flow text box. The stacking pass in
+// pdfedAutoAlignContent places every item at (previous bottom + gap), so any
+// error here shows up directly as uneven spacing: too small = the next heading
+// crowds or touches the content above it, too big = a random big hole.
+//
+// Primary path: measure a hidden clone built exactly like the live box
+// (pdfedRenderPlacedTexts: same padding/border, line-height 1.25, rich html,
+// bullet list CSS, letter spacing, italic, wrap width). That is the only way to
+// get bullet lists right (each <li> has a 0.28em gap and a 1.1em indent that a
+// plain line count never sees) and mixed-size rich text right.
+// Fallback (no DOM): canvas estimate, now bullet and letter-spacing aware.
 function pdfedEstimateTextHeight(item, pageW, margin) {
   const text = String(item.text || '').trim();
   const fontSize = item.fontSize || 14;
   const lineHeight = fontSize * 1.25; // matches .pdfed-ptxt-content's line-height:1.25
   const vPad = PDFED_PTXT_PAD_Y * 2 + PDFED_PTXT_BORDER * 2;
-  if (!text) return Math.round(lineHeight + vPad);
-  // Same wrap-width rule pdfedPositionPlacedTextEl actually renders with: a
-  // fixed item.w if one was ever set, otherwise capped to whatever room is
-  // left to the page edge — NOT some arbitrary narrow default. Getting this
-  // wrong is what was inflating line counts (and heights) for any ordinary
-  // auto-width paragraph.
-  const wrapW = item.w
+  if (!text && !item.html) return Math.round(lineHeight + vPad);
+
+  if (typeof document !== 'undefined' && document.body && document.createElement) {
+    try {
+      const box = document.createElement('div');
+      box.className = 'pdfed-placed-text';
+      box.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;box-sizing:border-box;';
+      box.style.borderStyle = 'solid';
+      box.style.borderWidth = PDFED_PTXT_BORDER + 'px';
+      box.style.padding = PDFED_PTXT_PAD_Y + 'px ' + PDFED_PTXT_PAD_X + 'px';
+      if (item.w) box.style.width = item.w + 'px';
+      else box.style.maxWidth = Math.max(60, (pageW || 800) - (margin || 36) - 12) + 'px';
+      const content = document.createElement('div');
+      content.className = 'pdfed-ptxt-content';
+      content.style.cssText = 'white-space:pre-wrap;word-break:break-word;line-height:1.25;';
+      content.style.fontFamily = pdfedFontCss(item.fontFamily || 'Inter');
+      content.style.fontSize = fontSize + 'px';
+      content.style.fontWeight = item.bold ? '700' : '400';
+      content.style.fontStyle = item.italic ? 'italic' : 'normal';
+      if (item.letterSpacing) content.style.letterSpacing = item.letterSpacing + 'em';
+      if (item.html) content.innerHTML = item.html; else content.textContent = item.text || '';
+      box.appendChild(content);
+      document.body.appendChild(box);
+      const h = box.getBoundingClientRect().height;
+      document.body.removeChild(box);
+      if (h > 0) return Math.ceil(h);
+    } catch (e) { /* fall through to the canvas estimate */ }
+  }
+
+  // Fallback estimate. A real list indents each line by 1.1em and adds 0.28em
+  // between items, so account for both.
+  const isList = !!item.bullet;
+  const indent = isList ? fontSize * 1.1 : 0;
+  const itemGap = isList ? fontSize * 0.28 : 0;
+  const wrapW = (item.w
     ? Math.max(20, item.w - PDFED_PTXT_PAD_X * 2 - PDFED_PTXT_BORDER * 2)
-    : Math.max(48, (pageW || 800) - (margin || 36) - 12 - PDFED_PTXT_PAD_X * 2 - PDFED_PTXT_BORDER * 2);
+    : Math.max(48, (pageW || 800) - (margin || 36) - 12 - PDFED_PTXT_PAD_X * 2 - PDFED_PTXT_BORDER * 2)) - indent;
   const ctx = pdfedRefineMeasureCtx();
-  ctx.font = `${item.bold ? 'bold ' : ''}${fontSize}px ${pdfedFontCss(item.fontFamily || 'Inter')}`;
-  let lines = 0;
+  ctx.font = `${item.italic ? 'italic ' : ''}${item.bold ? 'bold ' : ''}${fontSize}px ${pdfedFontCss(item.fontFamily || 'Inter')}`;
+  const ls = (item.letterSpacing || 0) * fontSize;
+  const measure = (t) => ctx.measureText(t).width + ls * t.length;
+  let lines = 0, paragraphs = 0;
   text.split('\n').forEach(paragraph => {
+    paragraphs += 1;
     if (!paragraph) { lines += 1; return; }
     let line = '';
     paragraph.split(' ').forEach(word => {
       const test = line ? line + ' ' + word : word;
-      if (line && ctx.measureText(test).width > wrapW) { lines += 1; line = word; }
+      if (line && measure(test) > wrapW) { lines += 1; line = word; }
       else { line = test; }
     });
     if (line) lines += 1;
   });
-  return Math.round(Math.max(1, lines) * lineHeight + vPad);
+  return Math.round(Math.max(1, lines) * lineHeight + Math.max(0, paragraphs - 1) * itemGap + vPad);
 }
 
 function pdfedFlowSize(item, kind, pageW, margin) {
