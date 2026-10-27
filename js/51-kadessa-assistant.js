@@ -170,6 +170,8 @@
   //     navigated toward. See mfCreateFromTemplate() client-side: it now
   //     switches the top-level section to Make Forms itself before
   //     building, so this is safe to call from anywhere.
+  //   mf_set_look {style?, template?, business?, animation?, match_logo?, accent?}   (v67: Guided/Standard + one of 20 templates; template 'auto' scores the business words)
+  //   mf_create_form / mf_create_from_template also take look {same fields} so one call builds a finished form.
   //   mf_create_from_template {template}
   //     -- Starts from one of SARVARC's own pre-built templates instead of
   //     a blank form. Prefer this over mf_create_form whenever the user's
@@ -2254,6 +2256,81 @@
 
   function getKadessaContext(){ return kadessaDgDecorate(getKadessaContextBase()); }
 
+  // ─── v67: FORM LOOK (Guided style + templates), chosen by Kadessa from the business ───
+  // The model normally names the template itself (it reads the business and the audience). This scorer is the safety net for
+  // template "auto" and for a business hint with no template: it scores the words of the business / title / description /
+  // question labels against each template's mood, and a serious-sounding business is never given a loud template.
+  // Ids must match MF_TEMPLATES in js/74-make-forms-templates.js.
+  const KMF_LOOK_WORDS = [
+    ['slate',    /law|legal|advoc|attorney|account|audit|tax|consult|corporate|hr\b|human resource|recruit|hiring|real estate|property|broker|agency|b2b|compliance|kyc|insurance agent|professional/],
+    ['monsoon',  /insur|bank|loan|credit|finance|universit|college|utility|complaint|grievance|trust|nbfc|mutual fund/],
+    ['mint',     /clinic|dental|dentist|doctor|hospital|pharma|health|medical|physio|wellness|spa\b|skin|dermat|hygiene|organic|nurs/],
+    ['arctic',   /school|education|tuition|coaching|research|academy|study|science lab|ice cream|winter|clean/],
+    ['lavender', /yoga|meditat|therap|counsel|mindful|bakery|baker|tutor|salon|calm|care\b|daycare|nursery/],
+    ['rose',     /wedding|bridal|bride|florist|flower|beauty|makeup|boutique|baby shower|engagement|mehendi|women/],
+    ['royal',    /luxury|fashion|designer|couture|gala|premium salon|atelier|saree|lehenga/],
+    ['gold',     /jewel|gold|diamond|award|wealth|high.?end|premium member|invest|private bank/],
+    ['sunset',   /restaurant|cafe|coffee|food|catering|kitchen|bar\b|pub|diner|festival|travel blog|lifestyle|menu|chef|dhaba/],
+    ['coral',    /hotel|resort|beach|tourism|hospitality|homestay|villa|holiday|guest house|booking stay/],
+    ['ocean',    /ship|logistic|cargo|marine|water|fishing|transport|courier|delivery|freight|travel|tour/],
+    ['forest',   /ngo|charity|eco|farm|agri|garden|nature|sustain|green|environment|volunteer|plant|nursery plants|outdoor|trek/],
+    ['ember',    /gym|fitness|crossfit|sport|marathon|tournament|league|boxing|martial|bbq|grill|motor|bike|racing|competition/],
+    ['candy',    /kid|child|birthday|party|toy|playgroup|school fun|carnival|baby|celebrat|fun day/],
+    ['citrus',   /juice|smoothie|summer camp|youth|campaign|promo|giveaway|contest|retail|fresh|shop/],
+    ['cyber',    /cyber|security|\bit\b|software|saas|developer|telecom|network|tech support|helpdesk|server|app\b|devops/],
+    ['neongrid', /gaming|gamer|esport|hackathon|bootcamp|coding|crypto|web3|lan party/],
+    ['cosmos',   /music|concert|band|dj\b|art\b|gallery|studio|creative|astronom|science|film|photograph|theatre|dance/],
+    ['midnight', /conference|meetup|launch|night|summit|expo|premium event|networking|after.?party|webinar/],
+  ];
+  const KMF_SERIOUS = /law|legal|advoc|account|audit|tax|bank|loan|finance|insur|medical|clinic|hospital|doctor|health|hr\b|recruit|hiring|complaint|grievance|compliance|kyc|government|court/;
+  const KMF_LOUD = ['neongrid', 'candy', 'ember', 'cyber'];
+  function kmfPickTemplate(text){
+    const t = String(text || '').toLowerCase();
+    let best = null, bestN = 0;
+    KMF_LOOK_WORDS.forEach(function(row){
+      const m = t.match(new RegExp('\\b(?:' + row[1].source + ')', 'g')); // word start only, so membership is not ship
+      const n = m ? m.length : 0;
+      if (n > bestN){ best = row[0]; bestN = n; } // earlier rows win ties
+    });
+    if (best && KMF_SERIOUS.test(t) && KMF_LOUD.indexOf(best) !== -1) best = 'slate';
+    return best || (KMF_SERIOUS.test(t) ? 'slate' : 'aurora');
+  }
+  // Applies a look to the OPEN form. Returns a short plain line saying what was chosen (Kadessa posts it).
+  function kmfApplyLook(f, look){
+    const p = look || {};
+    if (!f) throw new Error('no form is open to style');
+    const guidedNow = f.formStyle === 'guided';
+    let tid = (typeof p.template === 'string') ? p.template : undefined;
+    const words = [p.business, f.title, f.desc, (f.fields || []).slice(0, 12).map(function(x){ return x && x.label; }).join(' ')].join(' ');
+    const wantsGuided = p.style === 'guided' || (p.style !== 'standard' && (guidedNow || (tid && tid !== 'none')));
+    if (tid === 'auto' || (tid === undefined && p.business && wantsGuided)) tid = kmfPickTemplate(words);
+    if (tid && tid !== 'none' && !mfGetTemplateById(tid)) throw new Error('unknown form template "' + tid + '"');
+    let style = p.style;
+    if (!style && tid && tid !== 'none') style = 'guided';
+    if (style && typeof mfSetFormStyle === 'function') mfSetFormStyle(style);
+    const nowGuided = f.formStyle === 'guided';
+    if (tid !== undefined && nowGuided && typeof mfTplSet === 'function') mfTplSet(tid === 'none' ? '' : tid);
+    if (typeof p.animation === 'boolean') f.tplAnim = p.animation;
+    if (typeof p.match_logo === 'boolean') f.tplAdapt = p.match_logo;
+    if (p.accent && /^#[0-9a-f]{6}$/i.test(p.accent) && typeof mfSetAccentColor === 'function') mfSetAccentColor(p.accent);
+    mfTouch(f);
+    if (typeof mfLookSync === 'function') mfLookSync();
+    if (typeof mfRenderPreview === 'function') mfRenderPreview();
+    if (typeof mfGdSync === 'function') mfGdSync();
+    const t = f.formTemplate ? mfGetTemplateById(f.formTemplate) : null;
+    const bits = [];
+    bits.push(nowGuided ? 'Guided style' : 'Standard style');
+    if (nowGuided) bits.push(t ? 'the ' + t.name + ' look' : 'your brand colour');
+    if (nowGuided && f.tplAnim === false) bits.push('calm, no motion');
+    let say = 'Look set: ' + bits.join(', ') + '.';
+    if (f.publishedId) say += ' Press Update Link and share the new link so the change shows up.';
+    return { say: say };
+  }
+  function mfGetTemplateById(id){
+    if (typeof mfTplGet === 'function') return mfTplGet(id);
+    return (window.MF_TEMPLATES || []).filter(function(t){ return t.id === id; })[0] || null;
+  }
+
   const KADESSA_ACTIONS = {
     da_add_row:        { risk: 'safe',    run: function(){ daEnsureVisible(); daAddRow(); }, label: function(){ return 'Add a new row.'; } },
     da_add_column:     { risk: 'safe',    run: function(){ daEnsureVisible(); daAddColumn(); }, label: function(){ return 'Add a new column.'; } },
@@ -2746,6 +2823,7 @@
         mfTouch(f);
         mfRenderFieldList();
         mfRenderPreview();
+        if (p.look) return kmfApplyLook(f, p.look); // v67: style + template chosen from the business, same call
       },
       label: function(p){
         const n = Array.isArray(p.fields) ? p.fields.length : 0;
@@ -2764,10 +2842,25 @@
       run: function(p){
         if (!p.template || !MF_TEMPLATES[p.template]) throw new Error('unknown template "' + p.template + '"');
         mfCreateFromTemplate(p.template);
+        if (p.look) return kmfApplyLook(mfGetCurrentForm(), p.look); // v67
       },
       label: function(p){
         const tpl = MF_TEMPLATES[p.template];
         return 'Start a new form from the "' + (tpl ? tpl.name : p.template) + '" template.';
+      }
+    },
+    // v67: Kadessa chooses the look of the open form (Guided or Standard, one of the 20 templates, animation, logo colours,
+    // accent). The same code runs when she passes a `look` on mf_create_form / mf_create_from_template.
+    mf_set_look: {
+      risk: 'safe',
+      run: function(p){ return kmfApplyLook(mfGetCurrentForm(), p); },
+      label: function(p){
+        const bits = [];
+        if (p.style) bits.push(p.style + ' style');
+        if (p.template && p.template !== 'auto' && p.template !== 'none') bits.push('the ' + p.template + ' template');
+        else if (p.template === 'auto' || p.business) bits.push('a template that suits the business');
+        if (p.animation === false) bits.push('no animation');
+        return 'Set the form look' + (bits.length ? ': ' + bits.join(', ') : '') + '.';
       }
     },
     // Publishing hits the real Supabase-backed publish flow (same code
