@@ -1,0 +1,180 @@
+/* ─── Guided templates: shared by the Make Forms preview and the published form page ───
+   Selectors work on  .gd (published page)  and  .mf-gd (Make Forms preview).
+   data-fx = animated background, data-tr = how each question screen enters. */
+.gd[data-fx] .gd-bg::before, .gd[data-fx] .gd-bg::after { display:none; }
+.mf-gd[data-fx]::before { content:""; position:absolute; top:0; left:0; right:0; bottom:0; width:auto; height:auto; border-radius:0; z-index:0; pointer-events:none; background-color:transparent; }
+.mf-gd[data-fx] .mf-gd-screen, .mf-gd[data-fx] .mf-gd-nav, .mf-gd[data-fx] .mf-gd-brand { z-index:1; }
+.gd[data-fx] .gd-bg, .mf-gd[data-fx]::before { background-repeat:repeat; will-change:background-position; }
+
+/* aurora: soft colour clouds drifting */
+.gd[data-fx="aurora"] .gd-bg, .mf-gd[data-fx="aurora"]::before { background-image:radial-gradient(50% 60% at 20% 30%,var(--fx1),transparent 70%),radial-gradient(45% 55% at 80% 20%,var(--fx2),transparent 70%),radial-gradient(55% 60% at 60% 95%,var(--fx1),transparent 70%); background-size:170% 170%; background-repeat:no-repeat; animation:gdtAurora 16s ease-in-out infinite alternate; }
+@keyframes gdtAurora { from { background-position:0% 0%; } to { background-position:100% 100%; } }
+
+/* stars: twinkling star field slowly drifting */
+.gd[data-fx="stars"] .gd-bg, .mf-gd[data-fx="stars"]::before { background-image:radial-gradient(1.5px 1.5px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 90px 120px,#fff,transparent),radial-gradient(2px 2px at 160px 60px,rgba(255,255,255,.9),transparent),radial-gradient(1px 1px at 230px 180px,#fff,transparent),radial-gradient(60% 50% at 80% 10%,var(--fx1),transparent 70%),radial-gradient(50% 50% at 10% 90%,var(--fx2),transparent 70%); background-size:260px 220px,300px 260px,340px 300px,400px 340px,100% 100%,100% 100%; animation:gdtStars 120s linear infinite,gdtTwinkle 4.5s ease-in-out infinite alternate; }
+@keyframes gdtStars { to { background-position:-260px 220px,-300px 260px,-340px 300px,-400px 340px,0 0,0 0; } }
+@keyframes gdtTwinkle { from { opacity:.6; } to { opacity:1; } }
+
+/* bubbles: soft rings rising */
+.gd[data-fx="bubbles"] .gd-bg, .mf-gd[data-fx="bubbles"]::before { background-image:radial-gradient(circle at 25% 60%,transparent 0 14px,rgba(255,255,255,.22) 15px 17px,transparent 18px),radial-gradient(circle at 70% 30%,rgba(255,255,255,.14) 0 9px,transparent 10px),radial-gradient(circle at 45% 80%,transparent 0 22px,rgba(255,255,255,.16) 23px 25px,transparent 26px),radial-gradient(70% 60% at 85% 100%,var(--fx1),transparent 70%); background-size:230px 300px,170px 220px,340px 420px,100% 100%; animation:gdtRise 28s linear infinite; }
+@keyframes gdtRise { to { background-position:0 -300px,0 -220px,0 -420px,0 0; } }
+
+/* snow: small flakes drifting down */
+.gd[data-fx="snow"] .gd-bg, .mf-gd[data-fx="snow"]::before { background-image:radial-gradient(circle at 20% 20%,rgba(255,255,255,.85) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(255,255,255,.6) 0 1.5px,transparent 2.5px),radial-gradient(circle at 45% 85%,rgba(255,255,255,.75) 0 3px,transparent 4px),radial-gradient(70% 50% at 50% 0%,var(--fx1),transparent 70%); background-size:150px 190px,210px 260px,300px 340px,100% 100%; animation:gdtFall 26s linear infinite; }
+@keyframes gdtFall { to { background-position:-40px 190px,60px 260px,-80px 340px,0 0; } }
+
+/* rain: thin streaks falling fast */
+.gd[data-fx="rain"] .gd-bg, .mf-gd[data-fx="rain"]::before { background-image:radial-gradient(ellipse 1px 26px at 40px 60px,rgba(255,255,255,.38),transparent),radial-gradient(ellipse 1px 20px at 120px 150px,rgba(255,255,255,.28),transparent),radial-gradient(ellipse 1px 32px at 200px 40px,rgba(255,255,255,.34),transparent),radial-gradient(80% 50% at 50% 0%,var(--fx1),transparent 70%); background-size:150px 240px,210px 300px,280px 360px,100% 100%; animation:gdtRain 3.6s linear infinite; }
+@keyframes gdtRain { to { background-position:0 240px,0 300px,0 360px,0 0; } }
+
+/* grid: moving neon grid */
+.gd[data-fx="grid"] .gd-bg, .mf-gd[data-fx="grid"]::before { background-image:linear-gradient(rgba(255,255,255,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.10) 1px,transparent 1px),radial-gradient(60% 60% at 15% 90%,var(--fx1),transparent 70%),radial-gradient(60% 60% at 90% 10%,var(--fx2),transparent 70%); background-size:52px 52px,52px 52px,100% 100%,100% 100%; animation:gdtGrid 7s linear infinite; }
+@keyframes gdtGrid { to { background-position:52px 52px,52px 52px,0 0,0 0; } }
+
+/* dots: dotted sheet panning, gently pulsing */
+.gd[data-fx="dots"] .gd-bg, .mf-gd[data-fx="dots"]::before { background-image:radial-gradient(rgba(255,255,255,.26) 1.5px,transparent 2.2px),radial-gradient(60% 60% at 80% 100%,var(--fx1),transparent 70%); background-size:30px 30px,100% 100%; animation:gdtDots 18s linear infinite,gdtTwinkle 5s ease-in-out infinite alternate; }
+@keyframes gdtDots { to { background-position:30px 30px,0 0; } }
+
+/* beams: diagonal light streaks sliding */
+.gd[data-fx="beams"] .gd-bg, .mf-gd[data-fx="beams"]::before { background-image:linear-gradient(45deg,transparent 0 44%,rgba(255,255,255,.11) 50%,transparent 56% 100%),radial-gradient(60% 60% at 10% 100%,var(--fx1),transparent 70%),radial-gradient(60% 60% at 95% 5%,var(--fx2),transparent 70%); background-size:240px 240px,100% 100%,100% 100%; animation:gdtBeams 14s linear infinite; }
+@keyframes gdtBeams { to { background-position:240px 0,0 0,0 0; } }
+
+/* waves: two layers of waves sliding at different speeds */
+.gd[data-fx="waves"] .gd-bg, .mf-gd[data-fx="waves"]::before { background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'800'%20height%3D'140'%20viewBox%3D'0%200%20800%20140'%3E%3Cpath%20d%3D'M0%2070%20Q200%2010%20400%2070%20T800%2070%20V140%20H0Z'%20fill%3D'white'%20fill-opacity%3D'.10'%2F%3E%3C%2Fsvg%3E"),url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'800'%20height%3D'140'%20viewBox%3D'0%200%20800%20140'%3E%3Cpath%20d%3D'M0%2070%20Q200%2010%20400%2070%20T800%2070%20V140%20H0Z'%20fill%3D'white'%20fill-opacity%3D'.07'%2F%3E%3C%2Fsvg%3E"),radial-gradient(70% 60% at 85% 0%,var(--fx1),transparent 70%),radial-gradient(60% 60% at 5% 10%,var(--fx2),transparent 70%); background-size:800px 140px,1200px 210px,100% 100%,100% 100%; background-position:0 100%,0 100%,0 0,0 0; background-repeat:repeat-x,repeat-x,no-repeat,no-repeat; animation:gdtWaves 22s linear infinite; }
+@keyframes gdtWaves { to { background-position:-800px 100%,1200px 100%,0 0,0 0; } }
+
+/* sweep: warm glow with a slow light sweep */
+.gd[data-fx="sweep"] .gd-bg, .mf-gd[data-fx="sweep"]::before { background-image:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.13) 50%,transparent 65%),radial-gradient(60% 60% at 10% 95%,var(--fx1),transparent 70%),radial-gradient(55% 55% at 95% 10%,var(--fx2),transparent 70%); background-size:260% 100%,100% 100%,100% 100%; background-repeat:no-repeat; background-position:120% 0,0 0,0 0; animation:gdtSweep 9s ease-in-out infinite; }
+@keyframes gdtSweep { to { background-position:-60% 0,0 0,0 0; } }
+
+/* confetti: tiny coloured specks floating */
+.gd[data-fx="confetti"] .gd-bg, .mf-gd[data-fx="confetti"]::before { background-image:radial-gradient(circle at 15% 25%,#ffd166 0 3px,transparent 4px),radial-gradient(circle at 60% 15%,#ff7aa8 0 3px,transparent 4px),radial-gradient(circle at 80% 70%,#7ad7ff 0 3.5px,transparent 4.5px),radial-gradient(circle at 35% 85%,#ffffff 0 2.5px,transparent 3.5px),radial-gradient(60% 60% at 90% 100%,var(--fx1),transparent 70%),radial-gradient(60% 60% at 5% 0%,var(--fx2),transparent 70%); background-size:240px 260px,310px 330px,270px 290px,350px 380px,100% 100%,100% 100%; opacity:.9; animation:gdtConfetti 24s linear infinite; }
+@keyframes gdtConfetti { to { background-position:-240px 260px,310px 330px,-270px 290px,350px 380px,0 0,0 0; } }
+
+/* pulse: soft rings breathing from the centre */
+.gd[data-fx="pulse"] .gd-bg, .mf-gd[data-fx="pulse"]::before { background-image:radial-gradient(circle at 50% 50%,var(--fx1),transparent 38%),radial-gradient(circle at 50% 50%,transparent 0 24%,rgba(255,255,255,.07) 25% 26%,transparent 27% 40%,rgba(255,255,255,.06) 41% 42%,transparent 43% 56%,rgba(255,255,255,.05) 57% 58%,transparent 59%),radial-gradient(60% 60% at 100% 100%,var(--fx2),transparent 70%); background-repeat:no-repeat; animation:gdtPulse 8s ease-in-out infinite alternate; }
+@keyframes gdtPulse { from { transform:scale(1); } to { transform:scale(1.14); } }
+
+
+/* embers: warm sparks rising */
+.gd[data-fx="embers"] .gd-bg, .mf-gd[data-fx="embers"]::before { background-image:radial-gradient(circle at 20% 80%,rgba(255,170,80,.95) 0 2px,transparent 3px),radial-gradient(circle at 65% 55%,rgba(255,120,60,.8) 0 1.5px,transparent 2.5px),radial-gradient(circle at 85% 90%,rgba(255,210,120,.9) 0 2.5px,transparent 3.5px),radial-gradient(70% 40% at 50% 100%,var(--fx1),transparent 70%); background-size:190px 260px,240px 320px,330px 400px,100% 100%; animation:gdtEmbers 11s linear infinite; }
+@keyframes gdtEmbers { to { background-position:30px -260px,-40px -320px,50px -400px,0 0; } }
+/* fireflies: glowing dots drifting and blinking */
+.gd[data-fx="fireflies"] .gd-bg, .mf-gd[data-fx="fireflies"]::before { background-image:radial-gradient(circle at 20% 30%,rgba(200,255,130,.95) 0 2px,rgba(200,255,130,.25) 3px 9px,transparent 10px),radial-gradient(circle at 70% 65%,rgba(170,255,190,.9) 0 2px,rgba(170,255,190,.22) 3px 8px,transparent 9px),radial-gradient(circle at 45% 90%,rgba(220,255,150,.9) 0 2.5px,rgba(220,255,150,.2) 3px 10px,transparent 11px); background-size:260px 300px,340px 380px,420px 440px; animation:gdtFly 60s linear infinite,gdtBlink 3.2s ease-in-out infinite alternate; }
+@keyframes gdtFly { to { background-position:260px -300px,-340px 380px,420px 440px; } }
+@keyframes gdtBlink { from { opacity:.35; } to { opacity:1; } }
+/* ripple: off-centre rings widening */
+.gd[data-fx="ripple"] .gd-bg, .mf-gd[data-fx="ripple"]::before { background-image:repeating-radial-gradient(circle at 28% 72%,transparent 0 34px,rgba(255,255,255,.11) 35px 36px),repeating-radial-gradient(circle at 78% 24%,transparent 0 46px,rgba(255,255,255,.08) 47px 48px),radial-gradient(60% 60% at 30% 70%,var(--fx1),transparent 70%); background-repeat:no-repeat; animation:gdtRipple 7s ease-in-out infinite alternate; }
+@keyframes gdtRipple { from { transform:scale(1) rotate(0); } to { transform:scale(1.22) rotate(3deg); } }
+/* petals: soft petals falling sideways */
+.gd[data-fx="petals"] .gd-bg, .mf-gd[data-fx="petals"]::before { background-image:radial-gradient(ellipse 8px 4px at 20% 30%,rgba(255,205,220,.85),transparent),radial-gradient(ellipse 6px 3px at 65% 60%,rgba(255,180,205,.75),transparent),radial-gradient(ellipse 9px 4px at 40% 85%,rgba(255,225,235,.8),transparent); background-size:280px 320px,360px 400px,440px 480px; animation:gdtPetals 30s linear infinite; }
+@keyframes gdtPetals { to { background-position:-280px 320px,-360px 400px,-440px 480px; } }
+/* diamonds: lattice sliding */
+.gd[data-fx="diamonds"] .gd-bg, .mf-gd[data-fx="diamonds"]::before { background-image:linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%),linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%),radial-gradient(60% 60% at 90% 100%,var(--fx1),transparent 70%); background-size:64px 64px,64px 64px,100% 100%; background-position:0 0,32px 32px,0 0; animation:gdtDiamonds 16s linear infinite; }
+@keyframes gdtDiamonds { to { background-position:64px 0,96px 32px,0 0; } }
+/* stripes: barber stripes sliding */
+.gd[data-fx="stripes"] .gd-bg, .mf-gd[data-fx="stripes"]::before { background-image:linear-gradient(135deg,rgba(255,255,255,.08) 25%,transparent 25% 50%,rgba(255,255,255,.08) 50% 75%,transparent 75%),radial-gradient(60% 60% at 10% 100%,var(--fx1),transparent 70%); background-size:44px 44px,100% 100%; animation:gdtStripes 6s linear infinite; }
+@keyframes gdtStripes { to { background-position:44px 0,0 0; } }
+/* scan: scan lines with a moving bright band */
+.gd[data-fx="scan"] .gd-bg, .mf-gd[data-fx="scan"]::before { background-image:linear-gradient(transparent 0 70%,rgba(255,255,255,.06) 70%),linear-gradient(transparent,rgba(255,255,255,.14),transparent),radial-gradient(60% 60% at 10% 100%,var(--fx1),transparent 70%); background-size:100% 5px,100% 170px,100% 100%; background-repeat:repeat,no-repeat,no-repeat; background-position:0 0,0 0,0 0; animation:gdtScan 5s ease-in-out infinite; }
+@keyframes gdtScan { from { background-position:0 0,0 0,0 0; } to { background-position:0 0,0 100%,0 0; } }
+/* bokeh: big soft out-of-focus lights */
+.gd[data-fx="bokeh"] .gd-bg, .mf-gd[data-fx="bokeh"]::before { background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.15) 0 50px,transparent 80px),radial-gradient(circle at 70% 60%,rgba(255,255,255,.12) 0 70px,transparent 100px),radial-gradient(circle at 45% 90%,rgba(255,255,255,.10) 0 40px,transparent 70px); background-size:520px 460px,640px 580px,420px 380px; animation:gdtBokeh 70s linear infinite; }
+@keyframes gdtBokeh { to { background-position:520px -460px,-640px 580px,420px 380px; } }
+
+/* ─── screen entrance styles (data-tr) ─── */
+@keyframes gdtZoom { from { opacity:0; transform:scale(.93); } to { opacity:1; transform:none; } }
+@keyframes gdtSlideF { from { opacity:0; transform:translate3d(56px,0,0); } to { opacity:1; transform:none; } }
+@keyframes gdtSlideB { from { opacity:0; transform:translate3d(-56px,0,0); } to { opacity:1; transform:none; } }
+@keyframes gdtBlur { from { opacity:0; filter:blur(14px); transform:translate3d(0,10px,0); } to { opacity:1; filter:none; transform:none; } }
+@keyframes gdtFade { from { opacity:0; } to { opacity:1; } }
+.gd[data-tr="zoom"] .gd-stage.gd-fwd > *, .gd[data-tr="zoom"] .gd-stage.gd-back > * { animation-name:gdtZoom; }
+.gd[data-tr="slide"] .gd-stage.gd-fwd > * { animation-name:gdtSlideF; }
+.gd[data-tr="slide"] .gd-stage.gd-back > * { animation-name:gdtSlideB; }
+.gd[data-tr="blur"] .gd-stage.gd-fwd > *, .gd[data-tr="blur"] .gd-stage.gd-back > * { animation-name:gdtBlur; }
+.gd[data-tr="fade"] .gd-stage.gd-fwd > *, .gd[data-tr="fade"] .gd-stage.gd-back > * { animation-name:gdtFade; }
+.mf-gd[data-tr="zoom"] .mf-gd-screen:not(.mf-gd-shake) { animation-name:gdtZoom; }
+.mf-gd[data-tr="slide"] .mf-gd-screen:not(.mf-gd-shake) { animation-name:gdtSlideF; }
+.mf-gd[data-tr="blur"] .mf-gd-screen:not(.mf-gd-shake) { animation-name:gdtBlur; }
+.mf-gd[data-tr="fade"] .mf-gd-screen:not(.mf-gd-shake) { animation-name:gdtFade; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gd[data-fx] .gd-bg, .mf-gd[data-fx]::before { animation:none !important; }
+  .gd[data-tr] .gd-stage > * { animation:none !important; opacity:1; }
+  .mf-gd[data-tr] .mf-gd-screen { animation:none !important; }
+}
+
+/* ─── moving blobs behind the question (data-bl) — keep moving while the visitor stays on a question ─── */
+.gdx-blobs { display:none; position:absolute; top:0; left:0; right:0; bottom:0; overflow:hidden; pointer-events:none; z-index:0; }
+.gd .gdx-blobs { position:fixed; }
+.gd[data-bl] .gdx-blobs, .mf-gd[data-bl] .gdx-blobs { display:block; }
+.gdx-blobs i { position:absolute; display:block; width:var(--bw,48%); aspect-ratio:1/1; border-radius:50%; background:var(--bc); filter:blur(var(--bb,50px)); opacity:var(--bo,.7); will-change:transform,border-radius; }
+.gdx-blobs i:nth-child(1) { --bc:var(--b1); top:-14%; left:-12%; }
+.gdx-blobs i:nth-child(2) { --bc:var(--b2); top:22%; right:-16%; --bw:42%; }
+.gdx-blobs i:nth-child(3) { --bc:var(--b3); bottom:-20%; left:24%; --bw:38%; }
+.mf-tpl-thumb[data-bl] { --bb:9px !important; }
+.mf-tpl-thumb .gdx-blobs i { animation-play-state:paused !important; }
+.mf-tpl-card:hover .gdx-blobs i, .mf-tpl-card.on .gdx-blobs i { animation-play-state:running !important; }
+
+/* soft: huge dreamy glows */
+[data-bl="soft"] { --bb:70px; --bo:.6; }
+[data-bl="soft"] .gdx-blobs i { background:radial-gradient(circle at 40% 40%,var(--bc) 0,var(--bc) 30%,transparent 70%); }
+[data-bl="soft"] .gdx-blobs i:nth-child(1) { animation:gdbA calc(var(--bs,1) * 22s) ease-in-out infinite alternate; }
+[data-bl="soft"] .gdx-blobs i:nth-child(2) { animation:gdbB calc(var(--bs,1) * 27s) ease-in-out infinite alternate; }
+[data-bl="soft"] .gdx-blobs i:nth-child(3) { animation:gdbC calc(var(--bs,1) * 31s) ease-in-out infinite alternate; }
+/* morph: organic shapes that change form */
+[data-bl="morph"] { --bb:22px; --bo:.55; }
+[data-bl="morph"] .gdx-blobs i { border-radius:60% 40% 30% 70% / 60% 30% 70% 40%; }
+[data-bl="morph"] .gdx-blobs i:nth-child(1) { animation:gdbA calc(var(--bs,1) * 18s) ease-in-out infinite alternate,gdbMorph calc(var(--bs,1) * 9s) ease-in-out infinite alternate; }
+[data-bl="morph"] .gdx-blobs i:nth-child(2) { animation:gdbB calc(var(--bs,1) * 21s) ease-in-out infinite alternate,gdbMorph calc(var(--bs,1) * 11s) ease-in-out infinite alternate-reverse; }
+[data-bl="morph"] .gdx-blobs i:nth-child(3) { animation:gdbC calc(var(--bs,1) * 24s) ease-in-out infinite alternate,gdbMorph calc(var(--bs,1) * 13s) ease-in-out infinite alternate; }
+/* orbit: blobs circling the screen */
+[data-bl="orbit"] { --bb:38px; --bo:.6; }
+[data-bl="orbit"] .gdx-blobs i { top:50%; left:50%; right:auto; bottom:auto; --bw:40%; margin:calc(var(--bw) / -2) 0 0 calc(var(--bw) / -2); }
+[data-bl="orbit"] .gdx-blobs i:nth-child(1) { animation:gdbOrbit calc(var(--bs,1) * 26s) linear infinite; --bw:44%; }
+[data-bl="orbit"] .gdx-blobs i:nth-child(2) { animation:gdbOrbit calc(var(--bs,1) * 34s) linear infinite reverse; --bw:34%; }
+[data-bl="orbit"] .gdx-blobs i:nth-child(3) { animation:gdbOrbit2 calc(var(--bs,1) * 42s) linear infinite; --bw:30%; }
+/* ring: glowing outlines that wobble */
+[data-bl="ring"] { --bb:1.5px; --bo:.75; }
+[data-bl="ring"] .gdx-blobs i { background:none; border:2px solid var(--bc); box-shadow:0 0 36px var(--bc),inset 0 0 36px var(--bc); border-radius:58% 42% 50% 50% / 48% 56% 44% 52%; }
+[data-bl="ring"] .gdx-blobs i:nth-child(1) { animation:gdbA calc(var(--bs,1) * 20s) ease-in-out infinite alternate,gdbMorph calc(var(--bs,1) * 8s) ease-in-out infinite alternate; }
+[data-bl="ring"] .gdx-blobs i:nth-child(2) { animation:gdbB calc(var(--bs,1) * 24s) ease-in-out infinite alternate,gdbMorph calc(var(--bs,1) * 10s) ease-in-out infinite alternate-reverse; }
+[data-bl="ring"] .gdx-blobs i:nth-child(3) { animation:gdbC calc(var(--bs,1) * 28s) ease-in-out infinite alternate,gdbMorph calc(var(--bs,1) * 12s) ease-in-out infinite alternate; }
+/* float: bright balls bobbing up and down */
+[data-bl="float"] { --bb:14px; --bo:.5; }
+[data-bl="float"] .gdx-blobs i { background:radial-gradient(circle at 32% 30%,#fff 0,var(--bc) 28%,transparent 72%); }
+[data-bl="float"] .gdx-blobs i:nth-child(1) { --bw:30%; animation:gdbBob calc(var(--bs,1) * 7s) ease-in-out infinite alternate; }
+[data-bl="float"] .gdx-blobs i:nth-child(2) { --bw:24%; animation:gdbBob calc(var(--bs,1) * 9s) ease-in-out infinite alternate-reverse; }
+[data-bl="float"] .gdx-blobs i:nth-child(3) { --bw:34%; animation:gdbBob calc(var(--bs,1) * 11s) ease-in-out infinite alternate; }
+
+@keyframes gdbA { 0% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(34%,18%,0) scale(1.18); } 100% { transform:translate3d(12%,44%,0) scale(.9); } }
+@keyframes gdbB { 0% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(-38%,22%,0) scale(.88); } 100% { transform:translate3d(-14%,-30%,0) scale(1.2); } }
+@keyframes gdbC { 0% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(42%,-26%,0) scale(1.15); } 100% { transform:translate3d(-30%,-18%,0) scale(.92); } }
+@keyframes gdbMorph { 0% { border-radius:60% 40% 30% 70% / 60% 30% 70% 40%; } 50% { border-radius:30% 60% 70% 40% / 50% 60% 30% 60%; } 100% { border-radius:50% 50% 40% 60% / 40% 70% 30% 60%; } }
+@keyframes gdbOrbit { from { transform:rotate(0) translateX(40%) rotate(0); } to { transform:rotate(360deg) translateX(40%) rotate(-360deg); } }
+@keyframes gdbOrbit2 { from { transform:rotate(0) translateX(70%) rotate(0); } to { transform:rotate(-360deg) translateX(70%) rotate(360deg); } }
+@keyframes gdbBob { 0% { transform:translate3d(-8%,-14%,0) scale(1); } 100% { transform:translate3d(10%,18%,0) scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .gdx-blobs i { animation:none !important; } }
+
+/* ─── Template picker (Make Forms > Design > Guided) ─── */
+.mf-tpl-btn { border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:99px; padding:4px 12px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; display:none; }
+.mf-tpl-btn:hover { border-color:var(--cyan); }
+.mf-tpl-modal { position:fixed; inset:0; z-index:300000; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(5,8,20,.62); backdrop-filter:blur(4px); animation:gdtFade .2s both; }
+.mf-tpl-panel { width:min(880px,100%); max-height:min(86vh,760px); display:flex; flex-direction:column; background:var(--surface,#fff); color:var(--text,#111); border:1px solid var(--border); border-radius:18px; box-shadow:0 30px 80px -20px rgba(0,0,0,.6); overflow:hidden; }
+.mf-tpl-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 22px 12px; }
+.mf-tpl-head h3 { margin:0 0 3px; font-size:18px; }
+.mf-tpl-head p { margin:0; font-size:12.5px; color:var(--text3); }
+.mf-tpl-x { border:0; background:none; color:var(--text3); font-size:22px; line-height:1; cursor:pointer; padding:2px 6px; }
+.mf-tpl-x:hover { color:var(--text); }
+.mf-tpl-grid { overflow:auto; padding:6px 22px 22px; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; }
+.mf-tpl-card { border:2px solid transparent; background:none; padding:4px; border-radius:16px; cursor:pointer; text-align:left; font-family:inherit; color:inherit; transition:border-color .2s, transform .2s; }
+.mf-tpl-card:hover { transform:translateY(-2px); }
+.mf-tpl-card.on { border-color:var(--cyan); }
+.mf-tpl-card > span { display:block; padding:7px 4px 2px; font-size:12.5px; font-weight:600; }
+.mf-tpl-card > span small { display:block; font-weight:500; font-size:10.5px; color:var(--text3); }
+.mf-gd.mf-tpl-thumb { position:relative; top:auto; left:auto; right:auto; bottom:auto; min-height:0; height:92px; border-radius:12px; justify-content:center; padding:12px 14px; overflow:hidden; pointer-events:none; }
+.mf-tpl-thumb b { position:relative; z-index:1; font:800 22px "Plus Jakarta Sans","Inter",sans-serif; letter-spacing:-.02em; }
+.mf-tpl-thumb i { position:relative; z-index:1; display:block; width:58%; height:5px; border-radius:9px; margin-top:8px; background:rgba(255,255,255,.75); }
+.mf-tpl-thumb u { position:relative; z-index:1; display:block; width:38%; height:5px; border-radius:9px; margin-top:5px; background:rgba(255,255,255,.35); text-decoration:none; }
+.mf-tpl-thumb::before { animation-play-state:paused !important; }
+.mf-tpl-card:hover .mf-tpl-thumb::before, .mf-tpl-card.on .mf-tpl-thumb::before { animation-play-state:running !important; }
