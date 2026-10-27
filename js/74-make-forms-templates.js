@@ -52,6 +52,8 @@ function mfTplDist(a, b) {
   var p = function (h) { h = String(h).replace('#', ''); var n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
   var x = p(a), y = p(b); return Math.sqrt(Math.pow(x[0] - y[0], 2) + Math.pow(x[1] - y[1], 2) + Math.pow(x[2] - y[2], 2));
 }
+// Animation switch: on unless the form says tplAnim === false.
+function mfTplAnimOn(f) { return !f || f.tplAnim !== false; }
 function mfTplAdaptOn(f) { return !!f && (f.tplAdapt === true || (f.tplAdapt !== false && !!f.logoDataUrl)); }
 function mfTplCols(f) {
   var out = [f.accentColor || '#0073E6'];
@@ -83,11 +85,13 @@ function mfGdTplApply(ov, f) {
   var t = mfTplEff(mfTplGet(f && f.formTemplate), f);
   mfTplEnsureColors(f);
   if (!t) {
-    ['data-tpl', 'data-fx', 'data-tr', 'data-bl'].forEach(function (a) { ov.removeAttribute(a); });
+    ['data-tpl', 'data-fx', 'data-tr', 'data-bl', 'data-an'].forEach(function (a) { ov.removeAttribute(a); });
     ['--fx1', '--fx2', '--b1', '--b2', '--b3', '--bs'].forEach(function (v) { ov.style.removeProperty(v); });
     return;
   }
-  ov.setAttribute('data-tpl', t.id); ov.setAttribute('data-fx', t.fx); ov.setAttribute('data-tr', t.tr); ov.setAttribute('data-bl', t.bl);
+  ov.setAttribute('data-tpl', t.id);
+  if (mfTplAnimOn(f)) { ov.removeAttribute('data-an'); ov.setAttribute('data-fx', t.fx); ov.setAttribute('data-tr', t.tr); ov.setAttribute('data-bl', t.bl); }
+  else { ov.setAttribute('data-an', 'off'); ['data-fx', 'data-tr', 'data-bl'].forEach(function (a) { ov.removeAttribute(a); }); }
   ov.style.setProperty('--b1', t.b1); ov.style.setProperty('--b2', t.b2); ov.style.setProperty('--b3', t.b3); ov.style.setProperty('--bs', t.bs);
   ov.style.setProperty('--gd1', t.c1); ov.style.setProperty('--gd2', t.c2);
   ov.style.setProperty('--fx1', t.k1); ov.style.setProperty('--fx2', t.k2);
@@ -96,9 +100,9 @@ function mfGdTplApply(ov, f) {
 var MF_TPL_FX_LABEL = { aurora: 'Aurora glow', stars: 'Twinkling stars', bubbles: 'Rising bubbles', snow: 'Falling snow', rain: 'Rain', grid: 'Moving grid', dots: 'Dot sheet', beams: 'Light beams', waves: 'Rolling waves', sweep: 'Light sweep', confetti: 'Confetti', pulse: 'Soft pulse', embers: 'Rising embers', fireflies: 'Fireflies', ripple: 'Ripples', petals: 'Falling petals', diamonds: 'Diamond lattice', stripes: 'Moving stripes', scan: 'Scan lines', bokeh: 'Bokeh lights' };
 var MF_TPL_BL_LABEL = { soft: 'dreamy glows', morph: 'morphing blobs', orbit: 'orbiting blobs', ring: 'glowing rings', float: 'floating orbs' };
 
-function mfTplCard(t, on, brand) {
+function mfTplCard(t, on, brand, anim) {
   var style = t ? '--gd1:' + t.c1 + ';--gd2:' + t.c2 + ';--fx1:' + t.k1 + ';--fx2:' + t.k2 : brand;
-  var attrs = t ? ' data-tpl="' + t.id + '" data-fx="' + t.fx + '" data-tr="' + t.tr + '" data-bl="' + t.bl + '"' : '';
+  var attrs = t ? (anim === false ? ' data-tpl="' + t.id + '" data-an="off"' : ' data-tpl="' + t.id + '" data-fx="' + t.fx + '" data-tr="' + t.tr + '" data-bl="' + t.bl + '"') : '';
   if (t) style += ';--b1:' + t.b1 + ';--b2:' + t.b2 + ';--b3:' + t.b3 + ';--bs:' + t.bs;
   var name = t ? t.name : 'Brand colour';
   var sub = t ? ((MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase()) : 'Your own accent colour';
@@ -121,9 +125,12 @@ function mfTplOpen() {
     m.querySelectorAll('.mf-tpl-card').forEach(function (x) { x.classList.toggle('on', x === c); });
   });
   m.addEventListener('change', function (e) {
-    if (!e.target.matches('[data-tadapt]')) return;
+    var isAnim = e.target.matches('[data-tanim]');
+    if (!isAnim && !e.target.matches('[data-tadapt]')) return;
     var g = mfGetCurrentForm(); if (!g) return;
-    g.tplAdapt = !!e.target.checked; mfTouch(g);
+    if (isAnim) g.tplAnim = !!e.target.checked; else g.tplAdapt = !!e.target.checked;
+    mfTouch(g);
+    if (isAnim && g.publishedId && typeof toast === 'function') toast('Animation setting changed. Press Update Link and share the new link.', 'info');
     if (document.getElementById('mfGdOverlay')) mfGdRender();
     mfTplDraw();
   });
@@ -141,13 +148,14 @@ function mfTplDraw() {
   var lum = 0; var rgb = (typeof hexToRgbStr === 'function') ? hexToRgbStr(acc) : null;
   if (rgb) { var p = rgb.split(',').map(Number); lum = (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255; }
   var brand = '--gd1:' + (lum > 0.6 ? mixHex(acc, 25, '#0b1020') : mixHex(acc, 55, '#0b1020')) + ';--gd2:' + (lum > 0.6 ? mixHex(acc, 55, '#0b1020') : acc);
-  var cur = f.formTemplate || '', on = mfTplAdaptOn(f), hasLogo = !!f.logoDataUrl;
+  var cur = f.formTemplate || '', on = mfTplAdaptOn(f), anim = mfTplAnimOn(f), hasLogo = !!f.logoDataUrl;
   var dots = on ? mfTplCols(f).map(function (c) { return '<i class="mf-tpl-dot" style="background:' + mfEsc(c) + '"></i>'; }).join('') : '';
   var note = hasLogo ? (on ? 'Using your logo colours' : 'Using each template\'s own colours') : 'No logo yet. Upload one in Design and the templates recolour to match it. Switch on to use your accent colour.';
   m.innerHTML = '<div class="mf-tpl-panel"><div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Changes the look of your Guided form: colours, moving background and how questions appear. Hover a card to see it move.</p></div>' +
     '<button type="button" class="mf-tpl-x" data-tclose aria-label="Close">×</button></div>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tadapt' + (on ? ' checked' : '') + '><span><b>Match my logo colours</b><small>' + mfEsc(note) + '</small></span>' + dots + '</label>' +
-    '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) + MF_TEMPLATES.map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id); }).join('') + '</div></div>';
+    '<label class="mf-tpl-match"><input type="checkbox" data-tanim' + (anim ? ' checked' : '') + '><span><b>Animation</b><small>' + (anim ? 'Moving background and question effects are on' : 'Off: only the chosen colours, calm and static') + '</small></span></label>' +
+    '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) + MF_TEMPLATES.map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div></div>';
   var g2 = m.querySelector('.mf-tpl-grid'); if (g2) g2.scrollTop = keep;
 }
 function mfTplEsc(e) { if (e.key === 'Escape') mfTplClose(); }

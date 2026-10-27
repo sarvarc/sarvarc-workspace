@@ -2274,7 +2274,8 @@ const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://sarvarc-forms.pages.dev';
 // Worker does not return form_style yet. Standard forms keep the plain link.
 function mfShareLink(f) {
   const slug = (f && f.shareSlug) || '';
-  return `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${slug}` + (f && f.formStyle === 'guided' ? '&style=guided' : '');
+  const tpl = (f && f.formStyle === 'guided' && f.formTemplate && /^[a-z0-9-]+$/.test(f.formTemplate)) ? '&tpl=' + f.formTemplate : '';
+  return `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${slug}` + (f && f.formStyle === 'guided' ? '&style=guided' : '') + tpl + ((tpl && f.tplAdapt === false) ? '&ta=0' : (tpl && f.tplAdapt === true) ? '&ta=1' : '') + ((tpl && f.tplAnim === false) ? '&an=0' : '');
 }
 
 function mfSlug() {
@@ -2382,6 +2383,8 @@ async function mfPublishForm() {
       accent_color: f.accentColor || '#0073E6',
       // Standard (all questions on one page) or Guided (one question at a time).
       form_style: f.formStyle === 'guided' ? 'guided' : 'standard',
+      // Guided template id (see js/74-make-forms-templates.js). Empty = the form's own accent colour.
+      form_template: (f.formStyle === 'guided' && f.formTemplate) ? f.formTemplate : null,
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
       social_links: f.socialLinks || {},
@@ -2416,6 +2419,11 @@ async function mfPublishForm() {
       delete payload.form_style;
       res = await mfWrite(payload);
       if (!res.error && f.formStyle === 'guided') toast('Published in Standard style. Run supabase/11-form-style.sql once to turn Guided on.', 'info');
+    }
+    // Same for supabase/12-form-template.sql (forms.form_template). The link still carries &tpl=.
+    if (res.error && /form_template/i.test(res.error.message || '')) {
+      delete payload.form_template;
+      res = await mfWrite(payload);
     }
     if (res.error) throw res.error;
     row = res.data;
