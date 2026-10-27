@@ -64,6 +64,7 @@ function mfGdRender() {
   const lum = rgb ? (() => { const [r, g, b] = rgb.split(',').map(Number); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; })() : 0;
   ov.style.setProperty('--gd1', lum > 0.6 ? mixHex(acc, 25, '#0b1020') : mixHex(acc, 55, '#0b1020'));
   ov.style.setProperty('--gd2', lum > 0.6 ? mixHex(acc, 55, '#0b1020') : acc);
+  if (typeof mfGdTplApply === 'function') mfGdTplApply(ov, f); // chosen template overrides the colours and adds motion
   const S = mfGdScreens(f), n = S.length - 1;
   if (mfGd.i > n) mfGd.i = n;
   const i = mfGd.i, s = S[i];
@@ -86,7 +87,11 @@ function mfGdRender() {
       : `<div class="mf-gd-num">${qn} / ${qTotal}</div><h2>${mfEsc(s.label)}${s.required ? ' *' : ''}</h2>${mfGdControl(s)}<div class="mf-gd-err" id="mfGdErr">Please answer this one to continue</div>`;
     body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back">↑</button><button class="mf-gd-btn" data-go="next">${i === n ? (mfGd.fill ? 'Finish' : 'Submit') : isSec ? 'Continue' : 'OK ✓'}</button><span class="mf-gd-hint">press Enter</span></div>`;
   }
-  ov.innerHTML = `${banner}<div class="mf-gd-bar"><i style="width:${pct}%"></i></div>${logo}${body}`;
+  // The blob layer is created once and kept, so its animation keeps running when the question changes.
+  let blobs = ov.querySelector(':scope > .gdx-blobs');
+  if (!blobs) { ov.insertAdjacentHTML('afterbegin', '<div class="gdx-blobs" aria-hidden="true"><i></i><i></i><i></i></div>'); blobs = ov.firstElementChild; }
+  Array.from(ov.children).forEach(c => { if (c !== blobs) c.remove(); });
+  ov.insertAdjacentHTML('beforeend', `${banner}<div class="mf-gd-bar"><i style="width:${pct}%"></i></div>${logo}${body}`);
   ov.querySelectorAll('canvas[data-sig]').forEach(c => {
     const saved = mfGd.a[c.dataset.sig];
     if (!saved) return;
@@ -222,6 +227,8 @@ function mfGdSync() {
   if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')));
   const size = document.getElementById('mfDesignPreviewSize');
   if (size) size.style.display = guided ? 'none' : '';
+  const tb = document.getElementById('mfTplBtn');
+  if (tb) tb.style.display = guided ? 'inline-block' : 'none';
   const mode = typeof window.mfGetMode === 'function' ? window.mfGetMode() : null;
   const dSlot = document.getElementById('mfDesignPreviewSlot');
   const fSlot = document.getElementById('mfFillPreviewSlot');
