@@ -2631,6 +2631,7 @@ function mfUpdateFillStatus() {
 function mfNewResponseDraft() {
   mfActiveResponseId = null;
   mfDraftValues = {};
+  if (typeof window.mfGdLoadDraft === 'function') window.mfGdLoadDraft(false);
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
@@ -2643,6 +2644,7 @@ function mfLoadResponse(id) {
   if (!r) return;
   mfActiveResponseId = id;
   mfDraftValues = { ...r.values };
+  if (typeof window.mfGdLoadDraft === 'function') window.mfGdLoadDraft(true); // open at the first question so the answers show
   mfRenderPreview();
   mfUpdateFillStatus();
   mfRenderResponsesList();
@@ -2653,6 +2655,9 @@ function mfLoadResponse(id) {
 // shadow copy, so nothing needs to sync on every keystroke.
 function mfCollectDraftFromDOM() {
   const f = mfGetCurrentForm(); if (!f) return {};
+  // Fill tab on a Guided form: the answers live in the guided view, not in the
+  // (hidden) A4 sheet, so read them from there. Defined in js/73-make-forms-guided.js.
+  if (mfMode === 'fill' && f.formStyle === 'guided' && typeof window.mfGdCollect === 'function') return window.mfGdCollect(f);
   const values = {};
   f.fields.forEach(fl => {
     if (fl.type === 'heading') return;
@@ -2702,6 +2707,7 @@ function mfDeleteResponse(id, ev) {
   if (mfActiveResponseId === id) {
     mfActiveResponseId = null;
     mfDraftValues = {};
+    if (typeof window.mfGdLoadDraft === 'function') window.mfGdLoadDraft(false);
     mfRenderPreview();
     mfUpdateFillStatus();
   }
@@ -4951,6 +4957,9 @@ window.mfEsc = mfEsc;
 window.mixHex = mixHex;
 window.hexToRgbStr = hexToRgbStr;
 window.mfGetMode = function () { return mfMode; };
+window.mfGetDraft = function () { return mfDraftValues; };
+window.mfSetDraft = function (v) { mfDraftValues = v || {}; };
+window.mfRenderPreview = mfRenderPreview;
 window.mfSetLogoFromDataUrl = mfSetLogoFromDataUrl;
 window.mfSetBannerFromDataUrl = mfSetBannerFromDataUrl;
 window.mfRenderSocialLinks = mfRenderSocialLinks;

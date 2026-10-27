@@ -4,7 +4,7 @@
 // The Standard | Guided toggle lives in the Live Preview header. The choice is
 // saved on the form as f.formStyle and published as the `form_style` column.
 // Print, PDF export and Push to Workspace always use Standard (A4 sheets).
-var mfGd = { i: 0, a: {}, done: false };
+var mfGd = { i: 0, a: {}, done: false, fill: false, mode: null };
 
 function mfSetFormStyle(style) {
   const f = mfGetCurrentForm(); if (!f) return;
@@ -16,7 +16,7 @@ function mfSetFormStyle(style) {
 
 function mfGdScreens(f) {
   const s = [{ t: 'intro' }];
-  if (f.requireIdentity) {
+  if (f.requireIdentity && !mfGd.fill) {
     s.push({ t: 'text', id: '__name', label: 'Your name', required: true });
     s.push({ t: 'email', id: '__email', label: 'Your email', required: true });
   }
@@ -41,7 +41,16 @@ function mfGdControl(s) {
     case 'mcq': return `<div class="mf-gd-chips">${s.options.map((o, j) => chip(o, String.fromCharCode(65 + j), v === o)).join('')}</div>`;
     case 'checkbox': return `<div class="mf-gd-chips"><button type="button" class="mf-gd-chip${v ? ' on' : ''}" data-v="1"><kbd>✓</kbd>Yes</button></div>`;
     case 'rating': return `<div class="mf-gd-stars">${Array.from({ length: s.max }, (_, j) => `<button type="button" class="mf-gd-st${(v || 0) > j ? ' on' : ''}" data-r="${j + 1}" aria-label="${j + 1}">★</button>`).join('')}</div>`;
-    case 'signature': return `<canvas class="mf-gd-sig" width="560" height="170" data-sig="${id}"></canvas><button type="button" class="mf-gd-link" data-clr="${id}">Clear</button>`;
+    case 'signature': if (mfGd.fill) {
+      const dv = (typeof window.mfGetDraft === 'function' && window.mfGetDraft()) || {};
+      const sv = (typeof SarvarcSign !== 'undefined') ? SarvarcSign.parse(dv[s.id]) : null;
+      if (sv && (sv.image || sv.file)) {
+        const ok = sv.image && /^data:image\//.test(sv.image);
+        return `<div class="mf-gd-sigdone">${ok ? `<img src="${sv.image}" alt="Signature">` : `<span>Signature file: ${mfEsc(sv.file ? sv.file.name : '')}</span>`}</div><div><button type="button" class="mf-gd-link" data-sign="${id}">Change</button> <button type="button" class="mf-gd-link" data-signclr="${id}">Clear</button></div>`;
+      }
+      return `<button type="button" class="mf-gd-btn" data-sign="${id}">Click to sign</button>`;
+    }
+    return `<canvas class="mf-gd-sig" width="560" height="170" data-sig="${id}"></canvas><button type="button" class="mf-gd-link" data-clr="${id}">Clear</button>`;
     default: return '';
   }
 }
@@ -49,6 +58,7 @@ function mfGdControl(s) {
 function mfGdRender() {
   const f = mfGetCurrentForm(), ov = document.getElementById('mfGdOverlay');
   if (!f || !ov) return;
+  ov.classList.toggle('mf-gd-fill', !!mfGd.fill);
   const acc = f.accentColor || '#0073E6';
   const rgb = (typeof hexToRgbStr === 'function' ? hexToRgbStr(acc) : null);
   const lum = rgb ? (() => { const [r, g, b] = rgb.split(',').map(Number); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; })() : 0;
@@ -61,10 +71,12 @@ function mfGdRender() {
   const banner = f.bannerImageDataUrl ? `<div class="mf-gd-banner" style="background-image:url('${f.bannerImageDataUrl}');opacity:${(f.bannerImageOpacity == null ? 15 : f.bannerImageOpacity) / 100}"></div>` : '';
   const logo = f.logoDataUrl ? `<div class="mf-gd-brand"><img src="${f.logoDataUrl}" alt=""></div>` : '';
   let body;
-  if (mfGd.done) {
+  if (mfGd.done && mfGd.fill) {
+    body = `<div class="mf-gd-screen"><div class="mf-gd-big">✓</div><h2>All questions answered</h2><p>Save this as a response, or go back to review the answers.</p><div><button class="mf-gd-btn" data-go="save">Save Response</button> <button class="mf-gd-btn ghost" data-go="review">Review answers</button></div></div>`;
+  } else if (mfGd.done) {
     body = `<div class="mf-gd-screen"><div class="mf-gd-big">✓</div><h2>Thank you</h2><p>Your response has been recorded.</p><div><button class="mf-gd-btn ghost" data-go="again">Start over</button></div></div>`;
   } else if (i === 0 || n === 0) {
-    body = `<div class="mf-gd-screen"><h1>${mfEsc(f.title || 'Untitled Form')}</h1><p>${mfEsc(f.desc || '')}</p><div><button class="mf-gd-btn" data-go="next">${n === 0 ? 'Submit' : 'Start →'}</button> <span class="mf-gd-hint">press Enter</span></div></div>`;
+    body = `<div class="mf-gd-screen"><h1>${mfEsc(f.title || 'Untitled Form')}</h1><p>${mfEsc(f.desc || '')}</p><div><button class="mf-gd-btn" data-go="next">${n === 0 ? (mfGd.fill ? 'Finish' : 'Submit') : 'Start →'}</button> <span class="mf-gd-hint">press Enter</span></div></div>`;
   } else {
     const isSec = s.t === 'heading' || s.t === 'label';
     const isQ = x => x.t !== 'intro' && x.t !== 'heading' && x.t !== 'label';
@@ -72,7 +84,7 @@ function mfGdRender() {
     const content = s.t === 'heading' ? `<h1>${mfEsc(s.label)}</h1>`
       : s.t === 'label' ? `<p style="font-size:18px">${mfEsc(s.label)}</p>`
       : `<div class="mf-gd-num">${qn} / ${qTotal}</div><h2>${mfEsc(s.label)}${s.required ? ' *' : ''}</h2>${mfGdControl(s)}<div class="mf-gd-err" id="mfGdErr">Please answer this one to continue</div>`;
-    body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back">↑</button><button class="mf-gd-btn" data-go="next">${i === n ? 'Submit' : isSec ? 'Continue' : 'OK ✓'}</button><span class="mf-gd-hint">press Enter</span></div>`;
+    body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back">↑</button><button class="mf-gd-btn" data-go="next">${i === n ? (mfGd.fill ? 'Finish' : 'Submit') : isSec ? 'Continue' : 'OK ✓'}</button><span class="mf-gd-hint">press Enter</span></div>`;
   }
   ov.innerHTML = `${banner}<div class="mf-gd-bar"><i style="width:${pct}%"></i></div>${logo}${body}`;
   ov.querySelectorAll('canvas[data-sig]').forEach(c => {
@@ -92,7 +104,8 @@ function mfGdFocus() {
 function mfGdNext() {
   const f = mfGetCurrentForm(); if (!f) return;
   const S = mfGdScreens(f), s = S[mfGd.i];
-  if (mfGd.i > 0 && s.required && mfGdEmpty(mfGd.a[s.id])) {
+  const cur = (mfGd.fill && s.t === 'signature' && typeof window.mfGetDraft === 'function') ? (window.mfGetDraft() || {})[s.id] : mfGd.a[s.id];
+  if (mfGd.i > 0 && s.required && mfGdEmpty(cur)) {
     const sc = document.getElementById('mfGdScreen'), er = document.getElementById('mfGdErr');
     if (er) er.style.display = 'block';
     if (sc) { sc.classList.remove('mf-gd-shake'); void sc.offsetWidth; sc.classList.add('mf-gd-shake'); }
@@ -110,22 +123,28 @@ function mfGdWire(ov) {
       if (g === 'next') mfGdNext();
       else if (g === 'back') { if (mfGd.i > 0) { mfGd.i--; mfGdRender(); mfGdFocus(); } }
       else if (g === 'again') { mfGd.i = 0; mfGd.a = {}; mfGd.done = false; mfGdRender(); }
+      else if (g === 'save') { if (typeof window.mfSaveResponse === 'function') window.mfSaveResponse(); }
+      else if (g === 'review') { mfGd.done = false; mfGd.i = 1; mfGdRender(); }
       return;
     }
     const f = mfGetCurrentForm(); if (!f) return;
+    const sg = e.target.closest('[data-sign]');
+    if (sg) { if (typeof window.mfSigOpen === 'function') window.mfSigOpen(sg.dataset.sign); return; }
+    const sc = e.target.closest('[data-signclr]');
+    if (sc) { if (typeof window.mfSigClear === 'function') window.mfSigClear(sc.dataset.signclr); return; }
     const s = mfGdScreens(f)[mfGd.i]; if (!s) return;
     const at = mfGd.i;
     const chip = e.target.closest('.mf-gd-chip');
     if (chip) {
-      if (s.t === 'checkbox') { mfGd.a[s.id] = !mfGd.a[s.id]; chip.classList.toggle('on', !!mfGd.a[s.id]); return; }
-      mfGd.a[s.id] = chip.dataset.v;
+      if (s.t === 'checkbox') { mfGd.a[s.id] = !mfGd.a[s.id]; chip.classList.toggle('on', !!mfGd.a[s.id]); mfGdPush(); return; }
+      mfGd.a[s.id] = chip.dataset.v; mfGdPush();
       ov.querySelectorAll('.mf-gd-chip').forEach(c => c.classList.toggle('on', c === chip));
       setTimeout(() => { if (mfGd.i === at && !mfGd.done) mfGdNext(); }, 320);
       return;
     }
     const st = e.target.closest('[data-r]');
     if (st) {
-      mfGd.a[s.id] = +st.dataset.r;
+      mfGd.a[s.id] = +st.dataset.r; mfGdPush();
       ov.querySelectorAll('.mf-gd-st').forEach((b, j) => b.classList.toggle('on', j < mfGd.a[s.id]));
       setTimeout(() => { if (mfGd.i === at && !mfGd.done) mfGdNext(); }, 320);
       return;
@@ -137,7 +156,7 @@ function mfGdWire(ov) {
       delete mfGd.a[clr.dataset.clr];
     }
   });
-  ov.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.in) mfGd.a[t.dataset.in] = t.value; });
+  ov.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.in) { mfGd.a[t.dataset.in] = t.value; mfGdPush(); } });
   ov.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || mfGd.done) return;
     const tg = e.target.tagName;
@@ -162,6 +181,39 @@ function mfGdWire(ov) {
   ov.addEventListener('pointercancel', end);
 }
 
+// ─── Fill & Responses tab ───
+// On the Fill tab a Guided form is also filled (and a saved response is also
+// opened) one question at a time. The answers are mirrored into the form's draft
+// (mfDraftValues) on every change, so Save Response, Print and the PDF exports
+// keep working exactly as they do for Standard forms.
+function mfGdCollect(f) {
+  const dv = (typeof window.mfGetDraft === 'function' && window.mfGetDraft()) || {};
+  const out = {};
+  (f.fields || []).forEach(fl => {
+    if (fl.type === 'heading' || fl.type === 'label') return;
+    const v = mfGd.a[fl.id];
+    if (fl.type === 'signature') out[fl.id] = dv[fl.id] || '';
+    else if (fl.type === 'checkbox') out[fl.id] = !!v;
+    else if (fl.type === 'mcq' || fl.type === 'rating') out[fl.id] = v == null ? '' : String(v);
+    else out[fl.id] = v == null ? '' : v;
+  });
+  return out;
+}
+function mfGdPush() {
+  if (!mfGd.fill || typeof window.mfSetDraft !== 'function') return;
+  const f = mfGetCurrentForm(); if (!f) return;
+  window.mfSetDraft(mfGdCollect(f));
+}
+// Called when a different draft/response is opened on the Fill tab.
+function mfGdLoadDraft(startAtFirstQuestion) {
+  const dv = (typeof window.mfGetDraft === 'function' && window.mfGetDraft()) || {};
+  mfGd.a = {};
+  Object.keys(dv).forEach(k => { mfGd.a[k] = dv[k]; });
+  mfGd.i = startAtFirstQuestion ? 1 : 0; mfGd.done = false;
+}
+window.mfGdCollect = mfGdCollect;
+window.mfGdLoadDraft = mfGdLoadDraft;
+
 // Keeps the toggle, the preview header badge and the Guided overlay in step with the form.
 function mfGdSync() {
   const f = mfGetCurrentForm(); if (!f) return;
@@ -170,16 +222,28 @@ function mfGdSync() {
   if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')));
   const size = document.getElementById('mfDesignPreviewSize');
   if (size) size.style.display = guided ? 'none' : '';
-  const slot = document.getElementById('mfDesignPreviewSlot');
-  const show = guided && !!slot && typeof window.mfGetMode === 'function' && window.mfGetMode() === 'design';
+  const mode = typeof window.mfGetMode === 'function' ? window.mfGetMode() : null;
+  const dSlot = document.getElementById('mfDesignPreviewSlot');
+  const fSlot = document.getElementById('mfFillPreviewSlot');
+  const slot = mode === 'fill' ? fSlot : dSlot;
+  const show = guided && !!slot && (mode === 'design' || mode === 'fill');
   let ov = document.getElementById('mfGdOverlay');
-  if (slot) slot.classList.toggle('mf-gd-host', show);
-  if (!show) { if (ov) ov.remove(); mfGd.n = undefined; return; }
+  if (dSlot) dSlot.classList.toggle('mf-gd-host', show && mode === 'design');
+  if (fSlot) fSlot.classList.toggle('mf-gd-on', show && mode === 'fill');
+  if (!show) { if (ov) ov.remove(); mfGd.n = undefined; mfGd.mode = null; mfGd.fill = false; return; }
+  // Switching tabs: Fill starts from the current draft, Design starts a clean preview.
+  if (mfGd.mode !== mode) {
+    mfGd.mode = mode; mfGd.fill = mode === 'fill'; mfGd.n = undefined;
+    if (mfGd.fill) mfGdLoadDraft(false); else { mfGd.a = {}; mfGd.i = 0; mfGd.done = false; }
+    if (ov) { ov.remove(); ov = null; }
+  }
+  mfGd.fill = mode === 'fill';
+  if (ov && ov.parentNode !== slot) { ov.remove(); ov = null; }
   if (!ov) {
     ov = document.createElement('div'); ov.id = 'mfGdOverlay'; ov.className = 'mf-gd'; ov.tabIndex = -1;
     slot.appendChild(ov); mfGdWire(ov);
   }
-  if (typeof mfGd.n === 'number' && f.fields.length > mfGd.n) {
+  if (!mfGd.fill && typeof mfGd.n === 'number' && f.fields.length > mfGd.n) {
     const last = f.fields[f.fields.length - 1];
     const k = mfGdScreens(f).findIndex(sc => sc.id === last.id);
     if (k > 0) { mfGd.i = k; mfGd.done = false; }
@@ -187,6 +251,11 @@ function mfGdSync() {
   mfGd.n = f.fields.length;
   mfGdRender();
 }
+
+// Printing always uses the Standard A4 sheet: bring it up to date with the answers.
+window.addEventListener('beforeprint', () => {
+  if (mfGd.fill && document.getElementById('mfGdOverlay') && typeof window.mfRenderPreview === 'function') { mfGdPush(); window.mfRenderPreview(); }
+});
 
 window.mfGdSync = mfGdSync;
 
