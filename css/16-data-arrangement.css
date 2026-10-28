@@ -808,3 +808,101 @@ html[data-sarvarc-touch-mode="1"] .da-fill-handle::after {
 .da-hist-to { font-weight: 600; }
 .da-hist-empty { color: var(--text2); font-style: italic; text-decoration: none; font-weight: 400; }
 .da-hist-none { padding: 14px 12px; color: var(--text2); line-height: 1.5; }
+
+/* ═══ Excel-familiar grid skin ═══
+   Same SARVARC colours and fonts, but the grid now behaves and reads like a
+   spreadsheet: compact rows, full gridlines, no zebra banding, a strong box
+   on the active cell, highlighted row/column headers, drag-to-resize
+   columns, and a Sum / Average / Count status bar. */
+
+/* Density + gridlines */
+.da-table th, .da-table td { border-bottom:1px solid var(--border2); border-right:1px solid var(--border2); }
+.da-td-cell { padding:4px 8px; font-size:13px; line-height:20px; min-width:100px; }
+.da-table tbody tr:nth-child(even) .da-td-cell,
+.da-table tbody tr:nth-child(even) .da-rownum { background:transparent; }
+.da-table tbody tr:nth-child(even) .da-rownum { background:var(--bg3); }
+.da-table tbody tr:hover .da-td-cell:not(:focus) { background:transparent; }
+.da-td-cell.da-cell-empty { font-style:normal; opacity:.45; }
+.da-td-select { min-height:29px; }
+html[data-sarvarc-touch-mode="1"] .da-td-cell { padding:9px 12px; }
+
+/* Column letters row (A, B, C…) */
+.da-collabels-row .da-collabel { padding:0 8px; height:22px; font-size:11px; font-weight:600; color:var(--text2); letter-spacing:.2px; }
+.da-collabels-row .da-rownum { padding:0; height:22px; }
+.da-corner { cursor:pointer; }
+.da-corner::after { content:''; position:absolute; right:5px; bottom:4px; border-bottom:10px solid var(--text3); border-left:10px solid transparent; opacity:.55; }
+.da-corner:hover::after { opacity:1; border-bottom-color:var(--blue); }
+
+/* Field-name row: reads as the header record */
+.da-th-cell { padding:5px 8px; font-size:12.5px; font-weight:700; color:var(--text); gap:6px; min-width:100px; }
+.da-table thead tr:nth-child(2) th { border-bottom:2px solid var(--border2); }
+.da-th-type { opacity:0; transition:opacity .12s ease; }
+th:hover .da-th-type { opacity:1; }
+.da-th-opflag { flex-shrink:0; font-size:9.5px; font-weight:800; color:#fff; background:var(--blue); border-radius:4px; padding:1px 5px; }
+.da-rownum { min-width:40px; width:40px; padding:0 4px; font-size:11px; font-weight:600; }
+.da-rownum-inner { min-height:28px; }
+
+/* Quick-math buttons float under the header on hover instead of making it tall */
+.da-th-ops { position:absolute; left:6px; top:100%; z-index:7; display:none; gap:3px; padding:4px; border-radius:7px;
+  background:var(--bg2); border:1px solid var(--border2); box-shadow:0 6px 18px -6px rgba(0,20,40,.35); }
+th:hover .da-th-ops, .da-th-ops:hover { display:flex; }
+
+/* Active cell box, selected range, active headers */
+.da-td-cell:focus, .da-td-select:focus { box-shadow:0 0 0 2px var(--blue) inset !important; background:var(--bg2); }
+.da-td-cell.da-cell-selected, .da-td-select.da-cell-selected { background:rgba(0,194,255,.13); box-shadow:none !important; }
+.da-td-cell.da-cell-selected:focus { box-shadow:0 0 0 2px var(--blue) inset !important; }
+.da-collabel.da-hdr-active { background:rgba(0,194,255,.22); color:var(--text); box-shadow:inset 0 -2px 0 var(--blue); }
+.da-rownum.da-hdr-active { background:rgba(0,194,255,.22); color:var(--text); box-shadow:inset -2px 0 0 var(--blue); }
+
+/* Formula cells: small green corner mark instead of a heavy tint */
+.da-td-cell.da-cell-formula { background:rgba(16,185,129,.04); box-shadow:none; }
+.da-table tbody tr:nth-child(even) .da-td-cell.da-cell-formula { background:rgba(16,185,129,.04); }
+td:has(> .da-cell-formula)::after { content:''; position:absolute; top:0; right:0; border-top:7px solid #10b981; border-left:7px solid transparent; pointer-events:none; }
+
+/* Drag-to-resize handle on the column letters */
+.da-col-resize { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:6; }
+.da-col-resize:hover, body.da-resizing .da-col-resize { background:var(--blue); opacity:.55; }
+body.da-resizing { cursor:col-resize; user-select:none; }
+.da-table th[data-ci] .da-th-cell[style*="--da-cw"], .da-td-cell[style*="--da-cw"], .da-td-select[style*="--da-cw"] {
+  width:var(--da-cw); min-width:var(--da-cw); max-width:var(--da-cw);
+}
+
+/* Freeze: the two header rows stack instead of overlapping */
+table.da-table.da-frozen thead .da-collabels-row th { top:0; }
+table.da-table.da-frozen thead tr:nth-child(2) th { top:22px; }
+
+/* Status bar */
+.da-statusbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:6px; padding:5px 12px;
+  font-size:11.5px; color:var(--text3); background:var(--surface); border:1px solid var(--border); border-radius:8px; min-height:28px; }
+.da-sb-stats { display:flex; gap:18px; font-variant-numeric:tabular-nums; }
+.da-sb-stats b { color:var(--text); font-weight:700; }
+@media (max-width:760px) { .da-td-cell { padding:8px 10px; } }
+.da-th-name { text-align:left; }
+
+/* Wrap text: cells grow to show their whole value */
+.da-table.da-wrap .da-td-cell { white-space:pre-wrap; word-break:break-word; overflow:visible; text-overflow:clip; }
+.da-table.da-wrap td { vertical-align:top; }
+.da-table.da-wrap .da-td-cell, .da-table.da-wrap .da-td-select { max-width:320px; }
+.da-table.da-wrap .da-td-cell[style*="--da-cw"] { max-width:var(--da-cw); }
+
+/* ═══ Modern cell look (Oct 2026) ═══
+   Same Excel-familiar behaviour, softer and more SARVARC: quiet gridlines,
+   a rounded glowing frame on the active cell, a calmer range tint.
+   CSS only: nothing about how cells are edited, selected or calculated changed. */
+:root { --da-line: rgba(255,255,255,.06); --da-glow: rgba(0,194,255,.14); --da-glow-lift: rgba(0,194,255,.55); }
+[data-theme="light"] { --da-line: rgba(10,15,30,.08); --da-glow: rgba(0,115,230,.12); --da-glow-lift: rgba(0,115,230,.45); }
+
+/* Quiet gridlines (the strong header underline stays) */
+.da-table th, .da-table td { border-bottom:1px solid var(--da-line); border-right:1px solid var(--da-line); }
+
+/* Active cell: rounded frame with a soft glow */
+.da-td-cell:focus, .da-td-select:focus,
+.da-td-cell.da-cell-selected:focus {
+  border-radius:8px;
+  background:var(--bg2);
+  box-shadow:0 0 0 2px var(--blue) inset, 0 0 0 4px var(--da-glow), 0 8px 20px -8px var(--da-glow-lift) !important;
+}
+
+/* Selected range: gentle tint, no heavy box on every cell */
+.da-td-cell.da-cell-selected, .da-td-select.da-cell-selected { background:rgba(0,194,255,.10); box-shadow:none !important; }
+[data-theme="light"] .da-td-cell.da-cell-selected, [data-theme="light"] .da-td-select.da-cell-selected { background:rgba(0,115,230,.09); }
