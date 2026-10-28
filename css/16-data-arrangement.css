@@ -906,3 +906,33 @@ table.da-table.da-frozen thead tr:nth-child(2) th { top:22px; }
 /* Selected range: gentle tint, no heavy box on every cell */
 .da-td-cell.da-cell-selected, .da-td-select.da-cell-selected { background:rgba(0,194,255,.10); box-shadow:none !important; }
 [data-theme="light"] .da-td-cell.da-cell-selected, [data-theme="light"] .da-td-select.da-cell-selected { background:rgba(0,115,230,.09); }
+
+/* ═══ Clear selection (Oct 2026) ═══
+   The softer look made a selected block almost invisible: the tint was too faint,
+   zebra-row and highlight colours painted over it, and nothing marked the edge.
+   Now: a clear tint that always wins, a solid blue frame around the OUTSIDE of the
+   block, a lighter "you are here" cell, and tinted row numbers / column letters. */
+.da-td-cell.da-cell-selected, .da-td-select.da-cell-selected {
+  background:rgba(0,194,255,.22) !important;
+  box-shadow:
+    inset 0 var(--sel-t,0px) 0 0 var(--blue),
+    inset 0 calc(var(--sel-b,0px) * -1) 0 0 var(--blue),
+    inset var(--sel-l,0px) 0 0 0 var(--blue),
+    inset calc(var(--sel-r,0px) * -1) 0 0 0 var(--blue) !important;
+}
+[data-theme="light"] .da-td-cell.da-cell-selected, [data-theme="light"] .da-td-select.da-cell-selected { background:rgba(0,115,230,.18) !important; }
+.da-cell-selected.da-sel-t { --sel-t:2px; }
+.da-cell-selected.da-sel-b { --sel-b:2px; }
+.da-cell-selected.da-sel-l { --sel-l:2px; }
+.da-cell-selected.da-sel-r { --sel-r:2px; }
+
+/* The cell you are typing in stays light so you can tell it from the rest of the block */
+.da-td-cell.da-cell-selected:focus, .da-td-select.da-cell-selected:focus { background:var(--bg2) !important; }
+
+.da-collabel.da-hdr-inrange, .da-rownum.da-hdr-inrange { background:rgba(0,194,255,.20); color:var(--text); }
+[data-theme="light"] .da-collabel.da-hdr-inrange, [data-theme="light"] .da-rownum.da-hdr-inrange { background:rgba(0,115,230,.16); }
+.da-collabel.da-hdr-active, .da-rownum.da-hdr-active { background:rgba(0,194,255,.34); }
+
+/* Selection handle (+ at the cell corner): bigger invisible grab area so it is easy to hit */
+.da-fill-handle { cursor:crosshair; }
+.da-fill-handle::after { content:''; position:absolute; inset:-9px; }
