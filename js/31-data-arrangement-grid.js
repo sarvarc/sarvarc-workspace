@@ -1206,10 +1206,10 @@ function daCellRangeMouseDown(e, ri, ci) {
   daShiftAnchor = null;
   if (e.ctrlKey || e.metaKey) {
     daSelection.cellRanges.push({ r1: ri, c1: ci, r2: ri, c2: ci });
-    daCellDrag = { r1: ri, c1: ci, idx: daSelection.cellRanges.length - 1 };
+    daCellDrag = { r1: ri, c1: ci, idx: daSelection.cellRanges.length - 1, blocked: true };
   } else {
     daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
-    daCellDrag = { r1: ri, c1: ci, idx: -1 }; // -1: no range committed yet -- see daCellRangeMouseEnter
+    daCellDrag = { r1: ri, c1: ci, idx: -1, blocked: true }; // blocked: dragging across cells no longer selects a range (only the fill handle drags). -1: no range committed yet -- see daCellRangeMouseEnter
   }
   // Don't touch the DOM in this same synchronous handler. The browser's
   // own "focus whatever the mouse went down on" default action hasn't run
@@ -1261,10 +1261,10 @@ function daDropdownCellMouseDown(e, ri, ci) {
   daShiftAnchor = null;
   if (e.ctrlKey || e.metaKey) {
     daSelection.cellRanges.push({ r1: ri, c1: ci, r2: ri, c2: ci });
-    daCellDrag = { r1: ri, c1: ci, idx: daSelection.cellRanges.length - 1 };
+    daCellDrag = { r1: ri, c1: ci, idx: daSelection.cellRanges.length - 1, blocked: true };
   } else {
     daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
-    daCellDrag = { r1: ri, c1: ci, idx: -1 };
+    daCellDrag = { r1: ri, c1: ci, idx: -1, blocked: true };
   }
   // Deliberately no daRenderTable() here -- see above.
 }
@@ -1278,6 +1278,18 @@ function daDropdownCellMouseDown(e, ri, ci) {
 // stays a single focused cell with no separate selection box.
 function daCellRangeMouseEnter(ri, ci) {
   if (!daCellDrag) return;
+  // Mouse-drag selection is switched off: dragging from a cell body into other
+  // cells must not select a block. Ranges come from Shift+Arrows, Shift+click,
+  // Ctrl+click and row/column headers; dragging is for the fill handle (the +
+  // at the cell corner) only. We also stop the browser's own text highlight
+  // from spreading over several cells.
+  if (daCellDrag.blocked) {
+    if (ri !== daCellDrag.r1 || ci !== daCellDrag.c1) {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.rangeCount && !sel.isCollapsed) sel.collapseToStart();
+    }
+    return;
+  }
   if (daCellDrag.idx === -1) {
     if (ri === daCellDrag.r1 && ci === daCellDrag.c1) return; // still sitting on the anchor cell -- not a drag yet
     daSelection.cellRanges.push({ r1: daCellDrag.r1, c1: daCellDrag.c1, r2: daCellDrag.r1, c2: daCellDrag.c1 });
@@ -1339,7 +1351,7 @@ function daFillPlaceHandle() {
   if (!handleTd || handleTd.querySelector('select')) return; // dropdown cells aren't fillable
   const handle = document.createElement('div');
   handle.className = 'da-fill-handle';
-  handle.title = 'Drag down to fill a sequence';
+  handle.title = 'Drag to select cells (hold Alt to fill a sequence)';
   handle.addEventListener('mousedown', (ev) => daFillHandleMouseDown(ev, col, r1, r2));
   handleTd.appendChild(handle);
 }
@@ -1348,6 +1360,15 @@ function daFillHandleMouseDown(e, col, r1, r2) {
   e.preventDefault();
   e.stopPropagation();
   const ds = daGetActive(); if (!ds) return;
+  // The + at the cell corner is now THE way to drag-select a block: press it and
+  // drag over other cells (daCellRangeMouseEnter grows the range until mouse-up).
+  // Hold Alt while dragging for the old behaviour, filling a sequence downwards.
+  if (!e.altKey) {
+    const a = daActiveCell || { row: r2, col };
+    daShiftAnchor = null;
+    daCellDrag = { r1: a.row, c1: a.col, idx: -1 };
+    return;
+  }
   // Commit whatever's currently being typed into the seed cell (if any)
   // before we read ds.rows for it during the drag.
   if (document.activeElement && typeof document.activeElement.blur === 'function') {
@@ -2412,7 +2433,7 @@ function daRenderTable() {
         const cwD = daColWidthDecl(ds, ci);
         const hlStyle = (hl || cwD) ? ` style="${hl ? 'background:' + daHlBg(hl.color) + ';' : ''}${cwD}"` : '';
         const hlTitle = hl && hl.tag ? daEsc(hl.tag) : '';
-        const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' : '';
+        const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' + daSelEdgeCls(ri, ci, ds.rows.length, ds.headers.length) : '';
         const linkBadge = linkUrl ? `<span class="da-td-link-badge" title="Open link: ${daEsc(linkUrl)}"
              onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">
              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -2552,10 +2573,31 @@ function daColAutoFit(ci, e) {
   daRenderTable();
 }
 
+// Which sides of a selected cell sit on the OUTER edge of the selection.
+// Those sides get the solid blue line, so a selected block reads as one
+// framed rectangle (like Excel) instead of a faint tint you can miss.
+function daSelEdgeCls(ri, ci, nR, nC) {
+  const on = (r, c) => r >= 0 && c >= 0 && r < nR && c < nC && daIsCellSelected(r, c);
+  return (on(ri - 1, ci) ? '' : ' da-sel-t') + (on(ri + 1, ci) ? '' : ' da-sel-b')
+       + (on(ri, ci - 1) ? '' : ' da-sel-l') + (on(ri, ci + 1) ? '' : ' da-sel-r');
+}
+
 // Excel highlights the letter and number of whichever cell is active.
 function daMarkActiveHeaders() {
   const gridWrap = document.getElementById('daGridWrap'); if (!gridWrap) return;
-  gridWrap.querySelectorAll('.da-hdr-active').forEach(el => el.classList.remove('da-hdr-active'));
+  gridWrap.querySelectorAll('.da-hdr-active, .da-hdr-inrange').forEach(el => el.classList.remove('da-hdr-active', 'da-hdr-inrange'));
+  // Letters / numbers that the selected block covers get a soft highlight too.
+  const dsR = daGetActive();
+  if (dsR && daSelectionDsId === dsR.id && daSelection.cellRanges.length) {
+    const rs = new Set(), cs = new Set();
+    daSelection.cellRanges.forEach(g => { for (let r = g.r1; r <= g.r2; r++) rs.add(r); for (let c = g.c1; c <= g.c2; c++) cs.add(c); });
+    cs.forEach(c => { const el = gridWrap.querySelector(`.da-collabel[data-ci="${c}"]`); if (el) el.classList.add('da-hdr-inrange'); });
+    rs.forEach(r => {
+      const td = gridWrap.querySelector(`td[data-r="${r}"]`);
+      const num = td && td.parentElement && td.parentElement.querySelector('.da-rownum');
+      if (num) num.classList.add('da-hdr-inrange');
+    });
+  }
   const ds = daGetActive();
   if (!ds || !daActiveCell || daSelectionDsId !== ds.id) return;
   if (daActiveCell.row >= ds.rows.length || daActiveCell.col >= ds.headers.length) return;
