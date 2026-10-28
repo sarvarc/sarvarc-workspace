@@ -2234,8 +2234,14 @@
       c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
       c.daTextView = true; // tells the Worker this client has Wrap Text (da_set_text_display)
       c.daSummaries = true; // tells the Worker this client can add summary columns (da_add_summary)
+      c.daTableNotes = true; // tells the Worker this client can remember what the person says about each table (da_remember_tables)
       c.workstyle = true; // tells the Worker this client can save work styles (workstyle_save, workstyle_list)
       try { var dsT = (typeof daGetActive === 'function') ? daGetActive() : null; if (dsT && dsT.headers && dsT.headers.length) c.openTable = { name: dsT.name, rowCount: (dsT.rows || []).length, columns: kadessaProfileColumns(dsT).slice(0, 30) }; } catch (e) {}
+      // Every tab, not just the open one: what each table is, which columns share values, which tables read from
+      // which, and what the person already told her (js/76-da-table-relations.js). Only while in Data Arrangement.
+      if (c.activePanel === 'Data Arrangement' && typeof daRelationsContext === 'function'){
+        try { var rel = daRelationsContext(); if (rel) c.workspaceTables = rel; } catch (e) { console.warn('[Kadessa] table relations failed', e); }
+      }
       if (c.activePanel === 'Diagrams & Graphs') c.diagram = kdgSnapshot();
       if (c.activePanel === 'Data Arrangement' && typeof daSelection !== 'undefined' && typeof daGetActive === 'function'){
         var dsx = daGetActive(), sel = [];
@@ -2740,6 +2746,17 @@
       risk: 'safe',
       run: function(p){ daKadessaAddSummary(p); },
       label: function(p){ return 'Add a ' + (p.kind || 'summary') + ' column to ' + (p.table || 'a table') + ' from ' + (p.childTable || 'another table'); }
+    },
+    // da_remember_tables {tables: [{table, note?, connections?: [{column?, toTable, toColumn?, status?, how?}]}]}
+    //   -- saves what the PERSON said a table is for, and whether tables are connected or not, so she knows next time.
+    //   Notes live on the table itself (ds.note, ds.kconn) and travel with it. Works from any panel; no table switch needed.
+    da_remember_tables: {
+      risk: 'safe',
+      run: function(p){ daKadessaRememberTables(p); },
+      label: function(p){
+        var n = Array.isArray(p.tables) ? p.tables.length : 0;
+        return 'Remember what you told me about ' + n + ' table' + (n === 1 ? '' : 's') + '.';
+      }
     },
     da_create_table_from_template: {
       risk: 'safe',
