@@ -2126,7 +2126,7 @@ function mfRenderPreview() {
   });
   page.innerHTML = watermarkHtml + `<div class="mf-pv-content">${html}</div>`;
   mfUpdatePreviewPagination();
-  // Keep the Guided (one-question-at-a-time) preview in step with every edit.
+  // Keep the Flow (one-question-at-a-time) preview in step with every edit.
   // Defined in js/73-make-forms-guided.js; must never break the normal preview.
   if (typeof window.mfGdSync === 'function') { try { window.mfGdSync(); } catch (e) {} }
 }
@@ -2269,7 +2269,7 @@ function mfGetResponses(f) {
 // sit alongside hand-filled/local ones without duplicating on repeat sync.
 const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://sarvarc-forms.pages.dev';
 
-// The public link for a published form. A Guided form carries &style=guided in the
+// The public link for a published form. A Flow form carries &style=guided in the
 // link itself, so respondents get the one-question-at-a-time layout even when the
 // Worker does not return form_style yet. Standard forms keep the plain link.
 function mfShareLink(f) {
@@ -2381,9 +2381,9 @@ async function mfPublishForm() {
       banner_image_data_url: f.bannerImageDataUrl || null,
       banner_image_opacity: f.bannerImageOpacity == null ? 15 : f.bannerImageOpacity,
       accent_color: f.accentColor || '#0073E6',
-      // Standard (all questions on one page) or Guided (one question at a time).
+      // Standard (all questions on one page) or Flow (one question at a time).
       form_style: f.formStyle === 'guided' ? 'guided' : 'standard',
-      // Guided template id (see js/74-make-forms-templates.js). Empty = the form's own accent colour.
+      // Flow template id (see js/74-make-forms-templates.js). Empty = the form's own accent colour.
       form_template: (f.formStyle === 'guided' && f.formTemplate) ? f.formTemplate : null,
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
@@ -2418,7 +2418,7 @@ async function mfPublishForm() {
     if (res.error && /form_style/i.test(res.error.message || '')) {
       delete payload.form_style;
       res = await mfWrite(payload);
-      if (!res.error && f.formStyle === 'guided') toast('Published in Standard style. Run supabase/11-form-style.sql once to turn Guided on.', 'info');
+      if (!res.error && f.formStyle === 'guided') toast('Published in Standard style. Run supabase/11-form-style.sql once to turn Flow on.', 'info');
     }
     // Same for supabase/12-form-template.sql (forms.form_template). The link still carries &tpl=.
     if (res.error && /form_template/i.test(res.error.message || '')) {
@@ -2663,7 +2663,7 @@ function mfLoadResponse(id) {
 // shadow copy, so nothing needs to sync on every keystroke.
 function mfCollectDraftFromDOM() {
   const f = mfGetCurrentForm(); if (!f) return {};
-  // Fill tab on a Guided form: the answers live in the guided view, not in the
+  // Fill tab on a Flow form: the answers live in the guided view, not in the
   // (hidden) A4 sheet, so read them from there. Defined in js/73-make-forms-guided.js.
   if (mfMode === 'fill' && f.formStyle === 'guided' && typeof window.mfGdCollect === 'function') return window.mfGdCollect(f);
   const values = {};
@@ -4952,7 +4952,7 @@ async function mfcPushToWorkspace(mode) {
 window.mfToggleTemplatePicker = mfToggleTemplatePicker;
 window.mfCreateFromTemplate = mfCreateFromTemplate;
 window.MF_TEMPLATES = MF_TEMPLATES;
-// js/74 declares a global `var MF_TEMPLATES` (the 20 Guided looks, an array) that loads later and OVERWRITES window.MF_TEMPLATES,
+// js/74 declares a global `var MF_TEMPLATES` (the 20 Flow looks, an array) that loads later and OVERWRITES window.MF_TEMPLATES,
 // so anything outside this file that needs the form-content templates (Kadessa) must read this separate name.
 window.MF_FORM_TEMPLATES = MF_TEMPLATES;
 window.mfState = mfState;

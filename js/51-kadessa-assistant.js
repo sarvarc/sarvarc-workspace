@@ -170,7 +170,7 @@
   //     navigated toward. See mfCreateFromTemplate() client-side: it now
   //     switches the top-level section to Make Forms itself before
   //     building, so this is safe to call from anywhere.
-  //   mf_set_look {style?, template?, business?, animation?, match_logo?, accent?}   (v67: Guided/Standard + one of 20 templates; template 'auto' scores the business words)
+  //   mf_set_look {style?, template?, business?, animation?, match_logo?, accent?}   (v67: Flow/Standard + one of 20 templates; template 'auto' scores the business words)
   //   mf_create_form / mf_create_from_template also take look {same fields} so one call builds a finished form.
   //   mf_create_from_template {template}
   //     -- Starts from one of SARVARC's own pre-built templates instead of
@@ -2256,7 +2256,7 @@
 
   function getKadessaContext(){ return kadessaDgDecorate(getKadessaContextBase()); }
 
-  // ─── v67: FORM LOOK (Guided style + templates), chosen by Kadessa from the business ───
+  // ─── v67: FORM LOOK (Flow style + templates), chosen by Kadessa from the business ───
   // The model normally names the template itself (it reads the business and the audience). This scorer is the safety net for
   // template "auto" and for a business hint with no template: it scores the words of the business / title / description /
   // question labels against each template's mood, and a serious-sounding business is never given a loud template.
@@ -2319,7 +2319,7 @@
     if (typeof mfGdSync === 'function') mfGdSync();
     const t = f.formTemplate ? mfGetTemplateById(f.formTemplate) : null;
     const bits = [];
-    bits.push(nowGuided ? 'Guided style' : 'Standard style');
+    bits.push(nowGuided ? 'Flow style' : 'Standard style');
     if (nowGuided) bits.push(t ? 'the ' + t.name + ' look' : 'your brand colour');
     if (nowGuided && f.tplAnim === false) bits.push('calm, no motion');
     let say = 'Look set: ' + bits.join(', ') + '.';
@@ -2841,7 +2841,7 @@
       risk: 'safe',
       run: function(p){
         // v68: read the form-content templates from MF_FORM_TEMPLATES. window.MF_TEMPLATES gets overwritten by js/74
-        // (the Guided looks, an array), which made every template look "unknown" here.
+        // (the Flow looks, an array), which made every template look "unknown" here.
         const FT = window.MF_FORM_TEMPLATES || {};
         if (!p.template || !FT[p.template]){
           // No such ready-made form: start a blank one instead of failing, so she can keep going with mf_add_field.
@@ -2858,7 +2858,7 @@
         return 'Start a new form from the "' + (tpl ? tpl.name : p.template) + '" template.';
       }
     },
-    // v67: Kadessa chooses the look of the open form (Guided or Standard, one of the 20 templates, animation, logo colours,
+    // v67: Kadessa chooses the look of the open form (Flow or Standard, one of the 20 templates, animation, logo colours,
     // accent). The same code runs when she passes a `look` on mf_create_form / mf_create_from_template.
     mf_set_look: {
       risk: 'safe',

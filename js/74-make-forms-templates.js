@@ -1,5 +1,5 @@
 // ─── MAKE FORMS: GUIDED TEMPLATES ───
-// 20 ready-made looks for Guided forms (colours + animated background + how each
+// 20 ready-made looks for Flow forms (colours + animated background + how each
 // question screen enters). The choice is saved on the form as f.formTemplate and
 // travels with the public link as &tpl=<id>. "Brand colour" (no template) keeps the
 // form's own accent colour, exactly as before.
@@ -113,7 +113,7 @@ function mfTplCard(t, on, brand, anim) {
 
 function mfTplOpen() {
   var f = mfGetCurrentForm(); if (!f) return;
-  // Templates only apply to Guided forms: opening them from a Standard form switches it to Guided first.
+  // Templates only apply to Flow forms: opening them from a Standard form switches it to Flow first.
   if (f.formStyle !== 'guided' && typeof mfSetFormStyle === 'function') mfSetFormStyle('guided');
   mfTplClose();
   var m = document.createElement('div');
@@ -151,7 +151,7 @@ function mfTplDraw() {
   var cur = f.formTemplate || '', on = mfTplAdaptOn(f), anim = mfTplAnimOn(f), hasLogo = !!f.logoDataUrl;
   var dots = on ? mfTplCols(f).map(function (c) { return '<i class="mf-tpl-dot" style="background:' + mfEsc(c) + '"></i>'; }).join('') : '';
   var note = hasLogo ? (on ? 'Using your logo colours' : 'Using each template\'s own colours') : 'No logo yet. Upload one in Design and the templates recolour to match it. Switch on to use your accent colour.';
-  m.innerHTML = '<div class="mf-tpl-panel"><div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Changes the look of your Guided form: colours, moving background and how questions appear. Hover a card to see it move.</p></div>' +
+  m.innerHTML = '<div class="mf-tpl-panel"><div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Changes the look of your Flow form: colours, moving background and how questions appear. Hover a card to see it move.</p></div>' +
     '<button type="button" class="mf-tpl-x" data-tclose aria-label="Close">×</button></div>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tadapt' + (on ? ' checked' : '') + '><span><b>Match my logo colours</b><small>' + mfEsc(note) + '</small></span>' + dots + '</label>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tanim' + (anim ? ' checked' : '') + '><span><b>Animation</b><small>' + (anim ? 'Moving background and question effects are on' : 'Off: only the chosen colours, calm and static') + '</small></span></label>' +
@@ -174,14 +174,14 @@ function mfTplSet(id) {
 }
 
 // ─── Form look card (top of Make Forms > Design) ───
-// Shows which style is on (Standard | Guided tiles) and the template in use with a Browse button.
+// Shows which style is on (Standard | Flow tiles) and the template in use with a Browse button.
 function mfLookSync() {
   var card = document.getElementById('mfLookCard'), f = mfGetCurrentForm(); if (!card || !f) return;
   var guided = f.formStyle === 'guided';
   card.querySelectorAll('.mf-look-tile').forEach(function (b) { b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')); });
   var box = document.getElementById('mfLookTpl'); if (!box) return;
   if (!guided) {
-    box.innerHTML = '<span class="mf-look-note">Guided forms can use ready-made templates: colours, moving backgrounds and animations.</span>' +
+    box.innerHTML = '<span class="mf-look-note">Flow forms can use ready-made templates: colours, moving backgrounds and animations.</span>' +
       '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplOpen()">Try templates</button>';
     return;
   }
