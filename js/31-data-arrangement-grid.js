@@ -3604,3 +3604,214 @@ function daAutoFit() {
   });
   toast('Columns auto-fit to content', 'success');
 }
+
+// ─── Excel-style Copy / Cut / Paste ───
+// Ctrl/Cmd+C copies whatever is selected (a dragged or Shift+Arrow block, whole
+// rows / columns, or just the active cell) as tab-separated text, so it pastes
+// cleanly into Excel, Google Sheets, Notepad, and back into this grid.
+// Ctrl/Cmd+X = copy, then clear those cells. Ctrl/Cmd+V pastes a block starting
+// at the top-left of the selection (a single value pasted onto a block fills the
+// whole block). Text highlighted INSIDE one cell while editing still copies
+// normally, and a single value pasted into a single cell stays a normal paste.
+
+// Returns the active dataset when the clipboard action belongs to the grid.
+// needFocus: paste only acts when a grid cell has focus (a bare paste on the
+// module still creates a new table, as before).
+function daClipTarget(needFocus) {
+  const sec = document.getElementById('sec-dataarrange');
+  if (!sec || !sec.classList.contains('active')) return null;
+  const ds = daGetActive(); if (!ds) return null;
+  const a = document.activeElement;
+  const isCell = !!(a && a.classList && (a.classList.contains('da-td-cell') || a.classList.contains('da-td-select')) && a.closest('#daGridWrap'));
+  // formula bar, search box, header rename box, any other field: normal behaviour
+  if (a && !isCell && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return null;
+  if (isCell) return ds;
+  if (needFocus) return null;
+  return (daHasSelection() && daSelectionDsId === ds.id) ? ds : null;
+}
+
+// Bounding box of what is selected (or of the active cell) + which cells count.
+function daClipRect(ds) {
+  const hasBlock = daHasSelection() && daSelectionDsId === ds.id;
+  const list = hasBlock ? daSelectedCellList(ds) : [];
+  if (list.length) {
+    let r1 = Infinity, c1 = Infinity, r2 = -1, c2 = -1; const keys = new Set();
+    list.forEach(([r, c]) => { r1 = Math.min(r1, r); r2 = Math.max(r2, r); c1 = Math.min(c1, c); c2 = Math.max(c2, c); keys.add(r + ',' + c); });
+    return { r1, c1, r2, c2, keys, count: list.length, block: true };
+  }
+  if (daActiveCell && daActiveCell.row < ds.rows.length && daActiveCell.col < ds.headers.length) {
+    const r = daActiveCell.row, c = daActiveCell.col;
+    return { r1: r, c1: c, r2: r, c2: c, keys: null, count: 1, block: false };
+  }
+  return null;
+}
+
+// What other programs should see: the calculated value for formulas, the text otherwise.
+function daClipCellText(ds, r, c) {
+  const raw = String((ds.rows[r] || [])[c] ?? '');
+  if (!raw.trim().startsWith('=')) return raw;
+  try { const v = daGetCellComputedValue(ds, r, c, new Set()); return v == null ? '' : String(v); }
+  catch (err) { return (err && err.formulaError) || '#ERROR'; }
+}
+
+function daClipBuildTsv(ds, rect) {
+  const out = [];
+  for (let r = rect.r1; r <= rect.r2; r++) {
+    const line = [];
+    for (let c = rect.c1; c <= rect.c2; c++) {
+      if (rect.keys && !rect.keys.has(r + ',' + c)) { line.push(''); continue; }
+      const t = daClipCellText(ds, r, c);
+      line.push(/[\t\n\r"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t);
+    }
+    out.push(line.join('\t'));
+  }
+  return out.join('\n');
+}
+
+// Tab / newline separated text (with Excel-style "quoted" cells) -> array of rows.
+function daClipParse(text) {
+  text = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (text.endsWith('\n')) text = text.slice(0, -1);
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += ch;
+    } else if (ch === '"' && cur === '') q = true;
+    else if (ch === '\t') { row.push(cur); cur = ''; }
+    else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+    else cur += ch;
+  }
+  row.push(cur); rows.push(row);
+  return rows;
+}
+
+// Writes many cells in ONE pass (one redraw, one save), then puts focus back.
+function daClipWrite(ds, writes, selectRect, focusRC) {
+  // Let the focused cell commit what it shows BEFORE we write. Otherwise the grid
+  // rebuild tears that cell out and its blur writes the OLD text back over our new value.
+  const fa = document.activeElement;
+  if (fa && fa.classList && (fa.classList.contains('da-td-cell') || fa.classList.contains('da-td-select')) && typeof fa.blur === 'function') fa.blur();
+  writes.forEach(([r, c, v]) => {
+    daLogCellEdit(ds, r, c, ds.rows[r][c], v);
+    ds.rows[r][c] = v;
+  });
+  daRecalcColumnOps(ds);
+  if (selectRect) {
+    daSelection = { rows: new Set(), cols: new Set(), cellRanges: [{ r1: selectRect.r1, c1: selectRect.c1, r2: selectRect.r2, c2: selectRect.c2 }] };
+    daSelectionDsId = ds.id;
+  }
+  daRenderTable();
+  daPersist();
+  if (focusRC) {
+    const el = document.getElementById(`daCell_${ds.id}_${focusRC[0]}_${focusRC[1]}`);
+    if (el && typeof el.focus === 'function') el.focus();
+  }
+}
+
+function daClipCopy(e, isCut) {
+  const ds = daClipTarget(false); if (!ds) return;
+  const a = document.activeElement;
+  const sel = window.getSelection && window.getSelection();
+  const hasBlock = daHasSelection() && daSelectionDsId === ds.id;
+  // Text highlighted inside the one cell being edited: let the browser copy/cut it.
+  if (!hasBlock && sel && !sel.isCollapsed && a && a.classList && a.classList.contains('da-td-cell') && a.contains(sel.anchorNode)) return;
+  const rect = daClipRect(ds); if (!rect) return;
+  const cd = e.clipboardData || window.clipboardData; if (!cd) return;
+  cd.setData('text/plain', daClipBuildTsv(ds, rect));
+  e.preventDefault();
+  e.stopPropagation();
+  toast((isCut ? 'Cut ' : 'Copied ') + rect.count + ' cell' + (rect.count === 1 ? '' : 's'), 'info');
+  if (isCut) {
+    const writes = [];
+    for (let r = rect.r1; r <= rect.r2; r++) for (let c = rect.c1; c <= rect.c2; c++) {
+      if (rect.keys && !rect.keys.has(r + ',' + c)) continue;
+      if (String(ds.rows[r][c] ?? '') !== '') writes.push([r, c, '']);
+    }
+    if (writes.length) daClipWrite(ds, writes, null, daActiveCell ? [daActiveCell.row, daActiveCell.col] : null);
+  }
+}
+
+function daClipPaste(e) {
+  const ds = daClipTarget(true); if (!ds) return;
+  const cd = e.clipboardData || window.clipboardData; if (!cd) return;
+  const text = cd.getData('text/plain');
+  if (text == null || text === '') return;
+  const rect = daClipRect(ds); if (!rect) return;
+  const src = daClipParse(text);
+  const multiSrc = src.length > 1 || src[0].length > 1;
+  const multiDst = rect.r2 > rect.r1 || rect.c2 > rect.c1;
+  if (!multiSrc && !multiDst) return; // one value into one cell: normal paste
+  e.preventDefault();
+  e.stopPropagation();
+  const writes = [];
+  const nC = ds.headers.length;
+  if (!multiSrc) {
+    // one value onto a block: fill every selected cell
+    for (let r = rect.r1; r <= rect.r2; r++) for (let c = rect.c1; c <= rect.c2; c++) {
+      if (rect.keys && !rect.keys.has(r + ',' + c)) continue;
+      writes.push([r, c, src[0][0].trim()]);
+    }
+    daClipWrite(ds, writes, null, daActiveCell ? [daActiveCell.row, daActiveCell.col] : [rect.r1, rect.c1]);
+    toast('Pasted into ' + writes.length + ' cells', 'info');
+    return;
+  }
+  // a block: starts at the top-left of the selection; extra rows are added, extra columns are cut off
+  const needRows = rect.r1 + src.length;
+  while (ds.rows.length < needRows) ds.rows.push(new Array(nC).fill(''));
+  let lastC = rect.c1;
+  src.forEach((line, i) => line.forEach((v, j) => {
+    const r = rect.r1 + i, c = rect.c1 + j;
+    if (c >= nC) return;
+    lastC = Math.max(lastC, c);
+    writes.push([r, c, String(v).trim()]);
+  }));
+  daClipWrite(ds, writes, { r1: rect.r1, c1: rect.c1, r2: rect.r1 + src.length - 1, c2: lastC }, [rect.r1, rect.c1]);
+  toast('Pasted ' + src.length + ' row' + (src.length === 1 ? '' : 's') + ' × ' + (lastC - rect.c1 + 1) + ' column' + (lastC === rect.c1 ? '' : 's'), 'info');
+}
+
+// Capture phase: runs before the page-level paste handler that builds a new table
+// from a bare paste, so a paste INTO the grid is never mistaken for "make a new table".
+document.addEventListener('copy',  e => daClipCopy(e, false), true);
+document.addEventListener('cut',   e => daClipCopy(e, true), true);
+document.addEventListener('paste', daClipPaste, true);
+
+// ─── Undo / Redo shortcuts inside the grid (Excel logic) ───
+// The app already keeps a full history for Data Arrangement (every cell edit,
+// paste, cut, fill, row/column change is one step) and the toolbar buttons use
+// it. The Ctrl+Z / Ctrl+Y shortcuts were skipped whenever a cell had focus,
+// because cells are editable. Now:
+//   - while you are TYPING in a cell (text changed, not yet committed), Ctrl+Z
+//     undoes that typing, like Excel's edit mode;
+//   - otherwise Ctrl/Cmd+Z undoes the last grid change, and Ctrl+Y or
+//     Ctrl/Cmd+Shift+Z redoes it, then focus returns to the cell you were on.
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('da-td-cell')) t.dataset.daTyping = '1';
+}, true);
+
+document.addEventListener('keydown', async function daGridUndoRedoKeydown(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = (e.key || '').toLowerCase();
+  const isUndo = k === 'z' && !e.shiftKey;
+  const isRedo = (k === 'z' && e.shiftKey) || k === 'y';
+  if (!isUndo && !isRedo) return;
+  const t = e.target;
+  const inCell = !!(t && t.classList && t.classList.contains('da-td-cell') && t.closest && t.closest('#daGridWrap'));
+  if (!inCell) return;                         // everywhere else the app's own handler already works
+  const sec = document.getElementById('sec-dataarrange');
+  if (!sec || !sec.classList.contains('active')) return;
+  if (t.dataset.daTyping === '1') return;      // mid-typing: normal text undo
+  e.preventDefault();
+  e.stopPropagation();
+  const pos = daActiveCell ? { row: daActiveCell.row, col: daActiveCell.col } : null;
+  if (typeof t.blur === 'function') t.blur(); // commit first (no change), so the rebuild after undo can't write stale text back
+  if (isUndo) await unifiedUndo(); else await unifiedRedo();
+  const ds = daGetActive();
+  if (ds && pos) {
+    const r = Math.min(pos.row, ds.rows.length - 1), c = Math.min(pos.col, ds.headers.length - 1);
+    const el = r >= 0 && c >= 0 ? document.getElementById(`daCell_${ds.id}_${r}_${c}`) : null;
+    if (el && typeof el.focus === 'function') el.focus();
+  }
+}, true);
