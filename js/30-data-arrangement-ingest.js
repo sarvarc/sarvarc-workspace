@@ -179,11 +179,11 @@ sarvarcCollabRegisterModule('dataarrange', {
 });
 
 // ─── Drag & drop wiring (mirrors handleDragOver/handleDrop but scoped to Data Arrangement) ───
-function daDragOver(e) { e.preventDefault(); document.getElementById('daUploadZone').classList.add('dragover'); }
-function daDragLeave() { document.getElementById('daUploadZone').classList.remove('dragover'); }
+function daDragOver(e) { e.preventDefault(); const z = document.getElementById('daUploadZone'); if (z) z.classList.add('dragover'); const sec = document.getElementById('daSection'); if (sec && e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) sec.classList.add('da-file-over'); }
+function daDragLeave() { const z = document.getElementById('daUploadZone'); if (z) z.classList.remove('dragover'); const sec = document.getElementById('daSection'); if (sec) sec.classList.remove('da-file-over'); }
 function daDrop(e) {
   e.preventDefault();
-  document.getElementById('daUploadZone').classList.remove('dragover');
+  daDragLeave();
   if (e.dataTransfer.files && e.dataTransfer.files.length) daIngestFiles(e.dataTransfer.files);
 }
 function daHandleFileSelect(e) {
@@ -2496,6 +2496,7 @@ function daAddDataset(name, aoa, titleOverride) {
     ds.bankSummary = daBankStatementSummary(headers, rows);
   }
 
+  daDropUntouchedBlanks();
   daState.datasets.push(ds);
   daState.activeId = id;
 
@@ -2719,6 +2720,7 @@ function daCreateTableWithColumns(name, columns, rowCount, dropdowns) {
       ds.colDropdownColors[ci] = daAutoAssignDropdownColors(opts);
     });
   }
+  daDropUntouchedBlanks();
   daState.datasets.push(ds);
   daState.activeId = id;
   daWorkspaceRefreshVisibility();
@@ -3125,7 +3127,41 @@ async function daPasteTableFromButton() {
   }
 }
 
+// Opening Data Arrangement now lands straight on an empty spreadsheet (no
+// "Choose File(s)" box first). Files are added from the + button in the
+// toolbar, by dragging a file onto the sheet, or by pasting a table.
+// Only runs while the DA page is on screen, and never during a live
+// co-editing session (two people auto-creating "ds1" would clash).
+function daEnsureStarterTable() {
+  if (daState.datasets.length) return;
+  if (typeof daCollabMap !== 'undefined' && daCollabMap) return;
+  const sec = document.getElementById('sec-dataarrange');
+  if (!sec || !sec.classList.contains('active')) return;
+  // Size the sheet to the screen so no empty space is left over, like a
+  // real spreadsheet: ~127px per column, ~28px per row.
+  const main = document.querySelector('.main');
+  const availW = Math.max(600, (main ? main.clientWidth : window.innerWidth) - 60);
+  const availH = Math.max(400, window.innerHeight - 290);
+  const colCount = Math.min(40, Math.max(8, Math.ceil(availW / 127) + 1));
+  const rowCount = Math.min(120, Math.max(20, Math.ceil(availH / 28) + 2));
+  const headers = Array.from({ length: colCount }, (_, i) => `Column ${i + 1}`);
+  const rows = Array.from({ length: rowCount }, () => new Array(colCount).fill(''));
+  const id = 'ds' + (++daIdCounter);
+  daState.datasets.push({ id, name: 'Table 1', headers, rows, frozen: true, colDropdowns: {}, cellDropdowns: {}, rowHighlights: {}, colHighlights: {}, cellHighlights: {} });
+  daState.activeId = id;
+}
+
+// When real data arrives (file, paste, Kadessa template) and the only thing
+// open is an untouched blank "Table N", swap it out instead of leaving an
+// empty tab sitting next to the new data.
+function daDropUntouchedBlanks() {
+  if (!daState.datasets.length) return;
+  const allBlank = daState.datasets.every(d => /^Table \d+$/.test(d.name) && typeof daIsDatasetEmpty === 'function' && daIsDatasetEmpty(d));
+  if (allBlank) { daState.datasets = []; daState.activeId = null; }
+}
+
 function daWorkspaceRefreshVisibility() {
+  daEnsureStarterTable();
   const has = daState.datasets.length > 0;
   document.getElementById('daUploadZone').style.display = has ? 'none' : 'flex';
   document.getElementById('daWorkspace').style.display = has ? 'flex' : 'none';
@@ -3152,3 +3188,14 @@ function daWorkspaceRefreshVisibility() {
 function daGetActive() {
   return daState.datasets.find(d => d.id === daState.activeId) || null;
 }
+
+
+// Drop a file anywhere on the spreadsheet to load it (the big upload box is gone).
+(function daWireSectionDrop() {
+  const sec = document.getElementById('daSection');
+  if (!sec) return;
+  const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  sec.addEventListener('dragover', (e) => { if (hasFiles(e)) daDragOver(e); });
+  sec.addEventListener('dragleave', (e) => { if (!sec.contains(e.relatedTarget)) daDragLeave(); });
+  sec.addEventListener('drop', (e) => { if (hasFiles(e)) daDrop(e); });
+})();
