@@ -88,6 +88,11 @@
     }, 4000);
   }
   sarvarcSupabase.auth.onAuthStateChange(function (event, session) {
+    // v70: the instant a Google sign-in lands, send Google's long-life key to
+    // the backend (before the page reloads below).
+    if (session && session.provider_refresh_token && typeof sarvarcDriveStoreRefreshToken === 'function') {
+      sarvarcDriveStoreRefreshToken(session);
+    }
     const newUid = (session && session.user && session.user.id) || null;
     if (newUid !== window.__sarvarcUid) {
       window.__sarvarcUid = newUid;
@@ -213,14 +218,87 @@
     });
   }
 
+  // ---- v70 KEEP DRIVE CONNECTED (long-life key kept safely on the server) -----
+  // Google's Drive "pass" (access token) only lasts ~1 hour, and the browser
+  // can't renew it quietly on its own. So at sign-in we ALSO get Google's
+  // long-life key (refresh token), hand it once to our own backend (it is
+  // stored encrypted there, the browser can never read it back), and from
+  // then on, whenever the pass runs out the backend swaps the key for a new
+  // pass in a split second. Result: Drive stays connected for as long as the
+  // person is logged in, with no popups and no re-login.
+  const SARVARC_DRIVE_KEEPALIVE_URL = 'https://sarvarc-drive.sarvarcworkspace.workers.dev';
+  let sarvarcDriveServerBlockedUntil = 0;   // after "reconnect needed", don't keep asking for a while
+  let sarvarcDriveRejectedToken = null;     // a token Google itself refused (401) — never hand it out again
+
+  function sarvarcIsGoogleUser(session) {
+    try {
+      const u = session && session.user;
+      if (!u) return false;
+      const provs = (u.app_metadata && u.app_metadata.providers) || [];
+      if (provs.indexOf('google') !== -1) return true;
+      return !!(u.identities || []).some(function (i) { return i && i.provider === 'google'; });
+    } catch (e) { return false; }
+  }
+
+  async function sarvarcDriveWorkerCall(mode, extra) {
+    const { data: { session } } = await sarvarcSupabase.auth.getSession();
+    if (!session) return null;
+    const res = await fetch(SARVARC_DRIVE_KEEPALIVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify(Object.assign({ mode: mode }, extra || {}))
+    });
+    try { return await res.json(); } catch (e) { return null; }
+  }
+
+  // Hands Google's long-life key to the backend. Only does anything at the
+  // moment Supabase actually has it (right after a Google sign-in), and only
+  // once per key (remembered in localStorage) so it is never re-sent.
+  async function sarvarcDriveStoreRefreshToken(session) {
+    try {
+      const rt = session && session.provider_refresh_token;
+      if (!rt || !session.user) return;
+      const mark = session.user.id + ':' + rt.slice(-10);
+      if (localStorage.getItem('sarvarcDriveRefreshSaved') === mark) return;
+      const r = await sarvarcDriveWorkerCall('drive_save_token', { refreshToken: rt });
+      if (r && r.ok) {
+        localStorage.setItem('sarvarcDriveRefreshSaved', mark);
+        window.sarvarcDriveNeedsReconnect = false;
+        sarvarcDriveServerBlockedUntil = 0;
+      }
+    } catch (e) { /* best-effort, like everything else here */ }
+  }
+
+  // Asks the backend for a brand-new Drive pass. Returns the token, or null.
+  async function sarvarcDriveServerRefresh() {
+    if (Date.now() < sarvarcDriveServerBlockedUntil) return null;
+    try {
+      const r = await sarvarcDriveWorkerCall('drive_token');
+      if (r && r.accessToken) {
+        sarvarcDriveCacheToken(r.accessToken, r.expiresIn);
+        window.sarvarcDriveNeedsReconnect = false;
+        return r.accessToken;
+      }
+      if (r && r.error === 'reconnect_needed') {
+        // Google has no key for this person (signed in before this update,
+        // or they removed SARVARC's access in their Google account). The
+        // only cure is one fresh "Continue with Google" — so say so, and
+        // stop asking the server for a while.
+        window.sarvarcDriveNeedsReconnect = true;
+        sarvarcDriveServerBlockedUntil = Date.now() + 10 * 60 * 1000;
+      }
+    } catch (e) { /* offline / backend hiccup — the next attempt will retry */ }
+    return null;
+  }
+
   // Single-flight guard: on refresh/login, several independent things
   // (sarvarcDriveSyncDownHard, sarvarcDriveSyncUp, sarvarcAssetsSyncDown,
   // sarvarcAssetsSyncUp, plus any sarvarcDriveAvailable() check) all fire
   // at once. Without this, each one that misses the cached-token fast path
-  // would independently call sarvarcSilentDriveTokenRefresh() -> Google's
-  // requestAccessToken(), which is what produced the multiple Google
-  // account-chooser boxes on refresh. Now only the FIRST caller actually
-  // does the work; everyone else just awaits that same in-flight promise.
+  // would independently ask for a new token, which is what produced the
+  // multiple Google account-chooser boxes on refresh. Now only the FIRST
+  // caller actually does the work; everyone else just awaits that same
+  // in-flight promise.
   let sarvarcDriveTokenInFlight = null;
   async function sarvarcDriveGetToken() {
     if (sarvarcDriveTokenInFlight) return sarvarcDriveTokenInFlight;
@@ -234,33 +312,50 @@
       let { data: { session } } = await sarvarcSupabase.auth.getSession();
       if (!session) { sarvarcDriveClearCachedToken(); return null; }
 
-      // A fresh provider_token straight from Supabase is always the source
-      // of truth — this is the one moment it's actually handed back, so
-      // cache it now for the next reload.
-      if (session.provider_token) {
-        sarvarcDriveCacheToken(session.provider_token, session.provider_token_expires_at
-          ? (session.provider_token_expires_at - Math.floor(Date.now() / 1000))
-          : 3300);
-        return session.provider_token;
+      // Right after a Google sign-in Supabase still holds Google's long-life
+      // key — pass it to the backend (once) so renewals work from now on.
+      if (session.provider_refresh_token) sarvarcDriveStoreRefreshToken(session);
+
+      // A provider_token that is DIFFERENT from the one we cached is a brand
+      // new one from a real sign-in: cache it and use it. The very same token
+      // showing up again is just the old one still sitting in the saved
+      // session (it does not know it expired), so it must not get a fresh
+      // 55-minute life every reload — that is what used to make Drive look
+      // connected and then fail.
+      if (session.provider_token && session.provider_token !== sarvarcDriveRejectedToken) {
+        let previous = null;
+        try { previous = localStorage.getItem('sarvarcDriveProviderToken'); } catch (e) {}
+        if (previous !== session.provider_token) {
+          sarvarcDriveCacheToken(session.provider_token, session.provider_token_expires_at
+            ? (session.provider_token_expires_at - Math.floor(Date.now() / 1000))
+            : 3300);
+          return session.provider_token;
+        }
       }
 
-      // Fast path: a still-valid token cached from earlier this session.
+      // Fast path: a still-valid token cached from earlier.
       const cached = sarvarcDriveReadCachedToken();
-      if (cached) return cached;
+      if (cached && cached !== sarvarcDriveRejectedToken) return cached;
 
-      // provider_token is missing — try Supabase's own refresh once (free,
-      // harmless no-op if it doesn't come back with one).
+      // The reliable renewal: the backend swaps the long-life key for a
+      // fresh Drive pass.
+      if (sarvarcIsGoogleUser(session)) {
+        const fromServer = await sarvarcDriveServerRefresh();
+        if (fromServer) return fromServer;
+      }
+
+      // Older fallbacks, kept as a safety net (rarely produce anything now).
       try {
         const { data: refreshed } = await sarvarcSupabase.auth.refreshSession();
-        if (refreshed && refreshed.session && refreshed.session.provider_token) {
+        if (refreshed && refreshed.session && refreshed.session.provider_token
+            && refreshed.session.provider_token !== sarvarcDriveRejectedToken) {
           sarvarcDriveCacheToken(refreshed.session.provider_token, refreshed.session.provider_token_expires_at
             ? (refreshed.session.provider_token_expires_at - Math.floor(Date.now() / 1000))
             : 3300);
           return refreshed.session.provider_token;
         }
-      } catch (e) { /* ignore — fall through to the silent-refresh fallback */ }
+      } catch (e) { /* ignore — fall through */ }
 
-      // Last resort: ask Google directly for a fresh Drive-scoped token.
       const silent = await sarvarcSilentDriveTokenRefresh(session.user && session.user.email);
       if (silent) return silent;
 
@@ -268,17 +363,64 @@
     } catch (e) { return null; }
   }
 
+  // ---- Stay connected on its own (no clicking, no waiting) ----------------
+  // Renews the Drive pass a little BEFORE it runs out, so a sync never hits
+  // an expired one. Also runs when the person comes back to the tab, when
+  // the internet returns, and every few minutes while the page is open.
+  async function sarvarcDriveKeepAlive() {
+    try {
+      if (!navigator.onLine) return false;
+      const { data: { session } } = await sarvarcSupabase.auth.getSession();
+      if (!session || !sarvarcIsGoogleUser(session)) return false;
+      const exp = parseInt(localStorage.getItem('sarvarcDriveProviderTokenExp') || '0', 10);
+      if (exp && exp - Date.now() > 10 * 60 * 1000) return true; // still has plenty of life
+      const tok = await sarvarcDriveServerRefresh();
+      if (tok && typeof smUpdateDriveStatusUI === 'function') smUpdateDriveStatusUI();
+      return !!tok;
+    } catch (e) { return false; }
+  }
+
+  // When the person returns to the tab (after minutes, hours, overnight):
+  // renew the pass if needed, then quietly pull anything that changed on
+  // Drive since last time — the "feels like cloud" moment. Throttled so
+  // flicking between tabs can't hammer Drive.
+  let sarvarcDriveLastReturnSync = 0;
+  async function sarvarcDriveSyncOnReturn() {
+    if (Date.now() - sarvarcDriveLastReturnSync < 30000) return;
+    sarvarcDriveLastReturnSync = Date.now();
+    try {
+      await sarvarcDriveKeepAlive();
+      if (window.sarvarcDriveSyncPending) return;
+      if (typeof sarvarcDriveSyncDown === 'function') await sarvarcDriveSyncDown({ forceFull: false });
+    } catch (e) { /* swallowed — local data is never affected */ }
+  }
+  setInterval(function () { if (!document.hidden) sarvarcDriveKeepAlive(); }, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) sarvarcDriveSyncOnReturn();
+  });
+  window.addEventListener('online', function () { sarvarcDriveKeepAlive(); });
+
   async function sarvarcDriveAvailable() {
     return !!(await sarvarcDriveGetToken());
   }
 
   async function sarvarcDriveFetch(path, opts = {}) {
-    const token = await sarvarcDriveGetToken();
+    let token = await sarvarcDriveGetToken();
     if (!token) throw new Error('NO_DRIVE_TOKEN');
-    const res = await fetch('https://www.googleapis.com/drive/v3/' + path, {
+    const doFetch = (t) => fetch('https://www.googleapis.com/drive/v3/' + path, {
       ...opts,
-      headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + token }
+      headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + t }
     });
+    let res = await doFetch(token);
+    if (res.status === 401) {
+      // Google says this pass is no good (expired early / revoked). Forget
+      // it, get a new one from the backend, and try once more.
+      sarvarcDriveRejectedToken = token;
+      sarvarcDriveClearCachedToken();
+      sarvarcDriveServerBlockedUntil = 0;
+      const fresh = await sarvarcDriveGetToken();
+      if (fresh && fresh !== token) res = await doFetch(fresh);
+    }
     if (!res.ok) throw new Error('DRIVE_API_' + res.status);
     return res;
   }

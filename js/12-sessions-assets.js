@@ -2135,11 +2135,17 @@ function smRenderDriveStatusPanel() {
     error: 'Sync error'
   };
   text.textContent = labels[status.state] || 'Checking connection…';
+  // v70: signed in with Google but the backend has no renewal key for this
+  // person yet — say what is actually needed instead of a vague "Not connected".
+  const needsReconnect = status.state === 'not_connected' && window.sarvarcDriveNeedsReconnect === true;
+  if (needsReconnect) text.textContent = 'Reconnect Google Drive';
   const agoText = smFormatRelativeTime(status.lastSyncedAt);
   if (status.state === 'syncing') {
     sub.textContent = agoText ? 'Last synced ' + agoText : 'First sync in progress';
   } else if (status.state === 'offline') {
     sub.textContent = agoText ? 'Last synced ' + agoText + ' — will resume when back online' : 'Will sync once back online';
+  } else if (needsReconnect) {
+    sub.textContent = 'One-time step: sign out, then Continue with Google again — it will stay connected after that';
   } else if (status.state === 'not_connected') {
     sub.textContent = 'Sign in with Google to sync sessions across devices';
   } else if (status.state === 'error') {
