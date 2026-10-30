@@ -1829,10 +1829,16 @@ async function smRenderList() {
     return;
   }
   const countLabel = sessions.length === 1 ? '1 saved session' : sessions.length + ' saved sessions';
-  listEl.innerHTML = '<div class="sm-session-count">' + countLabel + '</div>' + sessions.map(s => {
+  sessions = smSortSessions(sessions);
+  listEl.innerHTML = '<div class="sm-session-count"><span>' + countLabel + '</span>' +
+    '<label class="sm-sort"><span>Sort</span><select id="smSortSelect" onchange="smSetSessionsSort(this.value)">' +
+      '<option value="recent"' + (smSessionsSort === 'recent' ? ' selected' : '') + '>Recently saved</option>' +
+      '<option value="name"' + (smSessionsSort === 'name' ? ' selected' : '') + '>Name A–Z</option>' +
+      '<option value="size"' + (smSessionsSort === 'size' ? ' selected' : '') + '>Largest first</option>' +
+    '</select></label></div>' + sessions.map(s => {
     const dt = new Date(s.savedAt);
-    const dateStr = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const timeStr = dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const dateStr = smRelativeTime(dt);
+    const timeStr = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     const safeName = String(s.name).replace(/"/g, '&quot;');
     const searchName = String(s.name).toLowerCase().replace(/"/g, '&quot;');
     const isLocked = !!(s.ownerEmail && (!currentEmail || currentEmail.toLowerCase() !== String(s.ownerEmail).toLowerCase()));
@@ -1878,20 +1884,48 @@ async function smRenderList() {
           : '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>');
     const thumbColorStyle = s.thumb ? '' : ' style="color:var(--text3)"';
 
+    const modCount = smPresentModules(s.snapshot).length;
+    const modLabel = modCount + (modCount === 1 ? ' module' : ' modules');
     return '<div class="sm-session-row' + (isLocked ? ' sm-session-locked' : '') + '" data-id="' + s.id + '" data-name="' + searchName + '" data-team="' + (s.teamId ? '1' : '0') + '">' +
-        '<div class="sm-session-thumb"' + thumbColorStyle + '>' + thumbInner + '</div>' +
-        (isLocked
-          ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage(\'' + String(s.ownerEmail).replace(/'/g, "\\'") + '\')">' + safeName + '</span>'
-          : '<input class="sm-session-name" value="' + safeName + '" onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename">') +
-        lockBadge + teamBadge +
-        '<div class="sm-session-meta">' + dateStr + ', ' + timeStr + ' · ' + smFormatBytes(s.size) + '</div>' +
-        '<div class="sm-session-divider"></div>' +
-        '<div class="sm-mod-row">' + smModuleChecksHtml(s.id, s.snapshot) + '</div>' +
+        '<div class="sm-session-thumb"' + thumbColorStyle + '>' + thumbInner +
+          ((lockBadge || teamBadge) ? '<div class="sm-session-badges">' + lockBadge + teamBadge + '</div>' : '') +
+        '</div>' +
+        '<div class="sm-session-body">' +
+          (isLocked
+            ? '<span class="sm-session-name" style="cursor:not-allowed" onclick="smShowLockedMessage(\'' + String(s.ownerEmail).replace(/'/g, "\\'") + '\')">' + safeName + '</span>'
+            : '<input class="sm-session-name" value="' + safeName + '" onchange="smOnRenameInput(\'' + s.id + '\', this.value)" title="Click to rename" aria-label="Session name">') +
+          '<div class="sm-session-meta" title="Saved ' + timeStr + '">' + dateStr + '<i></i>' + smFormatBytes(s.size) + '<i></i>' + modLabel + '</div>' +
+          '<div class="sm-mod-row">' + smModuleChecksHtml(s.id, s.snapshot) + '</div>' +
+        '</div>' +
         actionsHtml +
     '</div>';
   }).join('');
   smApplyFilter();
 }
+
+// ─── Sort + friendly dates for the saved-session cards ────────────────────
+let smSessionsSort = 'recent';
+function smSetSessionsSort(mode) { smSessionsSort = mode; smRenderList(); }
+function smSortSessions(list) {
+  const a = list.slice();
+  if (smSessionsSort === 'name') a.sort(function (x, y) { return String(x.name).localeCompare(String(y.name), undefined, { sensitivity: 'base' }); });
+  else if (smSessionsSort === 'size') a.sort(function (x, y) { return (y.size || 0) - (x.size || 0); });
+  else a.sort(function (x, y) { return new Date(y.savedAt) - new Date(x.savedAt); });
+  return a;
+}
+function smRelativeTime(dt) {
+  const diff = Date.now() - dt.getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'Just now';
+  if (min < 60) return min + ' min ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + (hr === 1 ? ' hour ago' : ' hours ago');
+  const day = Math.floor(hr / 24);
+  if (day === 1) return 'Yesterday';
+  if (day < 7) return day + ' days ago';
+  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: dt.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+}
+window.smSetSessionsSort = smSetSessionsSort;
 
 // ─── Search / filter saved sessions by name ────────────────────────────────
 let smSearchQuery = '';
