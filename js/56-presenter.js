@@ -69,7 +69,7 @@
     list.forEach(function(item){
       if (!hasLink(item)) return;
       var famRaw = item.fontFamily || 'Inter', fam = famRaw.indexOf(',') >= 0 ? famRaw : "'" + famRaw + "'";
-      var lh = item.fontSize * 1.25, padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
+      var lh = item.fontSize * (item.lineHeight || 1.25), padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
       var ax = item.x + padX, fc = { fontSize:item.fontSize, fam:fam, itemBold:!!item.bold, itemItalic:!!item.italic };
       var sf = function(r){ m.font = (r.italic?'italic':'normal')+' '+(r.bold?'700':'400')+' '+item.fontSize+'px '+fam+', Inter, sans-serif'; };
       var lines = item.html ? pdfedParseRichLines(item.html)

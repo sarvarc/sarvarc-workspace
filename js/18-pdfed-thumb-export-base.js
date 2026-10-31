@@ -206,7 +206,7 @@ function pdfedRenderPlacedTextsAsPdfText(pdf, pg, wmm, iw) {
     mctx.textBaseline = 'top';
     const lsPx = (item.letterSpacing || 0) * item.fontSize;     // letter spacing (em of the font size) -> px
     if ('letterSpacing' in mctx) mctx.letterSpacing = lsPx ? lsPx + 'px' : '0px';
-    const lineHeight = item.fontSize * 1.25;
+    const lineHeight = item.fontSize * (item.lineHeight || 1.25);
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
     const anchorX = item.x + padX;
     const fontCtx = { fontSize: item.fontSize, fam, itemBold: !!item.bold, itemItalic: !!item.italic };
@@ -318,7 +318,7 @@ function pdfedAddPlacedTextLinkAnnotations(pdf, pg, wmm, iw) {
 
     const famRaw = item.fontFamily || 'Inter';
     const fam = famRaw.includes(',') ? famRaw : `'${famRaw}'`;
-    const lineHeight = item.fontSize * 1.25;
+    const lineHeight = item.fontSize * (item.lineHeight || 1.25);
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER;
     const anchorX = item.x + padX;
     const fontCtx = { fontSize: item.fontSize, fam, itemBold: !!item.bold, itemItalic: !!item.italic };

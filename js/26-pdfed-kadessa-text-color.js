@@ -351,7 +351,7 @@ function pdfedRenderPlacedTexts(idx) {
     content.className = 'pdfed-ptxt-content';
     content.contentEditable = !item.locked;
     content.spellcheck = false;
-    content.style.cssText = `outline:none;white-space:pre-wrap;word-break:break-word;line-height:1.25;
+    content.style.cssText = `outline:none;white-space:pre-wrap;word-break:break-word;line-height:${item.lineHeight || 1.25};
       font-family:${pdfedFontCss(item.fontFamily)};cursor:${item.locked ? 'default' : 'text'};
       color:${item.color};font-weight:${item.bold ? '700' : '400'};
       font-style:${item.italic ? 'italic' : 'normal'};text-decoration:${item.underline ? 'underline' : 'none'};
@@ -995,7 +995,7 @@ function pdfedDrawPlacedTextsOnCtx(ctx, list) {
     const lsPx = (item.letterSpacing || 0) * item.fontSize;
     const lsNative = ('letterSpacing' in ctx);
     if (lsNative) ctx.letterSpacing = lsPx ? lsPx + 'px' : '0px';
-    const lineHeight = item.fontSize * 1.25;
+    const lineHeight = item.fontSize * (item.lineHeight || 1.25);
     const padX = PDFED_PTXT_PAD_X + PDFED_PTXT_BORDER, padY = PDFED_PTXT_PAD_Y + PDFED_PTXT_BORDER; // mirrors the on-screen box's border+padding offset
     const anchorX = item.x + padX;
     const fontCtx = { fontSize: item.fontSize, fam, itemBold: !!item.bold, itemItalic: !!item.italic };
