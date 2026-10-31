@@ -1,11 +1,12 @@
 // ── SLIDE & CAROUSEL TEMPLATES → WORKSPACE EDITOR ───────────────────────────
-// Templates live in the PDF Editor's LEFT PANEL, on top of the page thumbnails.
+// Templates live in the PDF Editor's LEFT PANEL behind a Pages | Templates toggle.
 // 6 presentations (16:9, 1920x1080) and 2 carousels (4:5, 1080x1350).
-//   - Normal state: a small "Templates" block (tabs + cover thumbnails) above the Pages list.
-//   - Click a template: the left panel grows wider (layout class .slt-open) and turns into a viewer:
-//     big preview of the current slide, all slides as thumbnails, "Use this template" / "Add only slide N".
-//   - Back (or using the template) returns the panel to its normal width.
-// The "Slide Templates" button in the app bar just opens the left panel and the Templates block.
+//   - Pages (default): the normal 200px page-thumbnail panel.
+//   - Templates: the panel widens (layout class .slt-open) and shows every template as a card whose
+//     slides play automatically (soft cross-fade). Click a card for the big viewer: auto-playing
+//     preview with progress bar, play/pause, all slides as thumbnails, "Use this template" / "Add only slide N".
+//   - Pages toggle (or Esc from the list, or using a template) returns the panel to its normal width.
+// The "Slide Templates" button in the app bar just opens the left panel in Templates mode.
 //
 // How a template lands on the canvas: every slide was converted ahead of time
 // (tools/build-slide-templates.js) into
@@ -23,7 +24,10 @@
 
 const SLT_BASE = 'slide-templates/';
 const SLT_PX_PER_MM = 3.7795;
-const sltState = { tab: 'presentation', openId: null, slide: 0, busy: false, indexReady: null, railOpen: true };
+const sltState = { mode: 'pages', tab: 'presentation', openId: null, slide: 0, busy: false, indexReady: null, autoplay: true };
+const sltCardTimers = [];
+let sltStageTimer = null;
+function sltReducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
 const sltScriptPromises = {};
 
 function sltLoadScript(src) {
@@ -87,74 +91,141 @@ function sltSetWide(on) {
   if (was !== !!on) sltRefitCanvas();
 }
 
-function sltLoadRailPref() {
-  try { if (localStorage.getItem('sltRailClosed') === '1') sltState.railOpen = false; } catch (e) {}
+function sltLoadPrefs() {
+  try { if (localStorage.getItem('sltAutoplay') === '0') sltState.autoplay = false; } catch (e) {}
+  if (sltReducedMotion()) sltState.autoplay = false;
+  try { const t = localStorage.getItem('sltTab'); if (t === 'presentation' || t === 'carousel') sltState.tab = t; } catch (e) {}
 }
-function sltSaveRailPref() {
-  try { localStorage.setItem('sltRailClosed', sltState.railOpen ? '0' : '1'); } catch (e) {}
+function sltSavePref(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+// ── Auto-play ───────────────────────────────────────────────────────────────
+function sltStopCards() { while (sltCardTimers.length) clearInterval(sltCardTimers.pop()); }
+function sltStopStage() { if (sltStageTimer) { clearTimeout(sltStageTimer); sltStageTimer = null; } }
+function sltStopAll() { sltStopCards(); sltStopStage(); }
+
+// Gallery: every card cycles through its own slides. Starts are staggered so the cards never flip in unison.
+function sltStartCards() {
+  sltStopCards();
+  if (sltState.mode !== 'templates' || sltState.openId || sltReducedMotion() || document.hidden) return;
+  document.querySelectorAll('#sltRail .slt-card').forEach((card, ci) => {
+    const frames = card.querySelectorAll('.slt-frame');
+    if (frames.length < 2) return;
+    let i = 0, paused = false;
+    card.addEventListener('mouseenter', () => { paused = true; });
+    card.addEventListener('mouseleave', () => { paused = false; });
+    card.addEventListener('focusin', () => { paused = true; });
+    card.addEventListener('focusout', () => { paused = false; });
+    const dots = card.querySelectorAll('.slt-dots i');
+    const step = () => {
+      if (paused) return;
+      frames[i].classList.remove('on'); if (dots[i]) dots[i].classList.remove('on');
+      i = (i + 1) % frames.length;
+      frames[i].classList.add('on'); if (dots[i]) dots[i].classList.add('on');
+    };
+    const t0 = setTimeout(() => { sltCardTimers.push(setInterval(step, 2600)); }, 700 + ci * 450);
+    // timeout handle is cleared the same way (clearInterval accepts timeout ids)
+    sltCardTimers.push(t0);
+  });
 }
 
-// App bar button: bring the Templates block into view.
-async function sltOpen() {
-  sltEnsureLeftOpen();
-  sltState.openId = null;
-  sltSetWide(false);
-  sltState.railOpen = true;
-  sltSaveRailPref();
+// Viewer: advance one slide at a time; the progress bar is a CSS animation restarted on every change.
+function sltStageSchedule() {
+  sltStopStage();
+  const stage = document.getElementById('sltStage');
+  if (!stage) return;
+  const playing = sltState.autoplay && !sltReducedMotion() && !document.hidden && !sltState.stageHover;
+  stage.classList.toggle('playing', playing);
+  const bar = document.getElementById('sltProg');
+  if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }
+  const btn = document.getElementById('sltPlayBtn');
+  if (btn) { btn.classList.toggle('is-on', sltState.autoplay); btn.setAttribute('aria-pressed', String(sltState.autoplay)); btn.title = sltState.autoplay ? 'Pause auto-play' : 'Play slides automatically'; }
+  if (!playing) return;
+  const t = sltState.openId ? sltFindTemplate(sltState.openId) : null;
+  if (!t) return;
+  sltStageTimer = setTimeout(() => {
+    const n = t.slideList.length;
+    sltPickSlide((sltState.slide + 1) % n, true);
+  }, 3200);
+}
+function sltToggleAutoplay() {
+  sltState.autoplay = !sltState.autoplay;
+  sltSavePref('sltAutoplay', sltState.autoplay ? '1' : '0');
+  sltStageSchedule();
+}
+function sltStageHover(on) { sltState.stageHover = !!on; sltStageSchedule(); }
+
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) { sltStopAll(); return; }
+  if (sltState.openId) sltStageSchedule(); else sltStartCards();
+});
+
+// ── Mode (Pages | Templates) ────────────────────────────────────────────────
+function sltSetMode(mode, opts) {
+  opts = opts || {};
+  const next = mode === 'templates' ? 'templates' : 'pages';
+  sltState.mode = next;
+  if (next === 'pages') sltState.openId = null;
+  if (next === 'templates') sltEnsureLeftOpen();
+  sltSetWide(next === 'templates');
   sltRender();
-  const rail = document.getElementById('sltRail');
-  if (rail) {
-    rail.classList.remove('slt-flash'); void rail.offsetWidth; rail.classList.add('slt-flash');
-    setTimeout(() => rail.classList.remove('slt-flash'), 1400);
+  if (next === 'templates' && !window.SLT_INDEX) {
+    sltEnsureIndex().then(() => { sltState.indexReady = true; sltRender(); }).catch(() => { sltState.indexReady = false; sltRender(); });
   }
-  try { await sltEnsureIndex(); sltState.indexReady = true; } catch (e) { sltState.indexReady = false; }
-  sltRender();
+  if (opts.flash) {
+    const rail = document.getElementById('sltRail');
+    if (rail) { rail.classList.remove('slt-flash'); void rail.offsetWidth; rail.classList.add('slt-flash'); setTimeout(() => rail.classList.remove('slt-flash'), 1400); }
+  }
 }
 
-function sltToggleRail() {
-  sltState.railOpen = !sltState.railOpen;
-  sltSaveRailPref();
-  sltRender();
-}
+// App bar button: open the left panel in Templates mode.
+function sltOpen() { sltEnsureLeftOpen(); sltSetMode('templates', { flash: true }); }
 
 function sltSetTab(tab) {
   sltState.tab = tab;
+  sltSavePref('sltTab', tab);
   sltRender();
 }
 
 function sltShowTemplate(id) {
   sltState.openId = id;
   sltState.slide = 0;
+  sltState.stageHover = false;
   sltEnsureLeftOpen();
+  sltState.mode = 'templates';
   sltSetWide(true);
   sltRender();
 }
 
 function sltBack() {
   sltState.openId = null;
-  sltSetWide(false);
   sltRender();
 }
 
 // Changing slide only touches the stage + thumbnails (no full re-render), so the thumbnail list keeps its scroll.
-function sltPickSlide(i) {
+function sltPickSlide(i, fromTimer) {
   const t = sltState.openId ? sltFindTemplate(sltState.openId) : null;
   if (!t) return;
   const n = t.slideList.length;
   sltState.slide = Math.max(0, Math.min(n - 1, i));
-  const cur = t.slideList[sltState.slide];
-  const img = document.getElementById('sltStageImg');
-  if (img) { img.src = SLT_BASE + cur.preview; img.alt = t.name + ' slide ' + (sltState.slide + 1); }
+  document.querySelectorAll('#sltStage .slt-frame').forEach((el, k) => el.classList.toggle('on', k === sltState.slide));
   const cnt = document.getElementById('sltStageCount');
   if (cnt) cnt.textContent = (sltState.slide + 1) + ' / ' + n;
+  const lab = document.getElementById('sltStageLabel');
+  if (lab) lab.textContent = t.slideList[sltState.slide].id;
   document.querySelectorAll('#sltRail .slt-thumb').forEach((el, k) => el.classList.toggle('on', k === sltState.slide));
   const sec = document.getElementById('sltAddOne');
   if (sec) sec.textContent = 'Add only slide ' + (sltState.slide + 1);
   const on = document.querySelector('#sltRail .slt-thumb.on');
   if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  sltStageSchedule();
 }
 
-function sltStep(d) { sltPickSlide(sltState.slide + d); }
+function sltStep(d) {
+  const t = sltState.openId ? sltFindTemplate(sltState.openId) : null;
+  if (!t) return;
+  const n = t.slideList.length;
+  sltPickSlide((sltState.slide + d + n) % n);
+}
 
 function sltRender() {
   const rail = document.getElementById('sltRail');
@@ -162,13 +233,20 @@ function sltRender() {
   if (!rail || !body) return;
   const idx = window.SLT_INDEX;
   const open = sltState.openId ? sltFindTemplate(sltState.openId) : null;
+  const tplMode = sltState.mode === 'templates';
 
-  rail.classList.toggle('closed', !sltState.railOpen && !open);
+  sltStopAll();
+  rail.classList.toggle('on', tplMode);
   rail.classList.toggle('detail', !!open);
-  const tgl = document.getElementById('sltRailToggle');
-  if (tgl) tgl.setAttribute('aria-expanded', String(sltState.railOpen));
+  const seg = document.getElementById('sltSeg');
+  if (seg) seg.setAttribute('data-mode', tplMode ? 'templates' : 'pages');
+  const bp = document.getElementById('sltSegPages'), bt = document.getElementById('sltSegTemplates');
+  if (bp) { bp.classList.toggle('on', !tplMode); bp.setAttribute('aria-selected', String(!tplMode)); }
+  if (bt) { bt.classList.toggle('on', tplMode); bt.setAttribute('aria-selected', String(tplMode)); }
   const cnt = document.getElementById('sltRailCount');
   if (cnt) cnt.textContent = idx ? String(idx.templates.length) : '';
+
+  if (!tplMode) { body.innerHTML = ''; return; }
 
   if (!idx) {
     body.innerHTML = sltState.indexReady === false
@@ -177,23 +255,30 @@ function sltRender() {
     return;
   }
 
-  // ── Detail (panel is wide) ──
+  // ── Viewer ──
   if (open) {
     const portrait = open.type === 'carousel';
-    const cur = open.slideList[sltState.slide] || open.slideList[0];
     const n = open.slideList.length;
+    const cur = open.slideList[sltState.slide] || open.slideList[0];
     body.innerHTML =
       '<div class="slt-d' + (portrait ? ' portrait' : '') + '">' +
         '<div class="slt-d-top">' +
-          '<button type="button" class="slt-back" onclick="sltBack()" title="Back to all templates">← Templates</button>' +
+          '<button type="button" class="slt-back" onclick="sltBack()" title="Back to all templates (Esc)">← All templates</button>' +
           '<span class="slt-d-size">' + open.width + ' × ' + open.height + '</span>' +
         '</div>' +
         '<div class="slt-d-scroll">' +
-          '<div class="slt-stage">' +
-            '<img id="sltStageImg" src="' + SLT_BASE + sltEsc(cur.preview) + '" alt="' + sltEsc(open.name + ' slide ' + (sltState.slide + 1)) + '">' +
+          '<div class="slt-stage" id="sltStage" style="--r:' + (open.width / open.height) + '" onmouseenter="sltStageHover(true)" onmouseleave="sltStageHover(false)">' +
+            open.slideList.map((s, i) =>
+              '<img class="slt-frame' + (i === sltState.slide ? ' on' : '') + '" ' + (i < 2 ? '' : 'loading="lazy" ') + 'src="' + SLT_BASE + sltEsc(s.preview) + '" alt="' + sltEsc(open.name + ' slide ' + (i + 1)) + '">').join('') +
             '<button type="button" class="slt-nav prev" onclick="sltStep(-1)" aria-label="Previous slide">‹</button>' +
             '<button type="button" class="slt-nav next" onclick="sltStep(1)" aria-label="Next slide">›</button>' +
+            '<span class="slt-stage-label" id="sltStageLabel">' + sltEsc(cur.id) + '</span>' +
             '<span class="slt-stage-count" id="sltStageCount">' + (sltState.slide + 1) + ' / ' + n + '</span>' +
+            '<button type="button" class="slt-play" id="sltPlayBtn" onclick="sltToggleAutoplay()" aria-pressed="true" title="Pause auto-play">' +
+              '<svg class="i-pause" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>' +
+              '<svg class="i-play" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>' +
+            '</button>' +
+            '<div class="slt-prog"><i id="sltProg"></i></div>' +
           '</div>' +
           '<div class="slt-d-name">' + sltEsc(open.name) + '</div>' +
           '<div class="slt-d-cat">' + sltEsc(open.category) + ' · ' + n + ' slides · ' + (portrait ? '4:5 portrait' : '16:9') + '</div>' +
@@ -207,10 +292,11 @@ function sltRender() {
           '<button type="button" class="slt-secondary" id="sltAddOne" onclick="sltUse(\'' + sltEsc(open.id) + '\', sltState.slide)"' + (sltState.busy ? ' disabled' : '') + '>Add only slide ' + (sltState.slide + 1) + '</button>' +
         '</div>' +
       '</div>';
+    sltStageSchedule();
     return;
   }
 
-  // ── Compact list (normal panel width) ──
+  // ── Gallery (wide panel, cards auto-play) ──
   const list = idx.templates;
   const nPres = list.filter(t => t.type === 'presentation').length;
   const nCar = list.filter(t => t.type === 'carousel').length;
@@ -222,14 +308,17 @@ function sltRender() {
     '</div>' +
     '<div class="slt-list' + (sltState.tab === 'carousel' ? ' portrait' : '') + '">' + shown.map(t =>
       '<div class="slt-card" tabindex="0" role="button" title="' + sltEsc(t.name + ' · ' + t.style) + '" onclick="sltShowTemplate(\'' + sltEsc(t.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();sltShowTemplate(\'' + sltEsc(t.id) + '\')}">' +
-        '<div class="slt-cover" style="aspect-ratio:' + t.width + '/' + t.height + '"><img loading="lazy" src="' + SLT_BASE + sltEsc(t.cover) + '" alt="' + sltEsc(t.name) + ' cover"></div>' +
-        '<h4>' + sltEsc(t.name) + '</h4>' +
-        '<div class="slt-meta">' + t.slides + ' slides</div>' +
+        '<div class="slt-cover" style="aspect-ratio:' + t.width + '/' + t.height + '">' +
+          t.slideList.map((s, i) => '<img class="slt-frame' + (i === 0 ? ' on' : '') + '" ' + (i === 0 ? '' : 'loading="lazy" ') + 'src="' + SLT_BASE + sltEsc(s.preview) + '" alt="' + (i === 0 ? sltEsc(t.name) + ' cover' : '') + '">').join('') +
+          '<span class="slt-dots">' + t.slideList.map((s, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</span>' +
+        '</div>' +
+        '<div class="slt-card-info"><h4>' + sltEsc(t.name) + '</h4><div class="slt-meta">' + sltEsc(t.category) + ' · ' + t.slides + ' slides</div></div>' +
       '</div>').join('') + '</div>';
+  sltStartCards();
 }
 
 async function sltInit() {
-  sltLoadRailPref();
+  sltLoadPrefs();
   sltRender();
   try { await sltEnsureIndex(); sltState.indexReady = true; } catch (e) { sltState.indexReady = false; }
   sltRender();
@@ -323,6 +412,7 @@ async function sltUse(id, onlyIdx) {
     const at = isNewDoc ? 0 : (pdfed.active >= 0 ? pdfed.active : pdfed.pages.length - 1) + 1;
     // Panel goes back to its normal width before the new pages appear in the Pages list below.
     sltState.openId = null;
+    sltState.mode = 'pages';
     sltSetWide(false);
     pdfed.pages.splice.apply(pdfed.pages, [at, 0].concat(newPages));
 
@@ -385,12 +475,20 @@ async function sltUse(id, onlyIdx) {
   }
 }
 
-// Escape steps back from the template viewer to the list (only when the viewer is open and nothing is being typed).
+// Keys (only while Templates mode is showing and nothing is being typed):
+// Esc: viewer -> list -> Pages. Left/Right: previous/next slide in the viewer. Space: play/pause.
 document.addEventListener('keydown', function (e) {
-  if (e.key !== 'Escape' || !sltState.openId) return;
+  if (sltState.mode !== 'templates') return;
   const t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-  sltBack();
+  if (e.key === 'Escape') {
+    if (sltState.openId) sltBack(); else sltSetMode('pages');
+    return;
+  }
+  if (!sltState.openId) return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); sltStep(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); sltStep(1); }
+  else if (e.key === ' ' && !(t && t.tagName === 'BUTTON')) { e.preventDefault(); sltToggleAutoplay(); }
 });
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sltInit);
