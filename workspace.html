@@ -1188,7 +1188,7 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
                   <span class="pdfed-reveal">Business Proposals</span>
                 </button>
-                <button class="pdfed-appbar-btn" id="sltOpenBtn" aria-label="Slide Templates" data-icon-only="1" onclick="sltOpen()" title="Slide Templates: 6 presentations and 2 carousels, ready to edit. Every word is real text you can click and change">
+                <button class="pdfed-appbar-btn" id="sltOpenBtn" aria-label="Slide Templates" data-icon-only="1" onclick="sltOpen()" title="Templates: opens the Templates panel on top of the left thumbnails (6 presentations, 2 carousels, every word editable)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                   <span class="pdfed-reveal">Slide Templates</span>
                 </button>
@@ -1660,11 +1660,23 @@
             <button id="pdfedLeftToggleBtn" onclick="pdfedToggleLeftPanel()" title="Toggle pages panel">
               <svg id="pdfedLeftToggleIcon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
+            <!-- TEMPLATES on top of the page thumbnails (js/77-slide-templates.js, css/42-slide-templates.css).
+                 Click a template: the panel grows wider and shows its slides large, with "Use this template". -->
+            <div class="slt-rail" id="sltRail">
+              <div class="slt-rail-head">
+                <button type="button" class="slt-rail-title" id="sltRailToggle" onclick="sltToggleRail()" aria-expanded="true" title="Show or hide templates">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  <span>Templates <span class="slt-rail-count" id="sltRailCount"></span></span>
+                  <svg class="slt-rail-chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+              </div>
+              <div class="slt-rail-body" id="sltRailBody"><p class="slt-empty">Loading templates…</p></div>
+            </div>
             <div class="pdfed-strip-header">
               <span>Pages <span id="pdfedPageCount" style="color:var(--text3);font-weight:400"></span></span>
               <span class="pdfed-strip-live" id="pdfedStripLive"><span class="dot"></span>Live</span>
             </div>
-            <div style="font-size:9px;color:var(--text3);padding:0 10px 6px;line-height:1.4">Hover between pages to insert · Drag to reorder</div>
+            <div class="pdfed-strip-hint" style="font-size:9px;color:var(--text3);padding:0 10px 6px;line-height:1.4">Hover between pages to insert · Drag to reorder</div>
             <div class="pdfed-strip-scroll" id="pdfedStrip">
               <div style="text-align:center;color:var(--text3);font-size:11px;padding:20px 8px">Open a PDF to see pages</div>
             </div>
@@ -4223,25 +4235,6 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- SLIDE & CAROUSEL TEMPLATES — GALLERY MODAL (js/77-slide-templates.js, css/42-slide-templates.css)
-     Opened from the "Slide Templates" button in the PDF Editor app bar (sltOpenBtn). Picking one copies
-     its slides onto the canvas as new pages: background picture + real, editable text boxes. -->
-<div class="pdfed-insert-modal-overlay" id="sltOverlay" onmousedown="if(event.target===this) sltClose()">
-  <div class="slt-modal" role="dialog" aria-modal="true" aria-labelledby="sltTitle">
-    <div class="pdfed-export-head">
-      <div>
-        <h3 id="sltTitle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg> Slide Templates</h3>
-        <div class="pdfed-export-sub" id="sltSub">Pick a template and it lands on your canvas, ready to edit</div>
-      </div>
-      <button type="button" class="pdfed-export-close" onclick="sltClose()" aria-label="Close">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="slt-bar"><div class="slt-tabs" id="sltTabs"></div></div>
-    <div class="slt-body" id="sltBody"><p class="slt-empty">Loading templates…</p></div>
   </div>
 </div>
 
