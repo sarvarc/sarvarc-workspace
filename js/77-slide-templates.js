@@ -1,6 +1,7 @@
 // ── SLIDE & CAROUSEL TEMPLATES → WORKSPACE EDITOR ───────────────────────────
 // Templates live in the PDF Editor's LEFT PANEL behind a Pages | Templates toggle.
-// presentations (16:9, 1920x1080), carousels (4:5, 1080x1350) and proposals (A4 portrait, 794x1123).
+// presentations (16:9, 1920x1080), carousels (4:5, 1080x1350), proposals (A4 portrait, 794x1123)
+// and ads (single social posts: square 1080x1080, portrait 1080x1350, story 1080x1920).
 //   - Pages (default): the normal 200px page-thumbnail panel.
 //   - Templates: the panel widens (layout class .slt-open) and shows every template as a card whose
 //     slides play automatically (soft cross-fade). Click a card for the big viewer: auto-playing
@@ -23,6 +24,8 @@
 //   slide-templates/<id>/slides.js    -> window.SLT_DATA[id] (loaded on first use)
 
 const SLT_BASE = 'slide-templates/';
+// Picture source: a data: URL is used as is, anything else is a file path under slide-templates/.
+function sltSrc(p) { return /^data:/.test(p) ? p : SLT_BASE + p; }
 const SLT_PX_PER_MM = 3.7795;
 const sltState = { mode: 'pages', tab: 'presentation', openId: null, slide: 0, busy: false, indexReady: null, autoplay: true };
 const sltCardTimers = [];
@@ -46,6 +49,23 @@ async function sltEnsureIndex() {
   if (window.SLT_INDEX) return window.SLT_INDEX;
   await sltLoadScript(SLT_BASE + 'index.js');
   return window.SLT_INDEX;
+}
+
+// Ads (single social posts) live in ONE bigger file (cards, text boxes and pictures together).
+// It is only fetched when the Templates panel is shown, so the app itself starts as fast as before.
+function sltLoadAds() {
+  if (sltState.adsLoading || sltState.adsLoaded || !window.SLT_INDEX) return;
+  sltState.adsLoading = true;
+  sltLoadScript(SLT_BASE + 'ads.js').then(() => {
+    const ads = window.SLT_ADS;
+    if (ads && window.SLT_INDEX) {
+      window.SLT_INDEX.templates = window.SLT_INDEX.templates.filter(t => t.type !== 'ad').concat(ads.templates);
+      window.SLT_DATA = window.SLT_DATA || {};
+      Object.keys(ads.data).forEach(k => { window.SLT_DATA[k] = ads.data[k]; });
+    }
+  }).catch(() => { /* ads.js missing: the other tabs still work */ }).then(() => {
+    sltState.adsLoaded = true; sltState.adsLoading = false; sltRender();
+  });
 }
 
 async function sltEnsureData(id) {
@@ -94,7 +114,7 @@ function sltSetWide(on) {
 function sltLoadPrefs() {
   try { if (localStorage.getItem('sltAutoplay') === '0') sltState.autoplay = false; } catch (e) {}
   if (sltReducedMotion()) sltState.autoplay = false;
-  try { const t = localStorage.getItem('sltTab'); if (t === 'presentation' || t === 'carousel' || t === 'proposal') sltState.tab = t; } catch (e) {}
+  try { const t = localStorage.getItem('sltTab'); if (t === 'presentation' || t === 'carousel' || t === 'proposal' || t === 'ad') sltState.tab = t; } catch (e) {}
 }
 function sltSavePref(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
@@ -214,7 +234,7 @@ function sltPickSlide(i, fromTimer) {
   if (lab) lab.textContent = t.slideList[sltState.slide].id;
   document.querySelectorAll('#sltRail .slt-thumb').forEach((el, k) => el.classList.toggle('on', k === sltState.slide));
   const sec = document.getElementById('sltAddOne');
-  if (sec) sec.textContent = 'Add only slide ' + (sltState.slide + 1);
+  if (sec) sec.textContent = 'Add only ' + (t.type === 'proposal' ? 'page ' : 'slide ') + (sltState.slide + 1);
   const on = document.querySelector('#sltRail .slt-thumb.on');
   if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   sltStageSchedule();
@@ -225,6 +245,18 @@ function sltStep(d) {
   if (!t) return;
   const n = t.slideList.length;
   sltPickSlide((sltState.slide + d + n) % n);
+}
+
+// Wording per template type: ads are single pictures ("1 post"), proposals are "pages", the rest "slides".
+function sltUnit(t, n) {
+  if (t.type === 'ad') return n === 1 ? 'post' : 'posts';
+  if (t.type === 'proposal') return n === 1 ? 'page' : 'pages';
+  return n === 1 ? 'slide' : 'slides';
+}
+function sltShapeLabel(t) {
+  if (t.type === 'proposal') return 'A4 portrait';
+  if (t.type === 'ad') return t.width === t.height ? '1:1 square' : (t.height / t.width > 1.5 ? '9:16 story' : '4:5 portrait');
+  return t.type === 'carousel' ? '4:5 portrait' : '16:9';
 }
 
 function sltRender() {
@@ -255,11 +287,14 @@ function sltRender() {
     return;
   }
 
+  sltLoadAds();
+
   // ── Viewer ──
   if (open) {
-    const portrait = open.type === 'carousel' || open.type === 'proposal';
-    const unit = open.type === 'proposal' ? 'pages' : 'slides';
+    const portrait = open.type === 'carousel' || open.type === 'proposal' || (open.type === 'ad' && open.height > open.width);
     const n = open.slideList.length;
+    const unit = sltUnit(open, n);
+    const multi = n > 1;
     const cur = open.slideList[sltState.slide] || open.slideList[0];
     body.innerHTML =
       '<div class="slt-d' + (portrait ? ' portrait' : '') + '">' +
@@ -270,27 +305,27 @@ function sltRender() {
         '<div class="slt-d-scroll">' +
           '<div class="slt-stage" id="sltStage" style="--r:' + (open.width / open.height) + '" onmouseenter="sltStageHover(true)" onmouseleave="sltStageHover(false)">' +
             open.slideList.map((s, i) =>
-              '<img class="slt-frame' + (i === sltState.slide ? ' on' : '') + '" ' + (i < 2 ? '' : 'loading="lazy" ') + 'src="' + SLT_BASE + sltEsc(s.preview) + '" alt="' + sltEsc(open.name + ' slide ' + (i + 1)) + '">').join('') +
-            '<button type="button" class="slt-nav prev" onclick="sltStep(-1)" aria-label="Previous slide">‹</button>' +
+              '<img class="slt-frame' + (i === sltState.slide ? ' on' : '') + '" ' + (i < 2 ? '' : 'loading="lazy" ') + 'src="' + sltEsc(sltSrc(s.preview)) + '" alt="' + sltEsc(open.name + ' slide ' + (i + 1)) + '">').join('') +
+            (multi ? '<button type="button" class="slt-nav prev" onclick="sltStep(-1)" aria-label="Previous slide">‹</button>' +
             '<button type="button" class="slt-nav next" onclick="sltStep(1)" aria-label="Next slide">›</button>' +
             '<span class="slt-stage-label" id="sltStageLabel">' + sltEsc(cur.id) + '</span>' +
-            '<span class="slt-stage-count" id="sltStageCount">' + (sltState.slide + 1) + ' / ' + n + '</span>' +
-            '<button type="button" class="slt-play" id="sltPlayBtn" onclick="sltToggleAutoplay()" aria-pressed="true" title="Pause auto-play">' +
+            '<span class="slt-stage-count" id="sltStageCount">' + (sltState.slide + 1) + ' / ' + n + '</span>' : '') +
+            (multi ? '<button type="button" class="slt-play" id="sltPlayBtn" onclick="sltToggleAutoplay()" aria-pressed="true" title="Pause auto-play">' +
               '<svg class="i-pause" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>' +
               '<svg class="i-play" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>' +
             '</button>' +
-            '<div class="slt-prog"><i id="sltProg"></i></div>' +
+            '<div class="slt-prog"><i id="sltProg"></i></div>' : '') +
           '</div>' +
           '<div class="slt-d-name">' + sltEsc(open.name) + '</div>' +
-          '<div class="slt-d-cat">' + sltEsc(open.category) + ' · ' + n + ' ' + unit + ' · ' + (open.type === 'proposal' ? 'A4 portrait' : (portrait ? '4:5 portrait' : '16:9')) + '</div>' +
+          '<div class="slt-d-cat">' + sltEsc(open.category) + ' · ' + n + ' ' + unit + ' · ' + sltShapeLabel(open) + '</div>' +
           '<p class="slt-d-style">' + sltEsc(open.style) + '</p>' +
-          '<div class="slt-d-grid">' + open.slideList.map((s, i) =>
-            '<button type="button" class="slt-thumb' + (i === sltState.slide ? ' on' : '') + '" style="aspect-ratio:' + open.width + '/' + open.height + '" onclick="sltPickSlide(' + i + ')" title="Slide ' + (i + 1) + '"><img loading="lazy" src="' + SLT_BASE + sltEsc(s.preview) + '" alt=""><b>' + (i + 1) + '</b></button>').join('') + '</div>' +
-          '<p class="slt-note">Every word is a real text box. Anything in [square brackets] is a placeholder to replace. Slides are copied onto your canvas after the current page; the original template is never changed.</p>' +
+          (multi ? '<div class="slt-d-grid">' + open.slideList.map((s, i) =>
+            '<button type="button" class="slt-thumb' + (i === sltState.slide ? ' on' : '') + '" style="aspect-ratio:' + open.width + '/' + open.height + '" onclick="sltPickSlide(' + i + ')" title="Slide ' + (i + 1) + '"><img loading="lazy" src="' + sltEsc(sltSrc(s.preview)) + '" alt=""><b>' + (i + 1) + '</b></button>').join('') + '</div>' : '') +
+          '<p class="slt-note">Every word is a real text box. Anything in [square brackets] is a placeholder to replace. ' + (multi ? 'Slides are' : 'The post is') + ' copied onto your canvas after the current page; the original template is never changed.</p>' +
         '</div>' +
         '<div class="slt-d-actions">' +
-          '<button type="button" class="slt-primary" onclick="sltUse(\'' + sltEsc(open.id) + '\')"' + (sltState.busy ? ' disabled' : '') + '>' + (sltState.busy ? 'Adding…' : 'Use this template (' + n + ' ' + unit + ')') + '</button>' +
-          '<button type="button" class="slt-secondary" id="sltAddOne" onclick="sltUse(\'' + sltEsc(open.id) + '\', sltState.slide)"' + (sltState.busy ? ' disabled' : '') + '>Add only ' + (open.type === 'proposal' ? 'page ' : 'slide ') + (sltState.slide + 1) + '</button>' +
+          '<button type="button" class="slt-primary" onclick="sltUse(\'' + sltEsc(open.id) + '\')"' + (sltState.busy ? ' disabled' : '') + '>' + (sltState.busy ? 'Adding…' : (multi ? 'Use this template (' + n + ' ' + unit + ')' : 'Use this template')) + '</button>' +
+          (multi ? '<button type="button" class="slt-secondary" id="sltAddOne" onclick="sltUse(\'' + sltEsc(open.id) + '\', sltState.slide)"' + (sltState.busy ? ' disabled' : '') + '>Add only ' + (open.type === 'proposal' ? 'page ' : 'slide ') + (sltState.slide + 1) + '</button>' : '') +
         '</div>' +
       '</div>';
     sltStageSchedule();
@@ -302,20 +337,22 @@ function sltRender() {
   const nPres = list.filter(t => t.type === 'presentation').length;
   const nCar = list.filter(t => t.type === 'carousel').length;
   const nProp = list.filter(t => t.type === 'proposal').length;
+  const nAd = list.filter(t => t.type === 'ad').length;
   const shown = list.filter(t => t.type === sltState.tab);
   body.innerHTML =
     '<div class="slt-tabs">' +
       '<button type="button" class="slt-tab' + (sltState.tab === 'presentation' ? ' on' : '') + '" onclick="sltSetTab(\'presentation\')">Slides <span>' + nPres + '</span></button>' +
       '<button type="button" class="slt-tab' + (sltState.tab === 'carousel' ? ' on' : '') + '" onclick="sltSetTab(\'carousel\')">Carousels <span>' + nCar + '</span></button>' +
       '<button type="button" class="slt-tab' + (sltState.tab === 'proposal' ? ' on' : '') + '" onclick="sltSetTab(\'proposal\')">Proposals <span>' + nProp + '</span></button>' +
+      (nAd ? '<button type="button" class="slt-tab' + (sltState.tab === 'ad' ? ' on' : '') + '" onclick="sltSetTab(\'ad\')">Ads <span>' + nAd + '</span></button>' : '') +
     '</div>' +
-    '<div class="slt-list' + (sltState.tab === 'carousel' || sltState.tab === 'proposal' ? ' portrait' : '') + '">' + shown.map(t =>
+    '<div class="slt-list' + (sltState.tab === 'carousel' || sltState.tab === 'proposal' || sltState.tab === 'ad' ? ' portrait' : '') + '">' + shown.map(t =>
       '<div class="slt-card" tabindex="0" role="button" title="' + sltEsc(t.name + ' · ' + t.style) + '" onclick="sltShowTemplate(\'' + sltEsc(t.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();sltShowTemplate(\'' + sltEsc(t.id) + '\')}">' +
         '<div class="slt-cover" style="aspect-ratio:' + t.width + '/' + t.height + '">' +
-          t.slideList.map((s, i) => '<img class="slt-frame' + (i === 0 ? ' on' : '') + '" ' + (i === 0 ? '' : 'loading="lazy" ') + 'src="' + SLT_BASE + sltEsc(s.preview) + '" alt="' + (i === 0 ? sltEsc(t.name) + ' cover' : '') + '">').join('') +
-          '<span class="slt-dots">' + t.slideList.map((s, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</span>' +
+          t.slideList.map((s, i) => '<img class="slt-frame' + (i === 0 ? ' on' : '') + '" ' + (i === 0 ? '' : 'loading="lazy" ') + 'src="' + sltEsc(sltSrc(s.preview)) + '" alt="' + (i === 0 ? sltEsc(t.name) + ' cover' : '') + '">').join('') +
+          (t.slideList.length > 1 ? '<span class="slt-dots">' + t.slideList.map((s, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</span>' : '') +
         '</div>' +
-        '<div class="slt-card-info"><h4>' + sltEsc(t.name) + '</h4><div class="slt-meta">' + sltEsc(t.category) + ' · ' + t.slides + (t.type === 'proposal' ? ' pages' : ' slides') + '</div></div>' +
+        '<div class="slt-card-info"><h4>' + sltEsc(t.name) + '</h4><div class="slt-meta">' + sltEsc(t.category) + ' · ' + t.slides + ' ' + sltUnit(t, t.slides) + '</div></div>' +
       '</div>').join('') + '</div>';
   sltStartCards();
 }
@@ -405,7 +442,7 @@ async function sltUse(id, onlyIdx) {
     const picks = (onlyIdx == null) ? data.slides : [data.slides[onlyIdx]].filter(Boolean);
     const newPages = [];
     for (const slide of picks) {
-      const bg = await sltBgDataUrl(SLT_BASE + id + '/' + slide.bg);
+      const bg = await sltBgDataUrl(sltSrc(/^data:/.test(slide.bg) ? slide.bg : id + '/' + slide.bg));
       if (!bg) throw new Error('Could not load the picture for slide "' + slide.id + '"');
       newPages.push(sltBuildPage(t, data, slide, bg));
     }
@@ -468,7 +505,7 @@ async function sltUse(id, onlyIdx) {
       }
     });
 
-    toast(t.name + ': ' + newPages.length + (t.type === 'proposal' ? (newPages.length === 1 ? ' page' : ' pages') : (newPages.length === 1 ? ' slide' : ' slides')) + ' added. Click any text to edit it.', 'success');
+    toast(t.name + ': ' + newPages.length + ' ' + sltUnit(t, newPages.length) + ' added. Click any text to edit it.', 'success');
     if (typeof swTrack === 'function') { try { swTrack('module_open', { module: 'slide_templates', template: id }); } catch (e) {} }
   } catch (err) {
     if (typeof toast === 'function') toast('Could not add the template: ' + (err && err.message ? err.message : err), 'error');
