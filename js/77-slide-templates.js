@@ -51,23 +51,6 @@ async function sltEnsureIndex() {
   return window.SLT_INDEX;
 }
 
-// Ads (single social posts) live in ONE bigger file (cards, text boxes and pictures together).
-// It is only fetched when the Templates panel is shown, so the app itself starts as fast as before.
-function sltLoadAds() {
-  if (sltState.adsLoading || sltState.adsLoaded || !window.SLT_INDEX) return;
-  sltState.adsLoading = true;
-  sltLoadScript(SLT_BASE + 'ads.js').then(() => {
-    const ads = window.SLT_ADS;
-    if (ads && window.SLT_INDEX) {
-      window.SLT_INDEX.templates = window.SLT_INDEX.templates.filter(t => t.type !== 'ad').concat(ads.templates);
-      window.SLT_DATA = window.SLT_DATA || {};
-      Object.keys(ads.data).forEach(k => { window.SLT_DATA[k] = ads.data[k]; });
-    }
-  }).catch(() => { /* ads.js missing: the other tabs still work */ }).then(() => {
-    sltState.adsLoaded = true; sltState.adsLoading = false; sltRender();
-  });
-}
-
 async function sltEnsureData(id) {
   window.SLT_DATA = window.SLT_DATA || {};
   if (!window.SLT_DATA[id]) await sltLoadScript(SLT_BASE + id + '/slides.js');
@@ -286,8 +269,6 @@ function sltRender() {
       : '<p class="slt-empty">Loading templates…</p>';
     return;
   }
-
-  sltLoadAds();
 
   // ── Viewer ──
   if (open) {
