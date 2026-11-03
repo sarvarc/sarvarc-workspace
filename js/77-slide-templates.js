@@ -1,6 +1,6 @@
 // ── SLIDE & CAROUSEL TEMPLATES → WORKSPACE EDITOR ───────────────────────────
 // Templates live in the PDF Editor's LEFT PANEL behind a Pages | Templates toggle.
-// presentations (16:9, 1920x1080), carousels (4:5, 1080x1350), proposals and quotations (A4 portrait, 794x1123)
+// presentations (16:9, 1920x1080), carousels (4:5, 1080x1350), proposals, quotations and invoices (A4, 794x1123 portrait, or 1123x794 for landscape ones)
 // and ads (single social posts: square 1080x1080, portrait 1080x1350, story 1080x1920).
 //   - Pages (default): the normal 200px page-thumbnail panel.
 //   - Templates: the panel widens (layout class .slt-open) and shows every template as a card whose
@@ -97,7 +97,7 @@ function sltSetWide(on) {
 function sltLoadPrefs() {
   try { if (localStorage.getItem('sltAutoplay') === '0') sltState.autoplay = false; } catch (e) {}
   if (sltReducedMotion()) sltState.autoplay = false;
-  try { const t = localStorage.getItem('sltTab'); if (t === 'presentation' || t === 'carousel' || t === 'proposal' || t === 'quotation' || t === 'ad') sltState.tab = t; } catch (e) {}
+  try { let t = localStorage.getItem('sltTab'); if (t === 'invoice') t = 'quotation'; if (t === 'presentation' || t === 'carousel' || t === 'proposal' || t === 'quotation' || t === 'ad') sltState.tab = t; } catch (e) {}
 }
 function sltSavePref(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
@@ -231,7 +231,7 @@ function sltStep(d) {
 }
 
 // Proposals and quotations are A4 paper pages (same size, same wording).
-function sltIsPaper(t) { return t.type === 'proposal' || t.type === 'quotation'; }
+function sltIsPaper(t) { return t.type === 'proposal' || t.type === 'quotation' || t.type === 'invoice'; }
 
 // Wording per template type: ads are single pictures ("1 post"), proposals are "pages", the rest "slides".
 function sltUnit(t, n) {
@@ -240,7 +240,7 @@ function sltUnit(t, n) {
   return n === 1 ? 'slide' : 'slides';
 }
 function sltShapeLabel(t) {
-  if (sltIsPaper(t)) return 'A4 portrait';
+  if (sltIsPaper(t)) return t.width > t.height ? 'A4 landscape' : 'A4 portrait';
   if (t.type === 'ad') return t.width === t.height ? '1:1 square' : (t.height / t.width > 1.5 ? '9:16 story' : '4:5 portrait');
   return t.type === 'carousel' ? '4:5 portrait' : '16:9';
 }
@@ -275,7 +275,7 @@ function sltRender() {
 
   // ── Viewer ──
   if (open) {
-    const portrait = open.type === 'carousel' || sltIsPaper(open) || (open.type === 'ad' && open.height > open.width);
+    const portrait = open.type === 'carousel' || (sltIsPaper(open) && open.height > open.width) || (open.type === 'ad' && open.height > open.width);
     const n = open.slideList.length;
     const unit = sltUnit(open, n);
     const multi = n > 1;
@@ -322,24 +322,35 @@ function sltRender() {
   const nCar = list.filter(t => t.type === 'carousel').length;
   const nProp = list.filter(t => t.type === 'proposal').length;
   const nQuo = list.filter(t => t.type === 'quotation').length;
+  const nInv = list.filter(t => t.type === 'invoice').length;
+  const nDocs = nQuo + nInv;
   const nAd = list.filter(t => t.type === 'ad').length;
-  const shown = list.filter(t => t.type === sltState.tab);
+  // Quotations and invoices live together in one tab, shown as two labelled groups.
+  const isDocsTab = sltState.tab === 'quotation';
+  const shown = isDocsTab ? list.filter(t => t.type === 'quotation' || t.type === 'invoice') : list.filter(t => t.type === sltState.tab);
+  const tabBtn = (id, label, n) => '<button type="button" class="slt-tab' + (sltState.tab === id ? ' on' : '') + '" onclick="sltSetTab(\'' + id + '\')">' + label + ' <span>' + n + '</span></button>';
+  const card = t =>
+    '<div class="slt-card' + (sltIsPaper(t) && t.width > t.height ? ' wide' : '') + '" tabindex="0" role="button" title="' + sltEsc(t.name + ' · ' + t.style) + '" onclick="sltShowTemplate(\'' + sltEsc(t.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();sltShowTemplate(\'' + sltEsc(t.id) + '\')}">' +
+      '<div class="slt-cover" style="aspect-ratio:' + t.width + '/' + t.height + '">' +
+        t.slideList.map((s, i) => '<img class="slt-frame' + (i === 0 ? ' on' : '') + '" ' + (i === 0 ? '' : 'loading="lazy" ') + 'src="' + sltEsc(sltSrc(s.preview)) + '" alt="' + (i === 0 ? sltEsc(t.name) + ' cover' : '') + '">').join('') +
+        (t.slideList.length > 1 ? '<span class="slt-dots">' + t.slideList.map((s, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</span>' : '') +
+      '</div>' +
+      '<div class="slt-card-info"><h4>' + sltEsc(t.name) + '</h4><div class="slt-meta">' + sltEsc(t.category) + ' · ' + t.slides + ' ' + sltUnit(t, t.slides) + (sltIsPaper(t) && t.width > t.height ? ' · landscape' : '') + '</div></div>' +
+    '</div>';
+  const sec = (label, n) => '<div class="slt-sec">' + label + ' <span>' + n + '</span></div>';
+  const cards = isDocsTab
+    ? (nQuo ? sec('Quotations', nQuo) + shown.filter(t => t.type === 'quotation').map(card).join('') : '') +
+      (nInv ? sec('Invoices', nInv) + shown.filter(t => t.type === 'invoice').map(card).join('') : '')
+    : shown.map(card).join('');
   body.innerHTML =
     '<div class="slt-tabs">' +
-      '<button type="button" class="slt-tab' + (sltState.tab === 'presentation' ? ' on' : '') + '" onclick="sltSetTab(\'presentation\')">Slides <span>' + nPres + '</span></button>' +
-      '<button type="button" class="slt-tab' + (sltState.tab === 'carousel' ? ' on' : '') + '" onclick="sltSetTab(\'carousel\')">Carousels <span>' + nCar + '</span></button>' +
-      '<button type="button" class="slt-tab' + (sltState.tab === 'proposal' ? ' on' : '') + '" onclick="sltSetTab(\'proposal\')">Proposals <span>' + nProp + '</span></button>' +
-      (nQuo ? '<button type="button" class="slt-tab' + (sltState.tab === 'quotation' ? ' on' : '') + '" onclick="sltSetTab(\'quotation\')">Quotes <span>' + nQuo + '</span></button>' : '') +
-      (nAd ? '<button type="button" class="slt-tab' + (sltState.tab === 'ad' ? ' on' : '') + '" onclick="sltSetTab(\'ad\')">Ads <span>' + nAd + '</span></button>' : '') +
+      tabBtn('presentation', 'Slides', nPres) +
+      tabBtn('carousel', 'Carousels', nCar) +
+      tabBtn('proposal', 'Proposals', nProp) +
+      (nDocs ? tabBtn('quotation', 'Quotations &amp; Invoices', nDocs) : '') +
+      (nAd ? tabBtn('ad', 'Ads', nAd) : '') +
     '</div>' +
-    '<div class="slt-list' + (sltState.tab === 'carousel' || sltState.tab === 'proposal' || sltState.tab === 'quotation' || sltState.tab === 'ad' ? ' portrait' : '') + '">' + shown.map(t =>
-      '<div class="slt-card" tabindex="0" role="button" title="' + sltEsc(t.name + ' · ' + t.style) + '" onclick="sltShowTemplate(\'' + sltEsc(t.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();sltShowTemplate(\'' + sltEsc(t.id) + '\')}">' +
-        '<div class="slt-cover" style="aspect-ratio:' + t.width + '/' + t.height + '">' +
-          t.slideList.map((s, i) => '<img class="slt-frame' + (i === 0 ? ' on' : '') + '" ' + (i === 0 ? '' : 'loading="lazy" ') + 'src="' + sltEsc(sltSrc(s.preview)) + '" alt="' + (i === 0 ? sltEsc(t.name) + ' cover' : '') + '">').join('') +
-          (t.slideList.length > 1 ? '<span class="slt-dots">' + t.slideList.map((s, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</span>' : '') +
-        '</div>' +
-        '<div class="slt-card-info"><h4>' + sltEsc(t.name) + '</h4><div class="slt-meta">' + sltEsc(t.category) + ' · ' + t.slides + ' ' + sltUnit(t, t.slides) + '</div></div>' +
-      '</div>').join('') + '</div>';
+    '<div class="slt-list' + (sltState.tab === 'carousel' || sltState.tab === 'proposal' || sltState.tab === 'quotation' || sltState.tab === 'ad' ? ' portrait' : '') + '">' + cards + '</div>';
   sltStartCards();
 }
 
