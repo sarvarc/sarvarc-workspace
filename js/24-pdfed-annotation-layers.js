@@ -1101,23 +1101,52 @@ window.pdfedDuplicatePlacedBorder = pdfedDuplicatePlacedBorder;
 // context sized to exactly the shape's own box (0,0 → w,h), same geometry
 // as the live drag-preview used to use, just detached from that closure so
 // it can also be called here and at export/thumbnail-bake time.
-function pdfedDrawShapeOnCtx(ctx, tool, color, size, x1, y1, x2, y2) {
+// Fill helper for closed shapes. `fo` is optional: { mode:'none'|'solid'|'gradient',
+// c1, c2, angle, outline }. With no `fo` the shape is drawn exactly as before
+// (outline only), so every older saved shape and every caller that does not
+// pass a fill is unchanged.
+function pdfedShapeFillStyle(ctx, fo, x1, y1, x2, y2) {
+  if (fo.mode !== 'gradient') return fo.c1 || '#FFD600';
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+  const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  const a = (Number(fo.angle) || 0) * Math.PI / 180;
+  const dx = Math.cos(a), dy = Math.sin(a);
+  const half = (Math.abs(w * dx) + Math.abs(h * dy)) / 2 || 1;
+  const g = ctx.createLinearGradient(cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half);
+  g.addColorStop(0, fo.c1 || '#FFD600');
+  g.addColorStop(1, fo.c2 || '#7C3AED');
+  return g;
+}
+
+function pdfedDrawShapeOnCtx(ctx, tool, color, size, x1, y1, x2, y2, fo) {
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = size;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  const hasFill = !!(fo && (fo.mode === 'solid' || fo.mode === 'gradient'));
+  const doStroke = !(hasFill && fo.outline === false);
+  const paint = () => {
+    if (hasFill) {
+      ctx.save();
+      ctx.fillStyle = pdfedShapeFillStyle(ctx, fo, x1, y1, x2, y2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if (doStroke) ctx.stroke();
+  };
   if (tool === 'rect') {
     ctx.beginPath();
-    ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+    ctx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+    paint();
   } else if (tool === 'roundrect') {
     pdfedTraceRoundRectStandalone(ctx, x1, y1, x2, y2, Math.min(Math.abs(x2 - x1), Math.abs(y2 - y1)) * 0.18 || 8);
-    ctx.stroke();
+    paint();
   } else if (tool === 'circle') {
     const rx = (x2 - x1) / 2, ry = (y2 - y1) / 2;
     ctx.beginPath();
     ctx.ellipse(x1 + rx, y1 + ry, Math.abs(rx), Math.abs(ry), 0, 0, 2 * Math.PI);
-    ctx.stroke();
+    paint();
   } else if (tool === 'arrow') {
     pdfedDrawArrowStandalone(ctx, x1, y1, x2, y2, size);
   } else if (tool === 'dblarrow') {
@@ -1129,7 +1158,7 @@ function pdfedDrawShapeOnCtx(ctx, tool, color, size, x1, y1, x2, y2) {
     ctx.stroke();
   } else if (tool === 'triangle' || tool === 'diamond' || tool === 'pentagon' || tool === 'star' || tool === 'hexagon') {
     pdfedTracePolygonStandalone(ctx, tool, x1, y1, x2, y2);
-    ctx.stroke();
+    paint();
   }
 }
 
@@ -1222,7 +1251,7 @@ function pdfedRedrawShapeCanvas(canvasEl, item) {
   const y1 = isDirectional && item.flipY ? h : 0;
   const x2 = isDirectional && item.flipX ? 0 : w;
   const y2 = isDirectional && item.flipY ? 0 : h;
-  pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, x1, y1, x2, y2);
+  pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, x1, y1, x2, y2, item.fill);
 }
 
 // Re-renders all placed shapes for the given page as DOM overlay elements,
@@ -1642,6 +1671,7 @@ function pdfedCommitPlacedShape(idx, tool) {
     opacity: pdfedAnnotState.opacity,
     flipX: x2 < x1,
     flipY: y2 < y1,
+    fill: (typeof pdfedGfxFillSnapshot === 'function') ? pdfedGfxFillSnapshot() : null,
     x: Math.min(x1, x2), y: Math.min(y1, y2), w: w, h: h,
     locked: false,
     zIndex: pdfedNextZ(pg)

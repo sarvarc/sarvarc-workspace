@@ -2909,7 +2909,7 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages, itemF
       const sy2 = isDirectional && item.flipY ? 0 : item.h;
       ctx.save();
       ctx.translate(item.x, item.y);
-      pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, sx1, sy1, sx2, sy2);
+      pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, sx1, sy1, sx2, sy2, item.fill);
       ctx.restore();
     } else if (kind === 'image') {
       try {
