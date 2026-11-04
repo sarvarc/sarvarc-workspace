@@ -1602,7 +1602,13 @@ function daTryDelimiterTable(text, lines, delim) {
   if (lines.length <= 1) return null;
   const counts = lines.map(l => daCsvFieldCount(l, delim));
   const consistentLines = counts.filter(c => c === counts[0] && c > 0).length;
-  if (counts[0] > 0 && consistentLines / lines.length > 0.7 && daCellsLookTabular(lines, delim)) {
+  // A real export (Crunchbase, CRM, Shopify...) has long description cells, so the
+  // "short cells" test below wrongly calls it prose. When nearly EVERY line has the
+  // same column count (3+ columns) and the first row is a short header row, it is
+  // a table, whatever the cells hold.
+  const strongTable = counts[0] >= 2 && consistentLines / lines.length >= 0.9 &&
+    daCellsLookTabular([lines[0]], delim);
+  if (counts[0] > 0 && consistentLines / lines.length > 0.7 && (strongTable || daCellsLookTabular(lines, delim))) {
     const wb = XLSX.read(text, { type: 'string', FS: delim, raw: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
     return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false, raw: false });
