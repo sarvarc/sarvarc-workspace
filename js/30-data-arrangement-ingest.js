@@ -1,3 +1,4 @@
+window.SARVARC_DA_BUILD = 'csv-exact-2026-11-04';
 // ══════════════════════════  DATA ARRANGEMENT  ══════════════════════════
 // Upload CSV / TSV / TXT / XLSX / XLS / JSON files and have them auto-parsed
 // into clean, non-overlapping table grids with smart header detection.
@@ -1550,7 +1551,7 @@ function daIngestTextContent(text, forcedDelim, filename) {
   const lines = text.split(/\r\n|\n/).filter(l => l.trim().length);
 
   const cleanTable = daTryDelimiterTable(text, lines, delim);
-  if (cleanTable) { daAddDataset(daBaseName(filename), cleanTable); return { tableFound: true }; }
+  if (cleanTable) { daAddDataset(daBaseName(filename), cleanTable, null, { structured: !!cleanTable.__structured }); return { tableFound: true }; }
 
   const kvTable = daTryKeyValueTable(lines);
   if (kvTable) { daAddDataset(daBaseName(filename), kvTable); return { tableFound: true }; }
@@ -1611,7 +1612,11 @@ function daTryDelimiterTable(text, lines, delim) {
   if (counts[0] > 0 && consistentLines / lines.length > 0.7 && (strongTable || daCellsLookTabular(lines, delim))) {
     const wb = XLSX.read(text, { type: 'string', FS: delim, raw: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false, raw: false });
+    const table = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false, raw: false });
+    // Every line has the same column count: the file's own columns are the truth.
+    // Flag it so nothing downstream guesses and moves a cell (see daNormalize).
+    table.__structured = consistentLines === lines.length;
+    return table;
   }
   return null;
 }
@@ -2396,7 +2401,7 @@ function daSmartTypeRealign(headers, rows) {
   });
 }
 
-function daNormalize(aoa) {
+function daNormalize(aoa, opts) {
   let rows = (aoa || []).filter(r => Array.isArray(r) && r.some(c => String(c ?? '').trim() !== ''));
   if (!rows.length) return { headers: ['Column 1'], rows: [], titleRow: null };
 
@@ -2519,15 +2524,19 @@ function daNormalize(aoa) {
   // Only worth correcting against real column names — generic "Column N"
   // headers (useHeaderRow === false) carry no type signal to check cells
   // against.
-  if (useHeaderRow) {
+  // A structured file (every line of the CSV/TSV has the same column count) already
+  // says which value belongs under which header. Never re-guess it: each header keeps
+  // exactly the values the file put under it. Messy sources (OCR, PDF text, pastes)
+  // still go through the realign below.
+  if (useHeaderRow && !(opts && opts.structured)) {
     dataRows = daSmartTypeRealign(headers, dataRows);
   }
 
   return { headers, rows: dataRows, titleRow };
 }
 
-function daAddDataset(name, aoa, titleOverride) {
-  const { headers, rows, titleRow } = daNormalize(aoa);
+function daAddDataset(name, aoa, titleOverride, opts) {
+  const { headers, rows, titleRow } = daNormalize(aoa, opts);
   const id = 'ds' + (++daIdCounter);
   // titleOverride wins when supplied (e.g. a heading detected from pasted
   // clipboard HTML) — otherwise fall back to whatever daNormalize found as
