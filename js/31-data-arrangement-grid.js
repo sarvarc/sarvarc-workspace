@@ -2428,7 +2428,7 @@ function daRenderTable() {
         ].filter(Boolean).join(' ');
         const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
         const dropdownColors = daGetEffectiveDropdownColors(ds, ri, ci);
-        const linkUrl = daGetCellLink(ds, ri, ci);
+        const linkUrl = daGetEffectiveLink(ds, ri, ci);
         const hl = daGetEffectiveHighlight(ds, ri, ci);
         const cwD = daColWidthDecl(ds, ci);
         const hlStyle = (hl || cwD) ? ` style="${hl ? 'background:' + daHlBg(hl.color) + ';' : ''}${cwD}"` : '';
@@ -2438,6 +2438,7 @@ function daRenderTable() {
              onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">
              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
            </span>` : '';
+        const faviconHtml = (linkUrl && !isFormula && !(dropdownOpts)) ? daFaviconHtml(linkUrl) : '';
         if (dropdownOpts && !isFormula) {
           let matched = false;
           let optsHtml = dropdownOpts.map(opt => {
@@ -2480,7 +2481,7 @@ function daRenderTable() {
                oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
                title="${hlTitle ? hlTitle + ' — ' : ''}Click to pick a value, right-click to edit the dropdown's choices">${optsHtml}</select>${linkBadge}</td>`;
         } else {
-          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}${cellSelCls}" contenteditable="true" spellcheck="false"${hlStyle}
+          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})">${faviconHtml}<div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${faviconHtml ? ' da-cell-has-icon' : ''}${linkUrl ? ' da-cell-has-link' : ''}${linkUrl && !isFormula ? ' da-cell-link-text' : ''}${cellSelCls}" contenteditable="true" spellcheck="false"${hlStyle}
                onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
                onfocus="daCellFocus(this, ${ri}, ${ci})"
                onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
@@ -3133,6 +3134,39 @@ function daGetCellLink(ds, ri, ci) {
   return ds.links[ri + '_' + ci] || null;
 }
 
+// A cell whose whole value is a web address (e.g. a CSV column of
+// https://... links) behaves as a link without anyone having to attach one by
+// hand. Detected at display time only: the stored value is never changed.
+// Only http(s):// and www. forms count, so ordinary text with dots never
+// turns into a link by accident.
+function daAutoLinkUrl(raw) {
+  const v = String(raw == null ? '' : raw).trim();
+  if (!v || v.charAt(0) === '=' || /\s/.test(v)) return null;
+  if (/^https?:\/\/[^\s\/$.?#][^\s]*$/i.test(v)) return v;
+  if (/^www\.[^\s.]+\.[^\s]+$/i.test(v)) return 'https://' + v;
+  return null;
+}
+
+// Small site/platform icon (LinkedIn, Instagram, YouTube, ...) for a link,
+// loaded by the browser from a public favicon service using only the host
+// name. Sits outside the editable cell text so editing is unaffected. If the
+// icon can't load, it removes itself and the cell text slides back left.
+function daFaviconHtml(url) {
+  let host = '';
+  try { const u = new URL(url); if (!/^https?:$/.test(u.protocol)) return ''; host = u.hostname; } catch (e) { return ''; }
+  if (!host) return '';
+  return `<img class="da-td-favicon" alt="" draggable="false" loading="lazy" referrerpolicy="no-referrer" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32" onerror="var n=this.nextElementSibling;if(n)n.classList.remove('da-cell-has-icon');this.remove()">`;
+}
+
+// A hand-attached link wins; otherwise a URL typed/imported into the cell.
+function daGetEffectiveLink(ds, ri, ci) {
+  if (!ds) return null;
+  const manual = daGetCellLink(ds, ri, ci);
+  if (manual) return manual;
+  const row = ds.rows[ri];
+  return row ? daAutoLinkUrl(row[ci]) : null;
+}
+
 // Accepts what a person actually types ("sarvarc.com", "www.x.com/page",
 // "mailto:a@b.com", "tel:+1234567890") and turns it into a URL a browser
 // will actually navigate to, defaulting bare domains to https://.
@@ -3243,6 +3277,10 @@ function daCellContextMenu(e, ri, ci) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       ${linkUrl ? 'Edit Link…' : 'Insert Link…'}
     </div>
+    ${(!linkUrl && daGetEffectiveLink(ds, ri, ci)) ? `<div class="da-ctx-item" onclick="daCloseCellCtxMenu();daOpenCellLink(${ri}, ${ci})">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Open Link
+    </div>` : ''}
     ${linkUrl ? `<div class="da-ctx-item" onclick="daCloseCellCtxMenu();daOpenCellLink(${ri}, ${ci})">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       Open Link
@@ -3580,7 +3618,7 @@ function daRemoveHighlightFromModal() {
 // context menu's "Open Link", and any future entry point.
 function daOpenCellLink(ri, ci) {
   const ds = daGetActive(); if (!ds) return;
-  const url = daGetCellLink(ds, ri, ci);
+  const url = daGetEffectiveLink(ds, ri, ci);
   if (!url) return;
   window.open(url, '_blank', 'noopener,noreferrer');
 }

@@ -4910,17 +4910,18 @@ async function pdfedAppendTableFitPages(chunks, headers, layout, titleText) {
 // cell there is a genuine, clickable Excel hyperlink — exactly like one you
 // added with Excel's own "Insert Link".
 function daApplyLinksToWorksheet(ws, ds, headerRowOffset = 1) {
-  if (!ds || !ds.links) return;
-  Object.keys(ds.links).forEach(key => {
-    const url = ds.links[key];
-    if (!url) return;
-    const [rStr, cStr] = key.split('_');
-    const r = Number(rStr), c = Number(cStr);
-    if (r < 0 || r >= ds.rows.length || c < 0 || c >= ds.headers.length) return;
-    const addr = XLSX.utils.encode_cell({ r: r + headerRowOffset, c });
-    if (!ws[addr]) ws[addr] = { t: 's', v: String(ds.rows[r][c] ?? url) };
-    ws[addr].l = { Target: url, Tooltip: url };
-  });
+  if (!ds) return;
+  // Every cell, so URLs sitting in the data (imported CSV columns) export as
+  // real hyperlinks too, not just links attached by hand.
+  for (let r = 0; r < ds.rows.length; r++) {
+    for (let c = 0; c < ds.headers.length; c++) {
+      const url = daGetEffectiveLink(ds, r, c);
+      if (!url) continue;
+      const addr = XLSX.utils.encode_cell({ r: r + headerRowOffset, c });
+      if (!ws[addr]) ws[addr] = { t: 's', v: String(ds.rows[r][c] ?? url) };
+      ws[addr].l = { Target: url, Tooltip: url };
+    }
+  }
 }
 
 // CSV has no concept of a hyperlink at all — every field is plain text. The
@@ -4930,10 +4931,9 @@ function daApplyLinksToWorksheet(ws, ds, headerRowOffset = 1) {
 // formula text. Cells without a link are left exactly as they were.
 function daRowsForCSVWithLinks(ds) {
   const rows = daComputedRowsForExport(ds);
-  if (!ds.links) return rows;
   const escFormulaStr = s => String(s ?? '').replace(/"/g, '""');
   return rows.map((row, ri) => row.map((cell, ci) => {
-    const url = ds.links[ri + '_' + ci];
+    const url = daGetEffectiveLink(ds, ri, ci);
     if (!url) return cell;
     const label = String(cell ?? '') || url;
     return `=HYPERLINK("${escFormulaStr(url)}","${escFormulaStr(label)}")`;
@@ -5139,7 +5139,7 @@ function daExportUpdatePreview(idx) {
       (ds.headers.length > 6 ? '<th>…</th>' : '') + '</tr></thead><tbody>';
     rows.forEach((r, ri) => {
       html += '<tr>' + cols.map((_, ci) => {
-        const hasLink = !!(ds.links && ds.links[ri + '_' + ci]);
+        const hasLink = !!daGetEffectiveLink(ds, ri, ci);
         return `<td>${hasLink ? '🔗 ' : ''}${daEscHtml(String(r[ci] ?? ''))}</td>`;
       }).join('') +
         (ds.headers.length > 6 ? '<td>…</td>' : '') + '</tr>';
