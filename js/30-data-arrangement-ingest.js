@@ -2278,6 +2278,52 @@ const DA_PROTECTED_HEADER_RE = /\b(mobile|phone|contact|tel|telephone|whatsapp|p
 
 function daSmartTypeRealign(headers, rows) {
   const headerTypes = headers.map(daGuessHeaderType);
+
+  // SAFETY 1 -- a header WORD can fool the type guess. "Founded Date Precision"
+  // is not a date (it holds year/day/month) and "Number of Employees" is not a
+  // plain number (it holds ranges like 51-100). Left as "date"/"number", every
+  // cell in those columns was blanked and pushed sideways, shifting the rest of
+  // the row under the wrong headers. If the cells under a typed header NEVER
+  // match that type, and no free-text cell in the same rows does either, the
+  // header was a false alarm: treat the column as plain text.
+  headerTypes.forEach((t, i) => {
+    if (t === 'text') return;
+    const finder = DA_TYPE_FINDERS[t];
+    let own = 0, inPlace = 0, elsewhere = 0;
+    rows.forEach(row => {
+      const cell = String(row[i] !== undefined && row[i] !== null ? row[i] : '').trim();
+      if (cell) { own++; if (finder(cell, true)) inPlace++; }
+      if (!cell || !finder(cell, true)) {
+        for (let j = 0; j < row.length; j++) {
+          if (j === i || headerTypes[j] === t) continue;
+          const other = String(row[j] !== undefined && row[j] !== null ? row[j] : '').trim();
+          if (other && finder(other, false)) { elsewhere++; break; }
+        }
+      }
+    });
+    if (own > 0 && inPlace === 0 && elsewhere === 0) headerTypes[i] = 'text';
+  });
+
+  // SAFETY 2 -- realigning exists to repair rows whose cells slid sideways
+  // (OCR, PDF text, messy pastes). A table whose typed columns already hold the
+  // right kind of value in (nearly) every filled cell is NOT messy, so no cell
+  // is moved. Values are still tidied into one consistent format in place.
+  const typedNow = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t !== 'text');
+  const looksAligned = typedNow.every(({ t, i }) => {
+    let own = 0, ok = 0;
+    rows.forEach(row => {
+      const cell = String(row[i] !== undefined && row[i] !== null ? row[i] : '').trim();
+      if (cell) { own++; if (DA_TYPE_FINDERS[t](cell, true)) ok++; }
+    });
+    return own === 0 || ok / own >= 0.9;
+  });
+  if (looksAligned) {
+    return rows.map(row => headers.map((h, i) => {
+      const v = String(row[i] !== undefined && row[i] !== null ? row[i] : '');
+      const t = headerTypes[i];
+      return (v.trim() && DA_TYPE_NORMALIZERS[t] && DA_TYPE_FINDERS[t](v.trim(), true)) ? DA_TYPE_NORMALIZERS[t](v, h) : v;
+    }));
+  }
   // Typed columns are walked in header order, so e.g. "ID" (usually column
   // 1) claims a plain-number cell before "Age" goes looking for one,
   // instead of the two competing unpredictably.
