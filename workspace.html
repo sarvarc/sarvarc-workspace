@@ -2052,20 +2052,17 @@
                    and styles every occurrence across the whole document. Smart matching means
                    there's no separate "whole word" toggle to think about: a single word is
                    matched as a whole word automatically, a phrase is matched as typed. -->
-              <div class="pdfed-panel-section te-faf-premium" id="teFafPanel">
-                <h5 class="te-faf-heading"><span class="te-faf-heading-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> Style Specific Text</h5>
-
-                <div class="te-faf-search-wrap">
-                  <svg class="te-faf-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" id="teFafInput" class="te-faf-input" placeholder="Type a word or sentence…" oninput="teFafOnInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();teFafApply();}">
+              <div class="faf2" id="teFafPanel">
+                <div class="faf2-bar">
+                  <span class="faf2-tile" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg></span>
+                  <textarea id="teFafInput" class="faf2-input" rows="1" placeholder="Style a word or sentence" autocomplete="off" spellcheck="false" aria-label="Text to style" oninput="teFafOnInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();teFafApply();}"></textarea>
+                  <span class="te-faf-status" id="teFafStatus"><span class="te-faf-status-dot"></span><span id="teFafStatusText">Searches the whole document</span></span>
+                  <button type="button" class="faf2-chev" id="teFafChev" aria-label="Show style options" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
                 </div>
-                <div class="te-faf-status" id="teFafStatus"><span class="te-faf-status-dot"></span><span id="teFafStatusText">Searches the whole document</span></div>
-
-                <div class="te-faf-style-card">
+                <div class="faf2-tray"><div><div class="faf2-in">
                   <div class="te-faf-row">
                     <button type="button" class="te-icon-btn" id="teFafBoldBtn" onclick="teFafToggleStyle('bold',this)" title="Bold"><b>B</b></button>
                     <button type="button" class="te-icon-btn" id="teFafItalicBtn" onclick="teFafToggleStyle('italic',this)" title="Italic"><i>I</i></button>
-                    <span class="te-toolbar-sep"></span>
                     <select id="teFafFontSelect" class="te-faf-select" title="Font" onchange="teFafState.font=this.value">
                       <option value="">Font (unchanged)</option>
                       <option value="'Inter', sans-serif">Inter</option>
@@ -2078,9 +2075,8 @@
                       <option value="'Courier New', monospace">Courier New</option>
                     </select>
                   </div>
-
                   <div class="te-faf-row">
-                    <div class="te-color-row" id="teFafColorRow" style="flex:1">
+                    <div class="te-color-row" id="teFafColorRow">
                       <div class="te-color-swatch" style="background:#000000" data-color="#000000" onmousedown="event.preventDefault()" onclick="teFafSelectColor(this)" title="Black"></div>
                       <div class="te-color-swatch" style="background:#dc2626" data-color="#dc2626" onmousedown="event.preventDefault()" onclick="teFafSelectColor(this)" title="Red"></div>
                       <div class="te-color-swatch" style="background:#1e3a8a" data-color="#1e3a8a" onmousedown="event.preventDefault()" onclick="teFafSelectColor(this)" title="Dark Blue"></div>
@@ -2089,13 +2085,13 @@
                       <span class="te-faf-custom-swatch" title="Custom colour"><input type="color" id="teFafColorPicker" value="#000000" oninput="teFafPickColor(this.value)"></span>
                       <button type="button" class="te-faf-clear-btn" id="teFafClearColorBtn" onclick="teFafClearColor()" title="Don't change colour"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9" opacity="0.5"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                     </div>
+                    <span class="faf2-aa" id="teFafAa" title="Live style preview">Aa</span>
                   </div>
-                </div>
-
-                <button type="button" class="pdfed-ctint-apply-btn te-faf-apply-btn" id="teFafApplyBtn" style="width:100%;margin-top:2px" onclick="teFafApply()">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  Apply across document
-                </button>
+                  <button type="button" class="pdfed-ctint-apply-btn te-faf-apply-btn" id="teFafApplyBtn" onclick="teFafApply()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span id="teFafApplyLabel">Apply across document</span>
+                  </button>
+                </div></div></div>
               </div>
 
               <div class="pdfed-panel-section">
@@ -6390,6 +6386,7 @@
 <link rel="stylesheet" href="css/40-make-forms-templates.css">
 <link rel="stylesheet" href="css/41-make-forms-rail.css">
 <link rel="stylesheet" href="css/42-slide-templates.css">
+<link rel="stylesheet" href="css/43-style-specific-text.css">
 
 
 <div id="pdfedPresenter" aria-hidden="true">
@@ -6416,6 +6413,7 @@
 <script src="js/71-workstyle-vision.js"></script>
 <script src="js/72-pdfed-smart-structure.js"></script>
 <script src="js/73-pdfed-graphics.js"></script>
+<script src="js/78-style-specific-text.js"></script>
 <script src="js/73-make-forms-guided.js"></script>
 <script src="js/74-make-forms-templates.js"></script>
 <script src="js/75-make-forms-rail.js"></script>
