@@ -138,6 +138,7 @@ function pdfedCanvasTintRefreshPreview() {
     const canvasFlyout = document.getElementById('pdfedCanvasPanelBody');
     live.style.display = canvasFlyout && canvasFlyout.classList.contains('open') ? 'block' : 'none';
   }
+  if (typeof pdfedStudioOnTintChange === 'function') pdfedStudioOnTintChange();
 }
 
 function pdfedCanvasSetMode(mode) {
@@ -230,44 +231,13 @@ function pdfedCanvasSetOpacity(val) {
   pdfedCanvasTintRefreshPreview();
 }
 
+// Canvas Color no longer pops a small flyout. It opens the wide in-panel
+// Studio (js/80-pdfed-studio.js, css/45-pdfed-studio.css).
 function pdfedToggleCanvasPanel() {
-  const body = document.getElementById('pdfedCanvasPanelBody');
-  const rightPanel = document.getElementById('pdfedRightPanel');
-  const chevron = document.getElementById('pdfedCanvasPanelChevron');
-  if (!body || !rightPanel) return;
-  const opening = !body.classList.contains('open');
-  body.classList.toggle('open', opening);
-  if (chevron) chevron.style.transform = opening ? 'rotate(180deg)' : 'rotate(0deg)';
-  if (opening) {
-    // Dock the flyout to the left of the right panel, top-aligned with it —
-    // "beside the panel" rather than expanding inline inside it.
-    const rect = rightPanel.getBoundingClientRect();
-    const panelW = body.offsetWidth || 250;
-    let left = rect.left - panelW - 10;
-    if (left < 8) left = 8; // fall back to the right edge if the window is too narrow
-    let top = rect.top;
-    const maxTop = window.innerHeight - 40;
-    if (top > maxTop) top = maxTop;
-    body.style.top = top + 'px';
-    body.style.left = left + 'px';
-    pdfedCanvasPresetsRender();
-  }
-  pdfedCanvasTintRefreshPreview();
+  pdfedStudioToggle('canvas');
 }
 // Backwards-compatible alias, in case anything else still calls the old name
 function pdfedOpenCanvasPanel() { pdfedToggleCanvasPanel(); }
-
-// Close the canvas flyout on outside click or right-panel collapse
-document.addEventListener('click', function(e) {
-  const body = document.getElementById('pdfedCanvasPanelBody');
-  const trigger = document.getElementById('pdfedCanvasPanelTrigger');
-  if (!body || !body.classList.contains('open')) return;
-  if (body.contains(e.target) || (trigger && trigger.contains(e.target))) return;
-  body.classList.remove('open');
-  const chevron = document.getElementById('pdfedCanvasPanelChevron');
-  if (chevron) chevron.style.transform = 'rotate(0deg)';
-  pdfedCanvasTintRefreshPreview();
-});
 
 // Bakes a solid/gradient/image fill `s` directly into ONE page object's
 // pixels, exactly like pdfedApplyFilter does for brightness/contrast/
