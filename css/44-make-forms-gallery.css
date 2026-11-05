@@ -11,10 +11,11 @@
 .gx-dock{position:absolute;z-index:3;top:var(--gxt);left:0;right:0;width:100%;max-width:1100px;margin:0 auto;transform-origin:100% 0;transition:transform 1.25s cubic-bezier(.22,.8,.2,1),opacity .7s ease;will-change:transform,opacity}
 .gd>.gx-dock{position:fixed}
 .gx-dock.gx-hidden{opacity:0;pointer-events:none;transform:translateY(40px) scale(.97)}
-.gx-dock.gx-docked{cursor:pointer;transform:translate(calc((100cqw - 100%) / 2 - 24px),calc(var(--gxy) - var(--gxt))) scale(.42)}
-.gx-dock.gx-docked:hover{transform:translate(calc((100cqw - 100%) / 2 - 24px),calc(var(--gxy) - var(--gxt))) scale(.44)}
+.gx-on{--gxc:50vh}.mf-gd.gx-on{--gxc:260px}
+.gx-dock.gx-docked{z-index:0;pointer-events:none;opacity:var(--gxo,.4);transform-origin:50% calc(var(--gxh) / 2);transform:translate(var(--gxx,0px),calc(var(--gxc) - var(--gxt) - var(--gxh) / 2)) scale(1.35);transition:transform 1.8s cubic-bezier(.22,.8,.2,1),opacity 1.5s ease}
 .gx-stage{position:relative;height:var(--gxh);perspective:1400px;perspective-origin:50% 45%;overflow:visible;touch-action:pan-y;user-select:none;transition:border-radius 1s ease,background .8s,box-shadow .8s}
-.gx-docked .gx-stage{overflow:hidden;border-radius:30px;background:rgba(255,255,255,.07);box-shadow:0 0 0 2px rgba(255,255,255,.32),0 36px 70px -26px rgba(0,0,0,.65)}
+.gx-docked .gx-stage::after{opacity:0}
+.gx-docked .gx-slide{transition-duration:2.2s}
 .gx-stage::after{content:"";position:absolute;left:12%;right:12%;bottom:22px;height:26px;background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.5),transparent 70%);filter:blur(6px);pointer-events:none}
 .gx-slide{position:absolute;left:50%;top:0;border-radius:16px;overflow:hidden;background:#0b1020;cursor:pointer;box-shadow:0 30px 60px -26px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.2);backface-visibility:hidden;will-change:transform,opacity;transition:transform 1.05s cubic-bezier(.22,.8,.2,1),opacity 1.05s cubic-bezier(.22,.8,.2,1),visibility 0s}
 .gx-slide.gx-off{visibility:hidden;will-change:auto;transition:transform 1.05s cubic-bezier(.22,.8,.2,1),opacity 1.05s cubic-bezier(.22,.8,.2,1),visibility 0s linear 1.05s}
@@ -41,9 +42,16 @@
 /* Standard forms: the same gallery as a strip above the questions */
 .gx-std{position:relative;width:100%;max-width:880px;border-radius:18px;overflow:hidden;margin:0 0 18px;padding:18px 0 12px;color:#fff;background:linear-gradient(135deg,var(--gx1,#0b1020),var(--gx2,#0073E6));--gxh:340px}
 .gx-std .gx-dock.gx-strip{position:relative;top:auto;left:auto;right:auto;z-index:1;max-width:none;transform:none;opacity:1;transition:none;will-change:auto}
-@container (max-width:860px){.gx-on.gx-docked .gd-stage,.gx-on.gx-docked .mf-gd-screen{padding-top:176px}}
-@container (min-width:861px){.gx-on.gx-docked .gd-stage,.gx-on.gx-docked .mf-gd-screen{padding-right:500px}}
-@container (max-width:560px){.gx-dock.gx-docked,.gx-dock.gx-docked:hover{transform:translate(-14px,calc(var(--gxy) - var(--gxt))) scale(.4)}.gx-stage{height:clamp(240px,34vh,290px)}.gx-dock{--gxt:clamp(130px,17vh,150px)}.gx-gal .gx-head p{display:none}.gd-stage.gx-gal{padding-top:48px}.gx-arrow{display:none}.gx-ctrl{margin-top:2px}}
+/* Background state: while people answer, the gallery stays visible behind the question. Vignette keeps text readable. */
+.gx-veil{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity 1.5s ease;background:radial-gradient(55% 50% at 50% 50%,rgba(7,11,24,.5),rgba(7,11,24,.94) 100%)}
+.gd>.gx-veil{position:fixed}
+.gx-on.gx-docked>.gx-veil{opacity:1}
+/* wide screens: question on the left, the work stays visible on the right so people know what the form is for */
+@container (min-width:861px){.gx-veil{background:linear-gradient(90deg,rgba(7,11,24,.95) 0%,rgba(7,11,24,.84) 34%,rgba(7,11,24,.14) 66%,rgba(7,11,24,.32) 100%),linear-gradient(0deg,rgba(7,11,24,.45),transparent 30%)}.gx-dock.gx-docked{--gxx:24cqw;--gxo:.78}.gx-dock.gx-docked .gx-cap{opacity:.9;transition-delay:.9s}.gx-on.gx-docked .gd-stage,.gx-on.gx-docked .mf-gd-screen{padding-right:min(44vw,620px)}}
+.gx-peek{position:fixed;z-index:4;right:20px;top:60px;padding:8px 14px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font:600 13px "Plus Jakarta Sans","Inter",sans-serif;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .9s;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.mf-gd>.gx-peek{position:absolute}
+.gx-on.gx-docked>.gx-peek{opacity:1;pointer-events:auto}.gx-peek:hover{background:rgba(255,255,255,.22)}
+@container (max-width:560px){.gx-dock.gx-docked{transform:translateY(calc(var(--gxc) - var(--gxt) - var(--gxh) / 2)) scale(1.9)}.gx-stage{height:clamp(240px,34vh,290px)}.gx-dock{--gxt:clamp(130px,17vh,150px)}.gx-gal .gx-head p{display:none}.gd-stage.gx-gal{padding-top:48px}.gx-arrow{display:none}.gx-ctrl{margin-top:2px}}
 
 @media (prefers-reduced-motion:reduce){.gx-dock,.gx-slide,.gx-amb i{transition-duration:.01s}}
 
