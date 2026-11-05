@@ -135,10 +135,10 @@ function pdfedStudioOpen(tab) {
   var layout = document.getElementById('pdfedLayout');
   var panel = document.getElementById('pdfedRightPanel');
   if (!layout || !panel) return;
-  // The studio needs the right panel showing; expanding it counts as a
-  // deliberate choice so the 3-second auto-collapse never fights it.
+  // The studio needs the right panel showing. If it was tucked away, opening
+  // it is a deliberate choice. If it was already open, leave the auto-collapse
+  // alone so the panel still tucks away like it always did.
   if (layout.classList.contains('right-collapsed')) pdfedToggleRightPanel();
-  else if (typeof pdfed !== 'undefined') pdfed.rightManuallyToggled = true;
   layout.classList.add('studio-open');
   panel.classList.add('studio-on');
   pdfedStudioState.open = true;
@@ -241,3 +241,19 @@ document.addEventListener('keydown', function (e) {
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pdfedStudioDecorate);
 else pdfedStudioDecorate();
+
+
+// Collapsing the right panel (edge arrow, auto-collapse, phone sidebar logic)
+// must also close the Studio, otherwise the wide 440px column stays stuck open.
+(function () {
+  if (typeof pdfedToggleRightPanel !== 'function' || pdfedToggleRightPanel._studioWrapped) return;
+  var orig = pdfedToggleRightPanel;
+  var wrapped = function () {
+    var layout = document.getElementById('pdfedLayout');
+    if (pdfedStudioState.open && layout && !layout.classList.contains('right-collapsed')) pdfedStudioClose();
+    return orig.apply(this, arguments);
+  };
+  wrapped._studioWrapped = true;
+  window.pdfedToggleRightPanel = wrapped;
+  pdfedToggleRightPanel = wrapped;
+})();
