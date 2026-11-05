@@ -5,7 +5,7 @@
  *
  * Data: f.gallery = { on, glow: 'off'|'sub'|'full', title, items: [{ id, cap, r }] } (small, lives with the
  * form). The image data itself lives in IndexedDB (like attachments) so localStorage never fills up.
- * Published as forms.gallery (see supabase/13-form-gallery.sql).
+ * Published as forms.gallery (see supabase/15-form-gallery.sql).
  * Public: window.mfGalleryNode(), window.mfGalPayload(f).  Wraps mfGdScreens / mfGdRender (js/73).
  */
 (function () {
@@ -19,10 +19,21 @@
   // glides into the corner while people answer. Each image keeps its own shape (framed over a blurred copy
   // of itself), so mixed sizes look premium. items = [{ src, cap, r }] (r = width / height).
   // The same engine lives in forms-page/index.html (respondent page) and js/79-make-forms-gallery.js (preview).
+  // Speed note: every image becomes a blob URL ONCE (shared, cheap to decode) and a tiny 40px colour thumb is
+  // drawn from it. The soft backdrops use that thumb, so the browser never runs a live blur() on a big photo.
+  function gxBlobUrl(src) {
+    try {
+      var c = src.indexOf(','), mime = (src.slice(5, c).split(';')[0]) || 'image/webp';
+      var bin = atob(src.slice(c + 1)), len = bin.length, u = new Uint8Array(len);
+      for (var i = 0; i < len; i++) u[i] = bin.charCodeAt(i);
+      return URL.createObjectURL(new Blob([u], { type: mime }));
+    } catch (e) { return src; }
+  }
   function gxMount(root, items, o) {
     o = o || {};
-    var n = items.length, cur = 0, hover = false, drag = null, timer = 0, ai = 0, ro = null;
+    var n = items.length, cur = 0, hover = false, drag = null, timer = 0, ai = 0, ro = null, mmRaf = 0, mmE = null;
     var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var urls = items.map(function (m) { return gxBlobUrl(m.src); }), thumbs = [];
     var amb = document.createElement('div'); amb.className = 'gx-amb'; amb.setAttribute('aria-hidden', 'true'); amb.innerHTML = '<i></i><i></i>';
     var dock = document.createElement('div'); dock.className = 'gx-dock ' + (o.strip ? 'gx-strip' : 'gx-hidden');
     dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', 'Image gallery');
@@ -32,11 +43,29 @@
     ['off', 'sub', 'full'].forEach(function (g) { root.classList.remove('gx-g-' + g); });
     root.classList.add('gx-g-' + (o.glow === 'off' || o.glow === 'full' ? o.glow : 'sub'));
     var stage = dock.querySelector('.gx-stage'), dots = dock.querySelector('.gx-dots'), cb = dock.querySelector('.gx-cap b'), ab = amb.children;
+    function paintAmb() {
+      var t = thumbs[cur]; if (!t) return;
+      ai = 1 - ai; ab[ai].style.backgroundImage = 'url("' + t + '")'; ab[ai].classList.add('on'); ab[1 - ai].classList.remove('on');
+    }
+    function thumb(i, im, bg) {
+      try {
+        var w = 40, h = Math.max(8, Math.round(w * (im.naturalHeight || 1) / (im.naturalWidth || 1)));
+        var c = document.createElement('canvas'); c.width = w; c.height = h;
+        var x = c.getContext('2d'); try { x.filter = 'saturate(1.35) brightness(.85)'; } catch (e) {}
+        x.drawImage(im, 0, 0, w, h);
+        thumbs[i] = c.toDataURL('image/jpeg', 0.7);
+      } catch (e) { thumbs[i] = urls[i]; }
+      bg.style.backgroundImage = 'url("' + thumbs[i] + '")';
+      if (i === cur) paintAmb();
+    }
     var slides = items.map(function (m, i) {
       var d = document.createElement('div'); d.className = 'gx-slide';
-      ['bg', 'fg'].forEach(function (k) {
-        var im = document.createElement('img'); im.className = k; im.alt = k === 'fg' ? (m.cap || '') : ''; im.src = m.src; im.draggable = false; d.appendChild(im);
-      });
+      var bg = document.createElement('div'); bg.className = 'bg';
+      var fg = document.createElement('img'); fg.className = 'fg'; fg.alt = m.cap || ''; fg.draggable = false; fg.decoding = 'async';
+      var sh = document.createElement('u'); sh.className = 'shade';
+      fg.onload = function () { thumb(i, fg, bg); };
+      fg.src = urls[i];
+      d.appendChild(bg); d.appendChild(fg); d.appendChild(sh); d._sh = sh;
       d.addEventListener('click', function () { go(i); }); stage.appendChild(d);
       var t = document.createElement('i'); t.addEventListener('click', function () { go(i); }); dots.appendChild(t);
       return d;
@@ -57,14 +86,14 @@
         s.style.marginLeft = -dim[i][0] / 2 + 'px'; s.style.top = (SH - dim[i][1]) / 2 - 8 + 'px';
         s.style.transform = 'translateX(' + x + 'px) translateZ(' + (-a * 170) + 'px) rotateY(' + (-d * 34) + 'deg) scale(' + (1 - a * 0.06) + ')';
         s.style.opacity = a > 2 ? 0 : 1 - a * 0.28;
-        s.style.filter = a ? 'blur(' + (a * 1.2) + 'px) saturate(' + (1 - a * 0.15) + ')' : 'none';
-        s.style.zIndex = 10 - a; s.classList.toggle('active', a === 0); s.style.pointerEvents = a > 2 ? 'none' : 'auto';
+        s._sh.style.opacity = a ? Math.min(0.4, a * 0.16) : 0; // depth by darkening (cheap), not by a live blur filter
+        s.classList.toggle('gx-off', a > 2); s.style.zIndex = 10 - a; s.classList.toggle('active', a === 0); s.style.pointerEvents = a > 2 ? 'none' : 'auto';
       });
     }
     function select() {
       layout();
       for (var i = 0; i < dots.children.length; i++) dots.children[i].classList.toggle('on', i === cur);
-      ai = 1 - ai; ab[ai].style.backgroundImage = 'url("' + items[cur].src + '")'; ab[ai].classList.add('on'); ab[1 - ai].classList.remove('on');
+      paintAmb();
       cb.style.opacity = 0; setTimeout(function () { cb.textContent = items[cur].cap || ''; cb.style.opacity = 1; }, 220);
     }
     function go(i) { cur = (i + n) % n; select(); restart(); }
@@ -73,6 +102,8 @@
       if (calm || n < 2) return;
       timer = setInterval(function () {
         if (!root.isConnected) { api.destroy(); return; }
+        var ae = document.activeElement; // never animate while someone is typing: keeps typing smooth
+        if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
         if (!hover && !document.hidden) go(cur + 1);
       }, 3800);
     }
@@ -82,9 +113,12 @@
     stage.addEventListener('mouseenter', function () { hover = true; });
     stage.addEventListener('mouseleave', function () { hover = false; stage.style.perspectiveOrigin = '50% 45%'; });
     stage.addEventListener('mousemove', function (e) {
-      if (calm) return;
-      var b = stage.getBoundingClientRect();
-      stage.style.perspectiveOrigin = (50 + ((e.clientX - b.left) / b.width - 0.5) * 24) + '% ' + (45 + ((e.clientY - b.top) / b.height - 0.5) * 16) + '%';
+      if (calm || dock.classList.contains('gx-docked')) return;
+      mmE = e; if (mmRaf) return;
+      mmRaf = requestAnimationFrame(function () { // at most one update per frame
+        mmRaf = 0; var b = stage.getBoundingClientRect(); if (!mmE || !b.width) return;
+        stage.style.perspectiveOrigin = (50 + ((mmE.clientX - b.left) / b.width - 0.5) * 24) + '% ' + (45 + ((mmE.clientY - b.top) / b.height - 0.5) * 16) + '%';
+      });
     });
     stage.addEventListener('pointerdown', function (e) { drag = e.clientX; });
     function up(e) {
@@ -105,6 +139,8 @@
       },
       destroy: function () {
         clearInterval(timer); document.removeEventListener('pointerup', up); if (ro) ro.disconnect();
+        if (mmRaf) cancelAnimationFrame(mmRaf);
+        urls.forEach(function (u) { if (u && u.indexOf('blob:') === 0) { try { URL.revokeObjectURL(u); } catch (e) {} } });
         if (amb.parentNode) amb.parentNode.removeChild(amb);
         if (dock.parentNode) dock.parentNode.removeChild(dock);
         root.classList.remove('gx-on', 'gx-docked', 'gx-g-off', 'gx-g-sub', 'gx-g-full');
