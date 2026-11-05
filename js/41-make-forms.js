@@ -2388,6 +2388,8 @@ async function mfPublishForm() {
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
       social_links: f.socialLinks || {},
+      // Owner's marketing images (3D gallery on the live form). See js/79-make-forms-gallery.js.
+      gallery: (typeof window.mfGalPayload === 'function') ? await window.mfGalPayload(f) : undefined,
       // Named folders of files (brochures, price lists, T&Cs, ...) the
       // respondent can open right on the live form — see the Attachments
       // block in the Design tab, beside Header Background Image.
@@ -2424,6 +2426,12 @@ async function mfPublishForm() {
     if (res.error && /form_template/i.test(res.error.message || '')) {
       delete payload.form_template;
       res = await mfWrite(payload);
+    }
+    // Same for supabase/13-form-gallery.sql (forms.gallery): publish still works, without the gallery.
+    if (res.error && /gallery/i.test(res.error.message || '')) {
+      delete payload.gallery;
+      res = await mfWrite(payload);
+      if (!res.error) toast('Published without the gallery. Run supabase/13-form-gallery.sql once to turn it on.', 'info');
     }
     if (res.error) throw res.error;
     row = res.data;

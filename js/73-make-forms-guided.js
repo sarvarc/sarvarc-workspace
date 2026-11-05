@@ -1,7 +1,7 @@
 // ─── MAKE FORMS: GUIDED STYLE ───
-// Guided = one question at a time (the style a respondent sees on the published
+// Flow = one question at a time (the style a respondent sees on the published
 // link). Standard = the familiar all-questions-on-one-page layout.
-// The Standard | Guided toggle lives in the Live Preview header. The choice is
+// The Standard | Flow toggle lives in the Live Preview header. The choice is
 // saved on the form as f.formStyle and published as the `form_style` column.
 // Print, PDF export and Push to Workspace always use Standard (A4 sheets).
 var mfGd = { i: 0, a: {}, done: false, fill: false, mode: null, dir: 'fwd', moving: false };
@@ -81,17 +81,18 @@ function mfGdRender() {
     body = `<div class="mf-gd-screen"><h1>${mfEsc(f.title || 'Untitled Form')}</h1><p>${mfEsc(f.desc || '')}</p><div><button class="mf-gd-btn" data-go="next">${n === 0 ? (mfGd.fill ? 'Finish' : 'Submit') : 'Start →'}</button> <span class="mf-gd-hint">press Enter</span></div></div>`;
   } else {
     const isSec = s.t === 'heading' || s.t === 'label';
-    const isQ = x => x.t !== 'intro' && x.t !== 'heading' && x.t !== 'label';
+    const isQ = x => x.t !== 'intro' && x.t !== 'heading' && x.t !== 'label' && x.t !== 'gallery';
     const qn = S.slice(0, i + 1).filter(isQ).length, qTotal = S.filter(isQ).length;
     const content = s.t === 'heading' ? `<h1>${mfEsc(s.label)}</h1>`
       : s.t === 'label' ? `<p style="font-size:18px">${mfEsc(s.label)}</p>`
+      : s.t === 'gallery' ? mfGalHeadHtml()
       : `<div class="mf-gd-num">${qn} / ${qTotal}</div><h2>${mfEsc(s.label)}${s.required ? ' *' : ''}</h2>${mfGdControl(s)}<div class="mf-gd-err" id="mfGdErr">Please answer this one to continue</div>`;
-    body = `<div class="mf-gd-screen" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back" aria-label="Previous question"><span class="mf-gd-arr" aria-hidden="true">←</span><span>Back</span></button><button class="mf-gd-btn" data-go="next" aria-label="Next question"><span>${i === n ? (mfGd.fill ? 'Finish' : 'Submit') : isSec ? 'Continue' : 'Next'}</span>${i === n ? '' : '<span class="mf-gd-arr" aria-hidden="true">→</span>'}</button><span class="mf-gd-hint">press Enter</span></div>`;
+    body = `<div class="mf-gd-screen${s.t === 'gallery' ? ' gx-gal' : ''}" id="mfGdScreen">${content}</div><div class="mf-gd-nav"><button class="mf-gd-btn ghost" data-go="back" aria-label="Previous question"><span class="mf-gd-arr" aria-hidden="true">←</span><span>Back</span></button><button class="mf-gd-btn" data-go="next" aria-label="Next question"><span>${i === n ? (mfGd.fill ? 'Finish' : 'Submit') : (isSec || s.t === 'gallery') ? 'Continue' : 'Next'}</span>${i === n ? '' : '<span class="mf-gd-arr" aria-hidden="true">→</span>'}</button><span class="mf-gd-hint">press Enter</span></div>`;
   }
   // The blob layer is created once and kept, so its animation keeps running when the question changes.
   let blobs = ov.querySelector(':scope > .gdx-blobs');
   if (!blobs) { ov.insertAdjacentHTML('afterbegin', '<div class="gdx-blobs" aria-hidden="true"><i></i><i></i><i></i></div>'); blobs = ov.firstElementChild; }
-  Array.from(ov.children).forEach(c => { if (c !== blobs) c.remove(); });
+  Array.from(ov.children).forEach(c => { if (c !== blobs && !c.classList.contains('gx-amb') && !c.classList.contains('gx-dock')) c.remove(); });
   ov.insertAdjacentHTML('beforeend', `${banner}<div class="mf-gd-bar"><i style="width:${pct}%"></i></div>${logo}${body}`);
   ov.querySelectorAll('canvas[data-sig]').forEach(c => {
     const saved = mfGd.a[c.dataset.sig];
@@ -202,7 +203,7 @@ function mfGdWire(ov) {
 }
 
 // ─── Fill & Responses tab ───
-// On the Fill tab a Guided form is also filled (and a saved response is also
+// On the Fill tab a Flow form is also filled (and a saved response is also
 // opened) one question at a time. The answers are mirrored into the form's draft
 // (mfDraftValues) on every change, so Save Response, Print and the PDF exports
 // keep working exactly as they do for Standard forms.
@@ -234,7 +235,7 @@ function mfGdLoadDraft(startAtFirstQuestion) {
 window.mfGdCollect = mfGdCollect;
 window.mfGdLoadDraft = mfGdLoadDraft;
 
-// Keeps the toggle, the preview header badge and the Guided overlay in step with the form.
+// Keeps the toggle, the preview header badge and the Flow overlay in step with the form.
 function mfGdSync() {
   const f = mfGetCurrentForm(); if (!f) return;
   const guided = f.formStyle === 'guided';
@@ -242,7 +243,7 @@ function mfGdSync() {
   if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')));
   const size = document.getElementById('mfDesignPreviewSize');
   if (size) size.style.display = guided ? 'none' : '';
-  if (typeof mfLookSync === 'function') mfLookSync(); // the Form look card (Standard | Guided tiles + current template)
+  if (typeof mfLookSync === 'function') mfLookSync(); // the Form look card (Standard | Flow tiles + current template)
   const mode = typeof window.mfGetMode === 'function' ? window.mfGetMode() : null;
   const dSlot = document.getElementById('mfDesignPreviewSlot');
   const fSlot = document.getElementById('mfFillPreviewSlot');

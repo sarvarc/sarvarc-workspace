@@ -22,6 +22,8 @@
       icon: svg('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>') },
     { id: 'brand', label: 'Brand', title: 'Brand', sub: 'Logo, header image and accent colour',
       icon: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>') },
+    { id: 'gallery', label: 'Gallery', title: 'Gallery', sub: 'Your images, shown while people fill the form',
+      icon: svg('<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 8v9a3 3 0 0 1-3 3"/><circle cx="8" cy="10" r="1.3"/><path d="M17 16l-3.5-3.5L4 19"/>') },
     { id: 'details', label: 'Details', title: 'Details', sub: 'Description and social links',
       icon: svg('<line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/>') },
     { id: 'files', label: 'Files', title: 'Attachments', sub: 'Files people can open on the live form',
@@ -61,6 +63,7 @@
     put('look', look);
     put('fields', addRow, list);
     put('brand', logoBlock, colorBlock);   // attachments are lifted out of the logo block below
+    put('gallery', window.mfGalleryNode ? window.mfGalleryNode() : null);
     put('details', desc, social);
     put('files', attach);
     put('expiry', expiry);
@@ -90,7 +93,7 @@
       b.type = 'button'; b.className = 'mfr-btn'; b.setAttribute('data-sec', s.id);
       b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', 'mfrSlot');
       b.title = s.title + ' — ' + s.sub;
-      b.innerHTML = s.icon + '<span>' + s.label + '</span>' + (s.id === 'fields' ? '<i class="mfr-badge" id="mfrCount"></i>' : '');
+      b.innerHTML = s.icon + '<span>' + s.label + '</span>' + (s.id === 'fields' ? '<i class="mfr-badge" id="mfrCount"></i>' : s.id === 'gallery' ? '<i class="mfr-badge mfr-new">NEW</i>' : '');
       b.addEventListener('click', function () { touched = true; if (cur === s.id) close(); else open(s.id); });
       rail.appendChild(b); btnEls[s.id] = b;
     });
