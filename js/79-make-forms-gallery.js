@@ -39,6 +39,9 @@
     dock.setAttribute('role', 'region'); dock.setAttribute('aria-label', 'Image gallery');
     dock.innerHTML = '<div class="gx-stage"></div><div class="gx-cap"><b></b></div><div class="gx-ctrl"><button type="button" class="gx-arrow" aria-label="Previous image">&#8249;</button><div class="gx-dots"></div><button type="button" class="gx-arrow" aria-label="Next image">&#8250;</button></div>';
     root.insertBefore(amb, root.firstChild); root.appendChild(dock);
+  var veil = document.createElement('div'); veil.className = 'gx-veil'; veil.setAttribute('aria-hidden', 'true'); root.appendChild(veil);
+  var peek = document.createElement('button'); peek.type = 'button'; peek.className = 'gx-peek'; peek.textContent = 'View our work'; root.appendChild(peek);
+  if (o.onOpen) peek.addEventListener('click', function () { o.onOpen(); });
     root.classList.add('gx-on');
     ['off', 'sub', 'full'].forEach(function (g) { root.classList.remove('gx-g-' + g); });
     root.classList.add('gx-g-' + (o.glow === 'off' || o.glow === 'full' ? o.glow : 'sub'));
@@ -143,6 +146,7 @@
         urls.forEach(function (u) { if (u && u.indexOf('blob:') === 0) { try { URL.revokeObjectURL(u); } catch (e) {} } });
         if (amb.parentNode) amb.parentNode.removeChild(amb);
         if (dock.parentNode) dock.parentNode.removeChild(dock);
+      if (veil.parentNode) veil.parentNode.removeChild(veil); if (peek.parentNode) peek.parentNode.removeChild(peek);
         root.classList.remove('gx-on', 'gx-docked', 'gx-g-off', 'gx-g-sub', 'gx-g-full');
       }
     };
