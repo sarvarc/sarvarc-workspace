@@ -1,0 +1,157 @@
+/* ─── PDF Editor: right-panel STUDIO (Canvas Color + Design) ───────────────
+   Instead of a small popover beside the panel, the right panel widens and
+   swaps to a roomy "studio" view. Everything happens inside the panel.
+   Logic: js/80-pdfed-studio.js. Desktop only; phones keep the bottom sheet. */
+
+@media (min-width: 769px) {
+  .pdfeditor-layout.studio-open { grid-template-columns: 200px 1fr 440px; }
+  .pdfeditor-layout.studio-open.left-collapsed { grid-template-columns: 0px 1fr 440px; }
+}
+
+/* Hide the normal panel while the studio is showing */
+.pdfed-right-panel.studio-on .pdfed-right-scroll,
+.pdfed-right-panel.studio-on .pdfed-right-tabbar { display: none; }
+
+.pdfed-studio {
+  display: none; position: absolute; inset: 0; flex-direction: column; min-width: 0;
+  background: var(--pdfed-panel-bg); z-index: 5; overflow: hidden;
+}
+.pdfed-right-panel.studio-on .pdfed-studio { display: flex; animation: pdsIn .32s cubic-bezier(.16,1,.3,1); }
+@keyframes pdsIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+
+/* Header */
+.pds-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex-shrink: 0;
+}
+.pds-back {
+  display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px 6px 7px; border-radius: 9px;
+  border: 1px solid var(--pdfed-section-border); background: var(--pdfed-btn-bg); color: var(--text2);
+  font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all .15s; font-family: 'Inter', sans-serif;
+}
+.pds-back:hover { background: var(--pdfed-btn-hover); color: var(--text); border-color: var(--pdfed-accent); }
+.pds-title { flex: 1; min-width: 0; }
+.pds-title b { display: block; font-size: 14px; font-weight: 800; letter-spacing: .2px; color: var(--text); }
+.pds-title span { display: block; font-size: 10.5px; color: var(--text3); margin-top: 1px; }
+.pds-x {
+  width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: var(--text3);
+  font-size: 18px; line-height: 1; cursor: pointer; transition: all .15s;
+}
+.pds-x:hover { background: var(--pdfed-btn-hover); color: var(--text); }
+
+/* Segmented tabs with a sliding indicator */
+.pds-tabs {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 0 16px 12px; padding: 3px;
+  border-radius: 12px; background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border); flex-shrink: 0;
+}
+.pds-ind {
+  position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 9px;
+  background: linear-gradient(135deg, var(--cyan), var(--purple)); box-shadow: 0 3px 14px rgba(0,194,255,.3);
+  transition: transform .3s cubic-bezier(.16,1,.3,1);
+}
+.pds-tabs[data-tab="design"] .pds-ind { transform: translateX(100%); }
+.pds-tab {
+  position: relative; z-index: 1; padding: 8px 6px; border: none; background: transparent; cursor: pointer;
+  color: var(--text2); font-size: 12px; font-weight: 700; letter-spacing: .2px; transition: color .2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px; font-family: 'Inter', sans-serif;
+}
+.pds-tab.active { color: #fff; }
+
+/* Scrolling body */
+.pds-body { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 16px 18px; scrollbar-width: thin; }
+.pds-pane { display: none; }
+.pds-pane.active { display: block; animation: pdsFade .25s ease; }
+@keyframes pdsFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Sticky footer with the apply actions */
+.pds-foot {
+  display: none; flex-shrink: 0; padding: 12px 16px 14px;
+  border-top: 1px solid var(--pdfed-section-border);
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.06) 100%), var(--pdfed-panel-bg);
+}
+.pdfed-studio[data-tab="canvas"] .pds-foot { display: block; }
+.pds-foot .pdfed-ctint-actions { margin: 0; }
+.pds-foot .pdfed-ctint-apply-btn { padding: 11px 10px; font-size: 13px; border-radius: 11px; }
+
+/* ── The canvas controls, re-homed from the old popover ── */
+.pdfed-studio #pdfedCanvasPanelBody {
+  display: none; position: static; width: auto; max-height: none; overflow: visible;
+  padding: 0; border: none; background: transparent; box-shadow: none; border-radius: 0;
+}
+.pdfed-studio #pdfedCanvasPanelBody.open { display: block; }
+
+.pdfed-studio .pdfed-ctint-modebar { padding: 4px; border-radius: 12px; margin-bottom: 14px; }
+.pdfed-studio .pdfed-ctint-mode-btn { padding: 9px 8px; font-size: 12.5px; border-radius: 9px; }
+
+/* Big live preview: a mini page, so you see what the canvas will feel like */
+.pdfed-studio .pdfed-ctint-preview {
+  position: relative; height: 150px; border-radius: 16px; margin-bottom: 16px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.28);
+  transition: background .25s;
+}
+.pdfed-studio .pdfed-ctint-preview::before {
+  content: ''; position: absolute; left: 30px; top: 24px; width: 46%; height: 10px; border-radius: 5px;
+  background: rgba(255,255,255,.55); box-shadow: 0 1px 4px rgba(0,0,0,.18);
+}
+.pdfed-studio .pdfed-ctint-preview::after {
+  content: ''; position: absolute; left: 30px; right: 30px; top: 50px; bottom: 22px; border-radius: 4px;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,.32) 0 5px, transparent 5px 15px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+          mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+.pdfed-studio .pdfed-ctint-label { font-size: 10px; margin-bottom: 10px; }
+.pdfed-studio .pdfed-ctint-section { margin-bottom: 18px; }
+.pdfed-studio .pdfed-ctint-swatch-row { gap: 10px; }
+.pdfed-studio .pdfed-ctint-swatch { width: 30px; height: 30px; }
+.pdfed-studio .pdfed-ctint-color-well { width: 30px; height: 30px; }
+.pdfed-studio .pdfed-ctint-stop { padding: 9px 12px; border-radius: 11px; }
+.pdfed-studio .pdfed-ctint-preset-btn { padding: 9px 4px; font-size: 13px; }
+.pdfed-studio .pdfed-ctint-image-thumb-wrap { height: 120px; }
+.pdfed-studio .pdfed-ctint-image-empty { padding: 30px 10px; }
+.pdfed-studio .pdfed-ctint-slider-row label, .pdfed-studio .pdfed-ctint-slider-row .val { font-size: 12px; }
+.pdfed-studio .pdfed-ctint-preset-grid { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
+
+/* ── Curated looks gallery ── */
+.pds-looks-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 10px; }
+.pds-looks-head .pdfed-ctint-label { margin: 0; }
+.pds-looks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 20px; }
+.pds-look {
+  position: relative; height: 56px; border-radius: 12px; border: none; cursor: pointer; padding: 0; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 2px 8px rgba(0,0,0,.22);
+  transition: transform .18s cubic-bezier(.22,.9,.32,1.1), box-shadow .18s;
+}
+.pds-look span {
+  position: absolute; left: 7px; bottom: 5px; font-size: 9.5px; font-weight: 700; letter-spacing: .2px;
+  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.55); font-family: 'Inter', sans-serif;
+}
+.pds-look.light span { color: #1f2937; text-shadow: none; }
+.pds-look:hover { transform: translateY(-2px) scale(1.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.15), 0 8px 18px rgba(0,0,0,.35); }
+.pds-look.active { box-shadow: 0 0 0 2px var(--pdfed-panel-bg), 0 0 0 4px var(--pdfed-accent); }
+
+/* ── Design tab: re-homed Design section, roomier ── */
+.pdfed-studio #pdfedDesignPanel { background: transparent; border: none; padding: 0; }
+.pdfed-studio #pdfedDesignPanel > h5 { display: none !important; }
+.pdfed-studio .pdfed-design-grid { grid-template-columns: repeat(4, 1fr); gap: 16px 8px; }
+.pdfed-studio .pdfed-design-swatch { width: 52px; height: 52px; border-radius: 14px; }
+.pdfed-studio .pdfed-design-swatch svg { width: 22px; height: 22px; }
+.pdfed-studio .pdfed-design-label { font-size: 10px; letter-spacing: .2px; margin-top: 2px; }
+.pdfed-studio #pdfedDesignEmpty {
+  font-size: 12.5px !important; padding: 28px 18px !important; text-align: center; border-radius: 14px;
+  border: 1.5px dashed var(--pdfed-section-border); background: var(--pdfed-section-bg);
+}
+
+/* Small "open studio" chip on the normal Design section header */
+.pds-open-chip {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 7px;
+  border: 1px solid var(--pdfed-section-border); background: var(--pdfed-btn-bg); color: var(--text2);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .3px; text-transform: none; cursor: pointer; transition: all .15s;
+}
+.pds-open-chip:hover { color: var(--text); border-color: var(--pdfed-accent); background: var(--pdfed-btn-hover); }
+
+/* Entry row in the normal panel: show the live colour as a dot */
+#pdfedCanvasPanelTrigger .pds-dot {
+  width: 14px; height: 14px; border-radius: 50%; margin-left: 2px; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.25), 0 0 0 2px var(--pdfed-section-border);
+}
+
+#pdfedDesignPanel > h5 { display: flex; align-items: center; }
