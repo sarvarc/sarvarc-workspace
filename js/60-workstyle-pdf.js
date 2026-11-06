@@ -341,6 +341,11 @@ async function wstylePdfShapes(page, H, W) {
 // recognised word into the same "run" a real PDF gives (text, left, baseline, width, size). From there the page
 // goes through the normal path: lines, tables, blocks, colors. Sizes come from line height, so they are close,
 // not exact. Bold is guessed from size (a line much bigger than the body text).
+// How much the page is enlarged AGAIN before OCR, on top of the ~1800 px render below. 1 = no extra enlarging (fast).
+// The old behaviour was about 1.7x more (3000 px), which is roughly 3x the pixels for the OCR to chew through.
+// Raise it (for example to 1.5) only if tiny print is being missed. Kadessa's own look still reads every line.
+const WSTYLE_OCR_SCALE = 1;
+
 async function wstyleOcrRuns(pdfPage, vp, W, H) {
   if (typeof pdfedGetOcrWorker !== 'function' || typeof pdfedPreprocessForOcr !== 'function') {
     throw new Error('the OCR reader is not loaded, refresh and try again');
@@ -354,7 +359,7 @@ async function wstyleOcrRuns(pdfPage, vp, W, H) {
 
   try { if (typeof pdfedShowOcrProgress === 'function') pdfedShowOcrProgress('Reading the reference (OCR)…'); } catch (e) {}
   try {
-    const pre = pdfedPreprocessForOcr(big);
+    const pre = pdfedPreprocessForOcr(big, WSTYLE_OCR_SCALE);
     const worker = await pdfedGetOcrWorker();
     const res = await worker.recognize(pre.canvas);
     const data = (res && res.data) || {};
@@ -552,12 +557,23 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
   if (!runs.length) {
     if (!cvs) throw new Error('page ' + pageNo + ' has no real text and could not be drawn to read it');
     let ocrRuns = [], ocrError = null;
-    try { ocrRuns = await wstyleOcrRuns(pdfPage, vp, W, H); } catch (e) { ocrError = e; }
-    viaOcr = true;
+    const tFlat0 = Date.now();
+    // Kadessa's look at the page starts NOW, at the same time as OCR, instead of waiting for OCR to finish.
+    // She does not need OCR's words to read the page (they were only optional hints), so the two run side by side
+    // and the wait is the slower of the two, not the sum of both. The merge below still uses both answers.
+    let visionPromise = null;
     if (typeof wstyleVisionRead === 'function') {
+      visionPromise = wstyleVisionRead(pdfPage, W, H, []).then(function (v) { return { v: v }; }, function (e) { return { e: e }; });
+    }
+    try { ocrRuns = await wstyleOcrRuns(pdfPage, vp, W, H); } catch (e) { ocrError = e; }
+    const tOcrDone = Date.now() - tFlat0;
+    viaOcr = true;
+    if (visionPromise) {
       try {
         try { if (typeof pdfedShowOcrProgress === 'function') pdfedShowOcrProgress('Kadessa is looking at the reference…'); } catch (e) {}
-        vision = await wstyleVisionRead(pdfPage, W, H, ocrRuns);
+        const vr = await visionPromise;
+        if (vr.e) throw vr.e;
+        vision = vr.v;
         const merged = wstyleVisionMerge(ocrRuns, vision, W, H);
         ocrRuns = merged.runs;
         visionNote = 'Kadessa read ' + merged.stats.lines + ' lines (' + merged.stats.matched + ' matched to OCR, ' + merged.stats.added + ' placed from her view)';
@@ -574,6 +590,7 @@ async function wstylePdfMeasurePage(pdfPage, pageNo) {
         try { if (typeof pdfedHideOcrProgress === 'function') pdfedHideOcrProgress(); } catch (e3) {}
       }
     }
+    try { console.log('[workstyle timing] flat page: OCR finished at ' + tOcrDone + ' ms, OCR + Kadessa + font matching finished at ' + (Date.now() - tFlat0) + ' ms'); } catch (e) {}
     if (!ocrRuns.length && ocrError) throw ocrError;
     ocrRuns.forEach(function (r) { runs.push(r); });
     if (!runs.length) {
