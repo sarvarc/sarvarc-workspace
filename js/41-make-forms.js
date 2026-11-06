@@ -2267,7 +2267,7 @@ function mfGetResponses(f) {
 // Syncing pulls new rows from `form_responses` (written by that Worker)
 // into this form's local .responses array, tagged source:'online' so they
 // sit alongside hand-filled/local ones without duplicating on repeat sync.
-const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://sarvarc-forms.pages.dev';
+const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://forms.sarvarc.com';
 
 // The public link for a published form. A Flow form carries &style=guided in the
 // link itself, so respondents get the one-question-at-a-time layout even when the
@@ -2427,11 +2427,11 @@ async function mfPublishForm() {
       delete payload.form_template;
       res = await mfWrite(payload);
     }
-    // Same for supabase/13-form-gallery.sql (forms.gallery): publish still works, without the gallery.
+    // Same for supabase/15-form-gallery.sql (forms.gallery): publish still works, without the gallery.
     if (res.error && /gallery/i.test(res.error.message || '')) {
       delete payload.gallery;
       res = await mfWrite(payload);
-      if (!res.error) toast('Published without the gallery. Run supabase/13-form-gallery.sql once to turn it on.', 'info');
+      if (!res.error) toast('Published without the gallery. Run supabase/15-form-gallery.sql once to turn it on.', 'info');
     }
     if (res.error) throw res.error;
     row = res.data;
