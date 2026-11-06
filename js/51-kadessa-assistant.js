@@ -2302,6 +2302,24 @@
     return best || (KMF_SERIOUS.test(t) ? 'slate' : 'aurora');
   }
   // Applies a look to the OPEN form. Returns a short plain line saying what was chosen (Kadessa posts it).
+  // v70: tidy the choices Kadessa sends for an MCQ or dropdown. Trim, drop blanks and repeats, cap at 12 choices of 60 characters.
+  // Fewer than 2 usable choices returns null so the field keeps its default placeholders.
+  function kmfCleanOptions(list){
+    if (!Array.isArray(list)) return null;
+    const seen = {};
+    const out = [];
+    for (let i = 0; i < list.length && out.length < 12; i++){
+      let t = String(list[i] == null ? '' : list[i]).replace(/\s+/g, ' ').trim();
+      if (!t) continue;
+      if (t.length > 60) t = t.slice(0, 60).trim();
+      const k = t.toLowerCase();
+      if (seen[k]) continue;
+      seen[k] = true;
+      out.push(t);
+    }
+    return out.length >= 2 ? out : null;
+  }
+
   function kmfApplyLook(f, look){
     const p = look || {};
     if (!f) throw new Error('no form is open to style');
@@ -2833,6 +2851,11 @@
             const field = mfNewField(spec.type);
             if (spec.label) field.label = spec.label;
             if (spec.required) field.required = true;
+            // v70: real choices for multiple choice and dropdown questions (the placeholders from mfNewField stay only if none arrive).
+            if (spec.type === 'mcq' || spec.type === 'select'){
+              const op = kmfCleanOptions(spec.options);
+              if (op) field.options = op;
+            }
             if (spec.type === 'rating' && spec.stars) field.max = Math.min(10, Math.max(3, parseInt(spec.stars, 10) || 5));
             f.fields.push(field);
           });
@@ -2899,7 +2922,27 @@
       run: function(){ return mfPublishForm(); },
       label: function(){ return 'Publish this form and generate a shareable link.'; }
     },
-    mf_add_field:      { risk: 'safe',    run: function(p){ mfAddField(p.type); }, label: function(p){ return 'Add a ' + p.type + ' field to the form.'; } },
+    // v70: label, required and real choices are applied, so an added MCQ or dropdown does not open with Option 1, Option 2.
+    mf_add_field: {
+      risk: 'safe',
+      run: function(p){
+        const f = mfGetCurrentForm();
+        if (!f) throw new Error('no form is open');
+        const field = mfNewField(p.type);
+        if (p.label) field.label = String(p.label);
+        if (p.required) field.required = true;
+        if (p.type === 'mcq' || p.type === 'select'){
+          const op = kmfCleanOptions(p.options);
+          if (op) field.options = op;
+        }
+        f.fields.push(field);
+        mfTouch(f);
+        mfRenderFieldList();
+        mfRenderPreview();
+        if (typeof mfRevealNewField === 'function') mfRevealNewField(f);
+      },
+      label: function(p){ return 'Add a ' + (p.label ? '"' + p.label + '" ' : '') + p.type + ' field to the form.'; }
+    },
     mf_update_title:   { risk: 'safe',    run: function(p){ mfUpdateTitle(p.title); }, label: function(p){ return 'Rename the form to "' + p.title + '".'; } },
     mf_update_description: { risk: 'safe', run: function(p){ mfUpdateDesc(p.description); }, label: function(p){ return 'Update the form description.'; } },
     // Sets one social/contact link shown as an icon row on the published
