@@ -1025,6 +1025,7 @@ function mfRenderExpiryControls() {
   if (status) status.textContent = mfExpiryStatusText(f);
   const isExpired = mode === 'timed' && f.expiresAt && Date.now() >= f.expiresAt;
   if (renewBtn) renewBtn.style.display = isExpired ? 'inline-flex' : 'none';
+  if (typeof mfRenderLinkName === 'function') mfRenderLinkName();
 }
 
 // Keeps the "Expires in Xh" line honest without needing a page reload —
@@ -2278,6 +2279,47 @@ function mfShareLink(f) {
   return `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${slug}` + (f && f.formStyle === 'guided' ? '&style=guided' : '') + tpl + ((tpl && f.tplAdapt === false) ? '&ta=0' : (tpl && f.tplAdapt === true) ? '&ta=1' : '') + ((tpl && f.tplAnim === false) ? '&an=0' : '');
 }
 
+
+// ---- Custom link name -------------------------------------------------------
+// The owner can type their own words for the public link (forms.sarvarc.com/?f=smart-house-enquiry).
+// Left blank, the link keeps the random code. Run supabase/16-form-link-name.sql once so the
+// database refuses two forms with the same name.
+function mfLinkNameClean(v) {
+  return String(v || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-{2,}/g, '-').replace(/^-+/, '').slice(0, 40);
+}
+function mfLinkNameError(n) {
+  if (!n) return '';
+  if (n.length < 3) return 'Use at least 3 characters.';
+  if (/-$/.test(n)) return 'The name cannot end with a hyphen.';
+  return '';
+}
+function mfSetLinkName(v) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  f.linkName = mfLinkNameClean(v);
+  const inp = document.getElementById('mfLinkNameInput');
+  if (inp && inp.value !== f.linkName && document.activeElement !== inp) inp.value = f.linkName;
+  try { mfPersist(); } catch (e) {}
+  mfRenderLinkName();
+}
+function mfRenderLinkName() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const inp = document.getElementById('mfLinkNameInput');
+  if (!inp) return;
+  if (document.activeElement !== inp) inp.value = f.linkName || '';
+  const name = f.linkName || '';
+  const err = mfLinkNameError(name);
+  const prev = document.getElementById('mfLinkNamePreview');
+  const stat = document.getElementById('mfLinkNameStatus');
+  const slug = name && !err ? name : (f.shareSlug || 'a-random-code');
+  if (prev) prev.textContent = SARVARC_FORMS_PUBLIC_BASE_URL + '/?f=' + slug;
+  if (stat) {
+    stat.style.color = err ? 'var(--danger, #d33)' : 'var(--text3)';
+    stat.textContent = err || (f.publishedId && name && name !== f.shareSlug
+      ? 'Press Update Link to switch to this name. The old link will stop working.'
+      : (name ? 'We check that the name is free when you publish.' : 'Leave blank to get a random link.'));
+  }
+}
+
 function mfSlug() {
   return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
 }
@@ -2318,6 +2360,12 @@ async function mfPublishForm() {
       f.publishedAt = reg.publishedAt;
       if (reg.expiresAt !== undefined) f.expiresAt = reg.expiresAt;
     }
+  }
+  const mfWantSlug = mfLinkNameClean(f.linkName);
+  const mfNameErr = mfLinkNameError(mfWantSlug);
+  if (mfNameErr) { toast('Link name: ' + mfNameErr, 'error'); return; }
+  if (f.publishedId && mfWantSlug && mfWantSlug !== f.shareSlug) {
+    if (!confirm('Change the link to ".../?f=' + mfWantSlug + '"?\n\nThe old link will stop working, so anyone who has it will need the new one.')) return;
   }
   const btn = document.getElementById('mfPublishBtn');
   const label = document.getElementById('mfPublishBtnLabel');
@@ -2413,8 +2461,13 @@ async function mfPublishForm() {
     const mfWrite = (pl) => f.publishedId
       ? sarvarcSupabase.from('forms').update(pl).eq('id', f.publishedId).select('id, share_slug').single()
       : sarvarcSupabase.from('forms').insert(pl).select('id, share_slug').single();
-    if (!f.publishedId) payload.share_slug = mfSlug();
+    if (!f.publishedId) payload.share_slug = mfWantSlug || mfSlug();
+    else if (mfWantSlug && mfWantSlug !== f.shareSlug) payload.share_slug = mfWantSlug;
     let res = await mfWrite(payload);
+    // The database says "unique" when another form already uses this link name.
+    if (res.error && mfWantSlug && (res.error.code === '23505' || /duplicate|unique/i.test(res.error.message || ''))) {
+      throw new Error('The link name "' + mfWantSlug + '" is already taken. Please choose another one.');
+    }
     // A database that has not run supabase/11-form-style.sql yet has no form_style
     // column. Publishing still works, in Standard style.
     if (res.error && /form_style/i.test(res.error.message || '')) {
@@ -2449,6 +2502,7 @@ async function mfPublishForm() {
     // along so a session-proof reconnect also restores the correct countdown.
     mfRegisterPublish(f.id, { publishedId: f.publishedId, shareSlug: f.shareSlug, publishedAt: f.publishedAt, expiresAt: f.expiresAt || null });
     mfRenderExpiryControls();
+    mfRenderLinkName();
 
     const link = mfShareLink(f);
     completeExportOverlay(isUpdate ? 'Link updated!' : 'Form published!', { module: 'make-forms', format: 'publish' });
