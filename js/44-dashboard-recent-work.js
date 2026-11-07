@@ -16,6 +16,8 @@
 //   Files Exported .... one per download (a ZIP of 50 images is 1 file), saved
 //   Forms ............. live count of forms in Make Forms
 
+(function () {
+const DASH_VER = '9';
 const DASH_STATS_KEY = 'sarvarcDashStats_v2';
 const DASH_WS_LOG_KEY = 'sarvarcDashWorkspaceLog_v1';
 const DASH_BOOT_AT = Date.now();
@@ -133,6 +135,14 @@ function dashFormStats() {
 
 // ─── layout (keeps workspace.html untouched) ──────────────────────────────
 function dashEnsureLayout() {
+  document.querySelectorAll('.dashboard .dash-open-link, .dashboard .btn-secondary, .dashboard .btn-pill').forEach(el => {
+    if (el.getAttribute('data-arrow') || !/\u2192\s*$/.test(el.textContent)) return;
+    el.innerHTML = el.innerHTML.replace(/\s*\u2192\s*$/, '') + DASH_ARROW;
+    el.setAttribute('data-arrow', '1');
+  });
+  // The two feature cards (Smart Upload, Workspace) were removed from the dashboard.
+  const feat = document.querySelector('.dashboard .features-grid');
+  if (feat) feat.remove();
   const formsVal = document.getElementById('statForms') || document.getElementById('statPages');
   if (formsVal && formsVal.id !== 'statForms') {
     formsVal.id = 'statForms';
@@ -149,6 +159,7 @@ function dashEnsureLayout() {
   setSub('statImgs', 'Across all PDFs');
   setSub('statExports', 'One per file downloaded');
 
+  document.querySelectorAll('.dash-ws-panel:not(#dashWorkspacePanel)').forEach(el => el.remove());
   const cols = document.querySelector('.dash-recent-cols');
   if (cols && !document.getElementById('dashWorkspacePanel')) {
     const panel = document.createElement('div');
@@ -179,6 +190,44 @@ function dashPaintStats() {
     const t = fs.forms ? dashPlural(fs.responses, 'response') + ' collected' : 'Made in Make Forms';
     if (sub.getAttribute('data-dash') !== t) { sub.textContent = t; sub.setAttribute('data-dash', t); }
   }
+}
+
+// ─── Intro banner: folds away once there is real work on the dashboard ────
+// Fresh visit: open. Once you have a document, chart, table, form or any counter,
+// it collapses by itself to give the dashboard the room. The toggle always works,
+// and your own choice is remembered.
+const DASH_ARROW = '<svg class="dash-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>';
+const DASH_CHEVRON = '<svg class="dash-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const DASH_HERO_KEY = 'sarvarcDashHero_v1';
+function dashHasWork() {
+  try { if (state && state.stats && (state.stats.pdfs || state.stats.imgs || state.stats.exports)) return true; } catch (e) { /* not ready */ }
+  try { if (dashWsSnapshot()) return true; } catch (e) { /* not ready */ }
+  try { if (dashCollectCharts().length) return true; } catch (e) { /* not ready */ }
+  try { if (typeof daState !== 'undefined' && daState && Array.isArray(daState.datasets) && daState.datasets.length) return true; } catch (e) { /* not ready */ }
+  try { if (dashFormStats().forms > 0) return true; } catch (e) { /* not ready */ }
+  return false;
+}
+function dashApplyHero() {
+  const hero = document.querySelector('.dash-hero');
+  if (!hero) return;
+  let btn = hero.querySelector('.dash-hero-toggle');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dash-hero-toggle';
+    btn.addEventListener('click', () => {
+      const nowCollapsed = !hero.classList.contains('is-collapsed');
+      dashSaveJson(DASH_HERO_KEY, { pref: nowCollapsed ? 'closed' : 'open' });
+      dashApplyHero();
+    });
+    hero.appendChild(btn);
+  }
+  const saved = dashLoadJson(DASH_HERO_KEY, null);
+  const pref = saved && saved.pref;
+  const collapsed = pref === 'closed' ? true : pref === 'open' ? false : dashHasWork();
+  hero.classList.toggle('is-collapsed', collapsed);
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  btn.innerHTML = (collapsed ? 'Show intro' : 'Hide intro') + DASH_CHEVRON;
 }
 
 // ─── Workspace Editor: record pages and active development ────────────────
@@ -232,81 +281,64 @@ function dashRenderWorkspacePanel() {
   if (!panel) return;
   const snap = dashWsSnapshot();
   const entry = snap ? dashWsRecord() : null;
-  const others = dashWsLog.filter(x => !snap || x.name !== snap.name).slice(0, 3);
   const icon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>';
-  const count = dashWsLog.length;
   let body = '';
 
   if (snap) {
-    const pct = snap.pages ? Math.round((snap.modified / snap.pages) * 100) : 0;
-    const touched = snap.modified > 0;
-    const chip = touched
-      ? '<span class="dash-live-chip"><i></i>Active development</span>'
-      : '<span class="dash-live-chip is-idle"><i></i>Open, no edits yet</span>';
-    const shown = Math.min(snap.pages, 8);
+    const shown = Math.min(snap.pages, 7);
     let thumbs = '';
     for (let i = 0; i < shown; i++) {
       const pg = pdfed.pages[i];
       const cached = pg && dashWsThumbCache.get(pg);
-      const isMod = pg && (pg.modified || pg.type !== 'pdf');
-      thumbs += `
-        <div class="dash-ws-thumb${isMod ? ' is-mod' : ''}${i === snap.active ? ' is-active' : ''}" data-ws-thumb="${i}" onclick="dashOpenWorkspace(${i})" title="Open page ${i + 1}">
+            thumbs += `
+        <button type="button" class="dash-ws-thumb${i === snap.active ? ' is-active' : ''}" data-ws-thumb="${i}" onclick="dashOpenWorkspace(${i})" title="Open page ${i + 1}">
           ${cached ? `<img src="${cached.url}" alt="Page ${i + 1}">` : '<img alt="" style="visibility:hidden">'}
           <span class="n">${i + 1}</span>
-        </div>`;
+        </button>`;
     }
     if (snap.pages > shown) {
-      thumbs += `<div class="dash-ws-more" onclick="dashOpenWorkspace(${shown})">+${snap.pages - shown}<small>more pages</small></div>`;
+      thumbs += `<button type="button" class="dash-ws-more" onclick="dashOpenWorkspace(${shown})">+${snap.pages - shown}<small>more</small></button>`;
     }
+    const when = entry && entry.updatedAt ? 'Edited ' + dashAgo(entry.updatedAt) : 'Opened just now';
     body += `
-      <div class="dash-ws-active">
-        <div class="dash-ws-top">
+      <div class="dash-ws-body">
+        <div class="dash-ws-info">
           <div class="dash-ws-name" title="${dashEsc(snap.name)}">${dashEsc(snap.name)}</div>
-          ${chip}
+          <div class="dash-ws-when">${dashEsc(when)}</div>
+          <div class="dash-ws-stats">
+            <div><b>${snap.pages}</b><span>${snap.pages === 1 ? 'page' : 'pages'}</span></div>
+            <div><b>${snap.modified}</b><span>edited</span></div>
+            <div><b>${snap.added}</b><span>added</span></div>
+          </div>
+          <button type="button" class="btn-pill" onclick="dashOpenWorkspace()">Continue editing ${DASH_ARROW}</button>
         </div>
-        <div class="dash-ws-facts">
-          <span><b>${snap.pages}</b> page${snap.pages !== 1 ? 's' : ''}</span>
-          <span><b>${snap.modified}</b> modified</span>
-          <span><b>${snap.added}</b> added</span>
-          <span class="dash-ws-time">${entry && entry.updatedAt ? 'Last edit ' + dashAgo(entry.updatedAt) : ''}</span>
+        <div class="dash-ws-pages">
+          <div class="dash-ws-strip">${thumbs}</div>
         </div>
-        <div class="dash-ws-bar" title="${pct}% of pages edited"><span style="width:${pct}%"></span></div>
-        <div class="dash-ws-strip">${thumbs}</div>
       </div>`;
   } else {
     body += `
       <div class="dash-recent-empty">
         <strong>No document open in Workspace</strong>
-        Open a PDF, start a blank page or build one from a template. Pages and edits are recorded here as you work.
-        <div><button type="button" class="btn-pill" onclick="navigate('pdfeditor')">Open Workspace →</button></div>
+        Open a PDF, start a blank page or build one from a template. Pages and edits show up here as you work.
+        <div><button type="button" class="btn-pill" onclick="navigate('pdfeditor')">Open Workspace ${DASH_ARROW}</button></div>
       </div>`;
-  }
-
-  if (others.length) {
-    body += '<div class="dash-ws-recent-title">Recently worked on</div>' + others.map(x => `
-      <div class="dash-recent-card" onclick="dashOpenWorkspace()">
-        <div class="dash-recent-card-icon">${icon}</div>
-        <div class="dash-recent-card-body">
-          <div class="dash-recent-card-title">${dashEsc(x.name)}</div>
-          <div class="dash-recent-card-meta">${dashPlural(x.pages || 0, 'page')} \u00b7 ${x.modified || 0} modified \u00b7 ${dashAgo(x.updatedAt)}</div>
-        </div>
-        <span class="dash-recent-card-badge">Recent</span>
-      </div>`).join('');
   }
 
   panel.innerHTML = `
     <div class="dash-recent-panel-head">
-      <h3>${icon} Workspace Editor <span class="dash-recent-count" style="${count ? '' : 'display:none'}">${count}</span></h3>
-      <span class="dash-open-link" onclick="dashOpenWorkspace()">Open Workspace →</span>
+      <h3>${icon} Workspace Editor</h3>
+      <span class="dash-open-link" onclick="dashOpenWorkspace()">Open Workspace ${DASH_ARROW}</span>
     </div>
     ${body}`;
 
+  panel.setAttribute('data-dash-v', DASH_VER);
   if (snap) dashWsFillThumbs(++dashWsToken);
 }
 
 async function dashWsFillThumbs(token) {
   if (typeof pdfedComposeThumb !== 'function' || typeof pdfed === 'undefined') return;
-  const shown = Math.min(pdfed.pages.length, 8);
+  const shown = Math.min(pdfed.pages.length, 7);
   for (let i = 0; i < shown; i++) {
     if (token !== dashWsToken) return; // a newer render took over
     const pg = pdfed.pages[i];
@@ -357,249 +389,24 @@ function dashNumVal(v) {
   return isFinite(n) ? n : 0;
 }
 
-const DASH_X0 = 12, DASH_X1 = 148, DASH_Y0 = 10, DASH_Y1 = 80;
-
-function dashSvgGrid() {
-  let s = '';
-  [DASH_Y0, 33, 57, DASH_Y1].forEach(y => { s += `<line x1="${DASH_X0}" y1="${y}" x2="${DASH_X1}" y2="${y}" stroke="currentColor" stroke-opacity=".12" stroke-width="1"/>`; });
-  return s;
-}
-function dashRange(vals, includeZero) {
-  let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-  if (includeZero) { lo = Math.min(0, lo); hi = Math.max(0, hi); }
-  if (hi === lo) hi = lo + 1;
-  return { lo, hi, span: hi - lo };
-}
-
-function dashSvgBars(vals, cols) {
-  const n = Math.min(vals.length, 14);
-  if (!n) return '';
-  const v = vals.slice(0, n);
-  const r = dashRange(v, true);
-  const slot = (DASH_X1 - DASH_X0) / n, bw = Math.max(3, slot * 0.62);
-  const yv = a => DASH_Y1 - ((a - r.lo) / r.span) * (DASH_Y1 - DASH_Y0);
-  const zy = yv(0);
-  let s = dashSvgGrid();
-  v.forEach((a, i) => {
-    const y = yv(a);
-    s += `<rect x="${(DASH_X0 + slot * i + (slot - bw) / 2).toFixed(1)}" y="${Math.min(y, zy).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1.5, Math.abs(y - zy)).toFixed(1)}" rx="2" fill="${cols[i]}"/>`;
-  });
-  return s;
-}
-
-function dashSvgLine(vals, color, filled) {
-  let v = vals.slice(0, 40);
-  if (!v.length) return '';
-  if (v.length === 1) v = [v[0], v[0]];
-  const r = dashRange(v, filled);
-  const pts = v.map((a, i) => [
-    DASH_X0 + (DASH_X1 - DASH_X0) * i / (v.length - 1),
-    DASH_Y1 - ((a - r.lo) / r.span) * (DASH_Y1 - DASH_Y0 - 4) - 2
-  ]);
-  const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  let s = dashSvgGrid();
-  if (filled) s += `<polygon points="${DASH_X0},${DASH_Y1} ${line} ${DASH_X1},${DASH_Y1}" fill="${color}" fill-opacity=".25"/>`;
-  s += `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
-  if (v.length <= 14) pts.forEach(p => { s += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.2" fill="${color}"/>`; });
-  return s;
-}
-
-function dashSvgPie(vals, cols, donut) {
-  const v = vals.slice(0, 10).map(Math.abs);
-  const sum = v.reduce((a, b) => a + b, 0);
-  if (!sum) return '';
-  const cx = 80, cy = 45, r = 34;
-  let ang = -Math.PI / 2, s = '';
-  v.forEach((a, i) => {
-    const frac = a / sum;
-    if (frac <= 0) return;
-    const a2 = ang + frac * 2 * Math.PI;
-    if (frac >= 0.9999) {
-      s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${cols[i]}"/>`;
-    } else {
-      const x1 = cx + r * Math.cos(ang), y1 = cy + r * Math.sin(ang);
-      const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
-      s += `<path d="M${cx} ${cy} L${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${frac > 0.5 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z" fill="${cols[i]}" stroke="var(--bg3)" stroke-width="1"/>`;
-    }
-    ang = a2;
-  });
-  if (donut) s += `<circle cx="${cx}" cy="${cy}" r="${(r * 0.56).toFixed(1)}" class="dash-thumb-hole"/>`;
-  return s;
-}
-
-function dashSvgGrouped(cats, series, pal, mode) {
-  const nc = Math.min(cats.length, mode === 'group' ? 8 : 6);
-  const ns = Math.min(series.length, 4);
-  if (!nc || !ns) return '';
-  const vals = series.slice(0, ns).map(sr => (sr.values || []).slice(0, nc).map(dashNumVal));
-  const cols = series.slice(0, ns).map((sr, i) => dashColor(sr.color, i, pal));
-  let s = '';
-  if (mode === 'group') {
-    const all = [].concat.apply([], vals);
-    const r = dashRange(all, true);
-    const slot = (DASH_X1 - DASH_X0) / nc, bw = Math.max(2.5, slot * 0.8 / ns);
-    const yv = a => DASH_Y1 - ((a - r.lo) / r.span) * (DASH_Y1 - DASH_Y0);
-    const zy = yv(0);
-    s += dashSvgGrid();
-    for (let c = 0; c < nc; c++) {
-      for (let k = 0; k < ns; k++) {
-        const a = vals[k][c] || 0, y = yv(a);
-        s += `<rect x="${(DASH_X0 + slot * c + slot * 0.1 + bw * k).toFixed(1)}" y="${Math.min(y, zy).toFixed(1)}" width="${(bw - 0.6).toFixed(1)}" height="${Math.max(1.5, Math.abs(y - zy)).toFixed(1)}" rx="1.5" fill="${cols[k]}"/>`;
-      }
-    }
-    return s;
-  }
-  if (mode === 'stack') {
-    const sums = [];
-    for (let c = 0; c < nc; c++) sums.push(vals.reduce((a, row) => a + Math.abs(row[c] || 0), 0));
-    const max = Math.max.apply(null, sums) || 1;
-    const slot = (DASH_X1 - DASH_X0) / nc, bw = Math.max(3, slot * 0.62);
-    s += dashSvgGrid();
-    for (let c = 0; c < nc; c++) {
-      let y = DASH_Y1;
-      for (let k = 0; k < ns; k++) {
-        const h = Math.abs(vals[k][c] || 0) / max * (DASH_Y1 - DASH_Y0);
-        y -= h;
-        s += `<rect x="${(DASH_X0 + slot * c + (slot - bw) / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0.5, h).toFixed(1)}" fill="${cols[k]}"/>`;
-      }
-    }
-    return s;
-  }
-  // horizontal modes
-  const rowH = (DASH_Y1 - DASH_Y0) / nc, bh = Math.max(3, rowH * 0.62);
-  if (mode === 'tornado') {
-    const mid = (DASH_X0 + DASH_X1) / 2;
-    const max = Math.max.apply(null, [].concat.apply([], vals).map(Math.abs)) || 1;
-    s += `<line x1="${mid}" y1="${DASH_Y0}" x2="${mid}" y2="${DASH_Y1}" stroke="currentColor" stroke-opacity=".25"/>`;
-    for (let c = 0; c < nc; c++) {
-      const y = DASH_Y0 + rowH * c + (rowH - bh) / 2;
-      const left = Math.abs(vals[0][c] || 0) / max * (mid - DASH_X0);
-      s += `<rect x="${(mid - left).toFixed(1)}" y="${y.toFixed(1)}" width="${left.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${cols[0]}"/>`;
-      if (ns > 1) {
-        const right = Math.abs(vals[1][c] || 0) / max * (DASH_X1 - mid);
-        s += `<rect x="${mid}" y="${y.toFixed(1)}" width="${right.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${cols[1]}"/>`;
-      }
-    }
-    return s;
-  }
-  const sums = [];
-  for (let c = 0; c < nc; c++) sums.push(vals.reduce((a, row) => a + Math.abs(row[c] || 0), 0));
-  const max = Math.max.apply(null, sums) || 1;
-  for (let c = 0; c < nc; c++) {
-    let x = DASH_X0;
-    const y = DASH_Y0 + rowH * c + (rowH - bh) / 2;
-    for (let k = 0; k < ns; k++) {
-      const w = Math.abs(vals[k][c] || 0) / max * (DASH_X1 - DASH_X0);
-      s += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(0.5, w).toFixed(1)}" height="${bh.toFixed(1)}" fill="${cols[k]}"/>`;
-      x += w;
-    }
-  }
-  return s;
-}
-
-function dashSvgFunnel(vals, cols) {
-  const v = vals.slice(0, 6).map(Math.abs);
-  if (!v.length) return '';
-  const max = Math.max.apply(null, v) || 1;
-  const rowH = (DASH_Y1 - DASH_Y0) / v.length, bh = rowH * 0.8;
-  let s = '';
-  v.forEach((a, i) => {
-    const w = Math.max(6, a / max * 130);
-    s += `<rect x="${(80 - w / 2).toFixed(1)}" y="${(DASH_Y0 + rowH * i + (rowH - bh) / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${cols[i]}"/>`;
-  });
-  return s;
-}
-
-function dashSvgRadar(vals, color) {
-  const v = vals.slice(0, 8).map(Math.abs);
-  if (v.length < 3) return dashSvgBars(vals, vals.map(() => color));
-  const max = Math.max.apply(null, v) || 1, cx = 80, cy = 45, R = 34, n = v.length;
-  const pt = (i, k) => {
-    const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
-    return (cx + R * k * Math.cos(a)).toFixed(1) + ',' + (cy + R * k * Math.sin(a)).toFixed(1);
-  };
-  let ring = '', data = '';
-  for (let i = 0; i < n; i++) { ring += pt(i, 1) + ' '; data += pt(i, v[i] / max) + ' '; }
-  return `<polygon points="${ring}" fill="none" stroke="currentColor" stroke-opacity=".25"/>` +
-    `<polygon points="${pt(0, .5)} ${pt(1, .5)} ${[...Array(n).keys()].slice(2).map(i => pt(i, .5)).join(' ')}" fill="none" stroke="currentColor" stroke-opacity=".12"/>` +
-    `<polygon points="${data}" fill="${color}" fill-opacity=".3" stroke="${color}" stroke-width="2"/>`;
-}
-
-function dashSvgScatter(vals, cols) {
-  const v = vals.slice(0, 24);
-  if (!v.length) return '';
-  const r = dashRange(v, false);
-  let s = dashSvgGrid();
-  v.forEach((a, i) => {
-    const x = DASH_X0 + 4 + (DASH_X1 - DASH_X0 - 8) * (v.length === 1 ? .5 : i / (v.length - 1));
-    const y = DASH_Y1 - 4 - ((a - r.lo) / r.span) * (DASH_Y1 - DASH_Y0 - 8);
-    s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" fill="${cols[i % cols.length]}" fill-opacity=".85"/>`;
-  });
-  return s;
-}
-
-function dashSvgWaterfall(vals) {
-  const v = vals.slice(0, 12);
-  if (!v.length) return '';
-  let cum = 0;
-  const spans = v.map(a => { const from = cum; cum += a; return [from, cum]; });
-  const flat = [].concat.apply([0], spans);
-  const r = dashRange(flat, true);
-  const slot = (DASH_X1 - DASH_X0) / v.length, bw = Math.max(3, slot * 0.62);
-  const yv = a => DASH_Y1 - ((a - r.lo) / r.span) * (DASH_Y1 - DASH_Y0);
-  let s = dashSvgGrid();
-  spans.forEach((p, i) => {
-    const y1 = yv(p[0]), y2 = yv(p[1]);
-    s += `<rect x="${(DASH_X0 + slot * i + (slot - bw) / 2).toFixed(1)}" y="${Math.min(y1, y2).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1.5, Math.abs(y1 - y2)).toFixed(1)}" rx="1.5" fill="${v[i] >= 0 ? '#22C55E' : '#EF4444'}"/>`;
-  });
-  return s;
-}
-
-function dashSvgPareto(vals, cols) {
-  const v = vals.slice(0, 10).map(Math.abs).sort((a, b) => b - a);
-  const sum = v.reduce((a, b) => a + b, 0);
-  if (!sum) return '';
-  let s = dashSvgBars(v, v.map((_, i) => cols[i % cols.length]));
-  let acc = 0;
-  const slot = (DASH_X1 - DASH_X0) / v.length;
-  const pts = v.map((a, i) => {
-    acc += a;
-    return (DASH_X0 + slot * i + slot / 2).toFixed(1) + ',' + (DASH_Y1 - (acc / sum) * (DASH_Y1 - DASH_Y0)).toFixed(1);
-  }).join(' ');
-  return s + `<polyline points="${pts}" fill="none" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
-}
-
+// Real thumbnails: the image comes from the Diagrams & Graphs renderer itself
+// (window.sarvarcDashDrawChart in js/42), so the card matches the chart you built.
+const dashThumbCache = new Map();
 function dashChartThumb(c) {
-  const pal = dashPalette();
-  const rows = Array.isArray(c.rows) ? c.rows : [];
-  const vals = rows.map(r => dashNumVal(r && r.value));
-  const cols = rows.map((r, i) => dashColor(r && r.color, i, pal));
-  const cats = c.groupedCategories || [], series = c.groupedSeries || [];
-  const hasGroups = cats.length && series.length;
-  const first = cols[0] || pal[0];
-  let body = '';
-  try {
-    switch (c.type) {
-      case 'grouped': case '3d-grouped-bar': body = hasGroups ? dashSvgGrouped(cats, series, pal, 'group') : dashSvgBars(vals, cols); break;
-      case 'stacked': body = hasGroups ? dashSvgGrouped(cats, series, pal, 'stack') : dashSvgBars(vals, cols); break;
-      case 'hstacked': body = hasGroups ? dashSvgGrouped(cats, series, pal, 'hstack') : dashSvgBars(vals, cols); break;
-      case 'tornado': body = hasGroups ? dashSvgGrouped(cats, series, pal, 'tornado') : dashSvgBars(vals, cols); break;
-      case 'line': body = dashSvgLine(vals, first, false); break;
-      case 'area': body = dashSvgLine(vals, first, true); break;
-      case 'pie': body = dashSvgPie(vals, cols, false); break;
-      case 'donut': body = dashSvgPie(vals, cols, true); break;
-      case 'funnel': body = dashSvgFunnel(vals, cols); break;
-      case 'radar': body = dashSvgRadar(vals, first); break;
-      case '3d-scatter': body = dashSvgScatter(vals, cols); break;
-      case 'waterfall': body = dashSvgWaterfall(vals); break;
-      case 'pareto': body = dashSvgPareto(vals, cols); break;
-      default: body = dashSvgBars(vals, cols);
-    }
-  } catch (e) { body = ''; }
-  if (!body) {
-    body = '<g stroke="currentColor" stroke-opacity=".35" stroke-width="2" fill="none" stroke-linecap="round"><line x1="60" y1="70" x2="60" y2="48"/><line x1="80" y1="70" x2="80" y2="30"/><line x1="100" y1="70" x2="100" y2="40"/></g>';
+  const sig = JSON.stringify([c.type, c.title, c.rows, c.groupedCategories, c.groupedSeries]);
+  let url = dashThumbCache.get(sig);
+  if (!url && typeof window.sarvarcDashDrawChart === 'function') {
+    try {
+      const cv = document.createElement('canvas');
+      cv.width = 320; cv.height = 200;
+      window.sarvarcDashDrawChart(cv, c);
+      url = cv.toDataURL('image/png');
+      dashThumbCache.set(sig, url);
+      if (dashThumbCache.size > 40) dashThumbCache.delete(dashThumbCache.keys().next().value);
+    } catch (e) { console.warn('[Dashboard] chart thumbnail failed', e); }
   }
-  return `<svg viewBox="0 0 160 92" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${body}</svg>`;
+  if (url) return '<img src="' + url + '" alt="">';
+  return '<div class="dash-thumb-none">No preview</div>';
 }
 
 function dashIsGroupedType(t) { return t === 'grouped' || t === 'hstacked' || t === 'tornado'; }
@@ -651,6 +458,7 @@ function dashRenderChartsPanel() {
   const grid = document.getElementById('dashChartsGrid');
   const headCount = document.getElementById('dashChartsCount');
   if (!grid) return;
+  grid.setAttribute('data-dash-v', DASH_VER);
   const cards = dashCollectCharts();
   if (headCount) { headCount.textContent = String(cards.length); headCount.style.display = cards.length ? '' : 'none'; }
 
@@ -659,7 +467,7 @@ function dashRenderChartsPanel() {
       <div class="dash-recent-empty" style="grid-column:1/-1">
         <strong>No charts yet</strong>
         Upload a spreadsheet, build one from scratch, or push a table over from Data Arrangement.
-        <div><button type="button" class="btn-pill" onclick="navigate('diagrams')">Build a chart →</button></div>
+        <div><button type="button" class="btn-pill" onclick="navigate('diagrams')">Build a chart ${DASH_ARROW}</button></div>
       </div>`;
     return;
   }
@@ -668,13 +476,15 @@ function dashRenderChartsPanel() {
   grid.innerHTML = cards.slice(0, LIMIT).map(c => `
     <div class="dash-chart-card" onclick="dashOpenChart('${dashEsc(c.id)}')" title="${dashEsc(c.title)}">
       <div class="dash-chart-thumb">${dashChartThumb(c)}</div>
-      <span class="dash-recent-card-badge${c.current ? ' is-current' : ''}">${c.current ? 'Live' : dashEsc(dashChartTypeLabel(c.type))}</span>
       <div class="dash-chart-info">
-        <div class="dash-recent-card-title">${dashEsc(c.title)}</div>
+        <div class="dash-chart-row">
+          <div class="dash-recent-card-title">${dashEsc(c.title)}</div>
+          <span class="dash-recent-card-badge${c.current ? ' is-current' : ''}">${c.current ? 'Live' : dashEsc(dashChartTypeLabel(c.type))}</span>
+        </div>
         <div class="dash-recent-card-meta">${dashPlural(c.points, 'point')} \u00b7 ${dashEsc(c.meta)}</div>
       </div>
     </div>`).join('') +
-    (cards.length > LIMIT ? `<div class="dash-recent-more" style="grid-column:1/-1">Showing ${LIMIT} of ${cards.length}. <span class="dash-open-link" onclick="navigate('diagrams')">See all in Diagrams →</span></div>` : '');
+    (cards.length > LIMIT ? `<div class="dash-recent-more" style="grid-column:1/-1">Showing ${LIMIT} of ${cards.length}. <span class="dash-open-link" onclick="navigate('diagrams')">See all in Diagrams ${DASH_ARROW}</span></div>` : '');
 }
 
 // ─── Data Arrangement (unchanged behaviour) ───────────────────────────────
@@ -690,7 +500,7 @@ function dashRenderDataPanel() {
       <div class="dash-recent-empty">
         <strong>No data uploaded yet</strong>
         Import a CSV, Excel, PDF or scanned table in Data Arrangement to see it here.
-        <div><button type="button" class="btn-pill" onclick="navigate('dataarrange')">Upload data →</button></div>
+        <div><button type="button" class="btn-pill" onclick="navigate('dataarrange')">Upload data ${DASH_ARROW}</button></div>
       </div>`;
     return;
   }
@@ -714,6 +524,7 @@ function dashRenderDataPanel() {
 // ─── render + auto refresh ────────────────────────────────────────────────
 function dashRenderRecent() {
   try { dashEnsureLayout(); } catch (e) { console.warn('[Dashboard] layout', e); }
+  try { dashApplyHero(); } catch (e) { console.warn('[Dashboard] intro banner', e); }
   try { dashPaintStats(); } catch (e) { console.warn('[Dashboard] stats', e); }
   try { if (!dashIsVisible()) { dashWsRecord(); return; } } catch (e) { /* keep going */ }
   try { dashRenderWorkspacePanel(); } catch (e) { console.warn('[Dashboard] workspace panel', e); }
@@ -744,9 +555,14 @@ function dashSignature() {
   try { parts.push(daState.datasets.map(d => d.id + ':' + (d.rows || []).length + ':' + (d.name || '')).join(',')); } catch (e) { parts.push('d'); }
   return parts.join('~');
 }
+function dashStale() {
+  const p = document.getElementById('dashWorkspacePanel');
+  const g = document.getElementById('dashChartsGrid');
+  return !!((p && p.getAttribute('data-dash-v') !== DASH_VER) || (g && g.getAttribute('data-dash-v') !== DASH_VER));
+}
 function dashPoll() {
   if (!dashIsVisible()) return;
-  if (dashSignature() !== dashLastSig) dashRenderRecent();
+  if (dashStale() || dashSignature() !== dashLastSig) dashRenderRecent();
 }
 
 // ─── open actions ─────────────────────────────────────────────────────────
@@ -801,4 +617,15 @@ function dashWrap(name, after) {
   setInterval(dashPoll, 2000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) dashSchedule(); });
   window.addEventListener('storage', dashSchedule);
+})();
+
+// Names that other files and the onclick buttons need
+window.updateStats = updateStats;
+window.dashSchedule = dashSchedule;
+window.dashRenderRecent = dashRenderRecent;
+window.dashOpenWorkspace = dashOpenWorkspace;
+window.dashOpenChart = dashOpenChart;
+window.dashOpenDataset = dashOpenDataset;
+window.SARVARC_DASH_VERSION = DASH_VER;
+console.info('[Dashboard] update ' + DASH_VER + ' loaded');
 })();

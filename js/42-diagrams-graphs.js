@@ -10309,4 +10309,20 @@ async function dgSendAllToShowcase() {
 window.dgSendToShowcase = dgSendToShowcase;
 window.dgSendAllToShowcase = dgSendAllToShowcase;
 
+
+// Dashboard bridge: lets the dashboard draw the SAME chart image Diagrams & Graphs draws,
+// instead of guessing a picture. 3D charts have no flat renderer, so they use their 2D twin.
+// The dashboard reads the open chart and the saved charts. These live inside this file, so they
+// are handed over here (read only views, always current).
+Object.defineProperty(window, 'dgState', { get: function () { return dgState; }, configurable: true });
+Object.defineProperty(window, 'dgChartHistory', { get: function () { return dgChartHistory; }, configurable: true });
+window.dgHistoryTimeLabel = dgHistoryTimeLabel;
+window.sarvarcDashDrawChart = function (canvas, h) {
+  const flat = { '3d-bar': 'bar', '3d-histogram': 'bar', '3d-scatter': 'bar', '3d-boxplot': 'bar', '3d-grouped-bar': 'grouped' };
+  dgDrawChartSpec(canvas, {
+    title: h.title, type: flat[h.type] || h.type, rows: h.rows || [],
+    categories: h.groupedCategories || [], series: h.groupedSeries || []
+  });
+};
+
 })();
