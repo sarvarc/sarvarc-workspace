@@ -336,3 +336,68 @@
 .dash-open-link:hover .dash-arrow, .btn-secondary:hover .dash-arrow, .btn-pill:hover .dash-arrow { transform: translateX(3px); }
 .dash-hero.is-collapsed .dash-chev { transform: none; }
 .dash-hero:not(.is-collapsed) .dash-chev { transform: rotate(180deg); }
+
+/* ─── Workspace Editor: premium matte stage (v3, works in light and dark) ───
+   Pure styling on top of the rules above. Delete this block to go back. */
+.dash-ws-panel { padding: 20px; }
+.dash-ws-body { grid-template-columns: minmax(210px, 260px) minmax(0, 1fr); gap: 26px; }
+.dash-ws-info { gap: 4px; padding-left: 16px; border-left: 2px solid var(--blue); }
+.dash-ws-name::before {
+  content: 'Current document'; display: block; margin-bottom: 5px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text3);
+}
+.dash-ws-name { font-size: 19px; letter-spacing: -0.3px; }
+.dash-ws-stats { gap: 0; margin: 14px 0 18px; }
+.dash-ws-stats div { padding: 0 18px; }
+.dash-ws-stats div:first-child { padding-left: 0; }
+.dash-ws-stats div + div { border-left: 1px solid var(--border); }
+.dash-ws-stats b { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+
+/* the "desk" the pages sit on: flat, quiet, faint dot grid */
+.dash-ws-pages {
+  background-color: var(--surface2);
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 14px 14px;
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: inset 0 1px 8px rgba(15,23,42,0.10);
+  padding: 0 4px;
+}
+.dash-ws-strip {
+  gap: 14px; padding: 22px 18px 24px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 28px), transparent 100%);
+}
+.dash-ws-thumb {
+  flex: 0 0 104px; border: 0; border-radius: 4px; background: #fff; overflow: visible;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.28), 0 6px 14px rgba(15,23,42,0.16), 0 0 0 1px rgba(15,23,42,0.08);
+  opacity: 0.86;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, opacity .22s;
+}
+.dash-ws-thumb:hover { transform: translateY(-5px); opacity: 1; border-color: transparent;
+  box-shadow: 0 2px 4px rgba(15,23,42,0.28), 0 14px 26px rgba(15,23,42,0.24), 0 0 0 1px rgba(15,23,42,0.14); }
+.dash-ws-thumb.is-active { transform: translateY(-8px) scale(1.06); opacity: 1; border-color: transparent;
+  box-shadow: 0 0 0 2px var(--cyan), 0 16px 30px rgba(0,194,255,0.22), 0 10px 22px rgba(15,23,42,0.22); }
+.dash-ws-thumb img { border-radius: 4px; }
+.dash-ws-thumb .n {
+  left: 50%; bottom: -10px; transform: translateX(-50%);
+  min-width: 20px; text-align: center; font-size: 10px; letter-spacing: .2px;
+  background: var(--bg2); color: var(--text2); border: 1px solid var(--border2); padding: 1px 7px;
+}
+.dash-ws-thumb.is-active .n { background: var(--cyan); color: #04101C; border-color: var(--cyan); font-weight: 800; }
+
+/* "+N more" looks like a small stack of pages */
+.dash-ws-more {
+  flex: 0 0 104px; border: 0; border-radius: 4px; background: var(--bg2); color: var(--text);
+  box-shadow: 4px 4px 0 -1px var(--bg2), 4px 4px 0 0 var(--border2), 8px 8px 0 -2px var(--bg2), 8px 8px 0 -1px var(--border), 0 0 0 1px var(--border2);
+  transition: transform .2s;
+}
+.dash-ws-more:hover { transform: translateY(-4px); }
+
+@media (max-width: 700px) {
+  .dash-ws-info { padding-left: 12px; }
+  .dash-ws-thumb, .dash-ws-more { flex-basis: 88px; }
+}
+
+/* Smart Upload and Workspace cards are removed from the dashboard.
+   JS (file 44) also removes them; this rule hides them even if JS is late. */
+.dashboard .features-grid, .dashboard .feat-card { display: none !important; }
