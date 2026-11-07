@@ -1156,7 +1156,7 @@ function pdfedDrawShapeOnCtx(ctx, tool, color, size, x1, y1, x2, y2, fo) {
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
-  } else if (tool === 'dashline' || tool === 'dotline' || tool === 'divider' || tool === 'dividerorn') {
+  } else if ((typeof pdfedIsLineStyleTool === 'function' && pdfedIsLineStyleTool(tool))) {
     pdfedDrawLineStyleOnCtx(ctx, tool, size, x1, y1, x2, y2); // js/82
   } else if (tool === 'triangle' || tool === 'diamond' || tool === 'pentagon' || tool === 'star' || tool === 'hexagon') {
     pdfedTracePolygonStandalone(ctx, tool, x1, y1, x2, y2);
@@ -1357,6 +1357,8 @@ function pdfedRenderPlacedShapes(idx) {
       // Flex order = left-to-right visual order, matching the original
       // absolute-offset layout: opacity, forward, backward, arrange, delete,
       // then lock rightmost.
+      const fitBtn = (typeof pdfedLineFitBadge === 'function') ? pdfedLineFitBadge(idx, item) : null; // js/82
+      if (fitBtn) badgeRow.appendChild(fitBtn);
       badgeRow.appendChild(opBtn); badgeRow.appendChild(fwdBtn); badgeRow.appendChild(bwdBtn);
       badgeRow.appendChild(arrBtn); badgeRow.appendChild(delBtn); badgeRow.appendChild(lockBtn);
 
@@ -2725,7 +2727,7 @@ function pdfedAnnotInit() {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
-    } else if (tool === 'dashline' || tool === 'dotline' || tool === 'divider' || tool === 'dividerorn') {
+    } else if ((typeof pdfedIsLineStyleTool === 'function' && pdfedIsLineStyleTool(tool))) {
       pdfedDrawLineStyleOnCtx(ctx, tool, size, x1, y1, x2, y2); // js/82
     } else if (tool === 'triangle' || tool === 'diamond' || tool === 'pentagon' || tool === 'star' || tool === 'hexagon') {
       pdfedTracePolygon(ctx, tool, x1, y1, x2, y2);

@@ -2902,11 +2902,14 @@ async function pdfedDrawOrderedPlacedOnCtx(ctx, pg, skipTexts, skipImages, itemF
         color: item.color
       }, item.x, item.y);
     } else if (kind === 'shape') {
+      // Same endpoint rules as the on-screen canvas (js/82: flat lines, flipped lines, dashed/dotted),
+      // so thumbnails and exported PDFs match what the person sees. Fallback = old behaviour.
       const isDirectional = (item.tool === 'line' || item.tool === 'arrow' || item.tool === 'dblarrow');
-      const sx1 = isDirectional && item.flipX ? item.w : 0;
-      const sy1 = isDirectional && item.flipY ? item.h : 0;
-      const sx2 = isDirectional && item.flipX ? 0 : item.w;
-      const sy2 = isDirectional && item.flipY ? 0 : item.h;
+      const ep = (typeof pdfedShapeEndpoints === 'function') ? pdfedShapeEndpoints(item, item.w, item.h) : null;
+      const sx1 = ep ? ep.x1 : (isDirectional && item.flipX ? item.w : 0);
+      const sy1 = ep ? ep.y1 : (isDirectional && item.flipY ? item.h : 0);
+      const sx2 = ep ? ep.x2 : (isDirectional && item.flipX ? 0 : item.w);
+      const sy2 = ep ? ep.y2 : (isDirectional && item.flipY ? 0 : item.h);
       ctx.save();
       ctx.translate(item.x, item.y);
       pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, sx1, sy1, sx2, sy2, item.fill);
