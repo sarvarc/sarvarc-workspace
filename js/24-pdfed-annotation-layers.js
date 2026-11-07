@@ -1156,6 +1156,8 @@ function pdfedDrawShapeOnCtx(ctx, tool, color, size, x1, y1, x2, y2, fo) {
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
+  } else if (tool === 'dashline' || tool === 'dotline' || tool === 'divider' || tool === 'dividerorn') {
+    pdfedDrawLineStyleOnCtx(ctx, tool, size, x1, y1, x2, y2); // js/82
   } else if (tool === 'triangle' || tool === 'diamond' || tool === 'pentagon' || tool === 'star' || tool === 'hexagon') {
     pdfedTracePolygonStandalone(ctx, tool, x1, y1, x2, y2);
     paint();
@@ -1246,12 +1248,8 @@ function pdfedRedrawShapeCanvas(canvasEl, item) {
   if (canvasEl.height !== h) canvasEl.height = h;
   const ctx = canvasEl.getContext('2d');
   ctx.clearRect(0, 0, w, h);
-  const isDirectional = (item.tool === 'line' || item.tool === 'arrow' || item.tool === 'dblarrow');
-  const x1 = isDirectional && item.flipX ? w : 0;
-  const y1 = isDirectional && item.flipY ? h : 0;
-  const x2 = isDirectional && item.flipX ? 0 : w;
-  const y2 = isDirectional && item.flipY ? 0 : h;
-  pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, x1, y1, x2, y2, item.fill);
+  const ep = pdfedShapeEndpoints(item, w, h); // js/82 (flat lines, flipped lines)
+  pdfedDrawShapeOnCtx(ctx, item.tool, item.color, item.size, ep.x1, ep.y1, ep.x2, ep.y2, item.fill);
 }
 
 // Re-renders all placed shapes for the given page as DOM overlay elements,
@@ -1363,7 +1361,9 @@ function pdfedRenderPlacedShapes(idx) {
       badgeRow.appendChild(arrBtn); badgeRow.appendChild(delBtn); badgeRow.appendChild(lockBtn);
 
       const handles = {};
-      ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].forEach(dir => {
+      // Lines and dividers only get handles at their two ends (js/82), so the middle stays free to drag.
+      const handleDirs = (typeof pdfedLineHandleDirs === 'function' && pdfedLineHandleDirs(item)) || ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'];
+      handleDirs.forEach(dir => {
         const rh = pdfedMakeImgResizeHandle(dir);
         rotInner.appendChild(rh);
         handles[dir] = rh;
@@ -1662,20 +1662,28 @@ function pdfedCommitPlacedShape(idx, tool) {
   let w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
   if (w < MIN) w = MIN;
   if (h < MIN) h = MIN;
+  // Lines and dividers work out their own box (true flat lines, easy to grab): js/82. null for other shapes.
+  const pcv = document.getElementById('pdfedPageCanvas');
+  const lb = (typeof pdfedLinePlacement === 'function')
+    ? pdfedLinePlacement(tool, pdfedAnnotState.size, x1, y1, x2, y2, pcv && pcv.width ? pcv.width : 0) : null;
+  const box = lb || { x: Math.min(x1, x2), y: Math.min(y1, y2), w: w, h: h, flipX: x2 < x1, flipY: y2 < y1 };
   if (!pg.placedShapes) pg.placedShapes = [];
-  pg.placedShapes.push({
+  const placed = {
     id: 'pshp_' + (++pdfedPlacedShapeSeq),
     tool: tool,
     color: pdfedAnnotState.color,
     size: pdfedAnnotState.size,
     opacity: pdfedAnnotState.opacity,
-    flipX: x2 < x1,
-    flipY: y2 < y1,
+    flipX: box.flipX,
+    flipY: box.flipY,
     fill: (typeof pdfedGfxFillSnapshot === 'function') ? pdfedGfxFillSnapshot() : null,
-    x: Math.min(x1, x2), y: Math.min(y1, y2), w: w, h: h,
+    x: box.x, y: box.y, w: box.w, h: box.h,
     locked: false,
     zIndex: pdfedNextZ(pg)
-  });
+  };
+  if (box.flatX) placed.flatX = true;
+  if (box.flatY) placed.flatY = true;
+  pg.placedShapes.push(placed);
   pdfedMarkModified(idx);
   pdfedRenderPlacedShapes(idx);
   const label = (typeof pdfedShapeLabels !== 'undefined' && pdfedShapeLabels[tool]) ? pdfedShapeLabels[tool] : 'Shape';
@@ -2717,6 +2725,8 @@ function pdfedAnnotInit() {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
+    } else if (tool === 'dashline' || tool === 'dotline' || tool === 'divider' || tool === 'dividerorn') {
+      pdfedDrawLineStyleOnCtx(ctx, tool, size, x1, y1, x2, y2); // js/82
     } else if (tool === 'triangle' || tool === 'diamond' || tool === 'pentagon' || tool === 'star' || tool === 'hexagon') {
       pdfedTracePolygon(ctx, tool, x1, y1, x2, y2);
       ctx.stroke();
