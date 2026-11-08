@@ -3415,6 +3415,12 @@
         <h2 class="stg-title">Settings</h2>
         <p class="stg-sub">Appearance, your account, privacy and help, all in one place.</p>
 
+        <div class="stg-tabs" role="tablist">
+          <button type="button" class="stg-tab on" id="stgTabGeneral" role="tab" onclick="stgTab('general')">General</button>
+          <button type="button" class="stg-tab" id="stgTabBrand" role="tab" onclick="stgTab('brand')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6.5 7 .9-5.2 4.8 1.4 7L12 17.8 5.8 21.2l1.4-7L2 9.4l7-.9z"/></svg>Brand Kit</button>
+        </div>
+
+        <div id="stgPaneGeneral">
         <div class="stg-grid">
 
         <div class="stg-card stg-privacy stg-span2">
@@ -3464,10 +3470,68 @@
           </div>
         </div>
         </div>
+        </div>
+
+        <div id="stgPaneBrand" style="display:none">
+          <div class="stg-brand-grid">
+            <div class="stg-brand-form">
+              <div class="stg-card">
+                <div class="stg-label">Brand identity</div>
+                <div class="stg-logo-row">
+                  <div class="stg-logo-drop" id="stgBkDrop" onclick="document.getElementById('stgBkFile').click()" title="Click or drop your logo here">
+                    <img id="stgBkLogoImg" alt="Logo" style="display:none">
+                    <div id="stgBkLogoEmpty"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg><span>Drop logo</span></div>
+                  </div>
+                  <div class="stg-logo-side">
+                    <div class="stg-row-title">Business logo</div>
+                    <div class="stg-row-desc">PNG with a transparent background looks best.</div>
+                    <div class="stg-row-actions" style="margin-top:10px">
+                      <button type="button" class="stg-btn" onclick="document.getElementById('stgBkFile').click()">Upload logo</button>
+                      <button type="button" class="stg-btn" onclick="stgBkRemoveLogo()">Remove</button>
+                    </div>
+                  </div>
+                  <input type="file" id="stgBkFile" accept="image/*" style="display:none" onchange="stgBkLogo(this.files[0]); this.value=''">
+                </div>
+                <label class="stg-field"><span>Business name</span><input class="stg-input" id="stgBkName" type="text" placeholder="e.g. Smit Pharmacy" oninput="stgBkRender()"></label>
+                <label class="stg-field"><span>Slogan</span><input class="stg-input" id="stgBkSlogan" type="text" placeholder="e.g. Care you can trust" oninput="stgBkRender()"></label>
+              </div>
+              <div class="stg-card">
+                <div class="stg-label">Letterhead details</div>
+                <label class="stg-field"><span>Address</span><textarea class="stg-input" id="stgBkAddress" rows="2" placeholder="Street, city, PIN" oninput="stgBkRender()"></textarea></label>
+                <div class="stg-field-pair">
+                  <label class="stg-field"><span>Phone</span><input class="stg-input" id="stgBkPhone" type="text" placeholder="+91 ..." oninput="stgBkRender()"></label>
+                  <label class="stg-field"><span>Email</span><input class="stg-input" id="stgBkEmail" type="text" placeholder="hello@company.com" oninput="stgBkRender()"></label>
+                </div>
+                <div class="stg-field-pair">
+                  <label class="stg-field"><span>Website</span><input class="stg-input" id="stgBkWeb" type="text" placeholder="www.company.com" oninput="stgBkRender()"></label>
+                  <label class="stg-field"><span>GST / Tax ID</span><input class="stg-input" id="stgBkGst" type="text" placeholder="Optional" oninput="stgBkRender()"></label>
+                </div>
+              </div>
+              <div class="stg-brand-actions">
+                <button type="button" class="stg-btn stg-btn-primary" onclick="stgBkSave()">Save Brand Kit</button>
+                <button type="button" class="stg-btn" onclick="stgBkClear()">Clear</button>
+                <span class="stg-brand-status" id="stgBkStatus"></span>
+              </div>
+            </div>
+            <div class="stg-brand-preview">
+              <div class="stg-label" style="border:none;padding-bottom:12px">Letterhead preview</div>
+              <div class="stg-paper">
+                <div class="stg-paper-head">
+                  <img id="stgPvLogo" alt="" style="display:none">
+                  <div class="stg-paper-id"><div class="stg-paper-name" id="stgPvName">Your Business Name</div><div class="stg-paper-slogan" id="stgPvSlogan">Your slogan goes here</div></div>
+                </div>
+                <div class="stg-paper-rule"></div>
+                <div class="stg-paper-body"><i></i><i></i><i style="width:82%"></i><i></i><i style="width:64%"></i><i></i><i style="width:90%"></i></div>
+                <div class="stg-paper-foot" id="stgPvFoot"></div>
+              </div>
+              <p class="stg-brand-note">Saved in this browser. Templates and letterheads will pick this up next.</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="section" id="sec-savedsessions">
+<div class="section" id="sec-savedsessions">
       <div class="sm-page">
         <div class="sm-page-header">
           <div class="sm-page-header-icon" onclick="smToggleDesc()" title="Show/hide description" style="cursor:pointer">
