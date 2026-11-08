@@ -2449,15 +2449,19 @@ function daBuildRowHtml(ds, ri, colTypes, query) {
     ].filter(Boolean).join(' ');
     const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
     const dropdownColors = daGetEffectiveDropdownColors(ds, ri, ci);
-    const linkUrl = daGetCellLink(ds, ri, ci);
+    const linkUrl = daEffectiveCellLink(ds, ri, ci, val);
     const hl = daGetEffectiveHighlight(ds, ri, ci);
     const cwD = daColWidthDecl(ds, ci);
     const hlStyle = (hl || cwD) ? ` style="${hl ? 'background:' + daHlBg(hl.color) + ';' : ''}${cwD}"` : '';
     const hlTitle = hl && hl.tag ? daEsc(hl.tag) : '';
     const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' + daSelEdgeCls(ri, ci, ds.rows.length, ds.headers.length) : '';
-    const linkBadge = linkUrl ? `<span class="da-td-link-badge" title="Open link: ${daEsc(linkUrl)}"
+    const favUrl = linkUrl ? daLinkFaviconUrl(linkUrl) : '';
+    const linkBadge = linkUrl ? `<span class="da-td-link-badge${favUrl ? ' da-has-fav' : ''}" title="Open link: ${daEsc(linkUrl)}"
+         onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">${favUrl ? `<img class="da-link-fav" src="${daEsc(favUrl)}" alt="" width="12" height="12" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('da-has-fav');this.remove()">` : ''}
+         <svg class="da-link-chain" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+       </span><span class="da-td-link-open" title="Open link: ${daEsc(linkUrl)}"
          onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">
-         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
        </span>` : '';
     if (dropdownOpts && !isFormula) {
       let matched = false;
@@ -3346,6 +3350,35 @@ function daNormalizeLinkUrl(raw) {
   return 'https://' + val.replace(/^\/+/, '');
 }
 
+// A cell whose text IS a web address, e-mail or phone link behaves as a link
+// even when nobody attached one by hand (pasted / imported URLs). Manual links
+// (ds.links) always win. Returns '' for ordinary text.
+function daAutoLinkFromText(val) {
+  const t = String(val == null ? '' : val).trim();
+  if (!t || t.length > 2048 || /\s/.test(t)) return '';
+  if (/^(https?:\/\/|mailto:|tel:)\S+$/i.test(t)) return t;
+  if (/^www\.[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(t)) return 'https://' + t;
+  if (/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(t)) return 'mailto:' + t;
+  if (/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.(com|org|net|io|in|co|dev|app|ai|edu|gov|info|biz|me|us|uk|ly|so|to|xyz|tech|site|online|store|page|link)(\/\S*)?$/i.test(t)) return 'https://' + t;
+  return '';
+}
+// Link that applies to a cell: manual first, then one found in its text.
+function daEffectiveCellLink(ds, ri, ci, val) {
+  const manual = daGetCellLink(ds, ri, ci);
+  if (manual) return manual;
+  const v = val !== undefined ? val : (ds.rows[ri] ? ds.rows[ri][ci] : '');
+  if (String(v == null ? '' : v).trim().startsWith('=')) return '';
+  return daAutoLinkFromText(v);
+}
+// Small site icon (favicon) for a web link; '' for mailto:/tel: or bad input.
+function daLinkFaviconUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return 'https://www.google.com/s2/favicons?sz=32&domain=' + encodeURIComponent(u.hostname);
+  } catch (e) { return ''; }
+}
+
 function daGetEffectiveDropdown(ds, ri, ci) {
   if (!ds) return null;
   daEnsureDropdownStore(ds);
@@ -3782,7 +3815,7 @@ function daRemoveHighlightFromModal() {
 // context menu's "Open Link", and any future entry point.
 function daOpenCellLink(ri, ci) {
   const ds = daGetActive(); if (!ds) return;
-  const url = daGetCellLink(ds, ri, ci);
+  const url = daEffectiveCellLink(ds, ri, ci);
   if (!url) return;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
