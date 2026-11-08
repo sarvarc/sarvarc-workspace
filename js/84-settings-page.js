@@ -37,7 +37,106 @@
     }
   }
 
-  window.stgOnEnter = function () { stgSyncTheme(); stgSyncAccount(); };
+
+  // ── Tabs ──
+  window.stgTab = function (name) {
+    var brand = name === 'brand';
+    var g = $('stgPaneGeneral'), b = $('stgPaneBrand');
+    if (g) g.style.display = brand ? 'none' : '';
+    if (b) b.style.display = brand ? '' : 'none';
+    var tg = $('stgTabGeneral'), tb = $('stgTabBrand');
+    if (tg) tg.classList.toggle('on', !brand);
+    if (tb) tb.classList.toggle('on', brand);
+    if (brand) stgBkFill();
+  };
+
+  // ── Brand Kit ── same storage key the Business Proposals kit already uses,
+  // so logo, company and tagline stay shared. Extra fields ride along.
+  var BK_KEY = 'sarvarc_brand_kit_v1';
+  var draftLogo = null;
+  var BK_FIELDS = { stgBkName: 'company', stgBkSlogan: 'tagline', stgBkAddress: 'address', stgBkPhone: 'phone', stgBkEmail: 'email', stgBkWeb: 'website', stgBkGst: 'gst' };
+
+  function bkRead() {
+    try { return JSON.parse(localStorage.getItem(BK_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function val(id) { var el = $(id); return el ? el.value.trim() : ''; }
+
+  window.stgBkFill = function () {
+    var kit = bkRead();
+    Object.keys(BK_FIELDS).forEach(function (id) { var el = $(id); if (el) el.value = kit[BK_FIELDS[id]] || ''; });
+    draftLogo = kit.logo || null;
+    stgBkRender();
+    var st = $('stgBkStatus');
+    if (st) st.textContent = (kit.logo || kit.company) ? 'Saved' : '';
+  };
+
+  window.stgBkRender = function () {
+    var img = $('stgBkLogoImg'), empty = $('stgBkLogoEmpty'), pv = $('stgPvLogo');
+    if (img) { img.style.display = draftLogo ? '' : 'none'; if (draftLogo) img.src = draftLogo; }
+    if (empty) empty.style.display = draftLogo ? 'none' : '';
+    if (pv) { pv.style.display = draftLogo ? '' : 'none'; if (draftLogo) pv.src = draftLogo; }
+    var n = $('stgPvName'), sl = $('stgPvSlogan'), f = $('stgPvFoot');
+    if (n) n.textContent = val('stgBkName') || 'Your Business Name';
+    if (sl) sl.textContent = val('stgBkSlogan') || 'Your slogan goes here';
+    if (f) {
+      var line2 = [val('stgBkPhone'), val('stgBkEmail'), val('stgBkWeb')].filter(Boolean).join('  |  ');
+      var gst = val('stgBkGst') ? 'GST: ' + val('stgBkGst') : '';
+      f.textContent = [val('stgBkAddress'), line2, gst].filter(Boolean).join('\n');
+    }
+  };
+
+  // Shrinks big logos so the saved kit stays small.
+  window.stgBkLogo = function (file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var im = new Image();
+      im.onload = function () {
+        var max = 600, w = im.naturalWidth, h = im.naturalHeight, k = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * k); c.height = Math.round(h * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        draftLogo = c.toDataURL('image/png');
+        stgBkRender();
+      };
+      im.onerror = function () { if (typeof toast === 'function') toast('Could not read that image', 'error'); };
+      im.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.stgBkRemoveLogo = function () { draftLogo = null; stgBkRender(); };
+
+  window.stgBkSave = function () {
+    var kit = bkRead();
+    Object.keys(BK_FIELDS).forEach(function (id) { kit[BK_FIELDS[id]] = val(id); });
+    kit.logo = draftLogo;
+    try { localStorage.setItem(BK_KEY, JSON.stringify(kit)); }
+    catch (e) { if (typeof toast === 'function') toast('Could not save, the logo may be too large', 'error'); return; }
+    if (typeof bkRefreshPanel === 'function') { try { bkRefreshPanel(); } catch (e) {} }
+    var st = $('stgBkStatus'); if (st) st.textContent = 'Saved';
+    if (typeof toast === 'function') toast('Brand Kit saved', 'success');
+  };
+
+  window.stgBkClear = function () {
+    try { localStorage.removeItem(BK_KEY); } catch (e) {}
+    if (typeof bkRefreshPanel === 'function') { try { bkRefreshPanel(); } catch (e) {} }
+    stgBkFill();
+    if (typeof toast === 'function') toast('Brand Kit cleared', 'info');
+  };
+
+  // Drag and drop a logo onto the square.
+  var drop = $('stgBkDrop');
+  if (drop) {
+    ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+    drop.addEventListener('drop', function (e) { var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) stgBkLogo(f); });
+  }
+
+  window.stgOnEnter = function () {
+    stgSyncTheme(); stgSyncAccount();
+    var b = $('stgPaneBrand'); if (b && b.style.display !== 'none') stgBkFill();
+  };
 
   // Keep the page right when theme or login changes from somewhere else
   // (top bar toggle, login popup).
