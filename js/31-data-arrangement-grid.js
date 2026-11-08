@@ -1142,7 +1142,7 @@ let daShiftAnchor = null;
 function daClearSelection() {
   daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
   daRowAnchor = null; daColAnchor = null; daShiftAnchor = null;
-  daRenderTable();
+  daRenderView();
 }
 
 function daHasSelection() {
@@ -1171,7 +1171,7 @@ function daSelectRow(ri, e) {
     daSelection = { rows: new Set([ri]), cols: new Set(), cellRanges: [] };
   }
   daRowAnchor = ri;
-  daRenderTable();
+  daRenderView();
 }
 
 // Same idea, for a column letter in the ruler row.
@@ -1187,7 +1187,7 @@ function daSelectCol(ci, e) {
     daSelection = { rows: new Set(), cols: new Set([ci]), cellRanges: [] };
   }
   daColAnchor = ci;
-  daRenderTable();
+  daRenderView();
 }
 
 // Starts a rectangular cell-range selection by dragging across cells.
@@ -1226,7 +1226,7 @@ function daCellRangeMouseDown(e, ri, ci) {
   // reflect the selection change and re-focus the freshly-rendered node by
   // id (since the rebuild detaches the node the browser just focused).
   setTimeout(() => {
-    daRenderTable();
+    daRenderView();
     const dsNow = daGetActive();
     if (dsNow) {
       const el = document.getElementById(`daCell_${dsNow.id}_${ri}_${ci}`);
@@ -1301,7 +1301,7 @@ function daCellRangeMouseEnter(ri, ci) {
   const nc1 = Math.min(daCellDrag.c1, ci), nc2 = Math.max(daCellDrag.c1, ci);
   if (active.r1 === nr1 && active.r2 === nr2 && active.c1 === nc1 && active.c2 === nc2) return;
   active.r1 = nr1; active.r2 = nr2; active.c1 = nc1; active.c2 = nc2;
-  daRenderTable();
+  daRenderView();
   // Same detached-node problem as above: this rebuild can knock real focus
   // off the anchor cell mid-drag. Put it back so releasing the mouse and
   // immediately typing or arrow-key-navigating still works.
@@ -1331,11 +1331,15 @@ function daCellMouseDown(e, ri, ci) {
 // node at the bottom-right corner of the relevant cell. Cheap enough to
 // call on every focus change since it only touches a handful of nodes,
 // not the whole table.
+// Arrow-key speed: remember the one handle / seed cells we added last time and remove just those,
+// instead of scanning the whole grid with querySelectorAll on every key press.
+let daFillHandleEl = null;
+let daFillSeedEls = [];
 function daFillPlaceHandle() {
+  if (daFillHandleEl) { daFillHandleEl.remove(); daFillHandleEl = null; }
+  if (daFillSeedEls.length) { daFillSeedEls.forEach(el => el.classList.remove('da-fill-seedcell')); daFillSeedEls = []; }
   const gridWrap = document.getElementById('daGridWrap');
   if (!gridWrap) return;
-  gridWrap.querySelectorAll('.da-fill-handle').forEach(el => el.remove());
-  gridWrap.querySelectorAll('.da-fill-seedcell').forEach(el => el.classList.remove('da-fill-seedcell'));
   const ds = daGetActive();
   if (!ds) return;
   let col, r1, r2;
@@ -1343,17 +1347,19 @@ function daFillPlaceHandle() {
   else if (daActiveCell) { col = daActiveCell.col; r1 = r2 = daActiveCell.row; }
   else return;
   if (r1 < 0 || r2 < 0 || r2 >= ds.rows.length) return;
+  const tdOf = r => { const c = document.getElementById(`daCell_${ds.id}_${r}_${col}`); return c && c.parentElement; };
   for (let r = r1; r <= r2; r++) {
-    const td = gridWrap.querySelector(`td[data-r="${r}"][data-c="${col}"]`);
-    if (td) td.classList.add('da-fill-seedcell');
+    const td = tdOf(r);
+    if (td) { td.classList.add('da-fill-seedcell'); daFillSeedEls.push(td); }
   }
-  const handleTd = gridWrap.querySelector(`td[data-r="${r2}"][data-c="${col}"]`);
+  const handleTd = tdOf(r2);
   if (!handleTd || handleTd.querySelector('select')) return; // dropdown cells aren't fillable
   const handle = document.createElement('div');
   handle.className = 'da-fill-handle';
   handle.title = 'Drag to select cells (hold Alt to fill a sequence)';
   handle.addEventListener('mousedown', (ev) => daFillHandleMouseDown(ev, col, r1, r2));
   handleTd.appendChild(handle);
+  daFillHandleEl = handle;
 }
 
 function daFillHandleMouseDown(e, col, r1, r2) {
@@ -1642,21 +1648,44 @@ function daPlaceCaretEnd(el) {
   sel.addRange(range);
 }
 
+// Arrow-key speed: when a key is held down, focus changes 30+ times a second. The
+// highlight work (formula bar, + handle, row/column letters, status bar) now runs ONCE
+// per screen frame for the cell you landed on, instead of once per key press.
+let daFocusRaf = 0;
+let daKeyNavFocus = false;    // set by the keyboard handler just before it moves focus
+let daCaretPending = false;   // keyboard move: caret placement waits for the frame
+function daCellFocusVisuals() {
+  daFocusRaf = 0;
+  if (!daActiveCell) return;
+  const ds = daGetActive(); if (!ds) return;
+  const { row, col } = daActiveCell;
+  daUpdateFormulaBar(row, col, String((ds.rows[row] || [])[col] ?? ''));
+  daFillPlaceHandle();
+  daMarkActiveHeaders();
+  daUpdateStatusBar();
+  // Keyboard moves: caret goes to the end of the text here, after the key burst, because
+  // placing a caret forces the browser to lay out the page. (Mouse clicks still place it at once.)
+  if (daCaretPending) {
+    daCaretPending = false;
+    const el = document.activeElement;
+    if (el && el.id === `daCell_${ds.id}_${row}_${col}` && el.tagName !== 'SELECT') daPlaceCaretEnd(el);
+  }
+}
 function daCellFocus(el, ri, ci) {
   const ds = daGetActive(); if (!ds) return;
   daActiveCell = { row: ri, col: ci };
   const raw = String((ds.rows[ri] || [])[ci] ?? '');
-  // Dropdown cells are real <select> elements, not contenteditable text —
+  // Dropdown cells are real <select> elements, not contenteditable text --
   // rewriting textContent would blow away their <option> list, and there's
   // no caret to place, so only the free-typed text cells get this treatment.
+  // Only write when the text really differs (formula cells show their result until
+  // focused): a needless write makes the browser re-measure every column.
+  const viaKey = daKeyNavFocus; daKeyNavFocus = false;
   if (el.tagName !== 'SELECT') {
-    el.textContent = raw;
-    daPlaceCaretEnd(el);
+    if (el.textContent !== raw) el.textContent = raw;
+    if (viaKey) daCaretPending = true; else daPlaceCaretEnd(el);
   }
-  daUpdateFormulaBar(ri, ci, raw);
-  daFillPlaceHandle();
-  daMarkActiveHeaders();
-  daUpdateStatusBar();
+  if (!daFocusRaf) daFocusRaf = requestAnimationFrame(daCellFocusVisuals);
 }
 
 // Shared keydown handler for every grid cell (both contenteditable text
@@ -1701,15 +1730,20 @@ function daHandleCellKeydown(e, ri, ci) {
     if (r < 0 || r >= nRows) {   // off the edge: commit, then put focus back so keys keep working
       if (e.target && typeof e.target.blur === 'function') e.target.blur();
       const stay = daCellEl(dsN.id, ri, ci);
+      daKeyNavFocus = true;
       if (stay && typeof stay.focus === 'function') stay.focus();
+      daKeyNavFocus = false;
       return;
     }
     daShiftAnchor = null;
-    if (daHasSelection()) daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
+    const hadSel = daHasSelection();
+    if (hadSel) daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
     if (e.target && typeof e.target.blur === 'function') e.target.blur();
-    daRenderTable();
+    if (hadSel) daRenderView();   // only needed to clear the old highlight
     const tgt = daCellEl(dsN.id, r, c);
+    daKeyNavFocus = true;
     if (tgt && typeof tgt.focus === 'function') tgt.focus();
+    daKeyNavFocus = false;
     return;
   }
 
@@ -1723,6 +1757,7 @@ function daHandleCellKeydown(e, ri, ci) {
   const newRow = Math.max(0, Math.min(ds.rows.length - 1, ri + dr));
   const newCol = Math.max(0, Math.min(ds.headers.length - 1, ci + dc));
 
+  const hadSel = daHasSelection();
   if (e.shiftKey) {
     if (!daShiftAnchor) daShiftAnchor = { row: ri, col: ci };
     daSelection = {
@@ -1744,9 +1779,12 @@ function daHandleCellKeydown(e, ri, ci) {
     // Already at the edge/corner. The rebuild below tears out the focused
     // cell, and nothing re-focused it, so every later arrow key went nowhere.
     // Put focus back on the same cell after refreshing the selection.
-    daRenderTable();
+    if (e.target && typeof e.target.blur === 'function') e.target.blur();
+    if (hadSel || e.shiftKey) daRenderView();
     const stayEl = daCellEl(ds.id, ri, ci);
+    daKeyNavFocus = true;
     if (stayEl && typeof stayEl.focus === 'function') stayEl.focus();
+    daKeyNavFocus = false;
     return;
   }
 
@@ -1755,9 +1793,11 @@ function daHandleCellKeydown(e, ri, ci) {
   // grab the destination cell from the freshly-rendered DOM rather than a
   // reference that render would otherwise have torn out from under us.
   if (e.target && typeof e.target.blur === 'function') e.target.blur();
-  daRenderTable();
+  if (hadSel || e.shiftKey) daRenderView();   // plain move with nothing selected: just move the cursor, no redraw
   const nextEl = daCellEl(ds.id, newRow, newCol);
+  daKeyNavFocus = true;
   if (nextEl && typeof nextEl.focus === 'function') nextEl.focus();
+  daKeyNavFocus = false;   // (the focus handler runs synchronously and has already used it)
 }
 
 function daUpdateFormulaBar(ri, ci, raw) {
@@ -2295,6 +2335,7 @@ let daVirt = null;          // { dsId, vis, colTypes, query, nCols, start, end }
 let daVirtRowH = 29;        // measured from the real rows after the first draw
 let daVirtTopOff = 60;      // px from the top of the scroll area to the first data row (measured)
 let daVirtRaf = 0;
+let daSkipPersistOnce = false; // set by daRenderView: the next draw changes only what is highlighted, so nothing needs saving
 let daAutoFitOn = false;      // the toolbar Auto-fit button was pressed; rows drawn later by scrolling must get the same look
 
 function daVirtSpacer(n, nCols) {
@@ -2473,8 +2514,12 @@ function daBuildRowHtml(ds, ri, colTypes, query) {
   return html;
 }
 
+// Redraws the grid when only the selection / cursor changed, not the data.
+// Skips the save (undo snapshot of the whole table, storage write, team sync) that a normal draw does.
+function daRenderView() { daSkipPersistOnce = true; daRenderTable(); }
+
 function daRenderTable() {
-  daPersist();
+  if (daSkipPersistOnce) daSkipPersistOnce = false; else daPersist();
   const gridWrap = document.getElementById('daGridWrap');
   const meta = document.getElementById('daMeta');
   if (!gridWrap) return;
@@ -2633,7 +2678,7 @@ function daSelectAll(e) {
   const ds = daGetActive(); if (!ds || !ds.rows.length || !ds.headers.length) return;
   daShiftAnchor = null;
   daSelection = { rows: new Set(), cols: new Set(), cellRanges: [{ r1: 0, c1: 0, r2: ds.rows.length - 1, c2: ds.headers.length - 1 }] };
-  daRenderTable();
+  daRenderView();
 }
 
 let daResizeDrag = null;
@@ -2698,29 +2743,32 @@ function daSelEdgeCls(ri, ci, nR, nC) {
 }
 
 // Excel highlights the letter and number of whichever cell is active.
+// Arrow-key speed: we remember which header cells we lit last time and clear just those,
+// instead of searching the whole grid for them on every key press.
+let daHdrMarked = [];
 function daMarkActiveHeaders() {
+  daHdrMarked.forEach(el => el.classList.remove('da-hdr-active', 'da-hdr-inrange'));
+  daHdrMarked = [];
   const gridWrap = document.getElementById('daGridWrap'); if (!gridWrap) return;
-  gridWrap.querySelectorAll('.da-hdr-active, .da-hdr-inrange').forEach(el => el.classList.remove('da-hdr-active', 'da-hdr-inrange'));
-  // Letters / numbers that the selected block covers get a soft highlight too.
+  const mark = (el, cls) => { if (el) { el.classList.add(cls); daHdrMarked.push(el); } };
   const dsR = daGetActive();
-  if (dsR && daSelectionDsId === dsR.id && daSelection.cellRanges.length) {
+  if (!dsR) return;
+  const rowNumOf = r => {
+    const c = document.getElementById(`daCell_${dsR.id}_${r}_0`);
+    const tr = c && c.closest('tr');
+    return tr && tr.querySelector('.da-rownum');
+  };
+  // Letters / numbers that the selected block covers get a soft highlight too.
+  if (daSelectionDsId === dsR.id && daSelection.cellRanges.length) {
     const rs = new Set(), cs = new Set();
     daSelection.cellRanges.forEach(g => { for (let r = g.r1; r <= g.r2; r++) rs.add(r); for (let c = g.c1; c <= g.c2; c++) cs.add(c); });
-    cs.forEach(c => { const el = gridWrap.querySelector(`.da-collabel[data-ci="${c}"]`); if (el) el.classList.add('da-hdr-inrange'); });
-    rs.forEach(r => {
-      const td = gridWrap.querySelector(`td[data-r="${r}"]`);
-      const num = td && td.parentElement && td.parentElement.querySelector('.da-rownum');
-      if (num) num.classList.add('da-hdr-inrange');
-    });
+    cs.forEach(c => mark(gridWrap.querySelector(`.da-collabel[data-ci="${c}"]`), 'da-hdr-inrange'));
+    rs.forEach(r => mark(rowNumOf(r), 'da-hdr-inrange'));
   }
-  const ds = daGetActive();
-  if (!ds || !daActiveCell || daSelectionDsId !== ds.id) return;
-  if (daActiveCell.row >= ds.rows.length || daActiveCell.col >= ds.headers.length) return;
-  const colEl = gridWrap.querySelector(`.da-collabel[data-ci="${daActiveCell.col}"]`);
-  if (colEl) colEl.classList.add('da-hdr-active');
-  const cellEl = gridWrap.querySelector(`td[data-r="${daActiveCell.row}"]`);
-  const numEl = cellEl && cellEl.parentElement && cellEl.parentElement.querySelector('.da-rownum');
-  if (numEl) numEl.classList.add('da-hdr-active');
+  if (!daActiveCell || daSelectionDsId !== dsR.id) return;
+  if (daActiveCell.row >= dsR.rows.length || daActiveCell.col >= dsR.headers.length) return;
+  mark(gridWrap.querySelector(`.da-collabel[data-ci="${daActiveCell.col}"]`), 'da-hdr-active');
+  mark(rowNumOf(daActiveCell.row), 'da-hdr-active');
 }
 
 // Bottom status bar: like Excel, selecting several cells shows Average /
@@ -2749,7 +2797,11 @@ function daUpdateStatusBar() {
   const bar = daEnsureStatusBar(); if (!bar) return;
   const ds = daGetActive();
   const left = bar.querySelector('.da-sb-left'), stats = bar.querySelector('.da-sb-stats');
-  if (!ds || !daHasSelection() || daSelectionDsId !== ds.id) { left.textContent = 'Ready'; stats.innerHTML = ''; return; }
+  if (!ds || !daHasSelection() || daSelectionDsId !== ds.id) {
+    if (left.textContent !== 'Ready') left.textContent = 'Ready';
+    if (stats.firstChild) stats.innerHTML = '';
+    return;
+  }
   const cells = daSelectedCellList(ds);
   if (cells.length > 50000) { left.textContent = cells.length.toLocaleString() + ' cells selected'; stats.innerHTML = ''; return; }
   const rg = daSelection.cellRanges.length === 1 && !daSelection.rows.size && !daSelection.cols.size ? daSelection.cellRanges[0] : null;
@@ -2792,15 +2844,24 @@ function daToggleWrap() {
   daPersist();
   daRenderTable();
 }
+// Arrow-key speed: when the grid scrolls under a resting mouse pointer, the browser fires
+// "mouseover" for every cell that slides past. Measuring each one (scrollWidth) forced a
+// full page layout per key press. Now we measure once, after the pointer has rested.
+let daTipTimer = 0;
 document.addEventListener('mouseover', e => {
   const el = e.target && e.target.closest && e.target.closest('#daGridWrap .da-td-cell, #daGridWrap .da-th-name');
-  if (!el || el === document.activeElement) return;
-  if (el.scrollWidth > el.clientWidth + 1) {
-    const ds = daGetActive(); const td = el.closest('td');
-    let full = el.textContent;
-    if (ds && td && td.dataset.r !== undefined) { const r = daFormulaDisplayValue(ds, +td.dataset.r, +td.dataset.c); full = r.display; }
-    el.title = full;
-  }
+  if (daTipTimer) { clearTimeout(daTipTimer); daTipTimer = 0; }
+  if (!el) return;
+  daTipTimer = setTimeout(() => {
+    daTipTimer = 0;
+    if (el === document.activeElement || !el.isConnected) return;
+    if (el.scrollWidth > el.clientWidth + 1) {
+      const ds = daGetActive(); const td = el.closest('td');
+      let full = el.textContent;
+      if (ds && td && td.dataset.r !== undefined) { const r = daFormulaDisplayValue(ds, +td.dataset.r, +td.dataset.c); full = r.display; }
+      el.title = full;
+    }
+  }, 250);
 });
 
 // Left/right step buttons overlaid on the grid, for tables with more
@@ -2871,16 +2932,42 @@ function daClearTitle() {
   toast('Main heading removed — the table headers below are unaffected', 'info');
 }
 
+// Puts a cell's normal look back after it was focused for editing (focus swaps the shown
+// value for the raw text, e.g. a formula). Used when the cell was left without any change.
+function daRestoreCellDisplay(ds, ri, ci) {
+  const el = document.getElementById(`daCell_${ds.id}_${ri}_${ci}`);
+  if (!el || !el.classList || !el.classList.contains('da-td-cell')) return;
+  const raw = String((ds.rows[ri] || [])[ci] ?? '');
+  const isFormula = raw.trim().startsWith('=');
+  if (!ds._calcCache) ds._calcCache = new Map();
+  const query = (document.getElementById('daSearchInput')?.value || '').trim().toLowerCase();
+  const displayRaw = isFormula ? daFormulaDisplayValue(ds, ri, ci).display : raw;
+  // Arrow-key speed: plain values are put back as plain text, and only when the cell
+  // does not already show them. Rewriting identical content makes the browser
+  // re-measure every column of the table.
+  if (!isFormula && query && raw.toLowerCase().includes(query)) { el.innerHTML = daHighlight(raw, query); return; }
+  const want = (!isFormula && displayRaw === '') ? '—' : String(displayRaw);
+  if (el.children.length === 0 && el.textContent === want) return;
+  el.textContent = want;
+}
+
 function daUpdateCell(rowIdx, colIdx, newVal) {
   const ds = daGetActive(); if (!ds) return;
   const val = newVal === '—' ? '' : newVal.trim();
-  daLogCellEdit(ds, rowIdx, colIdx, ds.rows[rowIdx][colIdx], val);
-  ds.rows[rowIdx][colIdx] = val;
-  daRecalcColumnOps(ds);
-  daRenderTable();
-  daPersist(); // push this cell edit to the shared Yjs doc so teammates see it live
-  if (daActiveCell && daActiveCell.row === rowIdx && daActiveCell.col === colIdx) {
-    daUpdateFormulaBar(rowIdx, colIdx, val);
+  // Leaving a cell without typing anything (arrow keys, Tab, clicking away) is NOT an edit:
+  // no history entry, no recalculation, no save, no redraw of the grid.
+  const unchanged = !!ds.rows[rowIdx] && val === String(ds.rows[rowIdx][colIdx] ?? '');
+  if (unchanged) {
+    daRestoreCellDisplay(ds, rowIdx, colIdx);
+  } else {
+    daLogCellEdit(ds, rowIdx, colIdx, ds.rows[rowIdx][colIdx], val);
+    ds.rows[rowIdx][colIdx] = val;
+    daRecalcColumnOps(ds);
+    daRenderTable();
+    daPersist(); // push this cell edit to the shared Yjs doc so teammates see it live
+    if (daActiveCell && daActiveCell.row === rowIdx && daActiveCell.col === colIdx) {
+      daUpdateFormulaBar(rowIdx, colIdx, val);
+    }
   }
   // Only the cell that was just typed into gets a guidance toast — recalculated
   // cells elsewhere on the sheet stay silent so this never turns into spam.
