@@ -857,7 +857,8 @@ th:hover .da-th-ops, .da-th-ops:hover { display:flex; }
 /* Formula cells: small green corner mark instead of a heavy tint */
 .da-td-cell.da-cell-formula { background:rgba(16,185,129,.04); box-shadow:none; }
 .da-table tbody tr:nth-child(even) .da-td-cell.da-cell-formula { background:rgba(16,185,129,.04); }
-td:has(> .da-cell-formula)::after { content:''; position:absolute; top:0; right:0; border-top:7px solid #10b981; border-left:7px solid transparent; pointer-events:none; }
+/* (was td:has(> .da-cell-formula)::after, which made the browser re-check every cell on each focus change) */
+.da-td-cell.da-cell-formula::after { content:''; position:absolute; top:0; right:0; border-top:7px solid #10b981; border-left:7px solid transparent; pointer-events:none; }
 
 /* Drag-to-resize handle on the column letters */
 .da-col-resize { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:6; }
@@ -940,10 +941,10 @@ table.da-table.da-frozen thead tr:nth-child(2) th { top:22px; }
 /* Data Arrangement opens on a blank spreadsheet: file drag hint */
 #daSection.da-file-over .da-workspace { outline: 2px dashed var(--accent, #22d3ee); outline-offset: -4px; }
 
-/* Cells whose value is a web address read as links: blue + underlined.
-   The chain badge (top-right) opens it; clicking the text still edits. */
-.da-td-cell.da-cell-link-text { color:var(--blue); text-decoration:underline; text-decoration-color:rgba(80,140,255,0.45); text-underline-offset:2px; }
-
-/* Site/platform icon at the left of a link cell. Not part of the editable text. */
-.da-td-favicon { position:absolute; left:7px; top:50%; transform:translateY(-50%); width:16px; height:16px; border-radius:3px; object-fit:contain; pointer-events:none; z-index:1; }
-.da-td-cell.da-cell-has-icon { padding-left:29px; }
+/* ═══ Arrow-key speed (Nov 2026) ═══
+   Moving onto a cell used to change its text wrapping and overflow, which made the browser
+   re-measure the whole table on every key press. The active cell now keeps the same size and
+   layout as every other cell: the full text is in the formula bar above the grid, and the
+   Wrap Text button shows long text in the cells. Only paint-level changes happen on focus. */
+.da-td-cell:focus { white-space:nowrap; overflow:hidden; text-overflow:clip; word-break:normal; }
+.da-table.da-wrap .da-td-cell:focus { white-space:pre-wrap; word-break:break-word; overflow:visible; }
