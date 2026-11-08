@@ -14,7 +14,7 @@
 //   - a background picture with all the shapes, bands, circles and charts but NO words, and
 //   - a list of real text boxes (position, font, size, colour, line height ...).
 // "Use this template" copies those into new pages in pdfed.pages, exactly like
-// Business Proposals and Kadessa do, so the result is an ordinary editable page:
+// Kadessa does, so the result is an ordinary editable page:
 // click any text to type, drag, resize, recolour, reorder or delete pages.
 // The files in slide-templates/ are never changed; every insert builds fresh copies.
 //
@@ -308,11 +308,13 @@ function sltRender() {
           '<p class="slt-note">Every word is a real text box. Anything in [square brackets] is a placeholder to replace. ' + (multi ? 'Slides are' : 'The post is') + ' copied onto your canvas after the current page; the original template is never changed.</p>' +
         '</div>' +
         '<div class="slt-d-actions">' +
+          ((typeof bkTemplateHasMap === 'function' && bkTemplateHasMap(open.id)) ? bkToggleHtml('templates', 'Fills your company name, slogan and contact details into this template.') : '') +
           '<button type="button" class="slt-primary" onclick="sltUse(\'' + sltEsc(open.id) + '\')"' + (sltState.busy ? ' disabled' : '') + '>' + (sltState.busy ? 'Adding…' : (multi ? 'Use this template (' + n + ' ' + unit + ')' : 'Use this template')) + '</button>' +
           (multi ? '<button type="button" class="slt-secondary" id="sltAddOne" onclick="sltUse(\'' + sltEsc(open.id) + '\', sltState.slide)"' + (sltState.busy ? ' disabled' : '') + '>Add only ' + (sltIsPaper(open) ? 'page ' : 'slide ') + (sltState.slide + 1) + '</button>' : '') +
         '</div>' +
       '</div>';
     sltStageSchedule();
+    if (typeof bkToggleRefresh === 'function') bkToggleRefresh();
     return;
   }
 
@@ -410,7 +412,9 @@ function sltBuildPage(t, data, slide, bgUrl) {
     placedTexts: [], placedImages: [], placedTables: [],
     label: t.name + ' · ' + slide.id, bgColor: slide.bgColor || '#ffffff', pageMM: [mmW, mmH]
   };
-  slide.texts.forEach(x => {
+  // Brand Kit: company, tagline and contact lines (only when the person ticked it, see js/85)
+  const sltTexts = (typeof bkApplyToSlide === 'function') ? bkApplyToSlide(t.id, data.slides.indexOf(slide), slide.texts) : slide.texts;
+  sltTexts.forEach(x => {
     const item = {
       id: 'ptxt_' + (++pdfedPlacedTextSeq),
       text: x.text, x: x.x, y: x.y, w: x.w, fontSize: x.fontSize,

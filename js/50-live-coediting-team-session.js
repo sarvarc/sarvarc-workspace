@@ -1,4 +1,4 @@
-// =========================================================
+  // =========================================================
   // LIVE CO-EDITING CORE — one reusable engine, shared by every module.
   //
   // How it works: each live team project gets one Yjs document (a CRDT —
@@ -506,7 +506,6 @@
   // 'exists' = element is present in the page.
   const SARVARC_PRESENCE_TOOLS = {
     showcase:    { label: 'Showcase',           short: 'SC', sel: '#sppOverlay',            mode: 'open',    gate: true  },
-    proposals:   { label: 'Business Proposals', short: 'BP', sel: '#bpTplModalOverlay',     mode: 'open',    gate: true  },
     crop:        { label: 'Image Crop',         short: 'CR', sel: '#cropOverlay',           mode: 'open',    gate: true  },
     reshape:     { label: 'Image Reshaper',     short: 'RS', sel: '#reshapeOverlay',        mode: 'open',    gate: true  },
     shapestudio: { label: 'Shape Studio',       short: 'SH', sel: '#shapeStudioOverlay',    mode: 'open',    gate: true  },
@@ -514,7 +513,6 @@
     presenter:   { label: 'Presenter',          short: 'PR', sel: '#pdfedPresenter',        mode: 'open',    gate: true  },
     signature:   { label: 'Signature',          short: 'SG', sel: '#pdfedSigModal',         mode: 'display', gate: true  },
     sign:        { label: 'Sign',               short: 'SG', sel: '.sgx-ov',                mode: 'exists',  gate: true  },
-    brandkit:    { label: 'Brand Kit',          short: 'BK', sel: '#bkPanel',               mode: 'open',    gate: false },
     kadessa:     { label: 'Kadessa',            short: 'KA', sel: '#kadessa-panel',         mode: 'open',    gate: false }
   };
   function sarvarcPresenceSafeTool(id) {

@@ -48,7 +48,7 @@ let wsbLastRef = null;       // the reference of the latest build, so the side-b
 const wsbPageRef = new WeakMap(); // editor page -> which reference page it was built from (the panel follows the page you are on)
 let wsbSideCtl = null;       // the open reference panel, if any
 let wsbBuildSeq = 0;         // one number per build, so repeated logo spots (continuation pages) belong together
-function wsbBrandLogo() { try { const k = (typeof bkLoad === 'function') ? bkLoad() : null; return (k && k.logo) ? k.logo : null; } catch (e) { return null; } }
+function wsbBrandLogo() { try { if (typeof bkUseGet === 'function' && !bkUseGet('workstyle')) return null; const k = (typeof bkLoad === 'function') ? bkLoad() : null; return (k && k.logo) ? k.logo : null; } catch (e) { return null; } }
 
 // ─── 1. PLAN ─────────────────────────────────────────────────────────────────
 function wsbCellStyles(it, cells) {

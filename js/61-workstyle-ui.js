@@ -78,6 +78,7 @@ function wsEnsurePanel() {
     '<details class="ws-mini" id="wsMini"><summary>Or type your content</summary>' +
       '<textarea id="wsContent" rows="4" maxlength="24000" spellcheck="false" placeholder="Type or paste your content here. Kadessa matches it to the reference."></textarea>' +
     '</details>' +
+    ((typeof bkToggleHtml === 'function') ? bkToggleHtml('workstyle', 'Adds your logo, and your contact details where the reference has an empty contact spot. Untick it when you build for someone else.') : '') +
     '<div class="ws-actions"><button type="button" class="primary" id="wsBuildBtn">Build with Kadessa</button></div>' +
     '<div class="ws-status" id="wsStatus"></div>' +
     '<div class="ws-fine">Your reference and content are sent to Kadessa for this one request. Nothing is stored there.</div>';
@@ -114,6 +115,7 @@ function wsEnsurePanel() {
     });
   });
   wsEl('wsBuildBtn').addEventListener('click', wsBuild);
+  if (typeof bkToggleRefresh === 'function') bkToggleRefresh();
   wsRenderList();
   return panel;
 }
@@ -123,7 +125,7 @@ function wsToggle() {
   if (!panel) return;
   const opening = !panel.classList.contains('open');
   panel.classList.toggle('open', opening);
-  if (opening) { wsStatus('', ''); wsRenderList(); }
+  if (opening) { wsStatus('', ''); wsRenderList(); if (typeof bkToggleRefresh === 'function') bkToggleRefresh(); }
 }
 
 function wsClose() {

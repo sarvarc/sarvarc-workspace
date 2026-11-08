@@ -3577,27 +3577,21 @@
         return 'Add a ' + nm + ' transition ' + (p.after_page ? 'after page ' + p.after_page : (Array.isArray(p.pages) ? 'after page(s) ' + p.pages.join(', ') : 'between every page')) + '.';
       }
     },
-    // Inserts the Business Proposal template (see bpInsertTemplateToCanvas
-    // above) with a chosen skin but no content filled in -- the same
-    // placeholder version clicking a tile in the gallery modal produces.
-    // Kadessa should reach for pipeline_details_to_proposal instead the moment
-    // she actually has real client/project/pricing details to put on it;
-    // this bare action is only for "just drop a proposal template on the
-    // canvas, I'll fill it in myself." key is one of BP_TEMPLATE_LABELS'
-    // keys (modern, navy, gradient, elegant, dark); omit for 'modern'.
+    // Business Proposals was removed (2026-11-08). The deployed Kadessa Worker (kadessa-backend/worker.js)
+    // may still offer these three actions, so they stay as small stand-ins that explain instead of failing silently.
+    // Remove them together with the Worker's proposal tools when the Worker is next redeployed.
     bp_insert_template: {
       risk: 'safe',
-      run: async function(p){ await bpInsertTemplateToCanvas((p && p.key) || 'modern', {}); },
-      label: function(p){
-        const key = (p && p.key) || 'modern';
-        return 'Insert a blank ' + (BP_TEMPLATE_LABELS[key] || 'Business Proposal') + ' template onto the canvas.';
-      }
+      run: function(){ throw new Error('the Business Proposals builder was removed. Open Templates in the left panel of the PDF Editor and pick a Proposal template there'); },
+      label: function(){ return 'Add a proposal template (use Templates in the left panel).'; }
     },
-    // Saves the Brand Kit (see bkSave above) -- company name, tagline, and/
-    // or logo (a data URL) -- so every proposal inserted from now on auto-
-    // applies it. Fields left out keep whatever was already saved, matching
-    // bkSaveFromPanel's own behaviour of only overwriting what was actually
-    // typed/uploaded.
+    bp_insert_continuation_page: {
+      risk: 'safe',
+      run: function(){ throw new Error('the Business Proposals builder was removed. Add a blank page and type the text, or use Templates in the left panel'); },
+      label: function(){ return 'Add a proposal page (use Templates in the left panel).'; }
+    },
+    // Saves the Brand Kit (Settings > Brand Kit). Only the fields given change; address, phone,
+    // email, website and GST that were saved in Settings are kept.
     bk_set_brand_kit: {
       risk: 'safe',
       run: function(p){
@@ -3611,11 +3605,11 @@
           attached = pdfedRefineState && pdfedRefineState.logoDataUrl;
           if (!attached) throw new Error('no logo is attached. Use the paperclip in my chat to attach one first');
         }
-        bkSave({
+        bkSave(Object.assign({}, existing, {
           logo: attached ? attached : (p.logo !== undefined ? p.logo : existing.logo),
           company: p.company !== undefined ? p.company : existing.company,
           tagline: p.tagline !== undefined ? p.tagline : existing.tagline
-        });
+        }));
       },
       label: function(p){
         p = p || {};
@@ -3623,21 +3617,7 @@
         if (p.company) bits.push('company name to "' + p.company + '"');
         if (p.tagline) bits.push('tagline to "' + p.tagline + '"');
         if (p.logo || p.use_attached_logo) bits.push('logo');
-        return 'Save the Brand Kit' + (bits.length ? ' (' + bits.join(', ') + ')' : '') + ' so future proposals use it automatically.';
-      }
-    },
-    // Adds a second (or Nth) page to a proposal -- Terms & Conditions, an
-    // extended scope writeup, anything text-based -- styled to match the
-    // proposal's own skin (see bpInsertContinuationPage above). For a
-    // timeline/Gantt chart page, use the existing dg_* actions +
-    // pipeline_diagram_to_pdf instead; this one is for text content only.
-    // blocks is an array of paragraph strings, one per placed text box.
-    bp_insert_continuation_page: {
-      risk: 'safe',
-      run: async function(p){ await bpInsertContinuationPage((p && p.key) || 'modern', p || {}); },
-      label: function(p){
-        p = p || {};
-        return 'Add a "' + (p.title || 'Additional Notes') + '" page to the proposal, styled to match it.';
+        return 'Save the Brand Kit' + (bits.length ? ' (' + bits.join(', ') + ')' : '') + '.';
       }
     },
     pdfed_remove_page: { risk: 'confirm', run: function(p){ pdfedQueueRemove(p.idx); }, label: function(p){ return 'Remove page ' + (p.idx+1) + ' from the document. This can be undone with Ctrl+Z.'; } },
@@ -3768,50 +3748,11 @@
       label: function(p){ return 'Search stock photos for "' + p.query + '" and place the best match.'; }
     },
 
-    // ── PIPELINE ACTIONS ───────────────────────────────────────────────
-    // These move data BETWEEN modules -- the actual form-to-DA-to-diagram-to-PDF
-    // flow that's SARVARC's core differentiator. Each one calls the exact same
-    // function the person's own push button calls, so it inherits that
-    // function's existing conflict handling (e.g. daPushToDiagrams opens the
-    // app's own overlay if a chart already exists -- Kadessa doesn't bypass that,
-    // the person still resolves it same as always) and undo/redo behavior.
-    // All marked 'safe' since they're additive (create/replace content the
-    // person can already undo), never destructive on their own.
-    pipeline_da_to_diagram: { risk: 'safe', run: function(){ daPushToDiagrams(null); }, label: function(){ return 'Send this table to Diagrams & Graphs.'; } },
-    pipeline_da_to_pdf:     { risk: 'safe', run: function(p){ daPushToWorkflow(p.mode === 'live' ? 'live' : 'new', { filteredOnly: p.filtered_only === true }); }, label: function(p){ return 'Push this table into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
-    // Build 259: a written Word/PDF report (Topic / Content dataset) becomes real
-    // heading + body text on new pages, ready for pdfed_auto_refine_report.
-    // Use this instead of pipeline_da_to_pdf for prose; that one draws a grid.
-    // Build 299: "find what is hurting my business" filters the rows, then
-    // "make me a report" sends ONLY those filtered rows to the PDF Editor as a
-    // table first, then writes three summaries (What's Happening / Why It
-    // Happened / How It Can Be Improved) on the page after the table.
-    pipeline_filtered_report_to_pdf: { risk: 'safe', run: async function(p){ return await kadessaFilteredReportToPdf(p || {}); }, label: function(){ return 'Send only the filtered rows to the PDF Editor with three written summaries.'; } },
-    pipeline_report_to_pdf: { risk: 'safe', run: async function(p){ return await kadessaInsertReportFromProse(p || {}); }, label: function(){ return 'Place this written report on new PDF pages as editable headings and paragraphs.'; } },
-    pipeline_diagram_to_pdf:{ risk: 'safe', run: function(p){ dgInsertIntoWorkspace(p.mode === 'live' ? 'live' : 'new'); }, label: function(p){ return 'Push this chart into the ' + (p.mode === 'live' ? 'current PDF page' : 'PDF Editor as a new page') + '.'; } },
-    pipeline_form_to_pdf:   { risk: 'safe', run: function(){ mfPushToWorkspace(); }, label: function(){ return 'Push this form into the PDF Editor.'; } },
-    // The real "make me a proposal" action -- takes content Kadessa has
-    // already gathered from the conversation (clientName, projectTitle,
-    // summary, deliverables[], pricing[] as {description,qty,rate,amount},
-    // total, paymentTerms, date, validUntil, signerName, skin, brand:
-    // {company,tagline,logo}, colors: {gradFrom,gradTo,headingColor,
-    // totalColor,...} for a custom brand palette on top of a base skin) and
-    // produces a filled, on-brand proposal on the canvas in one shot. NOT
-    // for placeholders -- if the person has only said "make me a proposal"
-    // with no client/project/deliverables/pricing yet, ask for those first
-    // (batched into one question, skipping anything already covered
-    // earlier in the conversation) rather than calling this with guesses;
-    // see kadessaInsertProposalFromDetails above, which throws if truly
-    // nothing was given. Soft fields (paymentTerms, date, validUntil,
-    // signerName) are fine to default quietly without asking.
+    // Business Proposals was removed (2026-11-08); see the note on bp_insert_template above.
     pipeline_details_to_proposal: {
       risk: 'safe',
-      run: async function(p){ await kadessaInsertProposalFromDetails(p || {}); },
-      label: function(p){
-        p = p || {};
-        const who = p.clientName ? (' for ' + p.clientName) : '';
-        return 'Put together a business proposal' + who + ' from the details discussed, and add it to the canvas.';
-      }
+      run: function(){ throw new Error('the Business Proposals builder was removed. Open Templates in the left panel of the PDF Editor and pick a Proposal template, then fill in the details'); },
+      label: function(){ return 'Build a proposal (use Templates in the left panel).'; }
     },
 
     // GUARD (added after Kadessa was observed calling this on the panel the

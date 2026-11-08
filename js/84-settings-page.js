@@ -50,8 +50,7 @@
     if (brand) stgBkFill();
   };
 
-  // ── Brand Kit ── same storage key the Business Proposals kit already uses,
-  // so logo, company and tagline stay shared. Extra fields ride along.
+  // Brand Kit: the one and only kit. Saved under sarvarc_brand_kit_v1 (bkLoad and bkSave in js/06 read it).
   var BK_KEY = 'sarvarc_brand_kit_v1';
   var draftLogo = null;
   var BK_FIELDS = { stgBkName: 'company', stgBkSlogan: 'tagline', stgBkAddress: 'address', stgBkPhone: 'phone', stgBkEmail: 'email', stgBkWeb: 'website', stgBkGst: 'gst' };
@@ -113,14 +112,12 @@
     kit.logo = draftLogo;
     try { localStorage.setItem(BK_KEY, JSON.stringify(kit)); }
     catch (e) { if (typeof toast === 'function') toast('Could not save, the logo may be too large', 'error'); return; }
-    if (typeof bkRefreshPanel === 'function') { try { bkRefreshPanel(); } catch (e) {} }
     var st = $('stgBkStatus'); if (st) st.textContent = 'Saved';
     if (typeof toast === 'function') toast('Brand Kit saved', 'success');
   };
 
   window.stgBkClear = function () {
     try { localStorage.removeItem(BK_KEY); } catch (e) {}
-    if (typeof bkRefreshPanel === 'function') { try { bkRefreshPanel(); } catch (e) {} }
     stgBkFill();
     if (typeof toast === 'function') toast('Brand Kit cleared', 'info');
   };

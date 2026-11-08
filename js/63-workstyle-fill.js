@@ -225,6 +225,7 @@ async function wstyleBuildFromContent(styleId, content, opts) {
 
   if (typeof opts.onStage === 'function') opts.onStage('Kadessa is reading your reference and your content…');
   const ans = await wsfAsk(slots, text);
+  if (typeof bkWorkstyleFills === 'function') { try { ans.fills = bkWorkstyleFills(slots, ans.fills); } catch (e) { /* the kit is optional */ } }
   if (typeof opts.onStage === 'function') opts.onStage('Building in the editor…');
   const r = await wstyleBuild(style.id, { fill: ans.fills });
   const via = ans.via === 'basic'
