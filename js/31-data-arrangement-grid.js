@@ -1700,7 +1700,7 @@ function daHandleCellKeydown(e, ri, ci) {
     }
     if (r < 0 || r >= nRows) {   // off the edge: commit, then put focus back so keys keep working
       if (e.target && typeof e.target.blur === 'function') e.target.blur();
-      const stay = document.getElementById(`daCell_${dsN.id}_${ri}_${ci}`);
+      const stay = daCellEl(dsN.id, ri, ci);
       if (stay && typeof stay.focus === 'function') stay.focus();
       return;
     }
@@ -1708,7 +1708,7 @@ function daHandleCellKeydown(e, ri, ci) {
     if (daHasSelection()) daSelection = { rows: new Set(), cols: new Set(), cellRanges: [] };
     if (e.target && typeof e.target.blur === 'function') e.target.blur();
     daRenderTable();
-    const tgt = document.getElementById(`daCell_${dsN.id}_${r}_${c}`);
+    const tgt = daCellEl(dsN.id, r, c);
     if (tgt && typeof tgt.focus === 'function') tgt.focus();
     return;
   }
@@ -1745,7 +1745,7 @@ function daHandleCellKeydown(e, ri, ci) {
     // cell, and nothing re-focused it, so every later arrow key went nowhere.
     // Put focus back on the same cell after refreshing the selection.
     daRenderTable();
-    const stayEl = document.getElementById(`daCell_${ds.id}_${ri}_${ci}`);
+    const stayEl = daCellEl(ds.id, ri, ci);
     if (stayEl && typeof stayEl.focus === 'function') stayEl.focus();
     return;
   }
@@ -1756,7 +1756,7 @@ function daHandleCellKeydown(e, ri, ci) {
   // reference that render would otherwise have torn out from under us.
   if (e.target && typeof e.target.blur === 'function') e.target.blur();
   daRenderTable();
-  const nextEl = document.getElementById(`daCell_${ds.id}_${newRow}_${newCol}`);
+  const nextEl = daCellEl(ds.id, newRow, newCol);
   if (nextEl && typeof nextEl.focus === 'function') nextEl.focus();
 }
 
@@ -2284,11 +2284,203 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') daCloseFilterPop();
 });
 
+// ---------- Big tables: draw only the rows on screen ----------
+// Tables with more than DA_VIRT_MIN visible rows draw a window of rows around
+// the viewport (plus DA_VIRT_BUF extra above and below). Everything else
+// (data, formulas, filters, selection, export) still works on ALL rows.
+// Tables with Wrap Text on keep drawing every row (row heights vary).
+const DA_VIRT_MIN = 150;
+const DA_VIRT_BUF = 30;
+let daVirt = null;          // { dsId, vis, colTypes, query, nCols, start, end } while a big table is shown
+let daVirtRowH = 29;        // measured from the real rows after the first draw
+let daVirtTopOff = 60;      // px from the top of the scroll area to the first data row (measured)
+let daVirtRaf = 0;
+let daAutoFitOn = false;      // the toolbar Auto-fit button was pressed; rows drawn later by scrolling must get the same look
+
+function daVirtSpacer(n, nCols) {
+  if (n <= 0) return '';
+  return `<tr class="da-vspacer" aria-hidden="true"><td colspan="${nCols + 1}" style="height:${Math.round(n * daVirtRowH)}px;padding:0;border:0"></td></tr>`;
+}
+function daVirtWindow(wrap, total) {
+  const h = daVirtRowH || 29;
+  const count = Math.ceil((wrap.clientHeight || 600) / h) + 1;
+  let first = Math.floor(Math.max(0, wrap.scrollTop - daVirtTopOff) / h);
+  first = Math.min(first, Math.max(0, total - 1));
+  return { first, count, start: Math.max(0, first - DA_VIRT_BUF), end: Math.min(total, first + count + DA_VIRT_BUF) };
+}
+// Reads the real row height and header height. Returns true when the spacers need redrawing.
+function daVirtMeasure(wrap) {
+  let changed = false;
+  const tr = wrap.querySelector('tbody tr:not(.da-vspacer)');
+  if (tr) {
+    const h = tr.getBoundingClientRect().height;
+    if (h > 8 && Math.abs(h - daVirtRowH) > 0.5) { daVirtRowH = h; changed = true; }
+  }
+  const table = wrap.querySelector('table.da-table'), thead = wrap.querySelector('thead');
+  if (table && thead) {
+    const off = table.offsetTop + thead.getBoundingClientRect().height;
+    if (off > 8 && Math.abs(off - daVirtTopOff) > 2) { daVirtTopOff = off; changed = true; }
+  }
+  return changed;
+}
+// Redraws just the rows (not the whole table) when scrolling gets near the edge of the drawn window.
+function daVirtRepaint(force) {
+  const v = daVirt; if (!v) return;
+  const wrap = document.getElementById('daGridWrap'); const ds = daGetActive();
+  if (!wrap || !ds || ds.id !== v.dsId) return;
+  const tbody = wrap.querySelector('table.da-table tbody'); if (!tbody) return;
+  const total = v.vis.length;
+  const w = daVirtWindow(wrap, total);
+  if (!force) {
+    const okTop = v.start === 0 || w.first - v.start >= DA_VIRT_BUF / 2;
+    const okBot = v.end >= total || v.end - (w.first + w.count) >= DA_VIRT_BUF / 2;
+    if (okTop && okBot) return;
+  }
+  // A cell being edited would be torn out by the redraw: commit it first, put focus back after.
+  let refocusId = null;
+  const ae = document.activeElement;
+  if (ae && tbody.contains(ae)) {
+    refocusId = ae.id || null;
+    if (typeof ae.blur === 'function') ae.blur();
+    if (daVirt !== v) return;   // the commit already redrew the table at the current scroll position
+  }
+  if (!ds._calcCache) ds._calcCache = new Map();
+  let rows = '';
+  for (let p = w.start; p < w.end; p++) rows += daBuildRowHtml(ds, v.vis[p], v.colTypes, v.query);
+  tbody.innerHTML = daVirtSpacer(w.start, v.nCols) + rows + daVirtSpacer(total - w.end, v.nCols);
+  v.start = w.start; v.end = w.end;
+  if (daAutoFitOn) daApplyAutoFitStyles(tbody);
+  daFillPlaceHandle();
+  daMarkActiveHeaders();
+  if (refocusId) {
+    const el = document.getElementById(refocusId);
+    if (el && typeof el.focus === 'function') el.focus({ preventScroll: true });
+  }
+}
+function daVirtOnScroll() {
+  if (!daVirt || daVirtRaf) return;
+  daVirtRaf = requestAnimationFrame(() => { daVirtRaf = 0; daVirtRepaint(false); });
+}
+// If the row is outside the drawn window, scroll to it and draw it, so keyboard moves can reach any row.
+function daVirtReveal(ri) {
+  const v = daVirt; if (!v) return;
+  let lo = 0, hi = v.vis.length - 1, p = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (v.vis[m] === ri) { p = m; break; } if (v.vis[m] < ri) lo = m + 1; else hi = m - 1; }
+  if (p < 0 || (p >= v.start && p < v.end)) return;
+  const wrap = document.getElementById('daGridWrap'); if (!wrap) return;
+  wrap.scrollTop = Math.max(0, daVirtTopOff + p * daVirtRowH - wrap.clientHeight / 2);
+  daVirtRepaint(true);
+}
+// Finds a cell element by position, drawing its row first if needed.
+function daCellEl(dsId, r, c) {
+  daVirtReveal(r);
+  return document.getElementById(`daCell_${dsId}_${r}_${c}`);
+}
+
+// Builds the HTML of ONE grid row (row number cell + every data cell).
+// Used by the full render and by the scroll repaint of big tables.
+function daBuildRowHtml(ds, ri, colTypes, query) {
+  let html = '';
+  const row = ds.rows[ri];
+  const rowHl = ds.rowHighlights[ri];
+  const rowSelCls = daIsRowSelected(ri) ? ' da-rownum-selected' : '';
+  const rowStyle = rowHl ? ` style="background:${daHlBg(rowHl.color)}"` : '';
+  html += `<tr><td class="da-rownum${rowSelCls}"${rowStyle} title="${rowHl && rowHl.tag ? daEsc(rowHl.tag) + ' — click to select this row' : 'Click to select this row'}" onmousedown="daSelectRow(${ri}, event)"><div class="da-rownum-inner"><span class="da-row-num-text">${ri + 1}</span><span class="da-row-del-btn" title="Delete row" onmousedown="event.stopPropagation()" onclick="daDeleteRow(${ri})">×</span></div></td>`;
+  row.forEach((cell, ci) => {
+    const val = String(cell ?? '');
+    const isFormula = val.trim().startsWith('=');
+    let displayRaw, isError = false;
+    if (isFormula) {
+      const res = daFormulaDisplayValue(ds, ri, ci);
+      displayRaw = res.display; isError = res.isError;
+    } else {
+      displayRaw = val;
+    }
+    const isNum = !isFormula && colTypes[ci] === 'NUM' && displayRaw.trim() !== '' && !isNaN(parseFloat(displayRaw));
+    const isNumFormula = isFormula && !isError && displayRaw.trim() !== '' && !isNaN(parseFloat(displayRaw));
+    const showVal = (!isFormula && query && val.toLowerCase().includes(query)) ? daHighlight(val, query) : daEsc(displayRaw);
+    const cls = [
+      (isNum || isNumFormula) ? 'da-cell-num' : '',
+      (!isFormula && displayRaw === '') ? 'da-cell-empty' : '',
+      isFormula ? 'da-cell-formula' : '',
+      isError ? 'da-cell-error' : '',
+      daXIsMissing(ds, ri, ci, val) ? 'da-cell-missing' : ''
+    ].filter(Boolean).join(' ');
+    const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
+    const dropdownColors = daGetEffectiveDropdownColors(ds, ri, ci);
+    const linkUrl = daGetCellLink(ds, ri, ci);
+    const hl = daGetEffectiveHighlight(ds, ri, ci);
+    const cwD = daColWidthDecl(ds, ci);
+    const hlStyle = (hl || cwD) ? ` style="${hl ? 'background:' + daHlBg(hl.color) + ';' : ''}${cwD}"` : '';
+    const hlTitle = hl && hl.tag ? daEsc(hl.tag) : '';
+    const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' + daSelEdgeCls(ri, ci, ds.rows.length, ds.headers.length) : '';
+    const linkBadge = linkUrl ? `<span class="da-td-link-badge" title="Open link: ${daEsc(linkUrl)}"
+         onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">
+         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+       </span>` : '';
+    if (dropdownOpts && !isFormula) {
+      let matched = false;
+      let optsHtml = dropdownOpts.map(opt => {
+        const isSel = opt === val;
+        if (isSel) matched = true;
+        const optColor = dropdownColors && dropdownColors[opt];
+        const optStyle = optColor ? ` style="background:${daHlBg(optColor, 0.55)}"` : '';
+        return `<option value="${daEsc(opt)}"${isSel ? ' selected' : ''}${optStyle}>${daEsc(opt)}</option>`;
+      }).join('');
+      // FIX: an unset dropdown cell used to show the exact same bare "—"
+      // a genuinely blank contenteditable cell shows, so a freshly
+      // dropdown-enabled column (see the screenshot: every row showing
+      // "—" with a chevron) read as "nothing happened" rather than
+      // "pick a value here" -- the placeholder and a real empty cell
+      // were visually identical. Using "Select…" for the unset case
+      // only (matched stays false only when the cell truly has no
+      // value yet, or an old value that no longer matches the list)
+      // keeps the em-dash convention for actual blank data everywhere
+      // else, while making a dropdown's own empty state look like an
+      // affordance instead of a dead end. A muted class distinguishes
+      // it further from a picked value.
+      const isUnset = !matched;
+      if (isUnset) {
+        const placeholderText = val === '' ? 'Select…' : daEsc(val);
+        optsHtml = `<option value="${daEsc(val)}" selected>${placeholderText}</option>` + optsHtml;
+      }
+      // A manual cell/row/column highlight is an explicit choice, so it
+      // wins over the automatic per-value dropdown color when both are
+      // present; otherwise the selected option's own color tints the
+      // closed select the same way a highlighted cell would look.
+      const selValColor = dropdownColors && dropdownColors[val];
+      const selectBg = hl ? daHlBg(hl.color) : (selValColor ? daHlBg(selValColor) : '');
+      const selectStyle = (selectBg || cwD) ? ` style="${selectBg ? 'background:' + selectBg + ';' : ''}${cwD}"` : '';
+      const unsetCls = (isUnset && val === '') ? ' da-td-select-unset' : '';
+      html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}${unsetCls}${daXIsMissing(ds, ri, ci, val) ? ' da-cell-missing' : ''}" data-da-dropdown="1"${selectStyle}
+           onmousedown="daDropdownCellMouseDown(event, ${ri}, ${ci})"
+           onfocus="daCellFocus(this, ${ri}, ${ci})"
+           onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
+           onchange="daUpdateCell(${ri}, ${ci}, this.value)"
+           oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
+           title="${hlTitle ? hlTitle + ' — ' : ''}Click to pick a value, right-click to edit the dropdown's choices">${optsHtml}</select>${linkBadge}</td>`;
+    } else {
+      html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${linkUrl ? ' da-cell-has-link' : ''}${cellSelCls}" contenteditable="true" spellcheck="false"${hlStyle}
+           onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
+           onfocus="daCellFocus(this, ${ri}, ${ci})"
+           onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
+           onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
+           oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
+           title="${hlTitle ? hlTitle + ' — ' : ''}${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : (linkUrl ? 'Linked to ' + linkUrl + ' — right-click to edit' : 'Right-click to add a dropdown list or link'))}">${!isFormula && displayRaw === '' ? '—' : showVal}</div>${linkBadge}</td>`;
+    }
+  });
+  html += `</tr>`;
+  return html;
+}
+
 function daRenderTable() {
   daPersist();
   const gridWrap = document.getElementById('daGridWrap');
   const meta = document.getElementById('daMeta');
   if (!gridWrap) return;
+  daVirt = null;
+  daAutoFitOn = false;
+  if (!gridWrap._daVirtBound) { gridWrap.addEventListener('scroll', daVirtOnScroll, { passive: true }); gridWrap._daVirtBound = true; }
   // Rebuilding the grid's innerHTML while one of its cells is still
   // mid-edit (contenteditable focused) makes the browser fire that cell's
   // blur handler *during* the removal — which calls daUpdateCell ->
@@ -2400,101 +2592,23 @@ function daRenderTable() {
   if (!visibleRowIdx.length) {
     html += `<tr><td class="da-rownum">–</td><td colspan="${ds.headers.length}" style="padding:16px;color:var(--text3);font-size:12px;text-align:center">${(query || filterActive) ? (query && filterActive ? 'No rows match your search and filter' : filterActive ? 'No rows match your filter' : 'No rows match your search') : 'No rows yet, use "+ Row" to add one'}</td></tr>`;
   } else {
-    visibleRowIdx.forEach(ri => {
-      const row = ds.rows[ri];
-      const rowHl = ds.rowHighlights[ri];
-      const rowSelCls = daIsRowSelected(ri) ? ' da-rownum-selected' : '';
-      const rowStyle = rowHl ? ` style="background:${daHlBg(rowHl.color)}"` : '';
-      html += `<tr><td class="da-rownum${rowSelCls}"${rowStyle} title="${rowHl && rowHl.tag ? daEsc(rowHl.tag) + ' — click to select this row' : 'Click to select this row'}" onmousedown="daSelectRow(${ri}, event)"><div class="da-rownum-inner"><span class="da-row-num-text">${ri + 1}</span><span class="da-row-del-btn" title="Delete row" onmousedown="event.stopPropagation()" onclick="daDeleteRow(${ri})">×</span></div></td>`;
-      row.forEach((cell, ci) => {
-        const val = String(cell ?? '');
-        const isFormula = val.trim().startsWith('=');
-        let displayRaw, isError = false;
-        if (isFormula) {
-          const res = daFormulaDisplayValue(ds, ri, ci);
-          displayRaw = res.display; isError = res.isError;
-        } else {
-          displayRaw = val;
-        }
-        const isNum = !isFormula && colTypes[ci] === 'NUM' && displayRaw.trim() !== '' && !isNaN(parseFloat(displayRaw));
-        const isNumFormula = isFormula && !isError && displayRaw.trim() !== '' && !isNaN(parseFloat(displayRaw));
-        const showVal = (!isFormula && query && val.toLowerCase().includes(query)) ? daHighlight(val, query) : daEsc(displayRaw);
-        const cls = [
-          (isNum || isNumFormula) ? 'da-cell-num' : '',
-          (!isFormula && displayRaw === '') ? 'da-cell-empty' : '',
-          isFormula ? 'da-cell-formula' : '',
-          isError ? 'da-cell-error' : '',
-          daXIsMissing(ds, ri, ci, val) ? 'da-cell-missing' : ''
-        ].filter(Boolean).join(' ');
-        const dropdownOpts = daGetEffectiveDropdown(ds, ri, ci);
-        const dropdownColors = daGetEffectiveDropdownColors(ds, ri, ci);
-        const linkUrl = daGetEffectiveLink(ds, ri, ci);
-        const hl = daGetEffectiveHighlight(ds, ri, ci);
-        const cwD = daColWidthDecl(ds, ci);
-        const hlStyle = (hl || cwD) ? ` style="${hl ? 'background:' + daHlBg(hl.color) + ';' : ''}${cwD}"` : '';
-        const hlTitle = hl && hl.tag ? daEsc(hl.tag) : '';
-        const cellSelCls = daIsCellSelected(ri, ci) ? ' da-cell-selected' + daSelEdgeCls(ri, ci, ds.rows.length, ds.headers.length) : '';
-        const linkBadge = linkUrl ? `<span class="da-td-link-badge" title="Open link: ${daEsc(linkUrl)}"
-             onmousedown="event.preventDefault();event.stopPropagation();daOpenCellLink(${ri}, ${ci})">
-             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-           </span>` : '';
-        const faviconHtml = (linkUrl && !isFormula && !(dropdownOpts)) ? daFaviconHtml(linkUrl) : '';
-        if (dropdownOpts && !isFormula) {
-          let matched = false;
-          let optsHtml = dropdownOpts.map(opt => {
-            const isSel = opt === val;
-            if (isSel) matched = true;
-            const optColor = dropdownColors && dropdownColors[opt];
-            const optStyle = optColor ? ` style="background:${daHlBg(optColor, 0.55)}"` : '';
-            return `<option value="${daEsc(opt)}"${isSel ? ' selected' : ''}${optStyle}>${daEsc(opt)}</option>`;
-          }).join('');
-          // FIX: an unset dropdown cell used to show the exact same bare "—"
-          // a genuinely blank contenteditable cell shows, so a freshly
-          // dropdown-enabled column (see the screenshot: every row showing
-          // "—" with a chevron) read as "nothing happened" rather than
-          // "pick a value here" -- the placeholder and a real empty cell
-          // were visually identical. Using "Select…" for the unset case
-          // only (matched stays false only when the cell truly has no
-          // value yet, or an old value that no longer matches the list)
-          // keeps the em-dash convention for actual blank data everywhere
-          // else, while making a dropdown's own empty state look like an
-          // affordance instead of a dead end. A muted class distinguishes
-          // it further from a picked value.
-          const isUnset = !matched;
-          if (isUnset) {
-            const placeholderText = val === '' ? 'Select…' : daEsc(val);
-            optsHtml = `<option value="${daEsc(val)}" selected>${placeholderText}</option>` + optsHtml;
-          }
-          // A manual cell/row/column highlight is an explicit choice, so it
-          // wins over the automatic per-value dropdown color when both are
-          // present; otherwise the selected option's own color tints the
-          // closed select the same way a highlighted cell would look.
-          const selValColor = dropdownColors && dropdownColors[val];
-          const selectBg = hl ? daHlBg(hl.color) : (selValColor ? daHlBg(selValColor) : '');
-          const selectStyle = (selectBg || cwD) ? ` style="${selectBg ? 'background:' + selectBg + ';' : ''}${cwD}"` : '';
-          const unsetCls = (isUnset && val === '') ? ' da-td-select-unset' : '';
-          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})"><select id="daCell_${ds.id}_${ri}_${ci}" class="da-td-select${cellSelCls}${unsetCls}${daXIsMissing(ds, ri, ci, val) ? ' da-cell-missing' : ''}" data-da-dropdown="1"${selectStyle}
-               onmousedown="daDropdownCellMouseDown(event, ${ri}, ${ci})"
-               onfocus="daCellFocus(this, ${ri}, ${ci})"
-               onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
-               onchange="daUpdateCell(${ri}, ${ci}, this.value)"
-               oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
-               title="${hlTitle ? hlTitle + ' — ' : ''}Click to pick a value, right-click to edit the dropdown's choices">${optsHtml}</select>${linkBadge}</td>`;
-        } else {
-          html += `<td data-r="${ri}" data-c="${ci}" onmouseenter="daCellRangeMouseEnter(${ri},${ci})">${faviconHtml}<div id="daCell_${ds.id}_${ri}_${ci}" class="da-td-cell${cls ? ' ' + cls : ''}${faviconHtml ? ' da-cell-has-icon' : ''}${linkUrl ? ' da-cell-has-link' : ''}${linkUrl && !isFormula ? ' da-cell-link-text' : ''}${cellSelCls}" contenteditable="true" spellcheck="false"${hlStyle}
-               onmousedown="daCellMouseDown(event, ${ri}, ${ci})"
-               onfocus="daCellFocus(this, ${ri}, ${ci})"
-               onblur="daUpdateCell(${ri}, ${ci}, this.textContent)"
-               onkeydown="daHandleCellKeydown(event, ${ri}, ${ci})"
-               oncontextmenu="daCellContextMenu(event, ${ri}, ${ci});return false;"
-               title="${hlTitle ? hlTitle + ' — ' : ''}${isError ? 'Formula error, click to edit' : (isFormula ? 'Formula, click to edit' : (linkUrl ? 'Linked to ' + linkUrl + ' — right-click to edit' : 'Right-click to add a dropdown list or link'))}">${!isFormula && displayRaw === '' ? '—' : showVal}</div>${linkBadge}</td>`;
-        }
-      });
-      html += `</tr>`;
-    });
+    daVirt = null;
+    if (!ds.wrap && visibleRowIdx.length > DA_VIRT_MIN) {
+      // Big table: draw only the rows around the viewport. Two spacer rows keep
+      // the scrollbar the size of the whole table. Scrolling repaints (daVirtRepaint).
+      daVirt = { dsId: ds.id, vis: visibleRowIdx, colTypes, query, nCols: ds.headers.length, start: 0, end: 0 };
+      const w = daVirtWindow(gridWrap, visibleRowIdx.length);
+      daVirt.start = w.start; daVirt.end = w.end;
+      html += daVirtSpacer(w.start, ds.headers.length);
+      for (let p = w.start; p < w.end; p++) html += daBuildRowHtml(ds, visibleRowIdx[p], colTypes, query);
+      html += daVirtSpacer(visibleRowIdx.length - w.end, ds.headers.length);
+    } else {
+      visibleRowIdx.forEach(ri => { html += daBuildRowHtml(ds, ri, colTypes, query); });
+    }
   }
   html += `</tbody></table>`;
   gridWrap.innerHTML = html;
+  if (daVirt && daVirtMeasure(gridWrap)) daVirtRepaint(true);   // real row height known now: fix the spacers
   daFillPlaceHandle();
   daMarkActiveHeaders();
   daUpdateStatusBar();
@@ -3134,39 +3248,6 @@ function daGetCellLink(ds, ri, ci) {
   return ds.links[ri + '_' + ci] || null;
 }
 
-// A cell whose whole value is a web address (e.g. a CSV column of
-// https://... links) behaves as a link without anyone having to attach one by
-// hand. Detected at display time only: the stored value is never changed.
-// Only http(s):// and www. forms count, so ordinary text with dots never
-// turns into a link by accident.
-function daAutoLinkUrl(raw) {
-  const v = String(raw == null ? '' : raw).trim();
-  if (!v || v.charAt(0) === '=' || /\s/.test(v)) return null;
-  if (/^https?:\/\/[^\s\/$.?#][^\s]*$/i.test(v)) return v;
-  if (/^www\.[^\s.]+\.[^\s]+$/i.test(v)) return 'https://' + v;
-  return null;
-}
-
-// Small site/platform icon (LinkedIn, Instagram, YouTube, ...) for a link,
-// loaded by the browser from a public favicon service using only the host
-// name. Sits outside the editable cell text so editing is unaffected. If the
-// icon can't load, it removes itself and the cell text slides back left.
-function daFaviconHtml(url) {
-  let host = '';
-  try { const u = new URL(url); if (!/^https?:$/.test(u.protocol)) return ''; host = u.hostname; } catch (e) { return ''; }
-  if (!host) return '';
-  return `<img class="da-td-favicon" alt="" draggable="false" loading="lazy" referrerpolicy="no-referrer" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32" onerror="var n=this.nextElementSibling;if(n)n.classList.remove('da-cell-has-icon');this.remove()">`;
-}
-
-// A hand-attached link wins; otherwise a URL typed/imported into the cell.
-function daGetEffectiveLink(ds, ri, ci) {
-  if (!ds) return null;
-  const manual = daGetCellLink(ds, ri, ci);
-  if (manual) return manual;
-  const row = ds.rows[ri];
-  return row ? daAutoLinkUrl(row[ci]) : null;
-}
-
 // Accepts what a person actually types ("sarvarc.com", "www.x.com/page",
 // "mailto:a@b.com", "tel:+1234567890") and turns it into a URL a browser
 // will actually navigate to, defaulting bare domains to https://.
@@ -3277,10 +3358,6 @@ function daCellContextMenu(e, ri, ci) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       ${linkUrl ? 'Edit Link…' : 'Insert Link…'}
     </div>
-    ${(!linkUrl && daGetEffectiveLink(ds, ri, ci)) ? `<div class="da-ctx-item" onclick="daCloseCellCtxMenu();daOpenCellLink(${ri}, ${ci})">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      Open Link
-    </div>` : ''}
     ${linkUrl ? `<div class="da-ctx-item" onclick="daCloseCellCtxMenu();daOpenCellLink(${ri}, ${ci})">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       Open Link
@@ -3618,7 +3695,7 @@ function daRemoveHighlightFromModal() {
 // context menu's "Open Link", and any future entry point.
 function daOpenCellLink(ri, ci) {
   const ds = daGetActive(); if (!ds) return;
-  const url = daGetEffectiveLink(ds, ri, ci);
+  const url = daGetCellLink(ds, ri, ci);
   if (!url) return;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
@@ -3632,14 +3709,19 @@ function daToggleFreeze() {
 
 // Loosens the per-cell max-width clamp so long values are fully visible
 // without any cell text overlapping its neighbors.
-function daAutoFit() {
-  const ds = daGetActive(); if (!ds) return;
-  document.querySelectorAll('#daGridWrap .da-th-cell, #daGridWrap .da-td-cell').forEach(el => {
+function daApplyAutoFitStyles(root) {
+  root.querySelectorAll('.da-th-cell, .da-td-cell').forEach(el => {
     el.style.maxWidth = '420px';
     el.style.whiteSpace = 'normal';
     el.style.overflow = 'visible';
     el.style.textOverflow = 'clip';
   });
+}
+function daAutoFit() {
+  const ds = daGetActive(); if (!ds) return;
+  const wrap = document.getElementById('daGridWrap');
+  if (wrap) daApplyAutoFitStyles(wrap);
+  daAutoFitOn = true;
   toast('Columns auto-fit to content', 'success');
 }
 
@@ -3743,7 +3825,7 @@ function daClipWrite(ds, writes, selectRect, focusRC) {
   daRenderTable();
   daPersist();
   if (focusRC) {
-    const el = document.getElementById(`daCell_${ds.id}_${focusRC[0]}_${focusRC[1]}`);
+    const el = daCellEl(ds.id, focusRC[0], focusRC[1]);
     if (el && typeof el.focus === 'function') el.focus();
   }
 }
@@ -3849,7 +3931,7 @@ document.addEventListener('keydown', async function daGridUndoRedoKeydown(e) {
   const ds = daGetActive();
   if (ds && pos) {
     const r = Math.min(pos.row, ds.rows.length - 1), c = Math.min(pos.col, ds.headers.length - 1);
-    const el = r >= 0 && c >= 0 ? document.getElementById(`daCell_${ds.id}_${r}_${c}`) : null;
+    const el = r >= 0 && c >= 0 ? daCellEl(ds.id, r, c) : null;
     if (el && typeof el.focus === 'function') el.focus();
   }
 }, true);
