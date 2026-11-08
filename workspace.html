@@ -157,7 +157,6 @@
 <link rel="stylesheet" href="css/17-diagrams-graphs.css">
 <link rel="stylesheet" href="css/18-mobile-shell.css">
 <link rel="stylesheet" href="css/19-redaction.css">
-<link rel="stylesheet" href="css/20-brand-kit.css">
 </head>
 <body class="splash-active">
 
@@ -1166,11 +1165,7 @@
                   </div>
                 </div>
               </div>
-              <!-- Business Proposals: sits right in the PDF Editor app bar (not a
-                   separate module/section) — opens a template gallery modal and
-                   drops the chosen design straight onto the current canvas as an
-                   editable page (same placedTexts/placedTables mechanism Data
-                   Tables & Diagrams use to push content onto pdfed.pages). -->
+              <!-- Showcase and Workstyle buttons. The group id is kept: the Workstyle panel is attached to it. -->
               <div class="pdfed-shapes-group" id="pdfedProposalsGroup" style="margin-left:10px;position:relative">
                 <button class="pdfed-appbar-btn" id="sppOpenBtn" aria-label="Showcase" data-icon-only="1" onclick="sppOpen()" title="Showcase: turn any photo into a premium slide, edge to edge with your text on it, or a rotating 360° product display">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
@@ -1180,32 +1175,6 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4"/><path d="M17 5h4"/></svg>
                   <span class="pdfed-reveal">Workstyle</span>
                 </button>
-                <!-- BRAND KIT panel: save a logo + company identity once, then every
-                     proposal template inserted onto the canvas auto-applies it (see
-                     bkSave/bkLoad and bpRenderTemplateBg's use of bkLoad()). Lives
-                     right next to the Business Proposals button since that's the
-                     only feature it affects. Free tier = 1 saved kit; a "Kits"
-                     switcher for multiple saved brands is the natural paid upgrade
-                     on top of this same storage shape. -->
-                <div class="bk-panel" id="bkPanel">
-                  <h4>Brand Kit <span class="bk-badge">AUTO-APPLIES</span></h4>
-                  <div class="bk-row">
-                    <div class="bk-logo-drop" id="bkLogoDrop" onclick="document.getElementById('bkLogoInput').click()">
-                      <img id="bkLogoPreview" style="display:none">
-                      <span id="bkLogoPlaceholder">+</span>
-                    </div>
-                    <input type="file" id="bkLogoInput" accept="image/*" style="display:none" onchange="bkHandleLogoFile(this.files[0])">
-                    <div class="bk-field">
-                      <input type="text" id="bkCompanyInput" placeholder="Company name" oninput="bkOnFieldInput()">
-                      <input type="text" id="bkTaglineInput" placeholder="Tagline (optional)" oninput="bkOnFieldInput()">
-                    </div>
-                  </div>
-                  <div class="bk-actions">
-                    <button onclick="bkClear()">Clear</button>
-                    <button class="primary" onclick="bkSaveFromPanel()">Save &amp; Apply</button>
-                  </div>
-                  <div class="bk-status" id="bkStatus">No brand kit saved yet — upload a logo to brand every proposal automatically from now on.</div>
-                </div>
               </div>
             </div>
             <!-- Right action buttons -->
@@ -4314,59 +4283,6 @@
   </div>
 </div>
 
-<!-- BUSINESS PROPOSALS — TEMPLATE PICKER MODAL -->
-<!-- Opened from the "Business Proposals" button in the PDF Editor app bar
-     (pdfedProposalsBtn). This is intentionally NOT the standalone
-     sec-proposals module/section — picking a template here calls
-     bpInsertTemplateToCanvas(), which builds a new editable page directly
-     on pdfed.pages (the same canvas backing "Untitled Document") and drops
-     the user straight onto it, ready to type. -->
-<link rel="stylesheet" href="css/21-business-proposals-modal.css">
-<div class="pdfed-insert-modal-overlay" id="bpTplModalOverlay" onmousedown="if(event.target===this) bpCloseTemplateModal()">
-  <div class="bp-tplmodal">
-    <div class="pdfed-export-head">
-      <div>
-        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg> Business Proposals</h3>
-        <div class="pdfed-export-sub">Pick a designer template — it lands on your canvas ready to edit</div>
-      </div>
-      <button type="button" class="pdfed-export-close" onclick="bpCloseTemplateModal()" aria-label="Close">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="bp-tplmodal-body">
-      <p class="bp-tplmodal-hint">Every field, the scope list, and the pricing table are placed as editable boxes right on the page — click anything to change it.</p>
-      <p class="bp-tplmodal-hint" id="bpTplModalKitHint" style="display:none;color:#00c2ff">🎨 Your saved Brand Kit logo will be applied automatically.</p>
-      <div class="bp-tpl-grid">
-        <div class="bp-tpl-card" onclick="bpInsertTemplateToCanvas('modern')">
-          <div class="bp-tpl-thumb bp-tpl-modern"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-          <h4>Modern Minimal</h4>
-          <p>Clean lines, blue accent — great for tech &amp; startups</p>
-        </div>
-        <div class="bp-tpl-card" onclick="bpInsertTemplateToCanvas('navy')">
-          <div class="bp-tpl-thumb bp-tpl-navy"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-          <h4>Corporate Navy</h4>
-          <p>Navy &amp; gold — trustworthy, for enterprise clients</p>
-        </div>
-        <div class="bp-tpl-card" onclick="bpInsertTemplateToCanvas('gradient')">
-          <div class="bp-tpl-thumb bp-tpl-gradient"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-          <h4>Creative Gradient</h4>
-          <p>Purple-pink gradient — for design &amp; creative studios</p>
-        </div>
-        <div class="bp-tpl-card" onclick="bpInsertTemplateToCanvas('elegant')">
-          <div class="bp-tpl-thumb bp-tpl-elegant"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-          <h4>Classic Elegant</h4>
-          <p>Serif type, gold rule — for consulting &amp; legal</p>
-        </div>
-        <div class="bp-tpl-card" onclick="bpInsertTemplateToCanvas('dark')">
-          <div class="bp-tpl-thumb bp-tpl-dark"><div class="bp-tpl-thumb-bar"></div><div class="bp-tpl-thumb-lines"><span></span><span></span><span></span></div></div>
-          <h4>Bold Dark</h4>
-          <p>Dark canvas, neon accent — for product &amp; media pitches</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- EXPORT MODAL -->
 <div class="pdfed-insert-modal-overlay" id="pdfedExportOverlay2" onmousedown="if(event.target===this)pdfedCloseExportModal()">
   <div class="pdfed-export-modal">
@@ -6491,6 +6407,7 @@
 <link rel="stylesheet" href="css/47-pdfed-line-styles.css">
 <link rel="stylesheet" href="css/48-workstyle-premium.css">
 <link rel="stylesheet" href="css/49-settings-page.css">
+<link rel="stylesheet" href="css/50-brand-kit-link.css">
 
 
 <div id="pdfedPresenter" aria-hidden="true">
@@ -6530,6 +6447,7 @@
 <script src="js/82-pdfed-line-styles.js"></script>
 <script src="js/83-workstyle-premium.js"></script>
 <script src="js/84-settings-page.js"></script>
+<script src="js/85-brand-kit-link.js"></script>
 
 </body>
 </html>
