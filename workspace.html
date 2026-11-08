@@ -2070,33 +2070,40 @@
                 </div></div></div>
               </div>
 
-              <!-- PHOTO TEXT: photo shows only through the letters (js/86-pdfed-photo-text.js) -->
+              <!-- PHOTO TEXT: photo shows only through the letters, with 3D looks (js/86-pdfed-photo-text.js) -->
               <div class="ptx" id="pdfedPhotoTextPanel">
                 <button type="button" class="ptx-head" id="pdfedPhotoTextHead" aria-expanded="false" onclick="pdfedPhotoTextToggle()">
                   <span class="ptx-tile" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span>
-                  <span>Photo Text<span class="ptx-sub">Fill big letters with a photo</span></span>
+                  <span>Photo Text<span class="ptx-sub">Photo-filled 3D lettering</span></span>
                   <svg class="ptx-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
                 </button>
                 <div class="ptx-body">
-                  <div class="ptx-prev" id="pdfedPhotoTextPrev"></div>
-                  <textarea class="ptx-input" id="pdfedPhotoTextBox" rows="1" placeholder="Type the word" spellcheck="false" oninput="pdfedPhotoTextInput(this.value)"></textarea>
-                  <div class="ptx-row">
-                    <button type="button" class="ptx-btn" onclick="pdfedPhotoTextPick()">Choose photo</button>
-                    <button type="button" class="ptx-btn" onclick="pdfedPhotoTextUseSelected()" title="Click a photo on the page first">Use selected</button>
-                    <input type="file" id="pdfedPhotoTextFile" accept="image/*" style="display:none" onchange="pdfedPhotoTextFile(this)">
-                  </div>
-                  <div class="ptx-row"><span class="ptx-name" id="pdfedPhotoTextImgName">No photo yet (colour fill shown)</span><button type="button" class="ptx-btn" id="pdfedPhotoTextClear" style="display:none" onclick="pdfedPhotoTextClearImg()">Remove</button></div>
-                  <div class="ptx-row">
-                    <select class="ptx-sel" id="pdfedPhotoTextSel" title="Font" onchange="pdfedPhotoTextFont(this.value)"></select>
-                    <select class="ptx-sel" style="flex:0 0 86px" title="How the photo fits" onchange="pdfedPhotoTextFitMode(this.value)"><option value="cover">Fill</option><option value="contain">Fit all</option></select>
-                  </div>
-                  <div><div class="ptx-lab"><span>Letter spacing</span><span id="pdfedPhotoTextSpVal">0</span></div><input type="range" min="-5" max="30" value="0" oninput="pdfedPhotoTextSpacing(this.value)"></div>
-                  <div><div class="ptx-lab"><span>Photo zoom</span><span><span id="pdfedPhotoTextZmVal">100</span>%</span></div><input type="range" min="100" max="300" value="100" oninput="pdfedPhotoTextZoom(this.value)"></div>
-                  <button type="button" class="ptx-go" onclick="pdfedPhotoTextAdd()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add to page</button>
+                  <div class="ptx-state" id="pdfedPhotoTextState">Type a word, it appears on the page</div>
+                  <div class="ptx-sec"><div class="ptx-cap">Text</div>
+                    <textarea class="ptx-input" id="pdfedPhotoTextBox" rows="1" placeholder="Type a word" spellcheck="false" oninput="pdfedPhotoTextInput(this.value)"></textarea></div>
+                  <div class="ptx-sec"><div class="ptx-cap">Photo</div>
+                    <div class="ptx-photo"><div class="ptx-thumb empty" id="pdfedPhotoTextThumb"></div>
+                      <div class="ptx-photo-main"><div class="ptx-name" id="pdfedPhotoTextImgName">Colour fill. Add a photo</div>
+                        <div class="ptx-links"><button type="button" class="ptx-link" onclick="pdfedPhotoTextPick()">Choose</button><button type="button" class="ptx-link" onclick="pdfedPhotoTextUseSelected()" title="Click a photo on the page first">Use selected</button><button type="button" class="ptx-link mute" id="pdfedPhotoTextClear" style="display:none" onclick="pdfedPhotoTextClearImg()">Remove</button></div></div>
+                      <input type="file" id="pdfedPhotoTextFile" accept="image/*" style="display:none" onchange="pdfedPhotoTextFile(this)"></div></div>
+                  <div class="ptx-sec"><div class="ptx-cap">Font</div><div class="ptx-fonts" id="pdfedPhotoTextFonts"></div></div>
+                  <div class="ptx-sec"><div class="ptx-cap">Look</div><div class="ptx-looks"><button type="button" class="ptx-look" data-look="flat" onclick="pdfedPhotoTextLook('flat')"><b>Aa</b>Flat</button><button type="button" class="ptx-look" data-look="depth" onclick="pdfedPhotoTextLook('depth')"><b>Aa</b>Depth</button><button type="button" class="ptx-look" data-look="mirror" onclick="pdfedPhotoTextLook('mirror')"><b>Aa</b>Mirror</button><button type="button" class="ptx-look" data-look="studio" onclick="pdfedPhotoTextLook('studio')"><b>Aa</b>Studio</button><button type="button" class="ptx-look" data-look="glow" onclick="pdfedPhotoTextLook('glow')"><b>Aa</b>Glow</button></div></div>
+                  <div class="ptx-sec"><div class="ptx-cap">3D</div>
+                    <div class="ptx-sl"><label>Depth<span id="pdfedPhotoTextDpVal">38</span></label><input type="range" id="pdfedPhotoTextDpRange" min="0" max="100" value="38" oninput="pdfedPhotoTextDepth(this.value)"></div>
+                    <div class="ptx-sl"><label>Reflection<span id="pdfedPhotoTextRfVal">50</span></label><input type="range" id="pdfedPhotoTextRfRange" min="0" max="100" value="50" oninput="pdfedPhotoTextReflect(this.value)"></div>
+                    <div class="ptx-sl"><label>Shadow<span id="pdfedPhotoTextShVal">42</span></label><input type="range" id="pdfedPhotoTextShRange" min="0" max="100" value="42" oninput="pdfedPhotoTextShadow(this.value)"></div>
+                    <div class="ptx-sl"><label>Glow<span id="pdfedPhotoTextGlVal">0</span></label><input type="range" id="pdfedPhotoTextGlRange" min="0" max="100" value="0" oninput="pdfedPhotoTextGlow(this.value)"></div>
+                    <label class="ptx-sw"><span>Gloss</span><input type="checkbox" id="pdfedPhotoTextGloss" checked onchange="pdfedPhotoTextGloss(this.checked)"><i></i></label></div>
+                  <details class="ptx-more"><summary>Fine tune</summary><div>
+                    <div class="ptx-seg"><button type="button" data-fit="cover" onclick="pdfedPhotoTextFitMode('cover')">Fill letters</button><button type="button" data-fit="contain" onclick="pdfedPhotoTextFitMode('contain')">Fit whole photo</button></div>
+                    <div class="ptx-sl"><label>Letter spacing<span id="pdfedPhotoTextSpVal">0</span></label><input type="range" id="pdfedPhotoTextSpRange" min="-5" max="30" value="0" oninput="pdfedPhotoTextSpacing(this.value)"></div>
+                    <div class="ptx-sl"><label>Photo zoom<span id="pdfedPhotoTextZmVal">100</span></label><input type="range" id="pdfedPhotoTextZmRange" min="100" max="300" value="100" oninput="pdfedPhotoTextZoom(this.value)"></div>
+                  </div></details>
+                  <button type="button" class="ptx-go" onclick="pdfedPhotoTextNew()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New text</button>
                 </div>
               </div>
 
-              <div class="pdfed-panel-section">
+<div class="pdfed-panel-section">
                 <h5 style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9h6v6H9z"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Selection</h5>
                 <div id="pdfedSelectionBody">
                   <div style="text-align:center;padding:14px 6px;color:var(--text3);font-size:11px;line-height:1.6">
