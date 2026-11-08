@@ -948,3 +948,28 @@ table.da-table.da-frozen thead tr:nth-child(2) th { top:22px; }
    Wrap Text button shows long text in the cells. Only paint-level changes happen on focus. */
 .da-td-cell:focus { white-space:nowrap; overflow:hidden; text-overflow:clip; word-break:normal; }
 .da-table.da-wrap .da-td-cell:focus { white-space:pre-wrap; word-break:break-word; overflow:visible; }
+
+/* ═══ URL cells: auto-link + site icon (Nov 2026) ═══
+   A cell holding a web address shows the site's own icon in the corner badge
+   (falls back to the chain icon if the icon cannot load). Click opens the link. */
+.da-td-link-badge.da-has-fav { background:var(--surface2); }
+.da-td-link-badge .da-link-fav { width:12px; height:12px; border-radius:3px; display:block; object-fit:contain; }
+.da-td-cell.da-cell-has-link { color:var(--blue); }
+.da-td-link-badge.da-has-fav .da-link-chain { display:none; }
+
+/* Link icon comes FIRST: sits at the left, before the cell text, vertically centred */
+.da-td-cell.da-cell-has-link { padding-left:30px; padding-right:8px; }
+.da-td-link-badge { left:7px; right:auto; top:50%; transform:translateY(-50%); width:18px; height:18px; }
+.da-td-link-badge:hover { transform:translateY(-50%) scale(1.14); }
+.da-td-link-badge .da-link-fav { width:14px; height:14px; }
+.da-td-link-badge .da-link-chain { width:11px; height:11px; }
+
+/* "Open link" icon at the right end of the cell; the site icon stays first on the left */
+.da-td-cell.da-cell-has-link { padding-right:28px; }
+.da-td-link-open {
+  position:absolute; top:50%; right:6px; transform:translateY(-50%); z-index:2;
+  width:18px; height:18px; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  color:var(--blue); background:var(--surface2); border:1px solid var(--border2); cursor:pointer;
+  transition:background .12s ease, color .12s ease;
+}
+.da-td-link-open:hover { background:var(--blue); color:#fff; }
