@@ -402,6 +402,7 @@ function navigate(sec) {
     else if(sec === 'diagrams' && t.includes('diagrams')) n.classList.add('active');
     else if(sec === 'savedsessions' && t.includes('saved sessions')) n.classList.add('active');
     else if(sec === 'redact' && t.includes('redact pii')) n.classList.add('active');
+    else if(sec === 'settings' && n.id === 'navIcon-settings') n.classList.add('active');
   });
   if(sec === 'makeforms' && typeof mfBackToGallery === 'function') {
     mfBackToGallery();
@@ -433,6 +434,9 @@ function navigate(sec) {
   }
   if (sec === 'redact' && typeof rdxOnEnter === 'function') {
     rdxOnEnter();
+  }
+  if (sec === 'settings' && typeof stgOnEnter === 'function') {
+    stgOnEnter();
   }
 }
 
