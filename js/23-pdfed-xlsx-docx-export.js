@@ -784,6 +784,177 @@ function pdfedBuildDocxParagraphsXml(rows, pageWidthPt) {
   return xml;
 }
 
+
+// ---------------------------------------------------------------------------
+// Word export: placed images (logo, letterhead, dividers, watermark).
+// The Word export used to read only text/tables, so anything the user placed
+// on the page as an image (a logo above all) never reached the .docx. These
+// helpers write each placed image as a floating picture pinned to its exact
+// page position, so it lands in Word where it sits on the canvas.
+// ---------------------------------------------------------------------------
+function pdfedLoadImageEl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('Could not read placed image'));
+    im.src = dataUrl;
+  });
+}
+
+// Word only embeds png / jpeg / gif reliably. Anything else (webp, svg, ...)
+// is redrawn onto a canvas and saved as png.
+async function pdfedPrepareDocxImage(dataUrl) {
+  const m = /^data:image\/([a-z0-9.+-]+);base64,/i.exec(dataUrl || '');
+  if (!m) return null;
+  const kind = m[1].toLowerCase();
+  if (kind === 'png') return { dataUrl, ext: 'png' };
+  if (kind === 'jpeg' || kind === 'jpg') return { dataUrl, ext: 'jpeg' };
+  if (kind === 'gif') return { dataUrl, ext: 'gif' };
+  const el = await pdfedLoadImageEl(dataUrl);
+  const c = document.createElement('canvas');
+  c.width = el.naturalWidth || el.width || 1;
+  c.height = el.naturalHeight || el.height || 1;
+  c.getContext('2d').drawImage(el, 0, 0, c.width, c.height);
+  return { dataUrl: c.toDataURL('image/png'), ext: 'png' };
+}
+
+// One floating <w:drawing> for a placed image. Position is measured from the
+// top-left corner of the page, in EMU.
+function pdfedBuildAnchoredImageXml(images, prep, xPt, yPt, wPt, hPt, opts) {
+  const o = opts || {};
+  const rId = 'rIdImg' + (images.list.length + 1);
+  images.list.push({ rId, base64: prep.dataUrl.split(',')[1], ext: prep.ext });
+  const id = images.list.length;
+  const emu = v => Math.max(0, Math.round(v * 12700));
+  const cx = Math.max(1, emu(wPt)), cy = Math.max(1, emu(hPt));
+  const rot = o.rotationDeg ? ` rot="${Math.round(o.rotationDeg * 60000)}"` : '';
+  const alpha = (o.opacity != null && o.opacity < 1)
+    ? `<a:alphaModFix amt="${Math.round(Math.max(0, o.opacity) * 100000)}"/>` : '';
+  const blip = alpha ? `<a:blip r:embed="${rId}">${alpha}</a:blip>` : `<a:blip r:embed="${rId}"/>`;
+  return `<w:r><w:drawing>` +
+    `<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${251650000 + id}" ` +
+    `behindDoc="${o.behind ? 1 : 0}" locked="0" layoutInCell="1" allowOverlap="1">` +
+    `<wp:simplePos x="0" y="0"/>` +
+    `<wp:positionH relativeFrom="page"><wp:posOffset>${emu(xPt)}</wp:posOffset></wp:positionH>` +
+    `<wp:positionV relativeFrom="page"><wp:posOffset>${emu(yPt)}</wp:posOffset></wp:positionV>` +
+    `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<wp:effectExtent l="0" t="0" r="0" b="0"/>` +
+    `<wp:wrapNone/>` +
+    `<wp:docPr id="${id}" name="Picture ${id}"/>` +
+    `<wp:cNvGraphicFramePr/>` +
+    `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    `<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:nvPicPr><pic:cNvPr id="${id}" name="Picture ${id}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill>${blip}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm${rot}><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>` +
+    `</pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+}
+
+// All placed images of one page as a single near-zero-height paragraph that
+// holds the floating pictures (so it adds no visible gap to the text flow).
+async function pdfedBuildPlacedImagesXml(images, pg, pagePtW) {
+  const list = (pg.placedImages || []).filter(im => im && im.dataUrl);
+  if (!list.length) return '';
+  const pagePxW = pg.width || 600;
+  const k = pagePtW / pagePxW; // canvas px -> Word pt
+  const ordered = list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  let runs = '';
+  for (const im of ordered) {
+    try {
+      const prep = await pdfedPrepareDocxImage(im.dataUrl);
+      if (!prep) continue;
+      let op = im.opacity;
+      if (op != null && op > 1) op = op / 100;
+      const rotDeg = Number(im.rotation != null ? im.rotation : im.rotate) || 0;
+      runs += pdfedBuildAnchoredImageXml(
+        images, prep,
+        (im.x || 0) * k, (im.y || 0) * k,
+        (im.w || 100) * k, (im.h || 100) * k,
+        { behind: !!im._watermark, opacity: (op != null && !isNaN(op)) ? op : null, rotationDeg: rotDeg }
+      );
+    } catch (e) {
+      console.error('Word export: placed image skipped', e);
+    }
+  }
+  if (!runs) return '';
+  return `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>` +
+    `<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr>${runs}</w:p>`;
+}
+
+
+// ---------------------------------------------------------------------------
+// Word export: placed text boxes.
+// One shared builder turns a placed text box into Word paragraphs (font, size,
+// bold, italic, underline, colour, alignment, real hyperlinks). It is used two
+// ways: as normal flowing paragraphs on canvas-built pages, and as absolutely
+// positioned frames on PDF pages, so text you typed on top of a PDF (a header
+// like "FoxIT Resume") keeps its place instead of being dropped.
+// ---------------------------------------------------------------------------
+function pdfedDocxTextLines(tb, images) {
+  const baseSz = Math.max(12, Math.round((tb.fontSize || 14) * 1.5));
+  const baseHex = (tb.color || '#000000').replace('#', '').toUpperCase();
+  const lines = tb.html
+    ? pdfedParseRichLines(tb.html)
+    : (tb.text || '').split('\n').map(t => [{ text: t, color: null, link: null }]);
+  const font = tb.fontFamily ? pdfedXmlEscape(String(tb.fontFamily).split(',')[0].replace(/['"]/g, '').trim()) : '';
+  const fontXml = font ? `<w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}"/>` : '';
+  return lines.map(runs => {
+    let runsXml = '';
+    runs.forEach(r => {
+      if (!r.text) return;
+      const url = r.link || tb.link;
+      const runHex = url
+        ? '0563C1'
+        : (r.color ? pdfedToHexColor(r.color).replace('#', '').toUpperCase() : baseHex);
+      const rBold = r.bold != null ? r.bold : tb.bold;
+      const rItalic = r.italic != null ? r.italic : tb.italic;
+      const rUnderline = r.underline != null ? r.underline : tb.underline;
+      // element order follows the Word schema: fonts, b, i, color, sz, u
+      const rPr = `<w:rPr>${fontXml}${rBold ? '<w:b/>' : ''}${rItalic ? '<w:i/>' : ''}` +
+        `<w:color w:val="${runHex}"/><w:sz w:val="${baseSz}"/>${(rUnderline || url) ? '<w:u w:val="single"/>' : ''}</w:rPr>`;
+      const runXml = `<w:r>${rPr}<w:t xml:space="preserve">${pdfedXmlEscape(r.text)}</w:t></w:r>`;
+      runsXml += url
+        ? `<w:hyperlink r:id="${pdfedAddHyperlinkRel(images, url)}" w:history="1">${runXml}</w:hyperlink>`
+        : runXml;
+    });
+    return runsXml || '<w:r><w:t xml:space="preserve"></w:t></w:r>';
+  });
+}
+
+function pdfedDocxAlign(tb) {
+  return tb.align === 'center' || tb.align === 'right' ? tb.align : 'left';
+}
+
+// Flowing paragraphs (canvas-built pages).
+function pdfedBuildDocxPlacedTextXml(tb, images) {
+  const align = pdfedDocxAlign(tb);
+  const jc = align === 'left' ? '' : `<w:jc w:val="${align}"/>`;
+  return pdfedDocxTextLines(tb, images)
+    .map(runsXml => `<w:p><w:pPr>${jc}</w:pPr>${runsXml}</w:p>`).join('');
+}
+
+// Absolutely positioned paragraphs (text typed on top of a PDF page).
+function pdfedBuildDocxFramedTextXml(tb, images, pagePtW, pagePxW) {
+  const k = pagePtW / (pagePxW || 600);          // canvas px -> pt
+  const tw = v => Math.max(0, Math.round(v * k * 20)); // px -> twips
+  const widthPx = tb.w || Math.min(360, Math.max(120, (pagePxW || 600) - (tb.x || 0) - 20));
+  const frame = `<w:framePr w:w="${Math.max(400, tw(widthPx))}" w:hSpace="0" w:vSpace="0" w:wrap="notBeside" ` +
+    `w:vAnchor="page" w:hAnchor="page" w:x="${tw(tb.x || 0)}" w:y="${tw(tb.y || 0)}"/>`;
+  const align = pdfedDocxAlign(tb);
+  const jc = align === 'left' ? '' : `<w:jc w:val="${align}"/>`;
+  return pdfedDocxTextLines(tb, images)
+    .map(runsXml => `<w:p><w:pPr>${frame}<w:spacing w:before="0" w:after="0"/>${jc}</w:pPr>${runsXml}</w:p>`).join('');
+}
+
+function pdfedBuildDocxOverlayTextXml(pg, images, pagePtW) {
+  const list = (pg.placedTexts || []).filter(tb => tb && (tb.text || tb.html));
+  if (!list.length) return '';
+  return list.slice().sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+    .map(tb => pdfedBuildDocxFramedTextXml(tb, images, pagePtW, pg.width)).join('');
+}
+
 async function pdfedExportDOCX(indices) {
   if (pdfedLiveBlock(indices)) return;
   if (!pdfed.pages.length) { toast('No PDF loaded', 'error'); return; }
@@ -792,6 +963,7 @@ async function pdfedExportDOCX(indices) {
   const RASTER_SCALE = 2; // px-per-pt used for color sampling + cropped images
   const PAGE_W_TWIPS = 11906, PAGE_H_TWIPS = 16838, MARGIN_TWIPS = 1080;
   const contentWidthEmu = (PAGE_W_TWIPS - MARGIN_TWIPS * 2) * 635;
+  const PAGE_W_PT = PAGE_W_TWIPS / 20;
   const images = { list: [] };
   let logoExtracted = false;
   try {
@@ -805,6 +977,10 @@ async function pdfedExportDOCX(indices) {
       updateExportProgress((k / indices.length) * 85, `Reading page ${k + 1} of ${indices.length}…`);
       if (k > 0) bodyXml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
       if (window.sarvarcApplyFreeWatermark) bodyXml += sarvarcDocxWatermarkXml(210, 297);
+      // logo / letterhead / any placed image, pinned at its canvas position
+      bodyXml += await pdfedBuildPlacedImagesXml(images, pg, PAGE_W_PT);
+      // text typed on top of a PDF page (headers, labels) keeps its position
+      if (pg.type === 'pdf') bodyXml += pdfedBuildDocxOverlayTextXml(pg, images, PAGE_W_PT);
 
       try {
         if (pg.type === 'pdf') {
@@ -841,57 +1017,21 @@ async function pdfedExportDOCX(indices) {
           }
           bodyXml += pdfedBuildDocxParagraphsXml(rows, pageWidthPt);
           anyContent = true;
-        } else if (pg.placedTables && pg.placedTables.length) {
-          pg.placedTables.forEach(t => {
+        } else if ((pg.placedTables && pg.placedTables.length) || (pg.placedTexts && pg.placedTexts.length)) {
+          // tables and text boxes together, in the same top-to-bottom order
+          // they sit on the page (a page with both used to lose its text)
+          const flow = [];
+          (pg.placedTables || []).forEach(t => {
             if (t.cells && t.cells.length) {
-              bodyXml += pdfedBuildDocxTableXml(t.cells.map(r => r.map(c => (c == null ? '' : String(c)))));
-              bodyXml += '<w:p/>';
-              anyContent = true;
+              flow.push({ y: t.y || 0, x: t.x || 0, xml: pdfedBuildDocxTableXml(t.cells.map(r => r.map(c => (c == null ? '' : String(c))))) + '<w:p/>' });
             }
           });
-        } else if (pg.placedTexts && pg.placedTexts.length) {
-          // style already lives on each item, no need to sample/guess it
-          pg.placedTexts.forEach(tb => {
-            const align = tb.align === 'center' || tb.align === 'right' ? tb.align : 'left';
-            const jc = align === 'left' ? '' : `<w:jc w:val="${align}"/>`;
-            const baseSz = Math.max(12, Math.round((tb.fontSize || 14) * 1.5));
-            const baseHex = (tb.color || '#000000').replace('#', '').toUpperCase();
-
-            // Parse into per-run lines (same parser export/on-screen rendering
-            // already use) instead of pdfedStripHtmlToText, so any <a href>
-            // markup from "Apply to Selected" survives as real run-level
-            // link data rather than being thrown away as plain text.
-            const lines = tb.html
-              ? pdfedParseRichLines(tb.html)
-              : (tb.text || '').split('\n').map(t => [{ text: t, color: null, link: null }]);
-
-            lines.forEach(runs => {
-              let runsXml = '';
-              runs.forEach(r => {
-                if (!r.text) return;
-                // Per-word link wins; otherwise the whole box's own link (if
-                // any) applies to every run in it.
-                const url = r.link || tb.link;
-                const runHex = url
-                  ? '0563C1' // Word's standard hyperlink blue
-                  : (r.color ? pdfedToHexColor(r.color).replace('#', '').toUpperCase() : baseHex);
-                const rBold = r.bold != null ? r.bold : tb.bold;
-                const rItalic = r.italic != null ? r.italic : tb.italic;
-                const rUnderline = r.underline != null ? r.underline : tb.underline;
-                const rPr = `<w:rPr>${rBold ? '<w:b/>' : ''}${rItalic ? '<w:i/>' : ''}${(rUnderline || url) ? '<w:u w:val="single"/>' : ''}` +
-                  `<w:color w:val="${runHex}"/><w:sz w:val="${baseSz}"/></w:rPr>`;
-                const runXml = `<w:r>${rPr}<w:t xml:space="preserve">${pdfedXmlEscape(r.text)}</w:t></w:r>`;
-                // Real Word hyperlink field — clickable and Ctrl-clickable in
-                // Word/Google Docs, not just blue underlined text.
-                runsXml += url
-                  ? `<w:hyperlink r:id="${pdfedAddHyperlinkRel(images, url)}" w:history="1">${runXml}</w:hyperlink>`
-                  : runXml;
-              });
-              if (!runsXml) runsXml = '<w:r><w:t xml:space="preserve"></w:t></w:r>';
-              bodyXml += `<w:p><w:pPr>${jc}</w:pPr>${runsXml}</w:p>`;
-            });
-            anyContent = true;
+          (pg.placedTexts || []).forEach(tb => {
+            const xml = pdfedBuildDocxPlacedTextXml(tb, images);
+            if (xml) flow.push({ y: tb.y || 0, x: tb.x || 0, xml });
           });
+          flow.sort((p1, p2) => (p1.y - p2.y) || (p1.x - p2.x));
+          flow.forEach(f => { bodyXml += f.xml; anyContent = true; });
         } else if (pg.dataUrl) {
           // blank/image page with no structured content, embed as-is
           bodyXml += pdfedAddImageRun(images, pg.dataUrl, 595 / 2.83, 842 / 2.83, contentWidthEmu);
@@ -924,7 +1064,9 @@ async function pdfedExportDOCX(indices) {
       `<w:sectPr><w:pgSz w:w="${PAGE_W_TWIPS}" w:h="${PAGE_H_TWIPS}"/>` +
       `<w:pgMar w:top="${MARGIN_TWIPS}" w:right="${MARGIN_TWIPS}" w:bottom="${MARGIN_TWIPS}" w:left="${MARGIN_TWIPS}"/></w:sectPr></w:body></w:document>`;
 
-    const imageDefaults = images.list.length ? `<Default Extension="png" ContentType="image/png"/>` : '';
+    const imgMime = { png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif' };
+    const imageDefaults = [...new Set(images.list.map(i => i.ext))]
+      .map(e => `<Default Extension="${e}" ContentType="${imgMime[e] || 'image/png'}"/>`).join('');
     const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
       `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
       `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
