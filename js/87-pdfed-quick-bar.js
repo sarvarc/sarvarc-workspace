@@ -38,7 +38,7 @@
     eraser: '<path d="M7 20h12M5 15l9-9 5 5-6 6H8z"/>', hl: '<path d="M9 11l4 4M4 20l4-1 9-9-3-3-9 9zM14 6l3-3 4 4-3 3"/>',
     redact: '<rect x="3" y="9" width="18" height="6" rx="1" fill="currentColor"/>', border: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
     crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/>', adjust: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
-    rl: '<path d="M4 11a8 8 0 1 1 2.3 5.7M4 4v7h7"/>', check: '<path d="M5 12l5 5 9-10"/>'
+    rl: '<path d="M4 11a8 8 0 1 1 2.3 5.7M4 4v7h7"/>', flip: '<path d="M7 8h12l-3-3M17 16H5l3 3"/>', check: '<path d="M5 12l5 5 9-10"/>'
   };
   const svg = (k) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + (P[k] || '') + '</svg>';
 
@@ -190,9 +190,22 @@
   rot.querySelector('#pdqbRotL').addEventListener('click', function () { rotate(-90); });
   rot.querySelector('#pdqbRotR').addEventListener('click', function () { rotate(90); });
   const sep = document.createElement('div'); sep.className = 'pdqb-sep'; bar.appendChild(sep);
+  // Small control pair: hide the bar, and flip it between vertical and horizontal.
+  const ctl = document.createElement('div'); ctl.className = 'pdqb-ctl';
   const hideBtn = document.createElement('button');
-  hideBtn.type = 'button'; hideBtn.className = 'pdqb-btn pdqb-hide'; hideBtn.title = 'Hide quick tools'; hideBtn.setAttribute('aria-label', 'Hide quick tools');
-  hideBtn.innerHTML = svg('left'); bar.appendChild(hideBtn);
+  hideBtn.type = 'button'; hideBtn.className = 'pdqb-rbtn'; hideBtn.id = 'pdqbHide'; hideBtn.title = 'Hide quick tools'; hideBtn.setAttribute('aria-label', 'Hide quick tools');
+  hideBtn.innerHTML = svg('left');
+  const flipBtn = document.createElement('button');
+  flipBtn.type = 'button'; flipBtn.className = 'pdqb-rbtn'; flipBtn.id = 'pdqbFlip'; flipBtn.title = 'Flip layout: vertical or horizontal'; flipBtn.setAttribute('aria-label', 'Flip layout between vertical and horizontal');
+  flipBtn.innerHTML = svg('flip');
+  ctl.appendChild(hideBtn); ctl.appendChild(flipBtn); bar.appendChild(ctl);
+  // Grip: the handle used to move the bar.
+  const grip = document.createElement('button');
+  grip.type = 'button'; grip.className = 'pdqb-grip'; grip.id = 'pdqbGrip';
+  grip.title = 'Drag to move. Double-click to reset. Arrow keys also move it.'; grip.setAttribute('aria-label', 'Move quick tools');
+  grip.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="9" r="1.6"/><circle cx="12" cy="9" r="1.6"/><circle cx="16" cy="9" r="1.6"/><circle cx="8" cy="15" r="1.6"/><circle cx="12" cy="15" r="1.6"/><circle cx="16" cy="15" r="1.6"/></svg>';
+  bar.insertBefore(grip, bar.firstChild);
+  const bgfx = document.createElement('div'); bgfx.className = 'pdqb-bgfx'; area.appendChild(bgfx);
 
   // ── Open / close ──
   let current = null;
@@ -207,7 +220,9 @@
   }
   function openTool(id) {
     const t = TOOLS.filter(function (x) { return x.id === id; })[0]; if (!t) return;
+    const wasOpen = fly.classList.contains('open');
     current = id; fly.classList.add('open'); render(t);
+    if (window.__pdqbPlaceFly) window.__pdqbPlaceFly(!wasOpen);
     Object.keys(buttons).forEach(function (k) { buttons[k].classList.toggle('on', k === id); });
   }
   function closeFly() {
@@ -387,6 +402,224 @@
     else if (d.k === 'art') dropArt(pos, d.i);
   }, true);
 
+  // ── MOVABLE BAR: drag the grip anywhere in the page area; vertical or horizontal; smooth reflow ──
+  // Near a side edge the bar becomes vertical, near the top or bottom it becomes horizontal (it reflows while you
+  // drag). Let go close to an edge and it docks with a safe margin (clear of the page-strip handles, the
+  // page-actions pill and the zoom badge). Let go in the middle and it floats there. The place is remembered.
+  const PKEY = 'sarvarcPdfQuickBarPos';
+  const M = { left: 36, right: 36, top: 56, bottom: 56 };   // dock margins from the area edge
+  const EDGE = 8, ZONE = 56, SNAP = 56;                       // free-float margin, reflow zone, snap reach
+  const DEFAULT_POS = { o: 'v', dock: 'left', x: M.left, y: 64 };
+  let pos = Object.assign({}, DEFAULT_POS);
+  try {
+    const sv = JSON.parse(localStorage.getItem(PKEY) || 'null');
+    if (sv && (sv.o === 'v' || sv.o === 'h')) pos = { o: sv.o, dock: ['left', 'right', 'top', 'bottom'].indexOf(sv.dock) >= 0 ? sv.dock : null, x: +sv.x || 0, y: +sv.y || 0 };
+  } catch (e) {}
+  const reduced = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const aSize = () => ({ w: area.clientWidth, h: area.clientHeight });
+  const bSize = () => ({ w: bar.offsetWidth, h: bar.offsetHeight });
+  function savePos() { try { localStorage.setItem(PKEY, JSON.stringify({ o: pos.o, dock: pos.dock, x: Math.round(pos.x), y: Math.round(pos.y) })); } catch (e) {} }
+  // Where the bar should be for a state (docked states snap to their margin; everything stays inside the area).
+  function place(p) {
+    const A = aSize(), B = bSize();
+    let x = p.x, y = p.y;
+    if (p.dock === 'left') x = M.left; else if (p.dock === 'right') x = A.w - B.w - M.right;
+    else if (p.dock === 'top') y = M.top; else if (p.dock === 'bottom') y = A.h - B.h - M.bottom;
+    if (p.dock === 'right') y = Math.max(y, 64);   // keep clear of the page-actions pill at the top right
+    return { x: clamp(x, EDGE, Math.max(EDGE, A.w - B.w - EDGE)), y: clamp(y, EDGE, Math.max(EDGE, A.h - B.h - EDGE)) };
+  }
+  // Which edge the bar is close enough to dock to (null = float). The shape must match the edge.
+  function snapFor(x, y, o) {
+    const A = aSize(), B = bSize();
+    if (o === 'v') {
+      if (Math.abs(x - M.left) < SNAP) return 'left';
+      if (Math.abs(A.w - B.w - M.right - x) < SNAP) return 'right';
+    } else {
+      if (Math.abs(y - M.top) < SNAP) return 'top';
+      if (Math.abs(A.h - B.h - M.bottom - y) < SNAP) return 'bottom';
+    }
+    return null;
+  }
+  function placeTab() {
+    const d = pos.dock || 'left';
+    bar.dataset.dock = d; bar.dataset.o = pos.o;
+    tab.className = 'pdqb-tab' + (d === 'left' ? '' : ' d-' + d) + (tab.classList.contains('pdqb-live') ? ' pdqb-live' : '');
+    tab.style.top = ''; tab.style.left = '';
+    const A = aSize();
+    if (d === 'left' || d === 'right') tab.style.top = clamp(pos.y, EDGE, Math.max(EDGE, A.h - 60)) + 'px';
+    else tab.style.left = clamp(pos.x, EDGE, Math.max(EDGE, A.w - 60)) + 'px';
+  }
+  let animT = 0;
+  function applyPos(anim) {
+    placeTab();
+    if (!bar.offsetWidth) return;
+    const q = place(pos);
+    if (anim && !reduced()) { bar.classList.add('pdqb-anim'); clearTimeout(animT); animT = setTimeout(function () { bar.classList.remove('pdqb-anim'); positionFly(); }, 330); }
+    bar.style.left = q.x + 'px'; bar.style.top = q.y + 'px';
+    positionFly();
+  }
+  // The panel opens on the roomier side of the bar and stays inside the page area.
+  function positionFly(instant) {
+    if (!current || !fly.classList.contains('open')) return;
+    const A = aSize(), B = bSize(), gap = 12;
+    const bx = parseFloat(bar.style.left), by = parseFloat(bar.style.top);
+    const BX = isNaN(bx) ? bar.offsetLeft : bx, BY = isNaN(by) ? bar.offsetTop : by;
+    fly.style.maxHeight = Math.max(160, A.h - 16) + 'px';
+    const fw = fly.offsetWidth || 272, fh = fly.offsetHeight || 300;
+    let x, y;
+    if (pos.o === 'v') {
+      x = BX + B.w + gap; if (x + fw > A.w - EDGE) x = BX - gap - fw;
+      x = Math.max(EDGE, x); y = clamp(BY, EDGE, Math.max(EDGE, A.h - fh - EDGE));
+    } else {
+      y = BY + B.h + gap; if (y + fh > A.h - EDGE) y = BY - gap - fh;
+      y = Math.max(EDGE, y);
+      const b = buttons[current]; const cx = b ? BX + b.offsetLeft - bar.scrollLeft + b.offsetWidth / 2 : BX;
+      x = clamp(cx - fw / 2, EDGE, Math.max(EDGE, A.w - fw - EDGE));
+    }
+    if (instant) fly.classList.add('pdqb-fly-still');
+    fly.style.left = Math.round(x) + 'px'; fly.style.top = Math.round(y) + 'px';
+    if (instant) { void fly.offsetWidth; requestAnimationFrame(function () { fly.classList.remove('pdqb-fly-still'); }); }
+  }
+  window.__pdqbPlaceFly = positionFly;
+  let drag = null;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { if (!drag) applyPos(false); }).observe(area);
+    new ResizeObserver(function () { if (!drag) positionFly(); }).observe(fly);
+  }
+
+  // Smooth reflow between vertical and horizontal: each button glides from where it was to where it now is,
+  // while a background layer grows or shrinks from the old shape to the new one.
+  let flipT = 0, flipKids = [];
+  function endFlip() {
+    clearTimeout(flipT); flipT = 0;
+    flipKids.forEach(function (k) { k.style.transition = ''; k.style.transform = ''; });
+    flipKids = [];
+    bar.classList.remove('pdqb-flipping'); bgfx.classList.remove('on');
+    positionFly();
+  }
+  function flip(o, mutate) {
+    if (flipT) endFlip();
+    if (pos.o === o) { if (mutate) mutate(); applyPos(false); return; }
+    const kids = Array.prototype.slice.call(bar.children);
+    const first = kids.map(function (k) { return k.getBoundingClientRect(); });
+    const ar = area.getBoundingClientRect(), br0 = bar.getBoundingClientRect();
+    const oldBox = { x: br0.left - ar.left, y: br0.top - ar.top, w: bar.offsetWidth, h: bar.offsetHeight };
+    pos.o = o; bar.classList.toggle('pdqb-h', o === 'h');       // the layout switches here
+    if (mutate) mutate(oldBox);
+    const q = place(pos); bar.style.left = q.x + 'px'; bar.style.top = q.y + 'px';
+    placeTab();
+    if (reduced() || !bar.offsetWidth) { positionFly(true); return; }
+    flipKids = kids;
+    kids.forEach(function (k, i) {
+      const r = k.getBoundingClientRect(), dx = first[i].left - r.left, dy = first[i].top - r.top;
+      k.style.transition = 'none'; k.style.transform = (dx || dy) ? 'translate(' + dx + 'px,' + dy + 'px)' : '';
+    });
+    bgfx.classList.add('pdqb-bgfx-still', 'on');
+    bgfx.style.left = oldBox.x + 'px'; bgfx.style.top = oldBox.y + 'px'; bgfx.style.width = oldBox.w + 'px'; bgfx.style.height = oldBox.h + 'px';
+    bar.classList.add('pdqb-flipping');
+    void bar.offsetWidth;
+    kids.forEach(function (k, i) { k.style.transition = 'transform .36s cubic-bezier(.2,.8,.2,1) ' + (i * 12) + 'ms'; k.style.transform = ''; });
+    bgfx.classList.remove('pdqb-bgfx-still');
+    const n = bSize();
+    bgfx.style.left = q.x + 'px'; bgfx.style.top = q.y + 'px'; bgfx.style.width = n.w + 'px'; bgfx.style.height = n.h + 'px';
+    flipT = setTimeout(endFlip, 360 + kids.length * 12 + 40);
+    positionFly(true);
+  }
+
+  // Drag
+  function dragEnd(commit) {
+    if (!drag) return;
+    const d = drag; drag = null;
+    bar.classList.remove('pdqb-moving'); fly.classList.remove('pdqb-fly-moving'); 
+    try { grip.releasePointerCapture(d.id); } catch (e) {}
+    if (!d.moved) return;
+    if (commit) {
+      pos.x = parseFloat(bar.style.left) || 0; pos.y = parseFloat(bar.style.top) || 0;
+      pos.dock = snapFor(pos.x, pos.y, pos.o);
+      applyPos(true); savePos();
+    } else {
+      const st = d.start;
+      if (pos.o !== st.o) flip(st.o, function () { Object.assign(pos, st); }); else { Object.assign(pos, st); applyPos(true); }
+      savePos();
+    }
+    if (current) positionFly(true);
+  }
+  grip.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0 || drag) return;
+    e.preventDefault();
+    const br = bar.getBoundingClientRect();
+    const ar0 = area.getBoundingClientRect(), A0 = aSize(), q0 = { left: e.clientX - ar0.left, right: A0.w - (e.clientX - ar0.left), top: e.clientY - ar0.top, bottom: A0.h - (e.clientY - ar0.top) };
+    let z0 = null, zd0 = ZONE; ['left', 'right', 'top', 'bottom'].forEach(function (k) { if (q0[k] < zd0) { zd0 = q0[k]; z0 = k; } });
+    drag = { id: e.pointerId, ox: e.clientX - br.left, oy: e.clientY - br.top, sx: e.clientX, sy: e.clientY, moved: false, zone: z0, start: Object.assign({}, pos) };
+    try { grip.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+  grip.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return;
+      drag.moved = true; bar.classList.add('pdqb-moving'); fly.classList.add('pdqb-fly-moving');
+      bar.classList.remove('pdqb-anim');
+    }
+    const ar = area.getBoundingClientRect(), A = aSize();
+    const px = e.clientX - ar.left, py = e.clientY - ar.top;
+    // Which edge zone the pointer is in (with a little hysteresis between neighbouring edges). The bar reflows into
+    // an edge's shape when the pointer ENTERS that edge's zone during this drag. Grabbing a bar that already sits
+    // next to an edge never flips it by surprise (the Flip button is there for that case).
+    const dist = { left: px, right: A.w - px, top: py, bottom: A.h - py };
+    let zone = null, zd = ZONE;
+    ['left', 'right', 'top', 'bottom'].forEach(function (k) { if (dist[k] < zd) { zd = dist[k]; zone = k; } });
+    if (zone && drag.zone && zone !== drag.zone && dist[drag.zone] < ZONE && dist[drag.zone] - dist[zone] < 12) zone = drag.zone;
+    if (zone && zone !== drag.zone) {
+      const want = (zone === 'left' || zone === 'right') ? 'v' : 'h';
+      if (want !== pos.o) {
+        flip(want, function () {
+          drag.ox = grip.offsetLeft + grip.offsetWidth / 2; drag.oy = grip.offsetTop + grip.offsetHeight / 2;
+          pos.dock = null; pos.x = px - drag.ox; pos.y = py - drag.oy;
+        });
+      }
+    }
+    drag.zone = zone;
+    const B = bSize();
+    const x = clamp(px - drag.ox, EDGE, Math.max(EDGE, A.w - B.w - EDGE));
+    const y = clamp(py - drag.oy, EDGE, Math.max(EDGE, A.h - B.h - EDGE));
+    bar.style.left = x + 'px'; bar.style.top = y + 'px';
+    if (flipT) { bgfx.style.left = x + 'px'; bgfx.style.top = y + 'px'; }
+  });
+  grip.addEventListener('pointerup', function (e) { if (drag && e.pointerId === drag.id) dragEnd(true); });
+  grip.addEventListener('pointercancel', function (e) { if (drag && e.pointerId === drag.id) dragEnd(false); });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drag && drag.moved) { e.stopImmediatePropagation(); dragEnd(false); }
+  }, true);
+  // Keyboard: arrows nudge the bar (Shift = bigger steps).
+  grip.addEventListener('keydown', function (e) {
+    const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!k) return;
+    e.preventDefault(); const st = e.shiftKey ? 64 : 16;
+    const q = place(pos);
+    const c = place({ o: pos.o, dock: null, x: q.x + k[0] * st, y: q.y + k[1] * st });
+    pos.x = c.x; pos.y = c.y; pos.dock = null;               // keyboard nudges float freely (no re-snap)
+    applyPos(true); savePos();
+  });
+  grip.addEventListener('dblclick', function () {                      // reset to the starting place
+    const go = function () { Object.assign(pos, DEFAULT_POS); };
+    if (pos.o !== DEFAULT_POS.o) flip(DEFAULT_POS.o, go); else { go(); applyPos(true); }
+    savePos();
+  });
+  // Flip button: same top-left corner, other shape. Docks itself if that lands close to an edge.
+  flipBtn.addEventListener('click', function () {
+    const o = pos.o === 'v' ? 'h' : 'v';
+    flip(o, function (old) {
+      pos.dock = null; pos.x = old.x; pos.y = old.y;
+      const c = place(pos); pos.x = c.x; pos.y = c.y;
+      pos.dock = snapFor(pos.x, pos.y, o);
+    });
+    savePos();
+  });
+  window.pdqbMove = function (o, dock, x, y) {                          // for tests and other code
+    const go = function () { Object.assign(pos, { dock: dock || null, x: x || 0, y: y || 0 }); };
+    if (o && o !== pos.o) flip(o, go); else { go(); applyPos(true); }
+    savePos();
+  };
+
   // ── Keep the bar in step with the editor (document open, ribbon modes) ──
   function docOpen() {
     const sec = $('sec-pdfeditor');
@@ -396,8 +629,11 @@
   function visible(el) { return !!el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none'; }
   function sync() {
     const live = docOpen();
+    const wasLive = bar.classList.contains('pdqb-live');
     bar.classList.toggle('pdqb-live', live && !hidden);
-    tab.classList.toggle('pdqb-live', live && hidden);
+    if (live && !hidden && !wasLive) { bar.classList.toggle('pdqb-h', pos.o === 'h'); applyPos(false); }
+    const tabWas = tab.classList.contains('pdqb-live'); tab.classList.toggle('pdqb-live', live && hidden);
+    if (live && hidden && !tabWas) placeTab();
     if (!live && current) closeFly();
     const hand = $('pdfedHandBtn');
     buttons.select.classList.toggle('on', !current && !!hand && hand.classList.contains('annot-active'));
