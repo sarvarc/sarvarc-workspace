@@ -1,4 +1,4 @@
-.sm-page { max-width: 1240px; padding: 30px 36px 56px; }
+.sm-page { max-width: 1640px; margin: 0 auto; padding: 30px 36px 56px; }
 .sm-page-header { display: flex; align-items: flex-start; gap: 16px; }
 .sm-page-header h2 { font-size: 24px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
 .sm-page-header-icon {
@@ -59,9 +59,14 @@
 .sm-ptr.sm-ptr-done .sm-ptr-label { color: var(--pdfed-accent); }
 #smManualRefreshBtn svg { transition: transform .5s ease; }
 #smManualRefreshBtn.sm-refreshing svg { animation: smDriveSyncSpin 0.8s linear infinite; }
-.sm-layout { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; margin-top: 26px; }
-.sm-main { flex: 1 1 520px; min-width: 0; }
-.sm-side { width: 260px; flex: 0 0 260px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 20px; }
+.sm-layout { display: flex; flex-direction: column; gap: 16px; align-items: stretch; margin-top: 22px; }
+.sm-main { flex: 1 1 auto; width: 100%; min-width: 0; container-type: inline-size; container-name: smmain; }
+/* Status + trust badges are now one slim strip above the list (was a 260px
+   side column that squeezed the card grid to 2 per row). */
+.sm-side { order: -1; width: 100%; flex: 0 0 auto; display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; align-items: stretch; position: static; }
+.sm-side .sm-drive-status-panel { flex: 0 0 auto; min-width: 230px; justify-content: center; }
+/* The "Private by design / On-device only / Private to your account" badges are no longer shown. */
+.sm-trust-panel { display: none; }
 .sm-trust-panel {
   background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
   overflow: hidden; backdrop-filter: blur(10px);
@@ -81,7 +86,7 @@
    glance away, not something you have to trigger a refresh to find out. */
 .sm-drive-status-panel {
   background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-  padding: 15px 16px; display: flex; flex-direction: column; gap: 6px;
+  padding: 11px 16px; display: flex; flex-direction: column; gap: 3px;
   backdrop-filter: blur(10px);
 }
 .sm-drive-status-row { display: flex; align-items: center; gap: 8px; }
@@ -139,9 +144,12 @@
 .sm-save-row input::placeholder { color: var(--text3); }
 .sm-save-row input:focus { outline: none; }
 .sm-session-list {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;
   align-items: stretch;
 }
+@container smmain (max-width: 900px) { .sm-session-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container smmain (max-width: 640px) { .sm-session-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container smmain (max-width: 400px) { .sm-session-list { grid-template-columns: 1fr; } }
 .sm-session-count {
   grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
   font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase;
@@ -190,7 +198,7 @@
 /* ── session card ── */
 .sm-session-row {
   position: relative; display: flex; flex-direction: column; min-width: 0;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
   overflow: hidden; font-size: 12px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.12), 0 12px 28px -18px rgba(0,0,0,0.5);
   transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease, border-color .22s ease;
@@ -201,13 +209,13 @@
 .sm-session-row:nth-child(n+6) { animation-delay: .14s; }
 @keyframes smCardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .sm-session-row:hover {
-  transform: translateY(-3px); border-color: var(--border2);
+  transform: translateY(-2px); border-color: var(--border2);
   box-shadow: 0 2px 4px rgba(0,0,0,0.12), 0 22px 44px -18px rgba(0,194,255,0.28), 0 0 0 1px rgba(0,194,255,0.08);
 }
 .sm-session-row:focus-within { border-color: var(--pdfed-accent); }
 
 .sm-session-thumb {
-  position: relative; width: 100%; aspect-ratio: 16 / 10; flex-shrink: 0;
+  position: relative; width: 100%; aspect-ratio: 16 / 9; flex-shrink: 0;
   overflow: hidden; border-bottom: 1px solid var(--border);
   background: linear-gradient(145deg, rgba(92,168,255,0.12), rgba(0,194,255,0.03) 60%, rgba(127,127,127,0.06));
   display: flex; align-items: center; justify-content: center;
@@ -221,14 +229,14 @@
   pointer-events: none; transition: transform .6s cubic-bezier(.2,.8,.2,1);
 }
 .sm-session-row:hover .sm-session-thumb img { transform: scale(1.05); }
-.sm-session-thumb > svg { width: 40px; height: 40px; opacity: .55; }
-.sm-session-badges { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1; display: flex; gap: 6px; flex-wrap: wrap; }
+.sm-session-thumb > svg { width: 32px; height: 32px; opacity: .55; }
+.sm-session-badges { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 1; display: flex; gap: 6px; flex-wrap: wrap; }
 .sm-session-row.sm-session-locked .sm-session-thumb img { opacity: .5; filter: grayscale(.5) blur(1px); }
 
-.sm-session-body { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 6px; flex: 1; min-width: 0; }
+.sm-session-body { display: flex; flex-direction: column; gap: 6px; padding: 11px 13px 4px; flex: 1; min-width: 0; }
 .sm-session-name {
   display: block; width: 100%; box-sizing: border-box;
-  font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: var(--text);
+  font-size: 13.5px; font-weight: 650; letter-spacing: -.01em; color: var(--text);
   background: none; border: 1px solid transparent; padding: 3px 7px; margin: -3px -7px; width: calc(100% + 14px);
   font-family: inherit; cursor: text; border-radius: 8px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -238,18 +246,18 @@
 .sm-session-name:focus { outline: none; background: var(--surface2); border-color: var(--pdfed-accent); text-overflow: clip; }
 
 .sm-session-meta {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: 11.5px; color: var(--text2); font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 10.5px; color: var(--text2); font-variant-numeric: tabular-nums;
 }
 .sm-session-meta i { width: 3px; height: 3px; border-radius: 50%; background: var(--text3); display: inline-block; }
 .sm-session-divider { display: none; }
 
 /* module pills: compact, wrap neatly, tick state still driven by the hidden checkbox */
-.sm-mod-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
+.sm-mod-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding-top: 2px; }
 .sm-mod-check {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px 4px 7px; border-radius: 999px; border: 1px solid var(--border);
-  font-size: 11px; font-weight: 600; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px 3px 6px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; white-space: nowrap;
   color: var(--text3); cursor: pointer; user-select: none;
   transition: background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
 }
@@ -266,25 +274,25 @@
 .sm-mod-check.checked .chk-box { background: var(--pdfed-accent); border-color: var(--pdfed-accent); color: #fff; }
 .sm-mod-check.checked .chk-box svg { opacity: 1; transform: scale(1); }
 .sm-mod-check.empty { display: none; }
-.sm-mod-detail { opacity: .7; font-weight: 500; }
-.sm-mod-detail::before { content: '· '; }
+/* counts live in each chip's hover tooltip; hidden here so chips stay small in a 4-up grid */
+.sm-mod-detail { display: none; }
 
-.sm-session-actions { display: flex; align-items: center; gap: 6px; padding: 12px 16px 16px; }
+.sm-session-actions { display: flex; align-items: center; gap: 5px; padding: 8px 13px 13px; }
 .sm-session-load-btn { order: -1; flex: 1 1 auto; justify-content: center; }
 .sm-session-btn {
   background: var(--surface); border: 1px solid var(--border); color: var(--text2);
-  border-radius: 10px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+  border-radius: 9px; padding: 7px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit;
   display: inline-flex; align-items: center; gap: 6px; transition: all .15s ease; white-space: nowrap;
 }
 .sm-session-btn:hover { background: var(--pdfed-accent-bg); color: var(--pdfed-accent); border-color: var(--pdfed-accent); }
 .sm-session-btn:active { transform: scale(.97); }
 .sm-session-btn:focus-visible, .sm-session-unlock-btn:focus-visible, .sm-scope-tab:focus-visible, .sm-mod-check:focus-within { outline: 2px solid var(--pdfed-accent); outline-offset: 2px; }
 .sm-session-btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
-.sm-session-btn.icon-only { padding: 8px 10px; }
+.sm-session-btn.icon-only { padding: 7px 8px; }
 .sm-session-btn.danger:hover { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.4); }
 .sm-session-load-btn {
   background: linear-gradient(135deg, #5CA8FF, #00C2FF); color: #04121F; border-color: transparent;
-  padding: 9px 16px; font-size: 12.5px; font-weight: 700;
+  padding: 8px 12px; font-size: 12px; font-weight: 700;
   box-shadow: 0 6px 16px -6px rgba(0,194,255,0.6), inset 0 1px 0 rgba(255,255,255,0.35);
 }
 .sm-session-load-btn:hover { background: linear-gradient(135deg, #7DBAFF, #33CFFF); color: #04121F; border-color: transparent; transform: translateY(-1px); box-shadow: 0 10px 22px -8px rgba(0,194,255,0.7), inset 0 1px 0 rgba(255,255,255,0.4); }
@@ -311,7 +319,7 @@
 .sm-session-row.sm-session-locked:hover { transform: none; }
 .sm-lock-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
   background: rgba(10,15,30,0.65); color: #ff8a8a; border: 1px solid rgba(239,68,68,0.4);
   backdrop-filter: blur(8px); white-space: nowrap; flex-shrink: 0;
 }
@@ -319,7 +327,7 @@
 .sm-session-unlock-btn {
   flex: 1; justify-content: center;
   background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); color: #ef4444;
-  border-radius: 10px; padding: 9px 14px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+  border-radius: 9px; padding: 8px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit;
   display: inline-flex; align-items: center; gap: 6px; transition: all .15s ease; white-space: nowrap;
 }
 .sm-session-unlock-btn:hover { background: rgba(239,68,68,0.14); border-color: #ef4444; }
@@ -327,10 +335,10 @@
 /* ─── Team Projects badge + All/Team scope segmented control ─── */
 .sm-team-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
   background: rgba(10,15,30,0.65); color: #7DBAFF; border: 1px solid rgba(92,168,255,0.45);
   backdrop-filter: blur(8px);
-  white-space: nowrap; flex-shrink: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
 }
 .sm-team-badge svg { flex-shrink: 0; }
 .sm-scope-tabs {
@@ -379,9 +387,10 @@
 
   .sm-scope-tabs { display: flex; margin-bottom: 14px; }
   .sm-scope-tab { flex: 1; }
-  .sm-session-list { grid-template-columns: 1fr; gap: 14px; }
+  .sm-session-list { gap: 12px; }
   .sm-session-row:hover { transform: none; }
   .sm-session-thumb { aspect-ratio: 2 / 1; }
-  .sm-session-btn, .sm-session-unlock-btn { padding: 11px 14px; font-size: 12.5px; }
-  .sm-session-btn.icon-only { padding: 11px 13px; }
+  .sm-session-btn, .sm-session-unlock-btn { padding: 10px 12px; font-size: 12px; }
+  .sm-session-btn.icon-only { padding: 10px 11px; }
+  .sm-side .sm-drive-status-panel { flex: 1 1 100%; }
 }
