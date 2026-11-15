@@ -1,12 +1,14 @@
 /* PDF Editor: Quick Tools bar (floating left bar, Canva style). See CHANGES-pdfed-quick-bar.md */
+/* Overlap fix: the bar starts to the right of the page-strip toggle handle (#pdfedLeftToggleBtn, 22px wide, vertically centred on the canvas-area's left edge). */
+.pdfed-canvas-area { --pdqb-left: 36px; --pdqb-gap: 12px; --pdqb-w: 68px; }
 .pdqb-bar {
-  position: absolute; left: 12px; top: 64px; z-index: 30;
-  width: 68px; padding: 6px 0;
+  position: absolute; left: var(--pdqb-left, 36px); top: 64px; z-index: 30;
+  width: var(--pdqb-w, 68px); padding: 6px 0;
   display: none; flex-direction: column; align-items: center; gap: 2px;
   background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
   box-sizing: border-box;
-  max-height: calc(100% - 76px); overflow-y: auto; scrollbar-width: none;
+  max-height: calc(100% - 16px); overflow-y: auto; scrollbar-width: none;
 }
 .pdqb-bar::-webkit-scrollbar { display: none; }
 .pdqb-bar.pdqb-live { display: flex; }
@@ -34,7 +36,7 @@
 .pdqb-tab.pdqb-live { display: flex; }
 
 .pdqb-fly {
-  position: absolute; left: 92px; top: 64px; z-index: 31;
+  position: absolute; left: calc(var(--pdqb-left, 36px) + var(--pdqb-w, 68px) + var(--pdqb-gap, 12px)); top: 64px; z-index: 31;
   width: 272px; max-height: calc(100% - 80px);
   display: none; flex-direction: column;
   background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px;
@@ -107,5 +109,60 @@
 }
 
 @media (max-width: 700px) {
-  .pdqb-bar, .pdqb-tab, .pdqb-fly { display: none !important; }
+  .pdqb-bar, .pdqb-tab, .pdqb-fly, .pdqb-bgfx { display: none !important; }
+}
+
+/* ───────── Movable bar: drag the grip anywhere, vertical or horizontal, smooth reflow ───────── */
+.pdqb-grip {
+  flex: none; width: 56px; height: 18px; border: 0; background: transparent; border-radius: 9px; padding: 0;
+  color: var(--text3); display: flex; align-items: center; justify-content: center;
+  cursor: grab; touch-action: none; transition: background .12s, color .12s;
+}
+.pdqb-grip svg { width: 18px; height: 18px; fill: currentColor; stroke: none; pointer-events: none; }
+.pdqb-grip:hover, .pdqb-grip:focus-visible { background: var(--surface2); color: var(--text); outline: none; }
+.pdqb-bar.pdqb-moving .pdqb-grip { cursor: grabbing; color: var(--cyan); }
+
+.pdqb-ctl { flex: none; display: flex; flex-direction: row; gap: 2px; align-items: center; justify-content: center; padding: 2px 0; }
+.pdqb-ctl .pdqb-rbtn { width: 27px; height: 30px; }
+.pdqb-ctl .pdqb-rbtn svg { width: 16px; height: 16px; }
+.pdqb-bar[data-dock="right"]  #pdqbHide svg { transform: rotate(180deg); }
+.pdqb-bar[data-dock="top"]    #pdqbHide svg { transform: rotate(90deg); }
+.pdqb-bar[data-dock="bottom"] #pdqbHide svg { transform: rotate(-90deg); }
+
+/* Horizontal layout (same buttons, laid in a row) */
+.pdqb-bar.pdqb-h {
+  flex-direction: row; width: auto; height: 68px; padding: 0 6px; gap: 2px;
+  max-width: calc(100% - 16px); max-height: none; overflow-x: auto; overflow-y: hidden;
+}
+.pdqb-bar.pdqb-h .pdqb-grip { width: 18px; height: 52px; }
+.pdqb-bar.pdqb-h .pdqb-grip svg { transform: rotate(90deg); }
+.pdqb-bar.pdqb-h .pdqb-sep { width: 1px; height: 40px; margin: 0 4px; }
+.pdqb-bar.pdqb-h .pdqb-ctl { flex-direction: column; padding: 0 2px; }
+.pdqb-bar.pdqb-h .pdqb-ctl .pdqb-rbtn { height: 26px; }
+
+/* Smooth motion */
+.pdqb-bar.pdqb-anim { transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1); }
+.pdqb-bar.pdqb-moving { box-shadow: 0 18px 44px rgba(0,0,0,0.5); user-select: none; }
+.pdqb-bar.pdqb-flipping { background: transparent !important; border-color: transparent !important; box-shadow: none !important; overflow: visible !important; }
+.pdqb-bgfx {
+  position: absolute; z-index: 29; display: none; pointer-events: none; box-sizing: border-box;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  transition: left .34s cubic-bezier(.2,.8,.2,1), top .34s cubic-bezier(.2,.8,.2,1), width .34s cubic-bezier(.2,.8,.2,1), height .34s cubic-bezier(.2,.8,.2,1);
+}
+.pdqb-bgfx.on { display: block; }
+.pdqb-bgfx.pdqb-bgfx-still { transition: none; }
+.pdqb-fly { transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1), opacity .12s; }
+.pdqb-fly.pdqb-fly-still { transition: opacity .12s; }
+.pdqb-fly.pdqb-fly-moving { opacity: 0; pointer-events: none; }
+
+/* Show-tab follows the side the bar was last docked to */
+.pdqb-tab.d-right  { left: auto; right: 0; border: 1px solid var(--border2); border-right: 0; border-radius: 12px 0 0 12px; }
+.pdqb-tab.d-right svg { transform: rotate(180deg); }
+.pdqb-tab.d-top    { top: 0; width: 52px; height: 24px; border: 1px solid var(--border2); border-top: 0; border-radius: 0 0 12px 12px; }
+.pdqb-tab.d-top svg { transform: rotate(90deg); }
+.pdqb-tab.d-bottom { top: auto; bottom: 0; width: 52px; height: 24px; border: 1px solid var(--border2); border-bottom: 0; border-radius: 12px 12px 0 0; }
+.pdqb-tab.d-bottom svg { transform: rotate(-90deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pdqb-bar.pdqb-anim, .pdqb-bgfx, .pdqb-fly { transition: none !important; }
 }
