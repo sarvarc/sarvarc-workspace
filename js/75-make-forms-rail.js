@@ -24,7 +24,7 @@
       icon: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>') },
     { id: 'gallery', label: 'Gallery', title: 'Gallery', sub: 'Your images, shown while people fill the form',
       icon: svg('<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M21 8v9a3 3 0 0 1-3 3"/><circle cx="8" cy="10" r="1.3"/><path d="M17 16l-3.5-3.5L4 19"/>') },
-    { id: 'details', label: 'Details', title: 'Details', sub: 'Description and social links',
+    { id: 'details', label: 'Details', title: 'Details', sub: 'Description, link name and social links',
       icon: svg('<line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/>') },
     { id: 'files', label: 'Files', title: 'Attachments', sub: 'Files people can open on the live form',
       icon: svg('<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>') },
@@ -50,8 +50,9 @@
     var colorBlock = brandRow && brandRow.querySelector('.mf-brand-color-block');
     var social = panel.querySelector('.mf-social-row');
     var expiry = document.getElementById('mfExpiryRow');
+    var linkRow = document.getElementById('mfLinkNameRow');
     var desc = null;
-    panel.querySelectorAll('.mf-desc-row').forEach(function (r) { if (r !== expiry && !desc) desc = r; });
+    panel.querySelectorAll('.mf-desc-row').forEach(function (r) { if (r !== expiry && r !== linkRow && !desc) desc = r; });
 
     // ---- sections ----
     SECS.forEach(function (s) {
@@ -64,7 +65,7 @@
     put('fields', addRow, list);
     put('brand', logoBlock, colorBlock);   // attachments are lifted out of the logo block below
     put('gallery', window.mfGalleryNode ? window.mfGalleryNode() : null);
-    put('details', desc, social);
+    put('details', desc, linkRow, social);
     put('files', attach);
     put('expiry', expiry);
     if (brandRow && brandRow.parentNode) brandRow.parentNode.removeChild(brandRow);
