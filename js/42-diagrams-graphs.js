@@ -4264,11 +4264,15 @@ function dgPageRawSize(page) {
 
 // Renders one chart spec at full (non-thumbnail) quality, for baking into the Workspace —
 // same visual detail as a chart built and pushed by hand (title, values, gridlines, etc).
-function dgRenderSpecFullCanvas(spec) {
+const DG_PUSH_SCALE = 3; // 1160x650 logical x3 = 3480x1950, crisp when pushed to the Workspace
+function dgRenderSpecFullCanvas(spec, scale) {
+  const S = scale || 1;
+  const W = 1160, H = 650;
   const canvas = document.createElement('canvas');
-  canvas.width = 1160; canvas.height = 650;
+  canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  ctx.imageSmoothingQuality = 'high';
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
   const opts = { title: spec.title, values: true, legend: false, numberFormat: 'plain', trendline: false };
@@ -4334,8 +4338,10 @@ function dgRenderSpecFullCanvas(spec) {
 // placedText box above the image instead (see dgPushAllMultiCharts) — legible at
 // any tile size and editable afterwards like any other text on the page.
 function dgRenderSpecChartOnlyCanvas(spec) {
-  return dgRenderSpecFullCanvas(Object.assign({}, spec, { title: null }));
+  return dgRenderSpecFullCanvas(Object.assign({}, spec, { title: null }), DG_PUSH_SCALE);
 }
+window.dgRenderSpecChartOnlyCanvas = dgRenderSpecChartOnlyCanvas;
+window.dgRenderSpecFullCanvas = dgRenderSpecFullCanvas;
 
 // Bakes a chart image directly onto a page's placedImages array — the same end state the
 // interactive "drag, resize, then Stamp" flow produces, but done in code so many charts can
@@ -8257,7 +8263,7 @@ function dgRender() {
 }
 
 function dgDownloadPNG() {
-  let canvas = dgGetExportCanvas();
+  let canvas = dgGetCrispCanvas();
   if (!canvas) { if (dgActiveMode === 'flow') toast('Write or pick a diagram first', 'error'); return; }
   canvas = sarvarcMaybeWatermarkCanvas(canvas);
   const titleId = (dgActiveMode === 'flow') ? 'dgFlowTitleInput' : 'dgTitleInput';
@@ -8289,7 +8295,7 @@ function dgExportChart(format) {
 }
 
 function dgExportJPEG() {
-  let canvas = dgGetExportCanvas();
+  let canvas = dgGetCrispCanvas();
   if (!canvas) return;
   canvas = sarvarcMaybeWatermarkCanvas(canvas);
   // The chart canvas is always painted with an opaque white background
@@ -8297,13 +8303,13 @@ function dgExportJPEG() {
   // there's no transparency to lose.
   const a = document.createElement('a');
   a.download = dgExportFilename('jpg');
-  a.href = canvas.toDataURL('image/jpeg', 0.95);
+  a.href = canvas.toDataURL('image/jpeg', 0.97);
   a.click();
   toast('Chart downloaded as JPEG', 'success');
 }
 
 async function dgExportPDF() {
-  const canvas = dgGetExportCanvas();
+  const canvas = dgGetCrispCanvas();
   if (!canvas) return;
   if (!window.jspdf) { toast('PDF export is unavailable right now', 'error'); return; }
   const password = await sarvarcAskExportPassword('Export Chart as PDF');
@@ -8312,7 +8318,8 @@ async function dgExportPDF() {
     const { jsPDF } = window.jspdf;
     const PXMM = 3.7795; // 96dpi px → mm, same conversion used elsewhere in this app
     const margin = 12; // mm, so the chart isn't flush against the page edge
-    const imgW = canvas.width / PXMM, imgH = canvas.height / PXMM;
+    const sc = canvas.dgScale || 1; // page keeps its normal size, the extra pixels just make it sharper
+    const imgW = canvas.width / sc / PXMM, imgH = canvas.height / sc / PXMM;
     const pageW = imgW + margin * 2, pageH = imgH + margin * 2;
     const pdf = new jsPDF(Object.assign({ orientation: pageW > pageH ? 'landscape' : 'portrait', unit: 'mm', format: [pageW, pageH] }, sarvarcPdfEncryptionOpts(password)));
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin, imgW, imgH, '', 'FAST');
@@ -8326,7 +8333,7 @@ async function dgExportPDF() {
 }
 
 async function dgExportDOCX() {
-  let canvas = dgGetExportCanvas();
+  let canvas = dgGetCrispCanvas();
   if (!canvas) return;
   canvas = sarvarcMaybeWatermarkCanvas(canvas);
   if (typeof JSZip === 'undefined') { toast('Zip engine failed to load, check your connection', 'error'); return; }
@@ -8339,7 +8346,7 @@ async function dgExportDOCX() {
     // size) and keep its exact aspect ratio via EMU (914400 EMU per inch).
     const EMU_PER_IN = 914400;
     const maxWidthIn = 6.5;
-    const nativeWidthIn = canvas.width / 96;
+    const nativeWidthIn = canvas.width / (canvas.dgScale || 1) / 96;
     const widthIn = Math.min(maxWidthIn, nativeWidthIn);
     const heightIn = widthIn * (canvas.height / canvas.width);
     const cx = Math.round(widthIn * EMU_PER_IN);
@@ -8617,7 +8624,7 @@ async function dgMapxOpenPushChoiceModal() {
 }
 
 async function dgInsertIntoWorkspace(mode) {
-  const canvas = dgGetExportCanvas();
+  const canvas = dgGetCrispCanvas();
   if (!canvas) return;
   let dataUrl;
   try {
@@ -9690,6 +9697,20 @@ function dgGetExportCanvasHD() {
   }
   return hd;
 }
+
+// Crisp canvas for every normal export and Push: the 4K render for 2D charts and maps,
+// the standard canvas for diagrams (already supersampled) and 3D charts. dgScale tells
+// callers (PDF, Word) the logical size so page layout does not balloon with the pixels.
+function dgGetCrispCanvas() {
+  try {
+    if (dgActiveMode !== 'flow' && !dgIs3DType(dgState.type) && document.getElementById('dgCanvas')) {
+      const hd = dgGetExportCanvasHD();
+      if (hd) { hd.dgScale = DG_4K_SCALE; return hd; }
+    }
+  } catch (e) { console.error('4K render failed, using standard canvas', e); }
+  return dgGetExportCanvas();
+}
+window.dgGetCrispCanvas = dgGetCrispCanvas;
 
 // Downloads a crisp, high-resolution PNG of the current chart/map — same content
 // as "Download PNG", just rendered at DG_4K_SCALE so it holds up at full-screen
