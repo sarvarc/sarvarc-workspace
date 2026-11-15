@@ -844,3 +844,104 @@ button.dg-show-chip.active { background:var(--blue); }
 }
 .dg-wheel-actions .btn-primary:hover { filter:brightness(1.08); transform:translateY(-1px); }
 .dg-wheel-actions .btn-secondary:hover { transform:translateY(-1px); }
+
+
+/* ── Diagrams & Graphs ribbon: icon-only pass 2 ───────────────────────────
+   Matches the Data Arrangement icon ribbon: one slim row of 30px icon buttons,
+   hairline dividers, a dark tooltip for every name, and only the Push / Showcase
+   actions keep a text label. Text-only labels are hidden with font-size:0 so no
+   markup or JS that writes to them (dgTypeLabel, dgRadiusMainLabel...) has to change. */
+.dg-ribbon-bar {
+  height:42px; padding:0 8px; gap:0; border-radius:10px;
+  background:linear-gradient(180deg, var(--surface) 0%, var(--bg2) 100%);
+  border:1px solid var(--border);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .dg-ribbon-bar { background:#fff; box-shadow:0 1px 2px rgba(16,40,90,0.06); }
+.dg-rbn-legacy-hidden { display:none !important; }
+
+.dg-rbn-group, .dg-rbn-dropdown-group { padding:0 1px; border-radius:8px; }
+.dg-rbn-group:hover, .dg-rbn-dropdown-group:hover { background:transparent; }
+
+/* every plain icon button */
+.dg-ribbon-bar .dg-rbn-btn {
+  position:relative; color:var(--text2); border:1px solid transparent; background:transparent;
+  transition:background .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.dg-ribbon-bar .dg-rbn-btn:hover { background:var(--surface2); color:var(--text); }
+[data-theme="light"] .dg-ribbon-bar .dg-rbn-btn:hover { background:#f1f5fb; box-shadow:0 1px 3px rgba(16,40,90,0.10); }
+.dg-ribbon-bar .dg-rbn-btn:focus-visible, .dg-ribbon-bar .dg-rbn-caret:focus-visible { outline:2px solid var(--blue); outline-offset:1px; }
+.dg-ribbon-bar .dg-rbn-btn.active { background:rgba(0,194,255,0.14); color:var(--blue); }
+
+/* dropdown triggers: icon only + a slim chevron, fused into one pill */
+.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main {
+  width:30px; padding:0; gap:0; justify-content:center; font-size:0; line-height:0; border-radius:7px 0 0 7px;
+}
+.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main > span[id$="Label"] { display:none; }
+.dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main svg { opacity:.88; }
+.dg-rbn-dropdown-group .dg-rbn-caret {
+  width:13px; height:30px; padding:0; border:1px solid transparent; border-radius:0 7px 7px 0; background:transparent;
+  color:var(--text3); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:background .14s ease, color .14s ease;
+}
+.dg-rbn-dropdown-group .dg-rbn-caret svg { opacity:.7; }
+.dg-rbn-dropdown-group:hover .dg-rbn-btn.dg-rbn-main, .dg-rbn-dropdown-group:hover .dg-rbn-caret { background:var(--surface2); color:var(--text); }
+[data-theme="light"] .dg-rbn-dropdown-group:hover .dg-rbn-btn.dg-rbn-main,
+[data-theme="light"] .dg-rbn-dropdown-group:hover .dg-rbn-caret { background:#f1f5fb; }
+.dg-rbn-dropdown-group:hover .dg-rbn-caret svg { opacity:1; }
+.dg-rbn-dropdown-group:focus-within .dg-rbn-btn.dg-rbn-main { color:var(--blue); }
+
+/* History badge becomes a small count dot on the icon */
+.dg-rbn-main .dg-history-badge {
+  position:absolute; top:1px; right:0; min-width:14px; height:14px; padding:0 3px; box-sizing:border-box;
+  font-size:9px; line-height:14px; font-weight:700; text-align:center; border-radius:99px;
+  color:#fff; background:var(--blue);
+}
+
+/* thin dividers, like the Data Arrangement bar */
+.dg-rbn-sep { width:1px; height:18px; margin:0 5px; opacity:.7; background:var(--border2); align-self:center; }
+
+/* Push + Showcase: same labelled "action chip" as the Data Arrangement Push buttons
+   (soft cyan tint, cyan hairline border, blue icon). !important is needed to beat the older
+   gradient-filled .dg-rbn-btn-push rule higher up this file. */
+.dg-ribbon-bar #dgPushGroup { padding-left:2px; }
+.dg-ribbon-bar #dgPushGroup .dg-rbn-group-btns { gap:6px; }
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push {
+  display:inline-flex; align-items:center; justify-content:center; flex-direction:row !important;
+  width:auto !important; height:30px; padding:0 11px !important; gap:6px; margin:0;
+  font-size:11.5px !important; font-weight:600 !important; line-height:1; white-space:nowrap;
+  color:var(--text) !important; background:rgba(0,194,255,0.08) !important;
+  border:1px solid rgba(0,194,255,0.35) !important; border-radius:7px !important;
+  box-shadow:none; filter:none; transform:none; cursor:pointer;
+  transition:background .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push svg { width:14px; height:14px; opacity:1; color:var(--blue); flex-shrink:0; }
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:hover {
+  background:rgba(0,194,255,0.16) !important; border-color:var(--blue) !important;
+  color:var(--text) !important; box-shadow:none; transform:none; filter:none;
+}
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:active { background:rgba(0,194,255,0.22) !important; }
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:disabled { opacity:.5; cursor:default; }
+[data-theme="light"] .dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push { background:#fff !important; box-shadow:0 1px 2px rgba(16,40,90,0.08); }
+[data-theme="light"] .dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push:hover { background:rgba(0,150,210,0.08) !important; }
+
+
+/* ── Chart toolbar: minimal icon-only lock (v2, 2026-11-15) ───────────────
+   Same look as the Data Arrangement toolbar. These !important rules make sure
+   no older rule can bring the text labels or the solid blue Push/Showcase back. */
+.dg-ribbon-bar .dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main {
+  font-size:0 !important; line-height:0 !important; gap:0 !important;
+  width:30px !important; padding:0 !important; justify-content:center !important; min-width:0 !important;
+}
+.dg-ribbon-bar .dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main > span[id$="Label"] { display:none !important; }
+.dg-ribbon-bar .dg-rbn-dropdown-group .dg-rbn-btn.dg-rbn-main svg { width:16px; height:16px; }
+.dg-ribbon-bar .dg-rbn-group-label {
+  position:absolute !important; width:1px !important; height:1px !important; overflow:hidden !important;
+  clip:rect(0,0,0,0) !important; margin:-1px !important; padding:0 !important; border:0 !important;
+}
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push {
+  background:rgba(0,194,255,0.08) !important; color:var(--text) !important;
+  border:1px solid rgba(0,194,255,0.35) !important; box-shadow:none !important;
+}
+.dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push svg { color:var(--blue) !important; }
+[data-theme="light"] .dg-ribbon-bar #dgPushGroup .dg-rbn-btn-push { background:#fff !important; }
