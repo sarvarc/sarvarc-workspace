@@ -1,23 +1,98 @@
-/* Compact field palette: collapsed to one "+ Add question" bar; opens as a popover. */
-.mf-add-field-row { position:sticky; padding-bottom:10px; gap:0; }
-.mf-add-toggle {
-  display:flex; align-items:center; gap:8px; width:100%; padding:9px 12px;
-  border-radius:12px; border:1.5px dashed var(--cyan); background:rgba(0,194,255,0.08);
-  color:var(--text); font:600 12.5px 'Inter',sans-serif; cursor:pointer; text-align:left;
+/* ===== MAKE FORMS > DESIGN: premium panel polish =====
+   1) "+ Add question" is one solid, quiet bar (no dotted line) that opens a floating picker.
+   2) Every topic in the slide-out panel (Look, Questions, Brand, Gallery, Details, Files, Expiry)
+      uses the same card, label, input and hint styles, so nothing looks loose or unfinished.
+   Only direct children of a panel section are carded, so nested blocks are not boxed twice. */
+
+/* ---------- shared look for the panel ---------- */
+.mfr-sec { gap: 12px; }
+.mfr-sec > .mf-desc-row,
+.mfr-sec > .mf-social-row,
+.mfr-sec > .mf-brand-logo-block,
+.mfr-sec > .mf-brand-color-block,
+.mfr-sec > .mf-attach-block {
+  background: var(--surface, var(--bg3)); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 14px 15px; box-shadow: 0 1px 2px rgba(8, 24, 48, .05);
 }
-.mf-add-toggle:hover { background:rgba(0,194,255,0.16); }
-.mf-add-toggle-plus { width:20px; height:20px; border-radius:50%; background:var(--cyan); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; line-height:1; }
-.mf-add-toggle-hint { margin-left:auto; font-weight:500; font-size:11px; color:var(--text3); }
-.mf-add-toggle-caret { font-size:11px; color:var(--text3); transition:transform .15s; }
-.mf-add-field-row:not(.mf-collapsed) .mf-add-toggle-caret { transform:rotate(180deg); }
+.mfr-sec > .mf-look-card { border-radius: 14px; box-shadow: 0 1px 2px rgba(8, 24, 48, .05); }
+.mfr-sec > .mf-desc-row { gap: 8px; }
+
+.mfr-sec label,
+.mfr-sec .mf-desc-row > label,
+.mfr-sec .mf-social-row > label {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 650; letter-spacing: .01em; color: var(--text); line-height: 1.35;
+}
+.mfr-sec label span, .mfr-sec label em { font-weight: 450; font-style: normal; color: var(--text3) !important; }
+.mfr-sec .mf-field-hint { font-size: 11px; line-height: 1.5; color: var(--text3); margin: 0 0 8px; }
+
+.mfr-sec input[type="text"], .mfr-sec input[type="url"], .mfr-sec input[type="number"],
+.mfr-sec input[type="email"], .mfr-sec select, .mfr-sec textarea {
+  box-sizing: border-box; width: 100%; min-height: 38px; padding: 9px 12px;
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 12.5px; line-height: 1.4; outline: none;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.mfr-sec input::placeholder, .mfr-sec textarea::placeholder { color: var(--text3); opacity: .8; }
+.mfr-sec input:hover, .mfr-sec select:hover, .mfr-sec textarea:hover { border-color: var(--border2, var(--border)); }
+.mfr-sec input:focus, .mfr-sec select:focus, .mfr-sec textarea:focus {
+  border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 194, 255, .18); background: var(--bg2);
+}
+.mfr-sec input[type="number"] { width: 72px; }
+.mfr-sec input[type="checkbox"], .mfr-sec input[type="radio"] { width: auto; min-height: 0; box-shadow: none; accent-color: var(--cyan); }
+.mfr-sec input[type="range"] { width: auto; min-height: 0; padding: 0; box-shadow: none; accent-color: var(--cyan); }
+
+/* ---------- Public link name card (Details tab) ---------- */
+#mfLinkNameRow { gap: 8px; }
+#mfLinkNameRow > label::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%;
+  background: var(--cyan); vertical-align: middle; position: relative; top: -1px;
+}
+#mfLinkNamePreview {
+  display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-radius: 10px;
+  background: rgba(0, 194, 255, .08); border: 1px solid rgba(0, 194, 255, .22);
+  font-size: 11.5px; line-height: 1.4; color: var(--text2) !important; word-break: break-all;
+}
+#mfLinkNamePreview::before {
+  content: ""; flex: none; width: 14px; height: 14px; background: var(--cyan);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+#mfLinkNamePreview:empty, #mfLinkNameStatus:empty { display: none; }
+#mfLinkNameStatus { font-size: 11px !important; line-height: 1.45; color: var(--text3) !important; padding: 0 2px; }
+
+/* ---------- "+ Add question" bar: solid, quiet, premium ---------- */
+.mf-add-field-row { position: sticky; gap: 0; border-bottom: 1px solid var(--border); background: var(--bg2); }
+.mfr-sec .mf-add-field-row { padding: 12px 18px 12px; }
+.mf-add-toggle {
+  display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 12px 8px 8px;
+  border-radius: 13px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface, var(--bg3)) 0%, var(--bg3) 100%);
+  color: var(--text); font: 650 13px 'Inter', sans-serif; text-align: left; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(8, 24, 48, .07), inset 0 1px 0 rgba(255, 255, 255, .5);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.mf-add-toggle:hover { border-color: rgba(0, 194, 255, .55); box-shadow: 0 4px 14px rgba(0, 150, 220, .14), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.mf-add-toggle:active { transform: translateY(1px); }
+.mf-add-toggle:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.mf-add-field-row:not(.mf-collapsed) .mf-add-toggle { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 194, 255, .16); }
+.mf-add-toggle-plus {
+  flex: none; width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #19c6ff 0%, #0a84ff 100%); color: #fff; font-size: 18px; font-weight: 500; line-height: 1;
+  box-shadow: 0 3px 8px rgba(10, 132, 255, .35);
+}
+.mf-add-toggle-text { letter-spacing: .005em; }
+.mf-add-toggle-hint { margin-left: auto; font-weight: 450; font-size: 11px; color: var(--text3); }
+.mf-add-toggle-caret { font-size: 10px; color: var(--text3); transition: transform .18s; }
+.mf-add-field-row:not(.mf-collapsed) .mf-add-toggle-caret { transform: rotate(180deg); }
 
 .mf-pick-body {
-  display:flex; flex-direction:column; gap:10px; margin-top:8px; padding:12px;
-  border:1px solid var(--border); border-radius:12px; background:var(--bg2);
-  box-shadow:0 10px 28px rgba(0,0,0,.18); max-height:55vh; overflow-y:auto;
+  display: flex; flex-direction: column; gap: 12px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg2);
+  box-shadow: 0 18px 40px rgba(6, 20, 40, .22), 0 2px 6px rgba(6, 20, 40, .08);
+  max-height: 55vh; overflow-y: auto;
+  position: absolute; left: 18px; right: 18px; top: 100%; z-index: 20; margin-top: 4px;
 }
-.mf-add-field-row.mf-collapsed .mf-pick-body { display:none; }
-
-/* Popover floats over the question list instead of pushing it down */
-.mf-add-field-row { position:sticky; }
-.mf-pick-body { position:absolute; left:18px; right:18px; top:100%; z-index:20; margin-top:2px; }
+.mf-add-field-row.mf-collapsed .mf-pick-body { display: none; }
+.mf-add-field-row .mf-pick-title { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--text3); }
+.mf-add-field-row .mf-pick-grid button, .mf-pick-chips button { transition: border-color .12s, background .12s, transform .12s; }
+.mf-add-field-row .mf-pick-grid button:hover, .mf-pick-chips button:hover { transform: translateY(-1px); }
