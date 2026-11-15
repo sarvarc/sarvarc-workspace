@@ -10346,4 +10346,40 @@ window.sarvarcDashDrawChart = function (canvas, h) {
   });
 };
 
+// Kadessa bridge: this whole file lives inside one closure, so Kadessa (js/51) could not see
+// the helpers below and her chart tools died with "dgUploadParsed is not defined" and
+// "DG_TREND_TYPES is not defined". Read only getters for the live values (lets can be
+// reassigned inside this file, a getter always returns the current one), plain references
+// for functions and constants.
+(function () {
+  function ro(name, get) {
+    try { Object.defineProperty(window, name, { get: get, configurable: true }); } catch (e) {}
+  }
+  ro('dgUploadParsed', function () { return dgUploadParsed; });
+  ro('dgActiveMode', function () { return dgActiveMode; });
+  ro('dgTextSeq', function () { return dgTextSeq; });
+  ro('DG_TREND_TYPES', function () { return DG_TREND_TYPES; });
+  ro('DG_GROWTH_TYPES', function () { return DG_GROWTH_TYPES; });
+  ro('DG_RADIUS_TYPES', function () { return DG_RADIUS_TYPES; });
+  ro('DG_TEMPLATES', function () { return DG_TEMPLATES; });
+  window.dgColumnIsDate = dgColumnIsDate;
+  window.dgColumnIsNumeric = dgColumnIsNumeric;
+  window.dgIsIdentifierColumn = dgIsIdentifierColumn;
+  window.dgSyncFormatUI = dgSyncFormatUI;
+  window.dgIs3DType = dgIs3DType;
+  window.dgRenderPalette = dgRenderPalette;
+  window.dgCurrentScheme = dgCurrentScheme;
+  window.dgRenderRows = dgRenderRows;
+  window.dgUsesGroupedData = dgUsesGroupedData;
+  window.dgRefreshChart = dgRefreshChart;
+  window.dgFindSmartTextPosition = dgFindSmartTextPosition;
+  window.dgRenderTextOverlay = dgRenderTextOverlay;
+  window.dgPersist = dgPersist;
+  window.dgResolveCountry = dgResolveCountry;
+  window.dgDetectStatesCountry = dgDetectStatesCountry;
+  window.dgAutoShowStateMap = dgAutoShowStateMap;
+  window.dgMaybeSuggestMultiChart = dgMaybeSuggestMultiChart;
+  window.dgComputeStats = dgComputeStats;
+})();
+
 })();

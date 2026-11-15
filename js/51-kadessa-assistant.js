@@ -2130,6 +2130,230 @@
 
   function kdgRound(n){ return (typeof n === 'number' && isFinite(n)) ? Math.round(n * 100) / 100 : n; }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // DATA ARRANGEMENT ANALYSIS (read only). Kadessa answers "which category earns most", "are
+  // discounts hurting profit", "which months grew" by computing over EVERY row of the open table
+  // and posting the answer in chat. It never edits the table and never leaves Data Arrangement.
+  // ═══════════════════════════════════════════════════════════════════════
+  function kdaCur(prof, ci){
+    var c = prof[ci] || {};
+    if (c.currency) return c.currency;
+    return /\bINR\b|rupee/i.test(String(c.header || '')) ? '\u20b9' : '';
+  }
+  function kdaMoney(n, cur){
+    var a = Math.abs(n), t;
+    if (a >= 1000) t = Math.round(a).toLocaleString('en-IN');
+    else t = String(Math.round(a * 100) / 100);
+    return (n < 0 ? '-' : '') + (cur || '') + t;
+  }
+  function kdaPct(x){ return (Math.round(x * 10) / 10) + '%'; }
+  function kdaMonthLabel(key){
+    var m = key.split('-');
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m[1]) - 1] + ' ' + m[0];
+  }
+  function kdaCol(headers, name, label){
+    var i = kdgFindCol(headers, name);
+    if (i === -1) throw new Error('I could not find a column called "' + name + '" for ' + label + '. The columns are: ' + headers.slice(0, 20).join(', '));
+    return i;
+  }
+  // Sum / count / average of one measure for each value of one label column.
+  function kdaGroup(rows, gi, mi){
+    var map = {}, order = [];
+    rows.forEach(function(r){
+      var k = String(r[gi] == null ? '' : r[gi]).trim();
+      if (!k) return;
+      var v = daFilterNum(r[mi]);
+      if (isNaN(v)) return;
+      if (!map[k]){ map[k] = { k: k, sum: 0, n: 0 }; order.push(k); }
+      map[k].sum += v; map[k].n++;
+    });
+    return order.map(function(k){ var g = map[k]; g.avg = g.n ? g.sum / g.n : 0; return g; });
+  }
+  function kdaAnalyseGroup(rows, headers, prof, a){
+    var gi = kdaCol(headers, a.group_by, 'the group'), mi = kdaCol(headers, a.measure, 'the measure');
+    var how = String(a.agg || '').toLowerCase();
+    if (how !== 'sum' && how !== 'average' && how !== 'count') how = (prof[mi] && prof[mi].combine) || 'sum';
+    var list = kdaGroup(rows, gi, mi);
+    if (!list.length) return null;
+    var val = function(g){ return how === 'count' ? g.n : (how === 'average' ? g.avg : g.sum); };
+    list.sort(function(x, y){ return val(y) - val(x); });
+    var cur = how === 'count' ? '' : kdaCur(prof, mi);
+    var total = list.reduce(function(t, g){ return t + val(g); }, 0);
+    var top = Math.max(1, Math.min(Number(a.top) || 5, 8));
+    var out = [headers[mi] + ' by ' + headers[gi] + ' (' + (how === 'count' ? 'number of rows' : how === 'average' ? 'average' : 'total') + '):'];
+    list.slice(0, top).forEach(function(g){
+      out.push('- ' + g.k + ': ' + kdaMoney(val(g), cur) + (how === 'sum' && total > 0 ? ' (' + kdaPct(val(g) / total * 100) + ')' : ''));
+    });
+    if (list.length > top){ var lo = list[list.length - 1]; out.push('- Lowest: ' + lo.k + ' at ' + kdaMoney(val(lo), cur)); }
+    return out.join('\n');
+  }
+  function kdaAnalyseTrend(rows, headers, prof, a){
+    var di = kdaCol(headers, a.date_column, 'the date'), mi = kdaCol(headers, a.measure, 'the measure');
+    var how = String(a.agg || '').toLowerCase();
+    if (how !== 'sum' && how !== 'average' && how !== 'count') how = (prof[mi] && prof[mi].combine) || 'sum';
+    var map = {};
+    rows.forEach(function(r){
+      var ms = daFilterDateMs(r[di]); if (isNaN(ms)) return;
+      var v = daFilterNum(r[mi]); if (isNaN(v)) return;
+      var d = new Date(ms), k = d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2);
+      if (!map[k]) map[k] = { sum: 0, n: 0 };
+      map[k].sum += v; map[k].n++;
+    });
+    var keys = Object.keys(map).sort();
+    if (keys.length < 2) return null;
+    var vals = keys.map(function(k){ return how === 'average' ? map[k].sum / map[k].n : (how === 'count' ? map[k].n : map[k].sum); });
+    var cur = how === 'count' ? '' : kdaCur(prof, mi);
+    var bi = 0, wi = 0, up = null, dn = null;
+    vals.forEach(function(v, i){
+      if (v > vals[bi]) bi = i;
+      if (v < vals[wi]) wi = i;
+      if (i > 0){
+        var ch = vals[i] - vals[i - 1];
+        if (!up || ch > up.ch) up = { ch: ch, i: i };
+        if (!dn || ch < dn.ch) dn = { ch: ch, i: i };
+      }
+    });
+    var half = Math.floor(vals.length / 2);
+    var avg = function(arr){ return arr.reduce(function(t, x){ return t + x; }, 0) / arr.length; };
+    var first = avg(vals.slice(0, half)), second = avg(vals.slice(vals.length - half));
+    var out = [headers[mi] + ' by month, ' + kdaMonthLabel(keys[0]) + ' to ' + kdaMonthLabel(keys[keys.length - 1]) + ':'];
+    out.push('- Best month: ' + kdaMonthLabel(keys[bi]) + ' at ' + kdaMoney(vals[bi], cur));
+    out.push('- Weakest month: ' + kdaMonthLabel(keys[wi]) + ' at ' + kdaMoney(vals[wi], cur));
+    if (up && up.ch > 0) out.push('- Biggest jump: into ' + kdaMonthLabel(keys[up.i]) + ' (+' + kdaMoney(up.ch, cur) + ')');
+    if (dn && dn.ch < 0) out.push('- Biggest drop: into ' + kdaMonthLabel(keys[dn.i]) + ' (' + kdaMoney(dn.ch, cur) + ')');
+    if (first > 0){
+      var g = (second - first) / first * 100;
+      out.push('- Overall: the later months average ' + kdaPct(Math.abs(g)) + (g >= 0 ? ' higher' : ' lower') + ' than the earlier months, so it is ' + (Math.abs(g) < 3 ? 'roughly flat' : g > 0 ? 'growing' : 'declining') + '.');
+    }
+    return out.join('\n');
+  }
+  function kdaAnalyseRelation(rows, headers, prof, a){
+    var xi = kdaCol(headers, a.x_column, 'the first column'), yi = kdaCol(headers, a.y_column, 'the second column');
+    var pts = [];
+    rows.forEach(function(r){
+      var x = daFilterNum(r[xi]), y = daFilterNum(r[yi]);
+      if (!isNaN(x) && !isNaN(y)) pts.push([x, y]);
+    });
+    if (pts.length < 8) return null;
+    var n = pts.length, mx = 0, my = 0;
+    pts.forEach(function(q){ mx += q[0]; my += q[1]; }); mx /= n; my /= n;
+    var sxy = 0, sxx = 0, syy = 0;
+    pts.forEach(function(q){ sxy += (q[0] - mx) * (q[1] - my); sxx += (q[0] - mx) * (q[0] - mx); syy += (q[1] - my) * (q[1] - my); });
+    var r = (sxx > 0 && syy > 0) ? sxy / Math.sqrt(sxx * syy) : 0;
+    var distinct = {}; pts.forEach(function(q){ distinct[q[0]] = 1; });
+    var dk = Object.keys(distinct).map(Number).sort(function(p1, p2){ return p1 - p2; });
+    var buckets = [];
+    if (dk.length >= 2 && dk.length <= 6){
+      dk.forEach(function(v){ buckets.push({ label: String(v), lo: v, hi: v, sum: 0, n: 0 }); });
+    } else {
+      var sorted = pts.map(function(q){ return q[0]; }).sort(function(p1, p2){ return p1 - p2; });
+      var edges = [sorted[0], sorted[Math.floor(n / 4)], sorted[Math.floor(n / 2)], sorted[Math.floor(3 * n / 4)], sorted[n - 1]];
+      for (var b = 0; b < 4; b++) if (b === 0 || edges[b] > edges[b - 1]) buckets.push({ label: edges[b] + ' to ' + edges[b + 1], lo: edges[b], hi: edges[b + 1], sum: 0, n: 0 });
+      buckets.forEach(function(bk, i){ bk.last = (i === buckets.length - 1); });
+    }
+    pts.forEach(function(q){
+      for (var i = buckets.length - 1; i >= 0; i--){
+        var bk = buckets[i];
+        if (q[0] >= bk.lo && (q[0] <= bk.hi)){ bk.sum += q[1]; bk.n++; break; }
+      }
+    });
+    var cur = kdaCur(prof, yi);
+    var out = ['Average ' + headers[yi] + ' by ' + headers[xi] + ':'];
+    buckets.filter(function(bk){ return bk.n; }).forEach(function(bk){
+      out.push('- ' + headers[xi] + ' ' + bk.label + ': ' + kdaMoney(bk.sum / bk.n, cur) + ' (' + bk.n + ' rows)');
+    });
+    var word = Math.abs(r) < 0.1 ? 'no clear link' : (Math.abs(r) < 0.3 ? 'a weak ' : (Math.abs(r) < 0.6 ? 'a moderate ' : 'a strong ')) + (r < 0 ? 'negative link' : 'positive link');
+    if (Math.abs(r) < 0.1) word = 'no clear link';
+    out.push('- Correlation ' + (Math.round(r * 100) / 100) + ': ' + word + (r <= -0.1 ? ', so a higher ' + headers[xi] + ' goes with a lower ' + headers[yi] + '.' : (r >= 0.1 ? ', so a higher ' + headers[xi] + ' goes with a higher ' + headers[yi] + '.' : '.')));
+    return out.join('\n');
+  }
+  function kdaAnalyseMargin(rows, headers, prof, a){
+    var gi = kdaCol(headers, a.group_by, 'the group'), ri = kdaCol(headers, a.revenue_column, 'revenue'), pi = kdaCol(headers, a.profit_column, 'profit');
+    var rev = kdaGroup(rows, gi, ri), pro = kdaGroup(rows, gi, pi), pm = {};
+    pro.forEach(function(g){ pm[g.k] = g.sum; });
+    var list = rev.filter(function(g){ return g.sum > 0 && pm[g.k] !== undefined; }).map(function(g){ return { k: g.k, rev: g.sum, profit: pm[g.k], margin: pm[g.k] / g.sum * 100 }; });
+    if (list.length < 3) return null;
+    var cur = kdaCur(prof, ri);
+    var totRev = list.reduce(function(t, g){ return t + g.rev; }, 0), totPro = list.reduce(function(t, g){ return t + g.profit; }, 0);
+    var byRev = list.slice().sort(function(x, y){ return y.rev - x.rev; });
+    var byMargin = list.slice().sort(function(x, y){ return x.margin - y.margin; });
+    var med = byRev[Math.floor(byRev.length / 2)].rev;
+    var lowCut = byMargin[Math.max(0, Math.floor(byMargin.length / 4))].margin;
+    var flagged = byRev.filter(function(g){ return g.rev >= med && g.margin <= lowCut; }).slice(0, 5);
+    var out = [headers[gi] + ': ' + headers[ri] + ' against ' + headers[pi] + ' (overall margin ' + kdaPct(totPro / totRev * 100) + '):'];
+    byRev.slice(0, 5).forEach(function(g){ out.push('- ' + g.k + ': ' + kdaMoney(g.rev, cur) + ' sales, ' + kdaMoney(g.profit, cur) + ' profit, ' + kdaPct(g.margin) + ' margin'); });
+    if (flagged.length){
+      out.push('High sales but low margin:');
+      flagged.forEach(function(g){ out.push('- ' + g.k + ': ' + kdaMoney(g.rev, cur) + ' sales at only ' + kdaPct(g.margin) + ' margin'); });
+    } else {
+      out.push('No product combines high sales with a clearly low margin.');
+    }
+    return out.join('\n');
+  }
+  // One call that answers the usual business questions straight from the column names.
+  function kdaAutoPlan(headers, prof){
+    var pick = function(re, kinds, skip){
+      for (var i = 0; i < headers.length; i++){
+        if (skip && skip.indexOf(i) !== -1) continue;
+        var c = prof[i]; if (!c || kinds.indexOf(c.kind) === -1) continue;
+        if (re.test(String(headers[i]))) return i;
+      }
+      return -1;
+    };
+    var plan = [], used = [];
+    var rev = pick(/net\s*sales|revenue|sales|turnover|amount|total/i, ['measure']);
+    var pro = pick(/profit|net\s*income/i, ['measure']);
+    var dis = pick(/discount/i, ['measure']);
+    var dat = pick(/date|month|day|time/i, ['date']);
+    if (dat === -1) for (var i = 0; i < headers.length; i++) if (prof[i] && prof[i].kind === 'date'){ dat = i; break; }
+    var cats = [];
+    [/product\s*category|category/i, /city/i, /channel/i, /region/i, /segment/i].forEach(function(re){
+      var i = pick(re, ['category', 'text'], cats);
+      if (i !== -1 && prof[i].distinct <= 60) cats.push(i);
+    });
+    var prod = pick(/^product(\s*name)?$|product|item/i, ['category', 'text'], cats);
+    if (prod !== -1 && prof[prod].distinct > 80) prod = -1;
+    if (rev === -1) return { plan: [], need: 'a sales or revenue column' };
+    cats.slice(0, 4).forEach(function(i){ plan.push({ kind: 'group', group_by: headers[i], measure: headers[rev], agg: 'sum' }); });
+    if (prod !== -1 && pro !== -1){
+      plan.push({ kind: 'group', group_by: headers[prod], measure: headers[pro], agg: 'sum' });
+      plan.push({ kind: 'margin', group_by: headers[prod], revenue_column: headers[rev], profit_column: headers[pro] });
+    }
+    if (dat !== -1) plan.push({ kind: 'trend', date_column: headers[dat], measure: headers[rev], agg: 'sum' });
+    if (dis !== -1 && pro !== -1) plan.push({ kind: 'relation', x_column: headers[dis], y_column: headers[pro] });
+    return { plan: plan };
+  }
+  function kdaAnalyze(p){
+    p = p || {};
+    var ds = (typeof daGetActive === 'function') ? daGetActive() : null;
+    if (!ds || !ds.headers || !ds.headers.length) throw new Error('there is no table open to analyse');
+    var all = daComputedRowsForExport(ds);
+    var keep = (p.filtered_only === true && typeof kadessaFilteredRowIdxs === 'function') ? kadessaFilteredRowIdxs(ds) : null;
+    if (keep) all = keep.map(function(ri){ return all[ri]; });
+    if (!all.length) throw new Error('the table has no rows to analyse');
+    var prof = kadessaProfileColumns(ds);
+    var plan = Array.isArray(p.analyses) ? p.analyses.filter(function(a){ return a && a.kind; }) : [];
+    if (!plan.length){
+      var auto = kdaAutoPlan(ds.headers, prof);
+      if (!auto.plan.length){
+        var nums = prof.filter(function(c){ return c.kind === 'measure'; }).map(function(c){ return c.header; });
+        return { say: 'I could not spot ' + (auto.need || 'the columns I need') + ' on my own. Tell me which column to measure' + (nums.length ? ' (number columns: ' + nums.slice(0, 10).join(', ') + ')' : '') + ' and what to group by, and I will work it out.' };
+      }
+      plan = auto.plan;
+    }
+    var parts = [];
+    plan.slice(0, 8).forEach(function(a){
+      var txt = null;
+      if (a.kind === 'group') txt = kdaAnalyseGroup(all, ds.headers, prof, a);
+      else if (a.kind === 'trend') txt = kdaAnalyseTrend(all, ds.headers, prof, a);
+      else if (a.kind === 'relation') txt = kdaAnalyseRelation(all, ds.headers, prof, a);
+      else if (a.kind === 'margin') txt = kdaAnalyseMargin(all, ds.headers, prof, a);
+      if (txt) parts.push(txt);
+    });
+    if (!parts.length) throw new Error('I could not find enough usable numbers in those columns to analyse');
+    return { say: 'Here is what the ' + all.length + ' rows say' + (keep ? ' (filtered rows only)' : '') + ':\n\n' + parts.join('\n\n') };
+  }
+
   // What Kadessa can see about the Diagrams & Graphs panel, so she can describe, critique and edit it.
   function kdgSnapshot(){
     var val = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
@@ -2233,6 +2457,7 @@
       if (!c || typeof c !== 'object') return c;
       c.dgHands = true; // tells the Worker this client has the Diagrams & Graphs hands
       c.daTextView = true; // tells the Worker this client has Wrap Text (da_set_text_display)
+      c.daAnalyze = true; // tells the Worker this client can analyse the open table in chat (da_analyze)
       c.daSummaries = true; // tells the Worker this client can add summary columns (da_add_summary)
       c.daTableNotes = true; // tells the Worker this client can remember what the person says about each table (da_remember_tables)
       c.workstyle = true; // tells the Worker this client can save work styles (workstyle_save, workstyle_list)
@@ -2824,6 +3049,7 @@
     dg_flow_template:  { risk: 'safe', run: function(p){ kdgEnsureSection(); dgSetDgMode('flow'); dgFlowInsertTemplate(p.template); }, label: function(){ return 'Load a diagram starter.'; } },
     dg_build_map:      { risk: 'safe', run: function(p){ return kdgBuildMap(p); }, label: function(){ return 'Build the map.'; } },
     dg_chart_from_table: { risk: 'safe', run: function(p){ return kdgChartFromTable(p); }, label: function(p){ return 'Chart ' + (p.y_columns || []).join(', ') + ' by ' + p.x_column + '.'; } },
+    da_analyze:        { risk: 'safe', run: function(p){ return kdaAnalyze(p); }, label: function(){ return 'Analyse the table.'; } },
     dg_export:         { risk: 'safe', run: function(p){ kdgEnsureSection(); dgExportChart(p.format === 'jpeg' ? 'jpeg' : 'png'); }, label: function(p){ return 'Download the chart as ' + String(p.format || 'png').toUpperCase() + '.'; } },
 
     // Previously there was NO way for Kadessa to start a brand-new form at
@@ -4365,6 +4591,24 @@
     return null;
   }
 
+  // GUARD (added after Kadessa was asked to analyse and summarise a table in Data
+  // Arrangement and instead opened Diagrams & Graphs and fired five chart builds nobody asked
+  // for). Rule: stay in the panel the person is in. Charting tools, or a switch to Diagrams &
+  // Graphs, only run when the person's own words in THIS turn ask for a visual (chart, graph,
+  // plot, diagram, map, pie and so on) or they are already standing in Diagrams & Graphs.
+  // Analysing, summarising, comparing and "what should I look at" are answered in chat.
+  function kadessa_vizWithoutAsk(action, userText){
+    if (!action || !action.type) return null;
+    var isViz = /^dg_/.test(action.type) ||
+      (action.type === 'navigate_to_panel' && action.params && action.params.panel === 'Diagrams & Graphs');
+    if (!isViz) return null;
+    try{ if (typeof unifiedActiveSection === 'function' && unifiedActiveSection() === 'diagrams') return null; }catch(e){}
+    var t = String(userText || '').toLowerCase();
+    var asked = /\b(charts?|graphs?|graphing|plots?|plotting|visuali[sz]\w*|diagrams?|infographics?|pie|donut|histograms?|scatter|flow\s?charts?|mind\s?maps?|maps?|trend\s?lines?|dashboards?)\b/.test(t);
+    if (asked) return null;
+    return "you didn't ask for a chart, so I'm staying in this panel. Say \"chart this\" or \"show it as a graph\" if you want me to build one.";
+  }
+
   // demoReply(): fallback voice used only when KADESSA_API is off or the Worker
   // is unreachable. Grounded in the SAME getKadessaContext() the real API call
   // uses -- weaves in actual row counts, page numbers, field counts, chart
@@ -4900,7 +5144,7 @@
             kfxAddWhere(card, action);
             const undoBefore = { top: kadessaLogTop(), clock: kadessaClockNow() };
             kadessaLastCancelled = false;
-            const mismatch = kadessa_tableFormMismatch(action && action.type, userText);
+            const mismatch = kadessa_tableFormMismatch(action && action.type, userText) || kadessa_vizWithoutAsk(action, userText);
             const problem = mismatch || await kfxRun(action, function(){ return kadessaExecuteAction(action); }, kfxFast);
             const failed = !!mismatch || (typeof problem === 'string' && /^Couldn't complete that/.test(problem));
             kadessaActCardFinish(card, failed ? 'fail' : (kadessaLastCancelled ? 'skip' : 'done'), (failed || kadessaLastCancelled) ? null : kadessaUndoSnapshot(undoBefore));
