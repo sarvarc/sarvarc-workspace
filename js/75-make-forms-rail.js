@@ -93,7 +93,7 @@
       b.type = 'button'; b.className = 'mfr-btn'; b.setAttribute('data-sec', s.id);
       b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', 'mfrSlot');
       b.title = s.title + ' — ' + s.sub;
-      b.innerHTML = s.icon + '<span>' + s.label + '</span>' + (s.id === 'fields' ? '<i class="mfr-badge" id="mfrCount"></i>' : s.id === 'gallery' ? '<i class="mfr-badge mfr-new">NEW</i>' : '');
+      b.innerHTML = s.icon + '<span>' + s.label + '</span>' + (s.id === 'fields' ? '<i class="mfr-badge" id="mfrCount"></i>' : '');
       b.addEventListener('click', function () { touched = true; if (cur === s.id) close(); else open(s.id); });
       rail.appendChild(b); btnEls[s.id] = b;
     });
