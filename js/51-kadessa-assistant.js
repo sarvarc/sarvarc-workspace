@@ -350,6 +350,8 @@
   //     change -- if it's no longer safe to reverse cleanly, the tool call
   //     fails with a message to relay to the person as-is; don't retry it
   //     silently or claim it undid something it didn't.
+  //   pdfed_pick_canvas_style {style, gravity?: 'serious'|'neutral'|'festive', reason?, pages?, title?, caption?}
+  //     -- Kadessa chooses one of the 10 Backgrounds / 10 Photo Frames after reading the content (js/92).
   //   pdfed_set_canvas_gradient {mode?: 'solid'|'gradient', color1: hex,
   //     color2?: hex, angle?: 0-360, opacity?: 0-100, pages?: 'all'|number[],
   //     page_overrides?: [{page: number, mode?, color1?, color2?, angle?, opacity?}]}
@@ -1626,6 +1628,9 @@
           // uses to know this client has pdfed_resize_canvas.
           pageMM: page ? (page.pageMM || null) : null,
           canvasResize: (typeof pdfedKadessaResizeCanvas === 'function'),
+          // Build 300+: tells the Worker this client has pdfed_pick_canvas_style, and what the catalogue and the open page hold.
+          canvasStyleJudge: (typeof kadessaPickCanvasStyle === 'function'),
+          canvasStyles: (typeof kadessaCanvasStyleContext === 'function') ? kadessaCanvasStyleContext() : undefined,
           pageBgColor: page ? (page.bgColor || null) : null,
           contentBottomPct: (function(){
             try {
@@ -1676,6 +1681,8 @@
           noDocumentOpen: true,
           imageShaper: (typeof pdfedKadessaShaperContext === 'function') ? pdfedKadessaShaperContext() : undefined,
           liveClipLook: true,
+          canvasStyleJudge: (typeof kadessaPickCanvasStyle === 'function'),
+          canvasStyles: (typeof kadessaCanvasStyleContext === 'function') ? kadessaCanvasStyleContext() : undefined,
           galleryImages: (typeof pdfedKadessaGalleryContext === 'function') ? pdfedKadessaGalleryContext() : undefined
         };
       }
@@ -3627,6 +3634,17 @@
         return base + ' to this page\'s canvas' + ovTxt + '.';
       }
     },
+    // Kadessa chooses a Canvas Style (Backgrounds / Photo Frames from js/90) by reading the content.
+    // The choice is hers (see CANVAS STYLE JUDGMENT in the Worker); js/92-kadessa-canvas-style.js
+    // runs it and enforces the gravity, frame and legibility rules.
+    pdfed_pick_canvas_style: {
+      risk: 'safe',
+      run: async function(p){
+        if (typeof kadessaPickCanvasStyle !== 'function') throw new Error('canvas styles are not loaded yet, refresh the page and try again');
+        return await kadessaPickCanvasStyle(p || {});
+      },
+      label: function(p){ return (typeof kadessaCanvasStyleLabel === 'function') ? kadessaCanvasStyleLabel(p) : 'Set a canvas style.'; }
+    },
     // Translates placed text boxes into another language: one page, every
     // page, or a specific set of pages, all in ONE call -- via the same
     // free MyMemory Translation API the manual Translate/Translate All
@@ -4443,7 +4461,7 @@
       if (/^pdfed_(insert_table|create_table|add_text_to_page|insert_attached_image|insert_stock_photo)$/.test(t)) return { sweep: true, reveal: true,
         before: function(){ return { ids: kfxPdfAllIds() }; },
         after: function(c){ const out = []; document.querySelectorAll(KFX_PDF_ALL).forEach(function(el){ if (el.dataset && el.dataset.id && !c.ids[el.dataset.id]) out.push(el); }); return out.length ? out : kfxPdfCanvas(); } };
-      if (/^pdfed_(rotate_page|remove_page|resize_canvas|set_canvas_gradient|translate_pages|revert_page|set_page_transition)$/.test(t)) return { sweep: true, pre: kfxPdfCanvas, after: kfxPdfCanvas };
+      if (/^pdfed_(rotate_page|remove_page|resize_canvas|set_canvas_gradient|pick_canvas_style|translate_pages|revert_page|set_page_transition)$/.test(t)) return { sweep: true, pre: kfxPdfCanvas, after: kfxPdfCanvas };
       if (/^pdfed_(insert_page|duplicate_page|auto_refine_report|create_letterhead|make_editable)$/.test(t) || /^bp_/.test(t)) return { sweep: true, after: kfxPdfCanvas };
       return null;
     }
