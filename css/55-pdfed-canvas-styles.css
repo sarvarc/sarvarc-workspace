@@ -1,0 +1,27 @@
+/* PDF Editor: Canvas "Styles" (js/90-pdfed-canvas-styles.js). Real canvas version, 2026-11-18.
+   The panel only holds the style gallery now. Photo boxes and the title/caption live on the page. */
+.pcs { margin: 4px 0 20px; }
+.pcs-new { font-style: normal; font-size: 8.5px; font-weight: 800; letter-spacing: .5px; padding: 2px 6px; margin-left: 6px; border-radius: 6px; background: var(--pdfed-accent); color: #fff; vertical-align: 1px; }
+.pcs-seg { display: flex; gap: 4px; padding: 3px; margin-bottom: 12px; border-radius: 10px; background: var(--pdfed-section-bg); border: 1px solid var(--pdfed-section-border); }
+.pcs-seg button { flex: 1; border: 0; background: transparent; color: var(--text2); font: 600 11.5px 'Inter', sans-serif; padding: 7px 6px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+.pcs-seg button.on { background: var(--pdfed-accent); color: #fff; }
+.pcs-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.pcs-grid.fr { grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.pcs-th { position: relative; display: block; padding: 0; border: 0; border-radius: 9px; overflow: hidden; cursor: grab; aspect-ratio: 3 / 4; background: #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); transition: transform .15s, box-shadow .15s; user-select: none; -webkit-user-select: none; outline: none; }
+.pcs-th:active { cursor: grabbing; }
+.pcs-th img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.pcs-th span { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 6px 5px; font: 700 9.5px 'Inter', sans-serif; color: #fff; text-align: left; background: linear-gradient(transparent, rgba(0,0,0,.7)); pointer-events: none; }
+.pcs-th:hover, .pcs-th:focus-visible { transform: translateY(-2px) scale(1.03); box-shadow: 0 8px 18px rgba(0,0,0,.35); }
+.pcs-th.on { box-shadow: 0 0 0 2px var(--pdfed-panel-bg, #111), 0 0 0 4px var(--pdfed-accent); }
+.pcs-hint { margin: 10px 2px 0; font: 500 11px/1.55 'Inter', sans-serif; color: var(--text3); }
+
+/* While a style is being dragged, the page area shows where to drop it */
+.pcs-dragging { outline: 2px dashed var(--pdfed-accent, #00c2ff); outline-offset: -8px; }
+
+/* Photo boxes on the page: the Upload button comes from css/36 (.wss-*). Only the extras are here. */
+.pcs-slot-el .wss-ov { border-radius: 2px; }
+.pcs-slot-el.wss-empty .wss-ov { border-width: 3px; }
+.pcs-x { position: absolute; top: 8px; right: 8px; pointer-events: auto; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; border: 0; border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; cursor: pointer; opacity: 0; transition: opacity .12s, transform .12s; }
+.pcs-slot-el:hover .pcs-x, .pcs-x:focus-visible { opacity: 1; }
+.pcs-x:hover { transform: scale(1.08); background: rgba(220,38,38,.9); }
+@media (prefers-reduced-motion: reduce) { .pcs-th, .pcs-x { transition: none; } }
