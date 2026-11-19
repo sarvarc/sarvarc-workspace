@@ -2,25 +2,17 @@
 #sarvarcSplash {
   position: fixed; inset: 0; z-index: 999999;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: var(--bg);
+  /* Glass: the real workspace shows softly through, blurred. Falls back to a solid cover where blur is not supported (see the @supports block below). */
+  background: color-mix(in srgb, var(--bg) 14%, transparent);
+  -webkit-backdrop-filter: blur(7px) saturate(1.1); backdrop-filter: blur(7px) saturate(1.1);
   overflow: hidden;
-  transition: opacity .7s cubic-bezier(.4,0,.2,1), visibility .7s cubic-bezier(.4,0,.2,1), filter .7s cubic-bezier(.4,0,.2,1);
+  transition: opacity .7s cubic-bezier(.4,0,.2,1), visibility .7s cubic-bezier(.4,0,.2,1), transform .7s cubic-bezier(.4,0,.2,1);
+  will-change: opacity, transform;
 }
+/* Lifts away with opacity and a slight zoom only (a blur filter on a full screen layer is what makes a reveal stutter) */
 #sarvarcSplash.splash-hide {
   opacity: 0; visibility: hidden; pointer-events: none;
-  filter: blur(6px);
-}
-
-/* Faint ambient grid, gives the boot screen depth instead of a flat fill */
-#sarvarcSplash::before {
-  content: ''; position: absolute; inset: -10%;
-  background-image:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 42px 42px;
-  opacity: .12;
-  -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, #000 0%, transparent 72%);
-  mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, #000 0%, transparent 72%);
+  transform: scale(1.035);
 }
 
 .splash-logo-wrap {
@@ -80,24 +72,23 @@
 }
 
 .splash-sub {
-  margin-top: 26px;
+  margin-top: 18px;
   font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 500;
   letter-spacing: 6px; text-transform: uppercase; color: var(--text2);
   opacity: 0; transform: translateY(4px);
   animation: splashTextIn .9s cubic-bezier(.2,.8,.2,1) .55s forwards;
 }
 
-.splash-line {
-  position: relative; overflow: hidden;
-  margin-top: 20px; width: 46px; height: 1px;
-  background: var(--cyan);
-  opacity: 0;
-  animation: splashLineIn 1.4s ease .65s forwards;
-}
-@keyframes splashLineIn {
-  0% { opacity: 0; width: 0; }
-  30% { opacity: .55; }
-  100% { opacity: .35; width: 46px; }
+.splash-dots { display: flex; gap: 8px; margin-top: 34px; opacity: 0; animation: splashDotsIn .6s ease .5s forwards; }
+.splash-dots i { display: block; width: 4px; height: 4px; border-radius: 50%;
+  background: linear-gradient(135deg, #00c2ff, #0a84ff); box-shadow: 0 0 7px rgba(0,170,255,.5);
+  animation: splashDotRoll 1.2s cubic-bezier(.45,0,.55,1) infinite; }
+.splash-dots i:nth-child(2) { animation-delay: .16s; }
+.splash-dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes splashDotsIn { to { opacity: 1; } }
+@keyframes splashDotRoll {
+  0%, 65%, 100% { transform: translateY(0) scale(.65); opacity: .35; }
+  30%           { transform: translateY(-5px) scale(1); opacity: 1; }
 }
 /* Tightens the tracking back down as the label settles in, instead of a
    plain fade — reads as a more deliberate, designed reveal */
@@ -106,9 +97,25 @@
   100% { opacity: 1; transform: translateY(0);    letter-spacing: 3px; }
 }
 
+/* A thin progress line under the label. It fills on its own over the splash time (a compositor animation, so it stays smooth while the page loads behind it) and snaps full when the workspace is ready. */
+.splash-bar { margin-top: 18px; width: 120px; height: 2px; border-radius: 2px; overflow: hidden; background: rgba(127,140,160,.22); opacity: 0; animation: splashTextIn .9s cubic-bezier(.2,.8,.2,1) .7s forwards; }
+.splash-bar i { display: block; width: 100%; height: 100%; border-radius: 2px; transform-origin: left center; transform: scaleX(0);
+  background: linear-gradient(90deg, rgba(0,194,255,.55), var(--cyan)); animation: splashBarFill var(--splash-ms, 2000ms) cubic-bezier(.3,.55,.2,1) forwards; }
+.splash-bar-done .splash-bar i { animation: none; transform: scaleX(1); transition: transform .25s ease-out; }
+@keyframes splashBarFill { from { transform: scaleX(0); } to { transform: scaleX(.94); } }
+
+/* The progress line is replaced by the rolling dots. js/38 still creates it, so it is simply not shown. */
+.splash-bar { display: none !important; }
+
 body.splash-active { overflow: hidden; }
-.app { animation: appFadeIn .5s ease .1s both; }
-@keyframes appFadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* The workspace waits behind the splash and fades in as the splash lifts: one crossfade, no pop-in. */
+.app { transition: opacity .6s ease; }
+/* (workspace stays visible, blurred, behind the splash; only the fallback below hides it) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #sarvarcSplash { background: var(--bg); }
+  body.splash-active .app { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { #sarvarcSplash, .app { transition-duration: .01s; } .splash-bar, .splash-bar i { animation-duration: .01s; } .splash-dots i { animation-duration: 2.4s; } }
 
 /* ─── GLOBAL POLISH: focus states, selection, press feedback ─── */
 * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
