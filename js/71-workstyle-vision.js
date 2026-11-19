@@ -66,6 +66,19 @@ function wsvFontFor(line) {
   return wstyleNearestFont(kindWord ? kindWord + ' ' + (line.family || '') : (line.family || 'Inter'));
 }
 
+// v73: a line Kadessa marked unsure, read by OCR too. Same word count: any word of hers that looks nothing like OCR's word
+// at that place is replaced by OCR's (OCR copies shapes, it never makes up a nicer word). Different count: hers stays.
+function wsvReconcile(kText, mine) {
+  const kw = String(kText || '').split(/\s+/).filter(Boolean);
+  const ow = mine.map(function (r) { return r.str; }).join(' ').split(/\s+/).filter(Boolean);
+  if (!kw.length || kw.length !== ow.length) return kText;
+  return kw.map(function (w, i) {
+    const o = ow[i];
+    const clean = (String(o).match(/[\p{L}\p{N}]/gu) || []).length >= 2;
+    return (clean && wsvSimilar(w, o) < 0.5) ? o : w;
+  }).join(' ');
+}
+
 // ─── the merge of words, fonts and positions ─────────────────────────────────
 // runs: the OCR words ({ str, x, base, w, size, font, bold, italic }, points).
 // vis: Kadessa's cleaned answer (fractions). Returns { runs, stats } where runs is a new list, one run per visual line.
@@ -75,7 +88,7 @@ function wstyleVisionMerge(runs, vis, W, H) {
     return { src: L, text: L.text, x: L.x * W, y: L.y * H, w: L.w * W, h: L.h * H };
   });
   const pics = ((vis && vis.pictures) || []).map(function (q) { return { x: q.x * W, y: q.y * H, w: q.w * W, h: q.h * H }; });
-  const stats = { lines: lines.length, matched: 0, added: 0, kept: 0, dropped: 0 };
+  const stats = { lines: lines.length, matched: 0, added: 0, kept: 0, dropped: 0, unsureDropped: 0, reconciled: 0 };
 
   // 1. each OCR word goes to the ONE line it sits in (nearest centre line wins when two overlap).
   const owner = runs.map(function () { return -1; });
@@ -96,10 +109,15 @@ function wstyleVisionMerge(runs, vis, W, H) {
     const mine = [];
     runs.forEach(function (r, i) { if (owner[i] === li) mine.push(r); });
     mine.sort(function (a, b) { return a.x - b.x; });
+    const unsure = L.src.unsure === true;
+    // v73: a line she was not sure of and that OCR never saw has no second witness: leave it out rather than risk an invented word.
+    if (unsure && !mine.length && runs.length >= 3) { stats.unsureDropped++; return; }
     const bold = L.src.weight === 'bold';
     const font = wsvFontFor(L.src);
     const ocrText = mine.map(function (r) { return r.str; }).join(' ');
     const trust = mine.length && wsvSimilar(L.text, ocrText) >= 0.25;      // OCR saw the same words: its geometry is exact
+    let finalText = L.text;
+    if (unsure && trust) { finalText = wsvReconcile(L.text, mine); if (finalText !== L.text) stats.reconciled++; }
     let x, base, size, w;
     if (trust) {
       x = Math.min.apply(null, mine.map(function (r) { return r.x; }));
@@ -113,8 +131,8 @@ function wstyleVisionMerge(runs, vis, W, H) {
       x = L.x; w = Math.max(L.w, 4); base = L.y + L.h * 0.82;
       stats.added++;
     }
-    out.push({ str: L.text, x: x, base: base, w: w, size: size, font: font, bold: bold, italic: L.src.italic === true, ls: 0,
-      _vis: true, _trust: !!trust, _kind: L.src.kind, _family: L.src.family || '', _spacing: L.src.spacing || 'normal' });
+    out.push({ str: finalText, x: x, base: base, w: w, size: size, font: font, bold: bold, italic: L.src.italic === true, ls: 0,
+      _vis: true, _unsure: unsure, _trust: !!trust, _kind: L.src.kind, _family: L.src.family || '', _spacing: L.src.spacing || 'normal' });
   });
 
   // 2. OCR words nobody claimed: noise from photos, or a real line Kadessa skipped. Keep real-looking words that are
@@ -128,6 +146,7 @@ function wstyleVisionMerge(runs, vis, W, H) {
     out.push(r);
     stats.kept++;
   });
+  if (stats.unsureDropped || stats.reconciled) { try { console.warn('[workstyle vision] unsure lines: ' + stats.unsureDropped + ' left out, ' + stats.reconciled + ' corrected from OCR'); } catch (e) {} }
   return { runs: out, stats: stats };
 }
 
