@@ -46,12 +46,13 @@ function daCreatePipelinePack(withExample) {
   const mk = (name, cols, rows, dd) => daCreateTableWithColumns(name, cols, rows, dd);
 
   const camp = mk('Campaigns', ['Campaign ID', 'Campaign', 'Cost', 'Leads', 'Won deals', 'Won revenue', 'Cost per lead', 'Return %'], 8);
-  const leads = mk('Leads', ['Lead ID', 'Name', 'Company', 'Source', 'Stage', 'Quotes', 'Quoted', 'Won', 'Paid', 'Balance due', 'Won deal'], 30);
+  const leads = mk('Leads', ['Lead ID', 'Name', 'Company', 'Source', 'Stage', 'Quotes', 'Quoted', 'Won', 'Paid', 'Balance due', 'Won deal', 'Contact status'], 30, [{ colIdx: 11, options: ['New', 'Contacted', 'Interested', 'Not interested'] }]);
   const quo = mk('Quotations', ['Quote ID', 'Lead ID', 'Amount', 'Status', 'Won amount'], 40, [{ colIdx: 3, options: ['Sent', 'Accepted', 'Rejected'] }]);
   const pay = mk('Payments', ['Payment ID', 'Lead ID', 'Amount'], 30);
-  const sum = mk('Pipeline Summary', ['Metric', 'Value'], 11);
+  const sum = mk('Pipeline Summary', ['Metric', 'Value'], 12);
 
-  daPipeFill(camp, sample.camp, 8); daPipeFill(leads, sample.leads, 30); daPipeFill(quo, sample.quo, 40); daPipeFill(pay, sample.pay, 30);
+  daPipeFill(camp, sample.camp, 8); daPipeFill(leads, sample.leads, 30);
+  if (withExample) ['Contacted', 'Interested', 'New', 'Contacted', 'Contacted', 'New'].forEach((st, i) => { leads.rows[i][11] = st; }); daPipeFill(quo, sample.quo, 40); daPipeFill(pay, sample.pay, 30);
 
   // Quotations: a quote counts as won money only when its status is Accepted.
   daPipeAuto(quo, [{ col: 4, tpl: '=IF(B{r}="","",IF(D{r}="Accepted",C{r},0))' }]);
@@ -65,7 +66,7 @@ function daCreatePipelinePack(withExample) {
     { col: 8, tpl: '=IF(A{r}="","",SUMIF(' + PB + ',A{r},' + PC + '))' },
     { col: 9, tpl: '=IF(A{r}="","",H{r}-I{r})' },
     { col: 10, tpl: '=IF(A{r}="","",IF(H{r}>0,1,0))' },
-    { col: 4, tpl: '=IF(A{r}="","",IF(AND(H{r}>0,I{r}>=H{r}),"Paid",IF(H{r}>0,"Won",IF(F{r}>0,"Quoted","New"))))' }
+    { col: 4, tpl: '=IF(A{r}="","",IF(AND(H{r}>0,I{r}>=H{r}),"Paid",IF(H{r}>0,"Won",IF(F{r}>0,"Quoted",IF(L{r}="","New",L{r})))))' }
   ]);
 
   // Campaigns: counts and returns come from Leads.
@@ -80,11 +81,11 @@ function daCreatePipelinePack(withExample) {
 
   // The connections: dropdowns and pulled-in details. Parents first.
   daApplyLink(leads, camp, 3, 0, [1]);   // Source -> Campaign ID, brings the campaign name
-  daApplyLink(quo, leads, 1, 0, [1, 2]);  // Lead ID -> Name, Company
-  daApplyLink(pay, leads, 1, 0, [1, 9]);  // Lead ID -> Name, Balance due
+  daApplyLink(quo, leads, 1, 0, [1, 2, 11]);  // Lead ID -> Name, Company, Contact status
+  daApplyLink(pay, leads, 1, 0, [1, 9, 11]);  // Lead ID -> Name, Balance due, Contact status
 
   // Pipeline Summary: reads the other tabs, nothing typed.
-  const LE = daPipeRng(leads, 4), LF = daPipeRng(leads, 5), LI = daPipeRng(leads, 8), LA = daPipeRng(leads, 0), CC = daPipeRng(camp, 2), CH = daPipeRng(camp, 7), CB = daPipeRng(camp, 1);
+  const LS = daPipeRng(leads, 11), LE = daPipeRng(leads, 4), LF = daPipeRng(leads, 5), LI = daPipeRng(leads, 8), LA = daPipeRng(leads, 0), CC = daPipeRng(camp, 2), CH = daPipeRng(camp, 7), CB = daPipeRng(camp, 1);
   const m = [
     ['Total leads', '=COUNTA(' + LA + ')'],
     ['Leads quoted', '=COUNTIF(' + LF + ',">0")'],
@@ -96,12 +97,13 @@ function daCreatePipelinePack(withExample) {
     ['Still to collect', '=B6-B7'],
     ['Marketing spend', '=SUM(' + CC + ')'],
     ['Cost per won deal', '=IF(B3=0,0,ROUND(B9/B3,0))'],
-    ['Best campaign by return', '=IF(B9=0,"",XLOOKUP(MAX(' + CH + '),' + CH + ',' + CB + ',""))']
+    ['Best campaign by return', '=IF(B9=0,"",XLOOKUP(MAX(' + CH + '),' + CH + ',' + CB + ',""))'],
+    ['Leads contacted', '=COUNTIF(' + LS + ',"Contacted")+COUNTIF(' + LS + ',"Interested")+COUNTIF(' + LS + ',"Not interested")']
   ];
   m.forEach((r, i) => { sum.rows[i][0] = r[0]; sum.rows[i][1] = r[1]; });
 
   // Kadessa reads these notes as "told" facts, so she knows what each tab is for.
-  leads.note = 'Pipeline pack: one row per lead. Stage, quotes and money columns are calculated from Quotations and Payments. Source is a Campaign ID.';
+  leads.note = 'Pipeline pack: one row per lead. Contact status is typed (New, Contacted, Interested, Not interested). Stage shows the contact status until a quotation exists, then the money decides. Quotes and money columns are calculated from Quotations and Payments. Source is a Campaign ID.';
   quo.note = 'Pipeline pack: one row per quotation. Lead ID comes from Leads. Won amount counts only when Status is Accepted.';
   pay.note = 'Pipeline pack: one row per payment received. Lead ID comes from Leads.';
   camp.note = 'Pipeline pack: one row per marketing campaign. Only Cost is typed; leads, won deals, revenue, cost per lead and return come from Leads.';
