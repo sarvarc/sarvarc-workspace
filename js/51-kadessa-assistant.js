@@ -2077,22 +2077,27 @@
     var aoa;
     if (aggMode !== 'none' && (repeated || aggMode === 'count')){
       var groups = {}, order = [];
+      // A real zero is not always real: a distance, price or population of 0 means "not recorded" (js/96).
+      var zb = yis.map(function(c){ return typeof daSpZeroIsBlank === 'function' && daSpZeroIsBlank(ds.headers[c]); });
       var bucketMonth = (xKind === 'date' && Object.keys(xKeys).length > 31);
       all.forEach(function(r){
         var k = String(r[xi]).trim();
         if (bucketMonth){ var d = new Date(k); if (!isNaN(d)) k = d.toLocaleString('en-US', { month: 'short', year: 'numeric' }); }
-        if (!groups[k]){ groups[k] = { n: 0, t: yis.map(function(){ return { sum: 0, n: 0 }; }), ts: (new Date(String(r[xi]).trim())).getTime() }; order.push(k); }
+        if (!groups[k]){ groups[k] = { n: 0, t: yis.map(function(){ return { sum: 0, n: 0 }; }), ts: (new Date(String(r[xi]).trim())).getTime(), f: yis.map(function(){ return null; }) }; order.push(k); }
         var g = groups[k]; g.n++;
-        yis.forEach(function(c, j){ var v = daFilterNum(r[c]); if (!isNaN(v)){ g.t[j].sum += v; g.t[j].n++; } });
+        yis.forEach(function(c, j){ var v = daFilterNum(r[c]); if (!isNaN(v)){ g.t[j].sum += v; g.t[j].n++; if (g.f[j] === null && !(zb[j] && v === 0)) g.f[j] = v; } });
       });
       if (xKind === 'date') order.sort(function(a, b){ return (groups[a].ts || 0) - (groups[b].ts || 0); });
-      var how = yis.map(function(c){
+      var how = yis.map(function(c, j){
         if (aggMode === 'sum' || aggMode === 'average' || aggMode === 'count') return aggMode;
+        // The number never changes inside a group (Mars is always 227.9): it belongs to the group, so take it ONCE, never add it up.
+        if (typeof daSpIsPropertyOf === 'function' && daSpIsPropertyOf(all, xi, c, zb[j]).ok) return 'first';
         return (prof[c] && prof[c].combine) || 'sum';
       });
       var body = order.map(function(k){
         var g = groups[k];
         return [k].concat(yis.map(function(c, j){
+          if (how[j] === 'first') return g.f[j] === null ? '' : g.f[j];
           if (how[j] === 'count') return g.n;
           if (how[j] === 'average') return g.t[j].n ? Math.round((g.t[j].sum / g.t[j].n) * 100) / 100 : 0;
           return Math.round(g.t[j].sum * 100) / 100;
@@ -2101,7 +2106,7 @@
       // Category charts read best biggest first. Dates keep their order.
       if (xKind !== 'date' && yis.length === 1) body.sort(function(a, b){ return b[1] - a[1]; });
       var hdrs = [ds.headers[xi]].concat(yis.map(function(c, j){
-        return how[j] === 'count' ? 'Number of rows' : (how[j] === 'average' ? 'Average ' : 'Total ') + ds.headers[c];
+        return how[j] === 'count' ? 'Number of rows' : how[j] === 'first' ? String(ds.headers[c]) : (how[j] === 'average' ? 'Average ' : 'Total ') + ds.headers[c];
       }));
       aoa = [hdrs].concat(body);
       p.__aggNote = 'Grouped ' + all.length + ' rows into ' + body.length + ' ' + (bucketMonth ? 'months' : 'groups') + ' (' + how.join(', ') + ').';
