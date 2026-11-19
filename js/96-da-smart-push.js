@@ -186,6 +186,24 @@ function daSpAggregate(list, how) {
 }
 function daSpRound(n) { return Math.round(n * 1e6) / 1e6; }
 
+// No real number in the table (IDs, desk codes, phones, names only): the only honest chart is a COUNT.
+// Without this the plain push read "A-101" as 101 and drew desk codes as bars.
+function daSpCountPlan(rows, cols, sep, blocked) {
+  const cands = cols.filter(c => c.kind === 'text' && c.repeats && c.distinct >= 2 && c.distinct <= 12
+    && !DA_SP_EMAIL_HEADER.test(c.name) && !/name/i.test(c.name));
+  if (!cands.length) return null;
+  const g = cands[0], counts = new Map();
+  rows.forEach(r => { const k = String(r[g.idx] == null ? '' : r[g.idx]).trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
+  const list = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const idNames = cols.filter(c => c.kind === 'id').map(c => c.name);
+  const others = cands.slice(1, 4).map(c => c.name);
+  const notes = ['No number to chart here' + (idNames.length ? ' (' + idNames.slice(0, 3).join(', ') + ' are identifiers)' : '') + ', so rows are counted per ' + g.name + (others.length ? '. You can switch the axis to ' + others.join(' / ') : '')];
+  sep.fixes.forEach(f => notes.push(f.labels.join(', ') + ' are different people and are kept apart'));
+  const title = 'Number of rows by ' + g.name;
+  return { aoa: [[g.name, 'Number of rows']].concat(list.map(e => [e[0], e[1]])), name: title, title, mode: 'count', groupName: g.name,
+    measure: 'Number of rows', notes, chartType: null, droppedGroups: [], blockedColumns: blocked.map(b => b.name), separated: sep.fixes };
+}
+
 // headers: [..], rows: [[..]] of computed (plain) cell values. Returns null when the old push is fine.
 function daSpPlan(headers, rows) {
   if (!headers || !rows || rows.length < 2) return null;
@@ -195,7 +213,7 @@ function daSpPlan(headers, rows) {
   const cols = headers.map((_, i) => daSpColumn(headers, rows, i));
   const measures = cols.filter(c => c.kind === 'measure');
   const blocked = cols.filter(c => c.kind === 'yearsum');
-  if (!measures.length) return null;
+  if (!measures.length) return daSpCountPlan(rows, cols, sep, blocked);
   const textCols = cols.filter(c => c.kind === 'text' && c.distinct >= 2 && c.repeats);
   const yearCols = cols.filter(c => c.kind === 'year');
   const primary = measures[0];
