@@ -2068,6 +2068,14 @@
     var all = daComputedRowsForExport(ds);
     var keep = (p.filtered_only === true && typeof kadessaFilteredRowIdxs === 'function') ? kadessaFilteredRowIdxs(ds) : null;
     if (keep) all = keep.map(function(ri){ return all[ri]; });
+    // Same name + different ID = different things (two "Rahul Shah"). Keep them apart before any grouping (js/96).
+    var sepNote = '';
+    if (typeof daSpSeparateForChart === 'function'){
+      var sepRes = daSpSeparateForChart(ds.headers, all);
+      all = sepRes.rows;
+      var sepHit = sepRes.fixes.filter(function(f){ return f.idx === xi; });
+      if (sepHit.length) sepNote = sepHit[0].labels.join(', ') + ' belong to different ' + sepHit[0].idColumn + 's, so they are kept as separate bars.';
+    }
     var cols = [xi].concat(yis);
     var prof = kadessaProfileColumns(ds);
     var aggMode = String(p.aggregate || 'auto').toLowerCase();
@@ -2136,7 +2144,7 @@
     if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
     var plotted = (dgState.rows || []).length;
     var capNote = (dgUploadParsed && dgUploadParsed.rows && dgUploadParsed.rows.length > 40) ? 'The table has ' + dgUploadParsed.rows.length + ' rows, so the chart shows the first 40 to stay readable.' : '';
-    var msg = [p.__aggNote, capNote].concat(notes).filter(Boolean).join(' ');
+    var msg = [sepNote, p.__aggNote, capNote].concat(notes).filter(Boolean).join(' ');
     return msg ? { say: msg } : null;
   }
 
