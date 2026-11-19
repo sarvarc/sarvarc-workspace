@@ -67,6 +67,7 @@ function daClNumberCols(t, except) {
   const rows = (t.rows || []).slice(0, 500), out = [];
   t.headers.forEach((h, ci) => {
     if (ci === except || DA_REL_KEYWORD.test(String(h))) return;
+    if (typeof daSummaryBlockReason === 'function' && daSummaryBlockReason(t, ci)) return; // never offer to add up years
     let filled = 0, num = 0;
     rows.forEach(r => { const v = r ? r[ci] : ''; if (daRelIsFormula(v)) return; const s = String(v == null ? '' : v).trim(); if (s === '') return; filled++; if (!isNaN(parseFloat(daCleanNum(s)))) num++; });
     if (filled >= 2 && num / filled >= 0.8) out.push(ci);

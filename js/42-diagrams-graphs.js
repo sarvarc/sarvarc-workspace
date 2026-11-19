@@ -5827,7 +5827,12 @@ function dgFormatNumber(val, fmt) {
     }
     case 'percent': return (Math.round(num * 10) / 10) + '%';
     case 'abbrev': return dgAbbrevNumber(num);
-    default: return Math.round(num).toLocaleString();
+    default: {
+      // Keep the decimals a real number carries (227.9 must not become 228). Whole numbers and
+      // big numbers (1,000+) stay whole; small fractional ones keep up to 2 decimals.
+      if (Number.isInteger(num) || Math.abs(num) >= 1000) return Math.round(num).toLocaleString();
+      return (Math.round(num * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
   }
 }
 

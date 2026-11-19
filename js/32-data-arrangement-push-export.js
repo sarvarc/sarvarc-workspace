@@ -133,14 +133,19 @@ function daPushToDiagrams(triggerEl) {
 
   // dgOnUploadParsed expects a plain array-of-arrays (header row + data rows),
   // exactly what daNormalize would produce from a raw file upload.
-  const aoa = [ds.headers.slice(), ...daComputedRowsForExport(ds)];
-  const name = ds.name || 'Table data';
+  // Smart push (js/96): read the table the way an analyst would (what is being counted, which
+  // column is the real axis, which numbers must never be added) and hand the chart builder a
+  // clean, grouped table. Returns null when the table is already chart-ready: plain push then.
+  const computedRows = daComputedRowsForExport(ds);
+  const smart = (typeof daSmartPushPlan === 'function') ? daSmartPushPlan(ds, computedRows) : null;
+  const aoa = smart ? smart.aoa : [ds.headers.slice(), ...computedRows];
+  const name = smart ? smart.name : (ds.name || 'Table data');
 
   // If Diagrams & Graphs already has a real chart loaded (not just the
   // default placeholder), ask before overwriting instead of silently
   // discarding whatever's there.
   if (typeof dgHasExistingChart === 'function' && dgHasExistingChart()) {
-    daPendingDiagramPush = { aoa, name };
+    daPendingDiagramPush = { aoa, name, smart };
     const overlay = document.getElementById('daDiagramConflictOverlay');
     if (overlay) overlay.classList.add('open');
     return;
@@ -154,6 +159,7 @@ function daPushToDiagrams(triggerEl) {
     sarvarcAnimatedPush(triggerEl, 'navIcon-diagrams', () => {
       navigate('diagrams');
       dgOnUploadParsed(aoa, name);
+      if (typeof daSmartPushAfter === 'function') daSmartPushAfter(smart);
       if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
     });
     return;
@@ -161,6 +167,7 @@ function daPushToDiagrams(triggerEl) {
 
   navigate('diagrams');
   dgOnUploadParsed(aoa, name);
+  if (typeof daSmartPushAfter === 'function') daSmartPushAfter(smart);
   // Record the pushed chart in history right away — this is what makes it
   // show up (and stay counted) in the Dashboard's "Charts & Diagrams" panel
   // even if it's later replaced by another push or edit.
@@ -177,7 +184,7 @@ function daResolveDiagramPush(mode, cardEl) {
   const overlay = document.getElementById('daDiagramConflictOverlay');
   if (overlay) overlay.classList.remove('open');
   if (!daPendingDiagramPush) return;
-  const { aoa, name } = daPendingDiagramPush;
+  const { aoa, name, smart } = daPendingDiagramPush;
   daPendingDiagramPush = null;
 
   function commit() {
@@ -186,6 +193,7 @@ function daResolveDiagramPush(mode, cardEl) {
     }
     navigate('diagrams');
     dgOnUploadParsed(aoa, name);
+    if (typeof daSmartPushAfter === 'function') daSmartPushAfter(smart);
     if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
   }
 
@@ -4910,18 +4918,17 @@ async function pdfedAppendTableFitPages(chunks, headers, layout, titleText) {
 // cell there is a genuine, clickable Excel hyperlink — exactly like one you
 // added with Excel's own "Insert Link".
 function daApplyLinksToWorksheet(ws, ds, headerRowOffset = 1) {
-  if (!ds) return;
-  // Every cell, so URLs sitting in the data (imported CSV columns) export as
-  // real hyperlinks too, not just links attached by hand.
-  for (let r = 0; r < ds.rows.length; r++) {
-    for (let c = 0; c < ds.headers.length; c++) {
-      const url = daGetEffectiveLink(ds, r, c);
-      if (!url) continue;
-      const addr = XLSX.utils.encode_cell({ r: r + headerRowOffset, c });
-      if (!ws[addr]) ws[addr] = { t: 's', v: String(ds.rows[r][c] ?? url) };
-      ws[addr].l = { Target: url, Tooltip: url };
-    }
-  }
+  if (!ds || !ds.links) return;
+  Object.keys(ds.links).forEach(key => {
+    const url = ds.links[key];
+    if (!url) return;
+    const [rStr, cStr] = key.split('_');
+    const r = Number(rStr), c = Number(cStr);
+    if (r < 0 || r >= ds.rows.length || c < 0 || c >= ds.headers.length) return;
+    const addr = XLSX.utils.encode_cell({ r: r + headerRowOffset, c });
+    if (!ws[addr]) ws[addr] = { t: 's', v: String(ds.rows[r][c] ?? url) };
+    ws[addr].l = { Target: url, Tooltip: url };
+  });
 }
 
 // CSV has no concept of a hyperlink at all — every field is plain text. The
@@ -4931,9 +4938,10 @@ function daApplyLinksToWorksheet(ws, ds, headerRowOffset = 1) {
 // formula text. Cells without a link are left exactly as they were.
 function daRowsForCSVWithLinks(ds) {
   const rows = daComputedRowsForExport(ds);
+  if (!ds.links) return rows;
   const escFormulaStr = s => String(s ?? '').replace(/"/g, '""');
   return rows.map((row, ri) => row.map((cell, ci) => {
-    const url = daGetEffectiveLink(ds, ri, ci);
+    const url = ds.links[ri + '_' + ci];
     if (!url) return cell;
     const label = String(cell ?? '') || url;
     return `=HYPERLINK("${escFormulaStr(url)}","${escFormulaStr(label)}")`;
@@ -5139,7 +5147,7 @@ function daExportUpdatePreview(idx) {
       (ds.headers.length > 6 ? '<th>…</th>' : '') + '</tr></thead><tbody>';
     rows.forEach((r, ri) => {
       html += '<tr>' + cols.map((_, ci) => {
-        const hasLink = !!daGetEffectiveLink(ds, ri, ci);
+        const hasLink = !!(ds.links && ds.links[ri + '_' + ci]);
         return `<td>${hasLink ? '🔗 ' : ''}${daEscHtml(String(r[ci] ?? ''))}</td>`;
       }).join('') +
         (ds.headers.length > 6 ? '<td>…</td>' : '') + '</tr>';

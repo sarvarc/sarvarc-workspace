@@ -930,6 +930,8 @@ function daApplySummary(ds, t, kc, tk, kind, vc, fc, label) {
   if (DA_SUMMARY_KINDS.indexOf(kind) < 0) throw new Error('kind must be count, sum, average or remaining');
   if (kind !== 'count' && !(vc >= 0)) throw new Error('pick the column to add up');
   if (kind === 'remaining' && !(fc >= 0)) throw new Error('pick the starting-amount column');
+  // Years are labels, not amounts: 2020 + 2011 = 4031 means nothing (js/96).
+  if ((kind === 'sum' || kind === 'average') && typeof daSummaryBlockReason === 'function') { const why = daSummaryBlockReason(t, vc); if (why) throw new Error(why); }
   const list = (ds.xsums = ds.xsums || []);
   const same = list.find(s => s.toId === t.id && s.keyCol === kc && s.toCol === tk && s.kind === kind && s.valCol === (kind === 'count' ? -1 : vc) && s.fromCol === (kind === 'remaining' ? fc : -1) && ds.headers[s.ours] === s.name);
   if (same) return same.name; // already there, nothing to add twice
