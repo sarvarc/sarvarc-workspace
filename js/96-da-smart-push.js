@@ -24,11 +24,6 @@
 
 const DA_SP_YEAR_HEADER = /(^|[^a-z])(year|yr|fy|vintage|founded|launched?|established|since)([^a-z]|$)/i;
 const DA_SP_ID_HEADER = /(^|[^a-z0-9])(id|code|ref|reference|sku|key|no|number|sr|sl|serial|uuid)([^a-z0-9]|$)|#/i;
-// Phone, PIN, account numbers... are digits that NAME something. Adding or charting them is meaningless.
-const DA_SP_IDENT_HEADER = /phone|mobile|\bcell\b|\btel\b|telephone|contact\s*(no|num)|whatsapp|\bfax\b|\bzip\b|pin\s*code|postal|aadhaar|aadhar|\bpan\b|\bssn\b|account\s*(no|num)|\biban\b/i;
-const DA_SP_EMAIL_HEADER = /e-?mail/i;
-// Words that say "this is an identifier / a label" and not WHAT it identifies (Employee ID <-> Employee Name).
-const DA_SP_GENERIC_TOKEN = /^(id|no|num|number|code|ref|reference|key|sr|sl|serial|uuid|name|names|title|label|of|the|and)$/i;
 const DA_SP_RATE_HEADER = /rate|ratio|percent|%|avg|average|mean|median|score|rating|margin|price|temperature|temp\b|age\b|speed|index|density|per\s|\/|ctr|cpc|cpm|roi|yield|distance|height|weight|length|width|diameter|radius/i;
 const DA_SP_POSITIVE_ONLY = /distance|height|weight|length|width|diameter|radius|mass|area|population|age\b|price|salary|rent|speed|capacity|size/i;
 const DA_SP_ADD_HEADER = /amount|revenue|sales|cost|spend|expense|profit|income|qty|quantity|units|count|paid|budget|payment|volume|orders|leads|clicks|impressions|views|visits|fee|tax/i;
@@ -64,10 +59,6 @@ function daSpColumn(headers, rows, ci) {
   // A column named like a year whose values are NOT years (6032 = 2020 + 2011 + 2001) is a sum of
   // years: charting it as a metric is always wrong.
   else if (numeric && yearHeader) kind = 'yearsum';
-  // A phone / PIN / account number is an identifier even though it is all digits.
-  else if (DA_SP_IDENT_HEADER.test(name)) kind = 'id';
-  // Long whole numbers that are all different (10+ digits) are identifiers, not amounts.
-  else if (numeric && allInt && distinct === filled.length && filled.length >= 3 && vals.every(n => n >= 1e9)) kind = 'id';
   // "No. of Missions" / "Number of orders" are counts (a measure), not identifiers.
   else if (numeric && /^(no\.?|number)\s+of\b/i.test(name)) kind = 'measure';
   else if (DA_SP_ID_HEADER.test(name) && !(numeric && !allInt)) kind = 'id';
@@ -75,85 +66,6 @@ function daSpColumn(headers, rows, ci) {
   else if (filled.length >= 3 && distinct === filled.length && filled.every(v => /^[A-Za-z]{1,6}[-_ ]?\d+$/.test(String(v).trim()))) kind = 'id';
   else kind = 'text';
   return { idx: ci, name, kind, filled: filled.length, distinct, repeats: distinct < filled.length, nums };
-}
-
-// ── Identity: two rows with the same LABEL are not always the same THING ─────────────────────────
-// "Rahul Shah" appears twice: EMP001 (Finance) and EMP005 (Engineering). Same name, two people.
-// A label may only be merged when everything that identifies it agrees. So before any grouping we
-// look for the ID that belongs to the label (Employee ID for Employee Name, Body ID for Planet /
-// Body). Rows that share a label but carry DIFFERENT IDs are different things and stay apart.
-function daSpTokens(h) {
-  return daSpClean(h).toLowerCase().split(/[^a-z0-9]+/).filter(t => t && !DA_SP_GENERIC_TOKEN.test(t));
-}
-function daSpUniquePerRow(c, n) { return c.filled > 0 && c.filled === n && c.distinct === c.filled; }
-// The column that identifies what label column g names. strict = shares the subject word with g
-// (Employee ID / Employee Name). loose = a name column plus the table's one unique ID, or a unique
-// e-mail / phone when there is no ID at all.
-function daSpOwnerId(cols, g, n) {
-  const gt = daSpTokens(g.name);
-  const ids = cols.filter(c => c.kind === 'id' && c.idx !== g.idx && !DA_SP_IDENT_HEADER.test(c.name));
-  const strict = ids.filter(c => daSpTokens(c.name).some(t => gt.indexOf(t) !== -1));
-  if (strict.length) return { col: strict[0], strict: true };
-  if (/name/i.test(g.name)) {
-    const uniq = ids.filter(c => daSpUniquePerRow(c, n));
-    if (uniq.length === 1) return { col: uniq[0], strict: false };
-    if (!ids.length) {
-      const contact = cols.filter(c => c.idx !== g.idx && (DA_SP_EMAIL_HEADER.test(c.name) || DA_SP_IDENT_HEADER.test(c.name)) && daSpUniquePerRow(c, n));
-      if (contact.length) return { col: contact[0], strict: false };
-    }
-  }
-  return null;
-}
-
-// Gives every real thing its own label. Returns { rows, fixes } (rows is a copy; the input is untouched).
-function daSpSeparateIdentities(headers, rows, cols) {
-  const T = v => String(v == null ? '' : v).trim();
-  const fixes = []; let out = rows;
-  cols.forEach(g => {
-    if (g.kind !== 'text' || !g.repeats) return;
-    const own = daSpOwnerId(cols, g, rows.length); if (!own) return;
-    const byLabel = new Map();
-    rows.forEach((r, ri) => {
-      const k = T(r[g.idx]), o = T(r[own.col.idx]); if (!k || !o) return;
-      if (!byLabel.has(k)) byLabel.set(k, new Map());
-      const ents = byLabel.get(k); if (!ents.has(o)) ents.set(o, []); ents.get(o).push(ri);
-    });
-    const clashes = Array.from(byLabel.entries()).filter(e => e[1].size > 1);
-    if (!clashes.length) return;
-    // Add the first column that tells the clashing entities apart in plain words (Department, City...).
-    const helperCols = cols.filter(c => c.kind === 'text' && c.idx !== g.idx && !DA_SP_EMAIL_HEADER.test(c.name) && !DA_SP_IDENT_HEADER.test(c.name) && c.distinct > 1);
-    const pick = helperCols.find(c => clashes.every(cl => {
-      // The helper must describe the PERSON, so it has to be the same on every row of that one person
-      // (Department yes, Tower no: one person can sit in two towers).
-      const ents = Array.from(cl[1].values());
-      if (!ents.every(list => new Set(list.map(ri => T(rows[ri][c.idx]).toLowerCase())).size === 1)) return false;
-      const vals = ents.map(list => T(rows[list[0]][c.idx]));
-      return vals.every(Boolean) && new Set(vals.map(x => x.toLowerCase())).size === vals.length;
-    }));
-    const used = new Set(rows.map(r => T(r[g.idx]).toLowerCase()));
-    const labelFor = (label, ent, list) => (pick ? label + ' (' + T(rows[list[0]][pick.idx]) + ')' : label + ' (' + ent + ')');
-    const newLabels = new Map(); let ok = true;
-    clashes.forEach(([label, ents]) => ents.forEach((list, ent) => {
-      const nl = labelFor(label, ent, list);
-      if (newLabels.has(nl.toLowerCase()) || (used.has(nl.toLowerCase()) && nl.toLowerCase() !== label.toLowerCase())) ok = false;
-      newLabels.set(nl.toLowerCase(), 1);
-    }));
-    const fallbackToId = !ok;
-    if (out === rows) out = rows.map(r => r.slice());
-    const detail = [];
-    clashes.forEach(([label, ents]) => {
-      const shown = [];
-      ents.forEach((list, ent) => {
-        const nl = fallbackToId ? label + ' (' + ent + ')' : labelFor(label, ent, list);
-        list.forEach(ri => { out[ri][g.idx] = nl; });
-        shown.push(ent + ' = ' + nl);
-      });
-      detail.push(label + ': ' + shown.join(', '));
-    });
-    fixes.push({ column: g.name, idColumn: own.col.name, idx: g.idx, strict: own.strict, labels: clashes.map(c => c[0]), detail,
-      by: fallbackToId ? own.col.name : (pick ? pick.name : own.col.name) });
-  });
-  return { rows: out, fixes };
 }
 
 function daSpMeasureMode(name) {
@@ -190,53 +102,18 @@ function daSpAggregate(list, how) {
 }
 function daSpRound(n) { return Math.round(n * 1e6) / 1e6; }
 
-// No real number in the table (IDs, desk codes, phones, names only): the only honest chart is a COUNT.
-// Without this the plain push read "A-101" as 101 and drew desk codes as bars.
-function daSpCountPlan(rows, cols, sep, blocked) {
-  const seen = new Set();
-  const uniqueHeader = c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; };
-  const countBy = g => {
-    const counts = new Map();
-    rows.forEach(r => { const k = String(r[g.idx] == null ? '' : r[g.idx]).trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  };
-  // Choice 1..n: rows per category column (Tower, City, Work Arrangement, Department...).
-  const cands = cols.filter(c => c.kind === 'text' && c.repeats && c.distinct >= 2 && c.distinct <= 12
-    && !DA_SP_EMAIL_HEADER.test(c.name) && !/name/i.test(c.name)).filter(uniqueHeader);
-  const choices = cands.map(g => ({ groupName: g.name, title: 'Number of rows by ' + g.name, list: countBy(g) }));
-  // Last choice: rows per person / thing (names already told apart by ID). Only when someone really repeats
-  // (a person with 2 desks): all-ones would be an empty chart.
-  const nameCols = cols.filter(c => c.kind === 'text' && /name/i.test(c.name) && !DA_SP_EMAIL_HEADER.test(c.name) && c.distinct >= 2 && c.distinct <= 60).filter(uniqueHeader);
-  nameCols.forEach(g => { const list = countBy(g); if (list.length && list[0][1] > 1) choices.push({ groupName: g.name, title: 'Number of rows by ' + g.name, list: list.slice(0, 40) }); });
-  if (!choices.length) return null;
-  const first = choices[0];
-  const idNames = cols.filter(c => c.kind === 'id').map(c => c.name);
-  const notes = ['No number to chart here' + (idNames.length ? ' (' + idNames.slice(0, 3).join(', ') + ' are identifiers)' : '') + ', so rows are counted. '
-    + (choices.length > 1 ? 'Pick another view in the Charts panel: ' + choices.slice(1).map(c => c.groupName).join(', ') : '')];
-  sep.fixes.forEach(f => notes.push(f.labels.join(', ') + ' are different people and are kept apart'));
-  return { aoa: [[first.groupName, 'Number of rows']].concat(first.list.map(e => [e[0], e[1]])), name: first.title, title: first.title, mode: 'count', groupName: first.groupName,
-    measure: 'Number of rows', notes, chartType: null, droppedGroups: [], blockedColumns: blocked.map(b => b.name), separated: sep.fixes,
-    choices: choices.map(c => ({ title: c.title, groupName: c.groupName, rows: c.list.map(e => ({ label: e[0], value: e[1] })) })) };
-}
-
 // headers: [..], rows: [[..]] of computed (plain) cell values. Returns null when the old push is fine.
 function daSpPlan(headers, rows) {
   if (!headers || !rows || rows.length < 2) return null;
-  // Identity first: same name + different ID = different things. Never merge them below.
-  const sep = daSpSeparateIdentities(headers, rows, headers.map((_, i) => daSpColumn(headers, rows, i)));
-  rows = sep.rows;
   const cols = headers.map((_, i) => daSpColumn(headers, rows, i));
   const measures = cols.filter(c => c.kind === 'measure');
   const blocked = cols.filter(c => c.kind === 'yearsum');
-  if (!measures.length) return daSpCountPlan(rows, cols, sep, blocked);
+  if (!measures.length) return null;
   const textCols = cols.filter(c => c.kind === 'text' && c.distinct >= 2 && c.repeats);
   const yearCols = cols.filter(c => c.kind === 'year');
   const primary = measures[0];
   const zeroBlankP = daSpZeroIsBlank(primary.name);
 
-  const fixedIdx = new Set(sep.fixes.map(f => f.idx));
-  const entityCol = cols.find(c => c.kind === 'text' && daSpUniquePerRow(c, rows.length) && !DA_SP_EMAIL_HEADER.test(c.name)
-    && (fixedIdx.has(c.idx) || (/name/i.test(c.name) && (() => { const o = daSpOwnerId(cols, c, rows.length); return o && o.strict; })())));
   let mode = null, group = null, why = '';
   // 1) The number describes a group (Distance belongs to the planet, not to the mission).
   let best = null;
@@ -247,9 +124,6 @@ function daSpPlan(headers, rows) {
   if (best) { mode = 'property'; group = best.tc; why = best.dep; }
   // 2) Events over time (sales per year).
   else if (yearCols.length) { mode = 'time'; group = yearCols[0]; }
-  // 2b) One row per person / thing, each with its own ID (Employee ID + Employee Name): chart one bar
-  //     per thing. Never roll people up into a department just because a name or a department repeats.
-  else if (entityCol) { mode = 'entity'; group = entityCol; }
   // 3) Plain grouping of events (sales per region).
   else if (textCols.length) { mode = 'group'; group = textCols[0]; }
   if (!mode) return null;
@@ -310,10 +184,7 @@ function daSpPlan(headers, rows) {
   }));
 
   // One short, honest note.
-  sep.fixes.forEach(f => notes.push(f.labels.join(', ') + (f.labels.length > 1 ? ' are' : ' is') + ' shared by different ' + f.idColumn + 's, so they are kept as separate rows, not added together (shown with ' + f.by + ')'));
-  if (mode === 'entity') {
-    notes.push('One bar per ' + group.name + ' (each has its own ' + (cols.find(c => c.kind === 'id') || { name: 'ID' }).name + ')');
-  } else if (mode === 'property') {
+  if (mode === 'property') {
     const rep = kept.filter(t => t.n > 1).length;
     notes.push(primary.name + ' belongs to each ' + group.name + ', so it is counted once per ' + group.name + (rep ? ' (' + rep + ' appeared in several rows)' : ''));
   } else if (mode === 'time') {
@@ -327,88 +198,21 @@ function daSpPlan(headers, rows) {
   const title = primary.name + ' by ' + group.name;
   return { aoa, name: title.replace(/\./g, ''), title, mode, groupName: group.name, measure: primary.name,
     notes, chartType: mode === 'time' && finalRows.length >= 3 ? 'line' : null,
-    droppedGroups: dropped, blockedColumns: blocked.map(b => b.name), separated: sep.fixes };
+    droppedGroups: dropped, blockedColumns: blocked.map(b => b.name) };
 }
 
 // Used by daPushToDiagrams (js/32). ds = the active table; rows = its computed values.
 function daSmartPushPlan(ds, computedRows) {
-  try {
-    const plan = daSpPlan(ds.headers.map(daSpClean), computedRows);
-    if (plan) { plan.rawAoa = [ds.headers.slice()].concat(computedRows); plan.rawName = ds.name || 'Table data'; }
-    return plan;
-  }
+  try { return daSpPlan(ds.headers.map(daSpClean), computedRows); }
   catch (e) { console.warn('[Smart push] fell back to plain push', e); return null; }
 }
-// Several honest ways to see a table with no number in it: also kept in the left Charts panel.
-function daSpShowGallery(plan) {
-  if (!(plan.choices && plan.choices.length > 1) || typeof dgSetMultiCharts !== 'function') return;
-  dgSetMultiCharts(plan.choices.map(c => daSpSpec(c.title, c.rows)));
-}
-function daSpSpec(title, rows) {
-  const scheme = (typeof dgCurrentScheme === 'function') ? dgCurrentScheme() : ['#0891b2'];
-  return { title, type: (typeof dgState !== 'undefined' && dgState.type) || 'bar',
-    rows: rows.map((r, i) => ({ label: r.label, value: r.value, color: scheme[i % scheme.length] })), format: null, formatSymbol: null };
-}
-
-// The "How would you like to see your data?" box. It used to appear because the raw table had several
-// number columns; smart push sends one clean table, so it never did. It now asks with real choices.
-function daSmartPushAsk(plan) {
-  const overlay = document.getElementById('dgMultiSuggestOverlay'), body = document.getElementById('dgMultiSuggestBody');
-  if (!overlay || !body || typeof dgDrawChartSpec !== 'function') return false;
-  const stats = document.getElementById('dgMultiSuggestStats'), title = document.getElementById('dgMultiSuggestTitle'), sub = document.getElementById('dgMultiSuggestSub');
-  const rawRows = plan.rawAoa ? plan.rawAoa.length - 1 : 0, rawCols = plan.rawAoa ? plan.rawAoa[0].length : 0;
-  if (stats) stats.innerHTML = '<div class="dg-multi-suggest-stat"><b>' + rawRows + '</b><span>Rows</span></div>'
-    + '<div class="dg-multi-suggest-stat"><b>' + rawCols + '</b><span>Columns</span></div>'
-    + '<div class="dg-multi-suggest-stat"><b>' + (plan.choices ? plan.choices.length : 1) + '</b><span>Smart views</span></div>';
-  if (title) title.textContent = 'How would you like to see your data?';
-  if (sub) sub.textContent = 'Pick a picture below — each preview is drawn from your own data.';
-  const cards = [];
-  if (plan.choices && plan.choices.length > 1) {
-    plan.choices.forEach((c, i) => cards.push({ title: c.title, text: c.rows.length + ' bars · biggest: ' + c.rows[0].label + ' (' + c.rows[0].value + ')',
-      spec: daSpSpec(c.title, c.rows), rec: i === 0, act: () => daSpApplyChoice(plan, i) }));
-  } else {
-    const rows = plan.aoa.slice(1).slice(0, 40).map(r => ({ label: r[0], value: Number(r[1]) }));
-    cards.push({ title: plan.title, text: plan.notes && plan.notes[0] ? plan.notes[0] : 'Cleaned and grouped by meaning.', spec: daSpSpec(plan.title, rows), rec: true, act: () => {} });
-    if (plan.rawAoa) cards.push({ title: 'Table exactly as it is', text: 'Every column, one point per row — no grouping, no clean-up.', spec: null, rec: false,
-      act: () => { try { dgOnUploadParsed(plan.rawAoa, plan.rawName); } catch (e) { console.warn('[Smart push] raw push failed', e); } } });
-  }
-  body.innerHTML = ''; body.style.setProperty('--dg-cols', Math.min(4, cards.length));
-  cards.forEach(c => {
-    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'dg-suggest-card' + (c.rec ? ' recommended' : '');
-    btn.onclick = () => { if (typeof dgDismissMultiSuggest === 'function') dgDismissMultiSuggest(); c.act(); };
-    const thumb = document.createElement('div'); thumb.className = 'dg-suggest-thumb';
-    if (c.spec) {
-      const cv = document.createElement('canvas'); cv.width = 480; cv.height = 270; thumb.appendChild(cv);
-      try { dgDrawChartSpec(cv, c.spec); } catch (e) { thumb.classList.add('empty'); }
-    } else thumb.classList.add('empty');
-    if (c.rec) { const bd = document.createElement('span'); bd.className = 'dg-suggest-badge'; bd.textContent = 'Recommended'; thumb.appendChild(bd); }
-    const h = document.createElement('h4'); h.textContent = c.title; const pp = document.createElement('p'); pp.textContent = c.text;
-    btn.appendChild(thumb); btn.appendChild(h); btn.appendChild(pp); body.appendChild(btn);
-  });
-  overlay.classList.add('open');
-  return true;
-}
-// A card was picked: show that count view in the main chart.
-function daSpApplyChoice(plan, i) {
-  const c = plan.choices[i]; if (!c) return;
-  try {
-    dgOnUploadParsed([[c.groupName, 'Number of rows']].concat(c.rows.map(r => [r.label, r.value])), c.title);
-    daSpShowGallery(plan);
-    if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
-  } catch (e) { console.warn('[Smart push] choice failed', e); }
-}
-
 // Runs right after the chart has been built from the plan.
 function daSmartPushAfter(plan) {
   if (!plan) return;
   try {
     if (plan.chartType && typeof dgSetType === 'function' && typeof dgState !== 'undefined' && dgState.type === 'bar') dgSetType(plan.chartType);
-    daSpShowGallery(plan);
-    // The old box, back: dgOnUploadParsed may have opened its own, so close it and ask with the smart choices.
-    if (typeof dgDismissMultiSuggest === 'function') dgDismissMultiSuggest();
-    daSmartPushAsk(plan);
     if (plan.notes && plan.notes.length && typeof toast === 'function') {
-      setTimeout(() => toast('Smart chart: ' + plan.notes.join(' · '), 'info'), 600);
+      setTimeout(() => toast('Smart chart: ' + plan.notes.join(' \u00b7 '), 'info'), 600);
     }
   } catch (e) { console.warn('[Smart push] after-step failed', e); }
 }
@@ -422,14 +226,4 @@ function daSummaryBlockReason(t, colIdx) {
     return 'Adding up or averaging years gives a number that means nothing (2020 + 2011 = 4031). Use \u201cCount of rows\u201d to see how many.';
   }
   return '';
-}
-
-// For Kadessa's chart path (js/51): returns the rows with clashing labels made unique (same name +
-// different ID = different things). rows are computed values; headers the table headers.
-function daSpSeparateForChart(headers, rows) {
-  try {
-    const H = headers.map(daSpClean);
-    const res = daSpSeparateIdentities(H, rows, H.map((_, i) => daSpColumn(H, rows, i)));
-    return res;
-  } catch (e) { console.warn('[Smart push] identity check skipped', e); return { rows: rows, fixes: [] }; }
 }

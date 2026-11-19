@@ -3493,10 +3493,7 @@ function dgOnUploadParsed(aoa, fileName) {
   if (!rows.length || headers.length < 1) { toast('No tabular data found in that file', 'info'); return; }
   dgInjectDerivedAgeColumn(headers, rows);
   dgUploadParsed = { headers, rows, fileName };
-  // Fresh dataset: let sign auto-detection have a say again AND drop the previous chart's format. Resetting only the
-  // flag left a stale Currency in the dropdown, so plain counts (6 rows) were drawn as $6 whenever the new data had no sign.
-  if (typeof dgResetFormatForNewChart === 'function') dgResetFormatForNewChart();
-  else if (typeof dgState !== 'undefined') dgState.formatUserSet = false;
+  if (typeof dgState !== 'undefined') dgState.formatUserSet = false; // fresh dataset — let sign auto-detection have a say again
   const nameEl = document.getElementById('dgUploadFileName');
   if (nameEl) nameEl.textContent = fileName;
   dgPopulateUploadSelectors();
@@ -10388,9 +10385,6 @@ window.sarvarcDashDrawChart = function (canvas, h) {
   window.dgAutoShowStateMap = dgAutoShowStateMap;
   window.dgMaybeSuggestMultiChart = dgMaybeSuggestMultiChart;
   window.dgComputeStats = dgComputeStats;
-  // Smart push (js/96): draw preview thumbnails and fill the Charts panel with the choices it offers.
-  window.dgDrawChartSpec = dgDrawChartSpec;
-  window.dgSetMultiCharts = function (specs) { dgMultiCharts = specs || []; dgRenderMultiChartGallery(); };
 })();
 
 })();
