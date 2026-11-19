@@ -10,7 +10,10 @@
 //          gives a real title, and only on a page that has no content of its own yet. Otherwise a matching plain background is used.
 //        - LEGIBILITY: after a dark or light background lands, any text box whose colour would disappear is recoloured, and the
 //          recolour is its own undo step.
-// Nothing in js/90 or js/19 is edited. js/90 must load first (it does, 90 before 92).
+// Deeper controls (2026-11-19): she can also pick the SET (premium or classic), ask for ANOTHER TAKE of a style (variation), tune
+// grain, vignette and shade (darker or lighter), and refine the style already on the page by leaving `style` out
+// ("make it darker", "another take", "less grain"). The same rules below still run on every one of these.
+// Nothing in js/90 or js/19 is edited by this file. js/90 must load first (it does, 90 before 92).
 (function () {
   // Notes per style, SAME ORDER as BG and FR in js/90. g = gravity: calm | neutral | bold. twin = the plain background used when a frame cannot be used.
   var BGN = [
@@ -41,6 +44,9 @@
   var Q = Promise.resolve();
 
   function S() { return window.pdfedCanvasStyles; }
+  function isF(k) { return String(k).charAt(0) === 'f'; }
+  function listFor(k) { var st = S(); return k === 'bg' ? st.bg : k === 'fr' ? st.frames : k === 'bgc' ? (st.classicBg || st.bg) : (st.classicFrames || st.frames); }
+  function hasClassic() { var st = S(); return !!(st && st.classicBg && st.classicFrames); }
   function lum(hex) { var x = String(hex || '#000000').replace('#', ''); if (x.length === 3) x = x[0] + x[0] + x[1] + x[1] + x[2] + x[2]; return (parseInt(x.slice(0, 2), 16) * 299 + parseInt(x.slice(2, 4), 16) * 587 + parseInt(x.slice(4, 6), 16) * 114) / 1000 || 0; }
   function plain(h) { return String(h == null ? '' : h).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
   function enqueue(fn) { var r = Q.then(fn); Q = r.catch(function () {}); return r; }
@@ -68,23 +74,27 @@
     return {
       backgrounds: st.bg.map(function (b, i) { var n = BGN[i] || {}; return { name: b.n, tone: n.tone, gravity: n.g, bestFor: n.use }; }),
       photoFrames: st.frames.map(function (f, i) { var n = FRN[i] || {}; return { name: f.n, tone: n.tone, gravity: n.g, photoBoxes: n.photos, bestFor: n.use }; }),
+      sets: hasClassic() ? ['premium', 'classic'] : ['premium'],
+      setNote: 'premium is the new rich look (satin, foil, glass, nebula). classic is the first, softer glow look. The same style names exist in both.',
+      current: (typeof st.current === 'function') ? st.current() : null,
+      controls: { set: 'premium (default) or classic', variation: 'a whole number 1 to 999999. A different number gives another take of the same style, the same number always gives the same one', grain: 'none, soft, normal, rich', vignette: 'none, soft, normal, deep', shade: 'a number from -1 (darker) to 1 (lighter), 0 clears it' },
       openPage: pr
     };
   };
 
-  function resolve(name) {
-    var st = S(), q = String(name || '').trim().toLowerCase(), hit = null;
+  function resolve(name, set) {
+    var st = S(), q = String(name || '').trim().toLowerCase(), hit = null, suf = set === 'classic' && hasClassic() ? 'c' : '';
     if (!q || !st) return null;
-    [['bg', st.bg], ['fr', st.frames]].forEach(function (pair) {
-      pair[1].forEach(function (it, i) { if (!hit && it.n.toLowerCase() === q) hit = { k: pair[0], i: i }; });
+    [['bg' + suf, 'bg'], ['fr' + suf, 'fr']].forEach(function (pair) {
+      listFor(pair[0]).forEach(function (it, i) { if (!hit && it.n.toLowerCase() === q) hit = { k: pair[0], i: i }; });
     });
-    if (!hit) [['bg', st.bg], ['fr', st.frames]].forEach(function (pair) {
-      pair[1].forEach(function (it, i) { if (!hit && (it.n.toLowerCase().indexOf(q) > -1 || q.indexOf(it.n.toLowerCase()) > -1)) hit = { k: pair[0], i: i }; });
+    if (!hit) [['bg' + suf, 'bg'], ['fr' + suf, 'fr']].forEach(function (pair) {
+      listFor(pair[0]).forEach(function (it, i) { if (!hit && (it.n.toLowerCase().indexOf(q) > -1 || q.indexOf(it.n.toLowerCase()) > -1)) hit = { k: pair[0], i: i }; });
     });
     return hit;
   }
-  function meta(h) { return h.k === 'bg' ? BGN[h.i] : FRN[h.i]; }
-  function nameOf(h) { return h.k === 'bg' ? S().bg[h.i].n : S().frames[h.i].n; }
+  function meta(h) { return isF(h.k) ? FRN[h.i] : BGN[h.i]; }
+  function nameOf(h) { return listFor(h.k)[h.i].n; }
 
   function pagesFrom(p) {
     var n = pdfed.pages.length, out = [];
@@ -136,14 +146,46 @@
     if (did) { try { pdfedRenderPlacedTexts(at); pdfedMarkModified(at); } catch (e) {} }
   }
 
+  // Tweaks she may ask for. 'normal' (and shade 0) clear an earlier tweak. Anything else is ignored.
+  var GRAINS = ['none', 'soft', 'normal', 'rich'], VIGS = ['none', 'soft', 'normal', 'deep'];
+  function pickTweaks(p) {
+    var t = {}, sh = parseFloat(p.shade);
+    if (GRAINS.indexOf(p.grain) > -1) t.grain = p.grain;
+    if (VIGS.indexOf(p.vignette) > -1) t.vignette = p.vignette;
+    if (isFinite(sh)) t.shade = Math.max(-1, Math.min(1, sh));
+    return t;
+  }
+  function pickSeed(v) {
+    if (v === true) return 1 + Math.floor(Math.random() * 999999);
+    var n = parseInt(v, 10);
+    return isFinite(n) && n >= 1 ? Math.min(n, 999999) : null;
+  }
+  // A strong shade changes what the page is: a much darker page reads as dark, a much lighter one as light.
+  function toneAfter(base, opts) {
+    var sh = opts && opts.shade;
+    return sh <= -.35 ? 'dark' : sh >= .35 ? 'light' : base;
+  }
+
   async function run(p) {
     p = p || {};
     var st = S();
     if (!st || typeof st.apply !== 'function') throw new Error('the canvas styles are not loaded yet');
-    var want = resolve(p.style);
+    var cur = typeof st.current === 'function' ? st.current() : null, refine = !String(p.style || '').trim();
+    if (refine && !cur) throw new Error('there is no canvas style on this page to adjust yet. Name a style to put one on first');
+    var set = (p.set === 'classic' || p.set === 'premium') ? p.set : (refine ? cur.set : 'premium');
+    if (set === 'classic' && !hasClassic()) { set = 'premium'; }
+    var want = resolve(refine ? cur.name : p.style, set);
+    if (refine && cur && !p.set) { want = { k: (cur.kind === 'frame' ? 'fr' : 'bg') + (cur.set === 'classic' && hasClassic() ? 'c' : ''), i: cur.index }; }
     if (!want) throw new Error('there is no canvas style called "' + p.style + '". Choose one of: ' + st.bg.map(function (b) { return b.n; }).concat(st.frames.map(function (f) { return f.n; })).join(', '));
+    var suf = want.k.length > 2 ? 'c' : '';
     var gravity = (p.gravity === 'serious' || p.gravity === 'festive') ? p.gravity : 'neutral';
     var title = plain(p.title).slice(0, 60), caption = plain(p.caption).slice(0, 90);
+    // Tweaks and variation. A refine keeps what the page already has unless she changes it.
+    var asked = pickTweaks(p), tweaks = Object.assign({}, refine && cur && cur.tweaks || {}, asked);
+    if (typeof st.normOpts === 'function') tweaks = st.normOpts(tweaks);
+    else tweaks = null;
+    var seed = pickSeed(p.variation);
+    if (seed == null && refine && cur && !cur.isDefaultLook) seed = cur.seed;
     var emptyEditor = !(typeof pdfed !== 'undefined' && pdfed.pages && pdfed.pages.length);
     var targets = emptyEditor ? [null] : pagesFrom(p);
     if (!targets.length) throw new Error('none of those page numbers exist in this document');
@@ -151,26 +193,29 @@
 
     for (var k = 0; k < targets.length; k++) {
       var idx = targets[k], pg = emptyEditor ? null : pdfed.pages[idx], h = { k: want.k, i: want.i }, why = [];
-      // Rule 1: a frame needs a real title and a page with nothing of its own on it.
-      if (h.k === 'fr') {
-        if (!title) { why.push('a Photo Frame needs a real title and none was given'); h = { k: 'bg', i: FRN[h.i].twin }; }
-        else if (pg && busy(profile(pg))) { why.push('page ' + (idx + 1) + ' already has content, and a frame would sit on top of it'); h = { k: 'bg', i: FRN[h.i].twin }; }
+      // Rule 1: a frame needs a real title and a page with nothing of its own on it. (Adjusting a frame already on the page keeps its words.)
+      if (isF(h.k) && !refine) {
+        if (!title) { why.push('a Photo Frame needs a real title and none was given'); h = { k: 'bg' + suf, i: FRN[h.i].twin }; }
+        else if (pg && busy(profile(pg))) { why.push('page ' + (idx + 1) + ' already has content, and a frame would sit on top of it'); h = { k: 'bg' + suf, i: FRN[h.i].twin }; }
       }
       // Rule 2: serious content never gets a loud style.
-      if (gravity === 'serious' && meta(h).g === 'bold') { why.push('the content is serious, so a calmer look was used'); h = { k: 'bg', i: meta(h).tone === 'dark' ? CALM_DARK : CALM_LIGHT }; }
+      if (gravity === 'serious' && meta(h).g === 'bold') { why.push('the content is serious, so a calmer look was used'); h = { k: 'bg' + suf, i: meta(h).tone === 'dark' ? CALM_DARK : CALM_LIGHT }; }
       if (why.length) notes.push((idx == null ? '' : 'Page ' + (idx + 1) + ': ') + 'used ' + nameOf(h) + ' instead of ' + nameOf(want) + ' because ' + why.join(' and ') + '.');
 
       if (!emptyEditor && pdfed.active !== idx) await pdfedGoto(idx);
       var before = pg ? pg.dataUrl : null;
-      await st.apply(h.k, h.i);
+      await st.apply(h.k, h.i, seed == null ? undefined : seed, tweaks || undefined);
       var page = emptyEditor ? pdfed.pages[0] : pg;
       if (!page || (!emptyEditor && page.dataUrl === before)) throw new Error('the style could not be placed on page ' + (idx + 1) + ' (it may be locked or busy), nothing was changed there');
-      if (h.k === 'fr' && title) setFrameWords(page, title, caption);
-      if (h.k === 'bg') fixed += fixContrast(page, meta(h).tone);
+      if (isF(h.k) && title) setFrameWords(page, title, caption);
+      if (!isF(h.k)) fixed += fixContrast(page, toneAfter(meta(h).tone, tweaks));
       applied.push({ page: emptyEditor ? 1 : idx + 1, style: nameOf(h) });
     }
     if (!emptyEditor && origin > -1 && pdfed.active !== origin) { try { await pdfedGoto(origin); } catch (e) {} }
-    var out = { applied: applied };
+    var out = { applied: applied, set: suf ? 'classic' : 'premium' };
+    if (tweaks) out.tweaks = tweaks;
+    if (seed != null) out.variation = seed;
+    if (refine) out.refined = true;
     if (notes.length) out.notes = notes;
     if (fixed) out.textColourFixed = fixed;
     if (targets.length > 1) out.undoNote = 'each page is its own undo step (Ctrl+Z once per page)';
@@ -181,7 +226,14 @@
   window.kadessaCanvasStyleLabel = function (p) {
     p = p || {};
     var where = p.pages === 'all' ? ' on every page' : (Array.isArray(p.pages) && p.pages.length ? ' on page' + (p.pages.length === 1 ? ' ' + p.pages[0] : 's ' + p.pages.join(', ')) : ' on this page');
-    return 'Set the "' + (p.style || 'chosen') + '" canvas style' + where + '.' + (p.reason ? ' ' + String(p.reason).slice(0, 140) : '');
+    var bits = [];
+    if (p.set === 'classic') bits.push('classic set');
+    if (p.variation) bits.push('another take');
+    if (p.grain) bits.push(p.grain + ' grain');
+    if (p.vignette) bits.push(p.vignette + ' vignette');
+    if (p.shade) bits.push(parseFloat(p.shade) < 0 ? 'darker' : 'lighter');
+    var head = String(p.style || '').trim() ? 'Set the "' + p.style + '" canvas style' : 'Adjust the canvas style';
+    return head + (bits.length ? ' (' + bits.join(', ') + ')' : '') + where + '.' + (p.reason ? ' ' + String(p.reason).slice(0, 140) : '');
   };
   window.__kcsTest = { profile: profile, resolve: resolve, run: run, fixContrast: fixContrast, BGN: BGN, FRN: FRN };
 })();

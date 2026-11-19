@@ -350,7 +350,7 @@
   //     change -- if it's no longer safe to reverse cleanly, the tool call
   //     fails with a message to relay to the person as-is; don't retry it
   //     silently or claim it undid something it didn't.
-  //   pdfed_pick_canvas_style {style, gravity?: 'serious'|'neutral'|'festive', reason?, pages?, title?, caption?}
+  //   pdfed_pick_canvas_style {style?, set?: 'premium'|'classic', variation?, grain?, vignette?, shade?, gravity?: 'serious'|'neutral'|'festive', reason?, pages?, title?, caption?}  (style left out = adjust the style already on the page)
   //     -- Kadessa chooses one of the 10 Backgrounds / 10 Photo Frames after reading the content (js/92).
   //   pdfed_set_canvas_gradient {mode?: 'solid'|'gradient', color1: hex,
   //     color2?: hex, angle?: 0-360, opacity?: 0-100, pages?: 'all'|number[],
