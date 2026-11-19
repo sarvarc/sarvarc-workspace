@@ -332,23 +332,83 @@ function daSpPlan(headers, rows) {
 
 // Used by daPushToDiagrams (js/32). ds = the active table; rows = its computed values.
 function daSmartPushPlan(ds, computedRows) {
-  try { return daSpPlan(ds.headers.map(daSpClean), computedRows); }
+  try {
+    const plan = daSpPlan(ds.headers.map(daSpClean), computedRows);
+    if (plan) { plan.rawAoa = [ds.headers.slice()].concat(computedRows); plan.rawName = ds.name || 'Table data'; }
+    return plan;
+  }
   catch (e) { console.warn('[Smart push] fell back to plain push', e); return null; }
 }
+// Several honest ways to see a table with no number in it: also kept in the left Charts panel.
+function daSpShowGallery(plan) {
+  if (!(plan.choices && plan.choices.length > 1) || typeof dgSetMultiCharts !== 'function') return;
+  dgSetMultiCharts(plan.choices.map(c => daSpSpec(c.title, c.rows)));
+}
+function daSpSpec(title, rows) {
+  const scheme = (typeof dgCurrentScheme === 'function') ? dgCurrentScheme() : ['#0891b2'];
+  return { title, type: (typeof dgState !== 'undefined' && dgState.type) || 'bar',
+    rows: rows.map((r, i) => ({ label: r.label, value: r.value, color: scheme[i % scheme.length] })), format: null, formatSymbol: null };
+}
+
+// The "How would you like to see your data?" box. It used to appear because the raw table had several
+// number columns; smart push sends one clean table, so it never did. It now asks with real choices.
+function daSmartPushAsk(plan) {
+  const overlay = document.getElementById('dgMultiSuggestOverlay'), body = document.getElementById('dgMultiSuggestBody');
+  if (!overlay || !body || typeof dgDrawChartSpec !== 'function') return false;
+  const stats = document.getElementById('dgMultiSuggestStats'), title = document.getElementById('dgMultiSuggestTitle'), sub = document.getElementById('dgMultiSuggestSub');
+  const rawRows = plan.rawAoa ? plan.rawAoa.length - 1 : 0, rawCols = plan.rawAoa ? plan.rawAoa[0].length : 0;
+  if (stats) stats.innerHTML = '<div class="dg-multi-suggest-stat"><b>' + rawRows + '</b><span>Rows</span></div>'
+    + '<div class="dg-multi-suggest-stat"><b>' + rawCols + '</b><span>Columns</span></div>'
+    + '<div class="dg-multi-suggest-stat"><b>' + (plan.choices ? plan.choices.length : 1) + '</b><span>Smart views</span></div>';
+  if (title) title.textContent = 'How would you like to see your data?';
+  if (sub) sub.textContent = 'Pick a picture below — each preview is drawn from your own data.';
+  const cards = [];
+  if (plan.choices && plan.choices.length > 1) {
+    plan.choices.forEach((c, i) => cards.push({ title: c.title, text: c.rows.length + ' bars · biggest: ' + c.rows[0].label + ' (' + c.rows[0].value + ')',
+      spec: daSpSpec(c.title, c.rows), rec: i === 0, act: () => daSpApplyChoice(plan, i) }));
+  } else {
+    const rows = plan.aoa.slice(1).slice(0, 40).map(r => ({ label: r[0], value: Number(r[1]) }));
+    cards.push({ title: plan.title, text: plan.notes && plan.notes[0] ? plan.notes[0] : 'Cleaned and grouped by meaning.', spec: daSpSpec(plan.title, rows), rec: true, act: () => {} });
+    if (plan.rawAoa) cards.push({ title: 'Table exactly as it is', text: 'Every column, one point per row — no grouping, no clean-up.', spec: null, rec: false,
+      act: () => { try { dgOnUploadParsed(plan.rawAoa, plan.rawName); } catch (e) { console.warn('[Smart push] raw push failed', e); } } });
+  }
+  body.innerHTML = ''; body.style.setProperty('--dg-cols', Math.min(4, cards.length));
+  cards.forEach(c => {
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'dg-suggest-card' + (c.rec ? ' recommended' : '');
+    btn.onclick = () => { if (typeof dgDismissMultiSuggest === 'function') dgDismissMultiSuggest(); c.act(); };
+    const thumb = document.createElement('div'); thumb.className = 'dg-suggest-thumb';
+    if (c.spec) {
+      const cv = document.createElement('canvas'); cv.width = 480; cv.height = 270; thumb.appendChild(cv);
+      try { dgDrawChartSpec(cv, c.spec); } catch (e) { thumb.classList.add('empty'); }
+    } else thumb.classList.add('empty');
+    if (c.rec) { const bd = document.createElement('span'); bd.className = 'dg-suggest-badge'; bd.textContent = 'Recommended'; thumb.appendChild(bd); }
+    const h = document.createElement('h4'); h.textContent = c.title; const pp = document.createElement('p'); pp.textContent = c.text;
+    btn.appendChild(thumb); btn.appendChild(h); btn.appendChild(pp); body.appendChild(btn);
+  });
+  overlay.classList.add('open');
+  return true;
+}
+// A card was picked: show that count view in the main chart.
+function daSpApplyChoice(plan, i) {
+  const c = plan.choices[i]; if (!c) return;
+  try {
+    dgOnUploadParsed([[c.groupName, 'Number of rows']].concat(c.rows.map(r => [r.label, r.value])), c.title);
+    daSpShowGallery(plan);
+    if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
+  } catch (e) { console.warn('[Smart push] choice failed', e); }
+}
+
 // Runs right after the chart has been built from the plan.
 function daSmartPushAfter(plan) {
   if (!plan) return;
   try {
     if (plan.chartType && typeof dgSetType === 'function' && typeof dgState !== 'undefined' && dgState.type === 'bar') dgSetType(plan.chartType);
-    // Several honest ways to see a table with no number in it: offer them in the Charts panel (the person picks).
-    if (plan.choices && plan.choices.length > 1 && typeof dgMultiCharts !== 'undefined' && typeof dgRenderMultiChartGallery === 'function') {
-      const scheme = (typeof dgCurrentScheme === 'function') ? dgCurrentScheme() : ['#0891b2'];
-      dgMultiCharts = plan.choices.map(c => ({ title: c.title, type: (typeof dgState !== 'undefined' && dgState.type) || 'bar',
-        rows: c.rows.map((r, i) => ({ label: r.label, value: r.value, color: scheme[i % scheme.length] })), format: null, formatSymbol: null }));
-      dgRenderMultiChartGallery();
-    }
+    daSpShowGallery(plan);
+    // The old box, back: dgOnUploadParsed may have opened its own, so close it and ask with the smart choices.
+    if (typeof dgDismissMultiSuggest === 'function') dgDismissMultiSuggest();
+    daSmartPushAsk(plan);
     if (plan.notes && plan.notes.length && typeof toast === 'function') {
-      setTimeout(() => toast('Smart chart: ' + plan.notes.join(' \u00b7 '), 'info'), 600);
+      setTimeout(() => toast('Smart chart: ' + plan.notes.join(' · '), 'info'), 600);
     }
   } catch (e) { console.warn('[Smart push] after-step failed', e); }
 }

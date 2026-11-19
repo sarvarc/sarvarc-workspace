@@ -10388,6 +10388,9 @@ window.sarvarcDashDrawChart = function (canvas, h) {
   window.dgAutoShowStateMap = dgAutoShowStateMap;
   window.dgMaybeSuggestMultiChart = dgMaybeSuggestMultiChart;
   window.dgComputeStats = dgComputeStats;
+  // Smart push (js/96): draw preview thumbnails and fill the Charts panel with the choices it offers.
+  window.dgDrawChartSpec = dgDrawChartSpec;
+  window.dgSetMultiCharts = function (specs) { dgMultiCharts = specs || []; dgRenderMultiChartGallery(); };
 })();
 
 })();
