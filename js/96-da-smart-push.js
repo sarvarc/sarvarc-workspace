@@ -123,7 +123,11 @@ function daSpSeparateIdentities(headers, rows, cols) {
     // Add the first column that tells the clashing entities apart in plain words (Department, City...).
     const helperCols = cols.filter(c => c.kind === 'text' && c.idx !== g.idx && !DA_SP_EMAIL_HEADER.test(c.name) && !DA_SP_IDENT_HEADER.test(c.name) && c.distinct > 1);
     const pick = helperCols.find(c => clashes.every(cl => {
-      const vals = Array.from(cl[1].values()).map(list => T(rows[list[0]][c.idx]));
+      // The helper must describe the PERSON, so it has to be the same on every row of that one person
+      // (Department yes, Tower no: one person can sit in two towers).
+      const ents = Array.from(cl[1].values());
+      if (!ents.every(list => new Set(list.map(ri => T(rows[ri][c.idx]).toLowerCase())).size === 1)) return false;
+      const vals = ents.map(list => T(rows[list[0]][c.idx]));
       return vals.every(Boolean) && new Set(vals.map(x => x.toLowerCase())).size === vals.length;
     }));
     const used = new Set(rows.map(r => T(r[g.idx]).toLowerCase()));
@@ -189,19 +193,30 @@ function daSpRound(n) { return Math.round(n * 1e6) / 1e6; }
 // No real number in the table (IDs, desk codes, phones, names only): the only honest chart is a COUNT.
 // Without this the plain push read "A-101" as 101 and drew desk codes as bars.
 function daSpCountPlan(rows, cols, sep, blocked) {
+  const seen = new Set();
+  const uniqueHeader = c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; };
+  const countBy = g => {
+    const counts = new Map();
+    rows.forEach(r => { const k = String(r[g.idx] == null ? '' : r[g.idx]).trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  };
+  // Choice 1..n: rows per category column (Tower, City, Work Arrangement, Department...).
   const cands = cols.filter(c => c.kind === 'text' && c.repeats && c.distinct >= 2 && c.distinct <= 12
-    && !DA_SP_EMAIL_HEADER.test(c.name) && !/name/i.test(c.name));
-  if (!cands.length) return null;
-  const g = cands[0], counts = new Map();
-  rows.forEach(r => { const k = String(r[g.idx] == null ? '' : r[g.idx]).trim(); if (k) counts.set(k, (counts.get(k) || 0) + 1); });
-  const list = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    && !DA_SP_EMAIL_HEADER.test(c.name) && !/name/i.test(c.name)).filter(uniqueHeader);
+  const choices = cands.map(g => ({ groupName: g.name, title: 'Number of rows by ' + g.name, list: countBy(g) }));
+  // Last choice: rows per person / thing (names already told apart by ID). Only when someone really repeats
+  // (a person with 2 desks): all-ones would be an empty chart.
+  const nameCols = cols.filter(c => c.kind === 'text' && /name/i.test(c.name) && !DA_SP_EMAIL_HEADER.test(c.name) && c.distinct >= 2 && c.distinct <= 60).filter(uniqueHeader);
+  nameCols.forEach(g => { const list = countBy(g); if (list.length && list[0][1] > 1) choices.push({ groupName: g.name, title: 'Number of rows by ' + g.name, list: list.slice(0, 40) }); });
+  if (!choices.length) return null;
+  const first = choices[0];
   const idNames = cols.filter(c => c.kind === 'id').map(c => c.name);
-  const others = cands.slice(1, 4).map(c => c.name);
-  const notes = ['No number to chart here' + (idNames.length ? ' (' + idNames.slice(0, 3).join(', ') + ' are identifiers)' : '') + ', so rows are counted per ' + g.name + (others.length ? '. You can switch the axis to ' + others.join(' / ') : '')];
+  const notes = ['No number to chart here' + (idNames.length ? ' (' + idNames.slice(0, 3).join(', ') + ' are identifiers)' : '') + ', so rows are counted. '
+    + (choices.length > 1 ? 'Pick another view in the Charts panel: ' + choices.slice(1).map(c => c.groupName).join(', ') : '')];
   sep.fixes.forEach(f => notes.push(f.labels.join(', ') + ' are different people and are kept apart'));
-  const title = 'Number of rows by ' + g.name;
-  return { aoa: [[g.name, 'Number of rows']].concat(list.map(e => [e[0], e[1]])), name: title, title, mode: 'count', groupName: g.name,
-    measure: 'Number of rows', notes, chartType: null, droppedGroups: [], blockedColumns: blocked.map(b => b.name), separated: sep.fixes };
+  return { aoa: [[first.groupName, 'Number of rows']].concat(first.list.map(e => [e[0], e[1]])), name: first.title, title: first.title, mode: 'count', groupName: first.groupName,
+    measure: 'Number of rows', notes, chartType: null, droppedGroups: [], blockedColumns: blocked.map(b => b.name), separated: sep.fixes,
+    choices: choices.map(c => ({ title: c.title, groupName: c.groupName, rows: c.list.map(e => ({ label: e[0], value: e[1] })) })) };
 }
 
 // headers: [..], rows: [[..]] of computed (plain) cell values. Returns null when the old push is fine.
@@ -325,6 +340,13 @@ function daSmartPushAfter(plan) {
   if (!plan) return;
   try {
     if (plan.chartType && typeof dgSetType === 'function' && typeof dgState !== 'undefined' && dgState.type === 'bar') dgSetType(plan.chartType);
+    // Several honest ways to see a table with no number in it: offer them in the Charts panel (the person picks).
+    if (plan.choices && plan.choices.length > 1 && typeof dgMultiCharts !== 'undefined' && typeof dgRenderMultiChartGallery === 'function') {
+      const scheme = (typeof dgCurrentScheme === 'function') ? dgCurrentScheme() : ['#0891b2'];
+      dgMultiCharts = plan.choices.map(c => ({ title: c.title, type: (typeof dgState !== 'undefined' && dgState.type) || 'bar',
+        rows: c.rows.map((r, i) => ({ label: r.label, value: r.value, color: scheme[i % scheme.length] })), format: null, formatSymbol: null }));
+      dgRenderMultiChartGallery();
+    }
     if (plan.notes && plan.notes.length && typeof toast === 'function') {
       setTimeout(() => toast('Smart chart: ' + plan.notes.join(' \u00b7 '), 'info'), 600);
     }
