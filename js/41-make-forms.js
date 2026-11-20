@@ -182,7 +182,7 @@ function mfCollabReconcileFromY(changedIds) {
     // ones, drop any that were removed remotely.
     const byId = {};
     mfCollabMap.forEach((v, k) => { byId[k] = v; });
-    const kept = mfState.forms.filter(f => yIds.has(f.id)).map(f => byId[f.id]);
+    const kept = mfState.forms.filter(f => f._draft || yIds.has(f.id)).map(f => f._draft ? f : byId[f.id]);
     const existingIds = new Set(mfState.forms.map(f => f.id));
     const added = Array.from(yIds).filter(id => !existingIds.has(id)).map(id => byId[id]);
     mfState.forms = kept.concat(added);
@@ -780,9 +780,13 @@ function mfEsc(s) {
 }
 
 // ─── CREATE / DUPLICATE / DELETE ───
-function mfCreateFromTemplate(key) {
+function mfCreateFromTemplate(key, opts) {
   const tpl = MF_TEMPLATES[key];
   if (!tpl) return;
+  // opts.draft is used only by the smart landing (mfNewFormBuilder below): the
+  // blank form is opened in the editor but is NOT saved and gets no toast, so a
+  // person who just looks and leaves does not end up with an empty "Untitled Form".
+  const asDraft = !!(opts && opts.draft);
   // Kadessa can trigger this from ANY panel now (see KADESSA_ACTIONS.mf_create_form /
   // mf_create_from_template) -- previously this function only ever touched
   // Make Forms' own internal gallery/editor toggle (mfOpenEditor), never the
@@ -797,9 +801,11 @@ function mfCreateFromTemplate(key) {
   // originated from. Guarded by an "already there" check so the normal
   // click-a-template-card path (already inside Make Forms) doesn't pay for a
   // redundant navigate() call.
-  if (typeof unifiedActiveSection === 'function' && typeof navigate === 'function' && unifiedActiveSection() !== 'makeforms') {
+  if (!asDraft && typeof unifiedActiveSection === 'function' && typeof navigate === 'function' && unifiedActiveSection() !== 'makeforms') {
     navigate('makeforms');
   }
+  // A real form is being created now, so any waiting empty draft is no longer needed.
+  if (!asDraft) mfDropDrafts();
   const built = tpl.build();
   const form = {
     id: mfUid('form'),
@@ -820,11 +826,54 @@ function mfCreateFromTemplate(key) {
     translations: {},
     updatedAt: Date.now()
   };
+  if (asDraft) form._draft = true;
   mfState.forms.push(form);
-  mfPersist();
-  document.getElementById('mfTemplatePicker').style.display = 'none';
+  if (!asDraft) mfPersist();
+  const tplPicker = document.getElementById('mfTemplatePicker');
+  if (tplPicker) tplPicker.style.display = 'none';
   mfOpenEditor(form.id);
-  toast(key === 'blank' ? 'New form ready, add your logo and details' : 'New form created from "' + tpl.name + '"', 'success');
+  if (!asDraft) toast(key === 'blank' ? 'New form ready, add your logo and details' : 'New form created from "' + tpl.name + '"', 'success');
+}
+
+// ─── SMART LANDING (Make Forms) ───
+// Opening Make Forms goes to one of two places:
+//   - nothing made yet (no forms and no Sign Documents): the new form builder,
+//     where the Form look card (Standard or Flow) is at the top, ready to start;
+//   - anything already made: the My Forms dashboard.
+// The builder opens on an unsaved draft. It becomes a real form the moment the
+// person changes anything. If they leave it untouched, it is quietly discarded.
+function mfFormSig(f) {
+  try { return JSON.stringify(f, (k, v) => (k === 'updatedAt' || k === '_draft' || k === '_draftSig') ? undefined : v); }
+  catch (e) { return ''; }
+}
+function mfDropDrafts() {
+  if (!mfState.forms.some(f => f._draft)) return;
+  let removed = false;
+  const keep = [];
+  mfState.forms.forEach(f => {
+    if (!f._draft) { keep.push(f); return; }
+    if (f._draftSig && mfFormSig(f) === f._draftSig) { removed = true; return; } // untouched: discard
+    delete f._draft; delete f._draftSig;                                         // touched: it is a real form now
+    keep.push(f);
+  });
+  mfState.forms = keep;
+  mfMemForms = keep;
+  if (removed) { try { localStorage.setItem(MF_STORAGE_KEY, JSON.stringify(keep)); } catch (e) {} }
+}
+function mfNewFormBuilder() {
+  mfCreateFromTemplate('blank', { draft: true });
+  const f = mfGetCurrentForm();
+  if (f && f._draft) f._draftSig = mfFormSig(f);
+}
+function mfCountSignDocs() {
+  try {
+    const a = JSON.parse(localStorage.getItem('sarvarcSignDocs') || '[]');
+    return Array.isArray(a) ? a.length : 0;
+  } catch (e) { return 0; }
+}
+function mfEnterSection() {
+  (window.mfBackToGallery || mfBackToGallery)();   // reset to the dashboard view (also closes the Sign editor)
+  if (mfState.forms.length === 0 && mfCountSignDocs() === 0) mfNewFormBuilder();
 }
 
 function mfStartBlank() {
@@ -928,6 +977,7 @@ function mfOpenEditor(id) {
 function mfBackToGallery() {
   mfStopAutoSync();
   mfStopExpiryClock();
+  mfDropDrafts();
   mfState.currentId = null;
   const gv = document.getElementById('mfGalleryView');
   const ev = document.getElementById('mfEditorView');
@@ -5078,6 +5128,7 @@ window.mfRemoveLogo = mfRemoveLogo;
 window.mfSetAccentColor = mfSetAccentColor;
 window.mfSetSocialLink = mfSetSocialLink;
 window.mfStartBlank = mfStartBlank;
+window.mfEnterSection = mfEnterSection;
 window.mfToggleWatermark = mfToggleWatermark;
 window.mfSetWatermarkOpacity = mfSetWatermarkOpacity;
 window.mfHandleBannerUpload = mfHandleBannerUpload;
@@ -5155,6 +5206,7 @@ window.mfcPushToWorkspace = mfcPushToWorkspace;
 
 // init
 mfLoad();
+mfDropDrafts(); // an unsaved-draft leftover from a closed tab must not count as a form
 mfLoadAttachmentBlobs(); // async — fills in mfAttachBlobs from IndexedDB shortly after boot
 mfRenderTemplateGrid();
 mfRenderFormsGrid();

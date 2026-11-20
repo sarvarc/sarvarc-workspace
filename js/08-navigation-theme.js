@@ -404,8 +404,10 @@ function navigate(sec) {
     else if(sec === 'redact' && t.includes('redact pii')) n.classList.add('active');
     else if(sec === 'settings' && n.id === 'navIcon-settings') n.classList.add('active');
   });
-  if(sec === 'makeforms' && typeof mfBackToGallery === 'function') {
-    mfBackToGallery();
+  if(sec === 'makeforms') {
+    // Smart landing: nothing made yet -> new form builder, otherwise My Forms dashboard.
+    if (typeof mfEnterSection === 'function') mfEnterSection();
+    else if (typeof mfBackToGallery === 'function') mfBackToGallery();
   }
   if(sec === 'dataarrange' && typeof daRender === 'function') {
     daRender();
