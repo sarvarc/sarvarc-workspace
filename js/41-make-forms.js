@@ -846,6 +846,7 @@ function mfDuplicateForm(id) {
   // is tied to that same publish, so it resets together with it.
   delete copy.publishedId;
   delete copy.shareSlug;
+  delete copy.linkName;   // a copy must not inherit the original's custom link name (two forms cannot share one)
   delete copy.publishedAt;
   copy.expiresAt = null;
   copy.expiryAppliedMode = undefined;
@@ -5021,6 +5022,8 @@ window.mfState = mfState;
 window.mfGetResponses = mfGetResponses;
 window.SARVARC_FORMS_PUBLIC_BASE_URL = SARVARC_FORMS_PUBLIC_BASE_URL;
 window.mfShareLink = mfShareLink;
+window.mfSetLinkName = mfSetLinkName;   // the Link name box in workspace.html calls this from an inline oninput
+window.mfRenderLinkName = mfRenderLinkName;
 window.mfGetCurrentForm = mfGetCurrentForm;
 window.mfNewField = mfNewField;
 window.mfRenderFieldList = mfRenderFieldList;
