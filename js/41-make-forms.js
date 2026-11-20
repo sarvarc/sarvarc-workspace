@@ -946,6 +946,8 @@ function mfOpenEditor(id) {
   mfState.currentId = id;
   mfMode = 'design';
   mfActiveResponseId = null;
+  mfRespFilter = 'all'; mfRespQuery = '';
+  { const si = document.getElementById('mfRespSearch'); if (si) si.value = ''; }
   mfDraftValues = {};
   document.getElementById('mfGalleryView').style.display = 'none';
   document.getElementById('mfEditorView').style.display = 'block';
@@ -2647,6 +2649,7 @@ async function mfSyncPublishedResponses(opts) {
         createdAt: new Date(row.submitted_at).getTime(),
         updatedAt: new Date(row.submitted_at).getTime(),
         source: 'online',
+        seen: false,
       });
       added++;
     }
@@ -2757,15 +2760,20 @@ function mfUpdateFillStatus() {
   const el = document.getElementById('mfFillStatus');
   const btn = document.getElementById('mfSaveRespBtn');
   if (!el) return;
-  if (mfActiveResponseId) {
-    el.innerHTML = '<span class="mf-fill-status-dot"></span>Editing a saved response';
+  const f = mfGetCurrentForm();
+  const r = (f && mfActiveResponseId) ? mfGetResponses(f).find(x => x.id === mfActiveResponseId) : null;
+  if (r) {
+    const id = mfRespIdentity(f, r);
+    const what = mfRespSource(r) === 'online' ? 'online response' : 'response';
+    el.innerHTML = '<span class="mf-fill-status-dot"></span>Viewing ' + what + (id.hasName ? ': ' + mfEsc(id.name) : '');
     el.classList.add('mf-editing');
     if (btn) btn.textContent = 'Update Response';
   } else {
-    el.innerHTML = '<span class="mf-fill-status-dot"></span>New response';
+    el.innerHTML = '<span class="mf-fill-status-dot"></span>New response (not saved yet)';
     el.classList.remove('mf-editing');
     if (btn) btn.textContent = 'Save Response';
   }
+  mfRenderRespDetail();
 }
 
 function mfNewResponseDraft() {
@@ -2783,6 +2791,7 @@ function mfLoadResponse(id) {
   const r = mfGetResponses(f).find(x => x.id === id);
   if (!r) return;
   mfActiveResponseId = id;
+  if (r.seen === false) { r.seen = true; mfPersist(); }
   mfDraftValues = { ...r.values };
   if (typeof window.mfGdLoadDraft === 'function') window.mfGdLoadDraft(true); // open at the first question so the answers show
   mfRenderPreview();
@@ -3015,41 +3024,324 @@ async function mfSigDownloadResponse(id, ev) {
   }
 }
 
-function mfResponseSummary(f, r) {
-  const parts = [];
-  for (const fl of f.fields) {
-    if (fl.type === 'heading' || fl.type === 'signature' || fl.type === 'checkbox' || fl.type === 'rating') continue;
-    const v = r.values[fl.id];
-    if (v) { parts.push(String(v)); if (parts.length === 2) break; }
+// ─── RESPONSES PANEL ───
+// Everything the owner sees about what came in: a summary strip, filters, one
+// labelled card per response (who, where it came from, how complete, when), and
+// a plain question-and-answer sheet for the response that is open.
+var mfRespFilter = 'all';   // all | new | online | manual | table
+var mfRespQuery = '';
+
+const MF_RESP_SOURCES = {
+  online: { label: 'Online',     long: 'Submitted by someone through your public link' },
+  manual: { label: 'Entered here', long: 'Typed in by you on this tab' },
+  table:  { label: 'From table', long: 'Created from a Data Arrangement table' }
+};
+const MF_RESP_AVATAR_COLORS = ['#0073E6', '#0F9D8A', '#7C5CE0', '#D9822B', '#C2417C', '#4E7DA6', '#2E9E5B'];
+
+function mfRespSource(r) { return r.source === 'online' ? 'online' : (r.source === 'mailmerge' ? 'table' : 'manual'); }
+// "New" = an online response that arrived through sync and the owner has not opened yet.
+// Older responses saved before this feature have no `seen` flag, so they never show as new.
+function mfRespIsNew(r) { return r.source === 'online' && r.seen === false; }
+
+function mfRespHasAnswer(fl, v) {
+  if (fl.type === 'signature') {
+    const sv = (typeof SarvarcSign !== 'undefined') ? SarvarcSign.parse(v) : null;
+    return !!(sv && (sv.image || sv.file));
   }
-  return parts.length ? parts.join(' · ') : 'Untitled response';
+  if (fl.type === 'checkbox') return v === true || v === 'true' || v === 'Yes';
+  return v != null && String(v).trim() !== '';
+}
+
+// Counts what was answered. Optional tick boxes are left out of the total, otherwise an
+// unticked "I agree to updates" box would make a finished response look incomplete.
+function mfRespCompletion(f, r) {
+  let total = 0, answered = 0, req = 0, reqDone = 0;
+  (f.fields || []).forEach(fl => {
+    if (fl.type === 'heading') return;
+    if (fl.type === 'checkbox' && !fl.required) return;
+    total++;
+    const ok = mfRespHasAnswer(fl, r.values && r.values[fl.id]);
+    if (ok) answered++;
+    if (fl.required) { req++; if (ok) reqDone++; }
+  });
+  return { total, answered, req, reqDone, reqMissing: req - reqDone, pct: total ? Math.round(answered / total * 100) : 0 };
+}
+
+function mfRespTextAnswers(f, r) {
+  const out = [];
+  (f.fields || []).forEach(fl => {
+    if (!/^(text|paragraph|select|mcq|number|date)$/.test(fl.type)) return;
+    const v = r.values && r.values[fl.id];
+    if (v != null && String(v).trim() !== '') out.push({ fl, v: String(v).trim() });
+  });
+  return out;
+}
+
+// Best human label for a response: the name the respondent typed, else the answer to a
+// question called "...name...", else the first text answer, else a plain "Response".
+function mfRespIdentity(f, r) {
+  const answers = mfRespTextAnswers(f, r);
+  let name = r.respondentName || '';
+  let used = null;
+  if (!name) {
+    const byLabel = answers.find(a => a.fl.type === 'text' && /name/i.test(a.fl.label || ''));
+    const pick = byLabel || answers.find(a => a.fl.type === 'text') || answers[0];
+    if (pick) { name = pick.v; used = pick; }
+  }
+  let email = r.respondentEmail || '';
+  if (!email) {
+    const em = answers.find(a => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.v));
+    if (em && em !== used) email = em.v;
+  }
+  let sub = email;
+  if (!sub) {
+    const other = answers.find(a => a !== used && a.v !== name);
+    if (other) sub = other.v;
+  }
+  const clip = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+  return { name: clip(name || 'Response', 48), hasName: !!name, sub: clip(sub, 64), email };
+}
+
+function mfRespInitials(name, hasName) {
+  if (!hasName) return '#';
+  const parts = String(name).replace(/[^\p{L}\p{N}\s]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '#';
+  return ((parts[0][0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+function mfRespAvatarColor(name) {
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return MF_RESP_AVATAR_COLORS[h % MF_RESP_AVATAR_COLORS.length];
+}
+
+function mfRespClock(ts) { return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+function mfRespDate(ts) { return new Date(ts).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); }
+function mfRespFull(ts) { return new Date(ts).toLocaleDateString([], { weekday: 'short' }) + ' ' + mfRespDate(ts) + ', ' + mfRespClock(ts); }
+function mfRespDayStart(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function mfRespAgo(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 45) return 'Just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return m + (m === 1 ? ' min ago' : ' mins ago');
+  const h = Math.round(m / 60);
+  if (h < 24 && mfRespDayStart(ts) === mfRespDayStart(Date.now())) return h + (h === 1 ? ' hr ago' : ' hrs ago');
+  return mfRespDate(ts);
+}
+function mfRespDayLabel(ts) {
+  const day = mfRespDayStart(ts), today = mfRespDayStart(Date.now());
+  if (day === today) return 'Today';
+  if (day === mfRespDayStart(today - 12 * 3600 * 1000)) return 'Yesterday';
+  return new Date(ts).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// Kept for any older caller: a one-line summary of a response.
+function mfResponseSummary(f, r) {
+  const id = mfRespIdentity(f, r);
+  return id.sub ? id.name + ' · ' + id.sub : id.name;
+}
+
+function mfRespMatches(f, r, q) {
+  if (!q) return true;
+  const id = mfRespIdentity(f, r);
+  const hay = [id.name, id.sub, r.respondentName, r.respondentEmail];
+  (f.fields || []).forEach(fl => {
+    const v = r.values && r.values[fl.id];
+    if (fl.type !== 'signature' && v != null && typeof v !== 'boolean') hay.push(String(v));
+  });
+  return hay.join(' \n ').toLowerCase().indexOf(q.toLowerCase()) !== -1;
+}
+
+function mfRespSetFilter(key) { mfRespFilter = key; mfRenderResponsesList(); }
+function mfRespSetQuery(v) { mfRespQuery = String(v || '').trim(); mfRenderResponsesList(); }
+function mfRespClearFilters() {
+  mfRespFilter = 'all'; mfRespQuery = '';
+  const inp = document.getElementById('mfRespSearch'); if (inp) inp.value = '';
+  mfRenderResponsesList();
+}
+function mfRespMarkAllRead() {
+  const f = mfGetCurrentForm(); if (!f) return;
+  let n = 0;
+  mfGetResponses(f).forEach(r => { if (mfRespIsNew(r)) { r.seen = true; n++; } });
+  if (n) { mfPersist(); }
+  mfRenderResponsesList();
+}
+function mfRespCopyLink() {
+  const f = mfGetCurrentForm(); if (!f || !f.publishedId) return;
+  const link = mfShareLink(f);
+  const done = () => toast('Link copied', 'success');
+  try { navigator.clipboard.writeText(link).then(done, () => toast(link, 'info')); }
+  catch (e) { toast(link, 'info'); }
+}
+
+function mfRenderRespStats(f, responses) {
+  const el = document.getElementById('mfRespStats');
+  if (!el) return;
+  if (!responses.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'grid';
+  const today = mfRespDayStart(Date.now());
+  const newCount = responses.filter(mfRespIsNew).length;
+  const todayCount = responses.filter(r => r.createdAt >= today).length;
+  const tile = (num, label, cls) => `<div class="mf-rs-tile ${cls || ''}"><div class="mf-rs-num">${num}</div><div class="mf-rs-label">${label}</div></div>`;
+  el.innerHTML =
+    tile(responses.length, 'Total') +
+    tile(newCount, 'New', newCount ? 'mf-rs-hot' : '') +
+    tile(todayCount, 'Today');
+}
+
+function mfRenderRespFilters(f, responses) {
+  const el = document.getElementById('mfRespFilters');
+  const tools = document.getElementById('mfRespTools');
+  if (!el) return;
+  if (!responses.length) { el.innerHTML = ''; if (tools) tools.style.display = 'none'; return; }
+  if (tools) tools.style.display = 'flex';
+  const count = k => k === 'all' ? responses.length : k === 'new' ? responses.filter(mfRespIsNew).length : responses.filter(r => mfRespSource(r) === k).length;
+  const keys = ['all', 'new', 'online', 'manual', 'table'].filter(k => k === 'all' || k === 'new' || count(k) > 0);
+  const names = { all: 'All', new: 'New', online: 'Online', manual: 'Entered here', table: 'From table' };
+  const chips = keys.map(k => `<button type="button" class="mf-rf-chip${mfRespFilter === k ? ' active' : ''}" onclick="mfRespSetFilter('${k}')">${names[k]}<span>${count(k)}</span></button>`).join('');
+  const n = count('new');
+  el.innerHTML = chips + (n ? `<button type="button" class="mf-rf-markread" onclick="mfRespMarkAllRead()">Mark all read</button>` : '');
+}
+
+function mfRenderRespEmpty(f, total, shown) {
+  const empty = document.getElementById('mfRespEmpty');
+  if (!empty) return;
+  if (shown) { empty.style.display = 'none'; return; }
+  empty.style.display = 'block';
+  if (total) {
+    empty.innerHTML = `<div class="mf-re-title">No responses match</div><div class="mf-re-text">Try a different filter or search.</div><button type="button" class="mf-re-btn" onclick="mfRespClearFilters()">Clear filters</button>`;
+  } else if (f.publishedId) {
+    empty.innerHTML = `<div class="mf-re-title">Waiting for the first response</div><div class="mf-re-text">Your form is live. New submissions appear here by themselves, you do not need to refresh.</div><div class="mf-re-link">${mfEsc(mfShareLink(f))}</div><button type="button" class="mf-re-btn" onclick="mfRespCopyLink()">Copy link</button>`;
+  } else {
+    empty.innerHTML = `<div class="mf-re-title">No responses yet</div><div class="mf-re-text">Publish this form to collect online responses, or fill it in on the right and press Save Response. You can also bulk-add rows with Generate from Table.</div>`;
+  }
 }
 
 function mfRenderResponsesList() {
   const f = mfGetCurrentForm(); if (!f) return;
-  const responses = mfGetResponses(f).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  const all = mfGetResponses(f);
+  const byTime = all.slice().sort((a, b) => b.createdAt - a.createdAt);
+  const number = {}; // permanent order of arrival: first response = #1
+  all.slice().sort((a, b) => a.createdAt - b.createdAt).forEach((r, i) => { number[r.id] = i + 1; });
   const list = document.getElementById('mfRespList');
-  const empty = document.getElementById('mfRespEmpty');
   const count = document.getElementById('mfRespCount');
   const badge = document.getElementById('mfRespBadge');
   if (!list) return;
-  if (count) count.textContent = responses.length + ' saved';
-  if (badge) { badge.style.display = responses.length ? 'inline-block' : 'none'; badge.textContent = responses.length; }
+  const newTotal = all.filter(mfRespIsNew).length;
+  if (count) count.textContent = all.length + (all.length === 1 ? ' response' : ' responses');
+  if (badge) { badge.style.display = all.length ? 'inline-block' : 'none'; badge.textContent = all.length; }
   mfRenderSyncStatus();
-  if (!responses.length) { list.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
-  if (empty) empty.style.display = 'none';
-  list.innerHTML = responses.map(r => { const sg = mfRespSigInfo(f, r); return `
-    <div class="mf-resp-item ${r.id === mfActiveResponseId ? 'active' : ''}" onclick="mfLoadResponse('${r.id}')">
-      <div class="mf-resp-item-title">${mfEsc(mfResponseSummary(f, r))}</div>
-      <div class="mf-resp-item-meta">${new Date(r.updatedAt).toLocaleString()}${sg.signed ? ' · Signed' : ''}${sg.pdf ? ' · PDF attached' : ''}</div>
+  mfRenderRespStats(f, all);
+  mfRenderRespFilters(f, all);
+
+  const shown = byTime.filter(r => {
+    if (mfRespFilter === 'new' && !mfRespIsNew(r)) return false;
+    if (mfRespFilter !== 'all' && mfRespFilter !== 'new' && mfRespSource(r) !== mfRespFilter) return false;
+    return mfRespMatches(f, r, mfRespQuery);
+  });
+  mfRenderRespEmpty(f, all.length, shown.length);
+  if (!shown.length) { list.innerHTML = ''; return; }
+
+  let lastDay = null, html = '';
+  shown.forEach(r => {
+    const day = mfRespDayStart(r.createdAt);
+    if (day !== lastDay) { html += `<div class="mf-resp-day">${mfEsc(mfRespDayLabel(r.createdAt))}</div>`; lastDay = day; }
+    const id = mfRespIdentity(f, r);
+    const comp = mfRespCompletion(f, r);
+    const sg = mfRespSigInfo(f, r);
+    const src = MF_RESP_SOURCES[mfRespSource(r)];
+    const isNew = mfRespIsNew(r);
+    let compBadge;
+    if (comp.reqMissing > 0) compBadge = `<span class="mf-rb mf-rb-warn" title="Required questions left blank">${comp.reqMissing} required missing</span>`;
+    else if (comp.total && comp.answered === comp.total) compBadge = `<span class="mf-rb mf-rb-ok">Complete</span>`;
+    else compBadge = `<span class="mf-rb mf-rb-soft">${comp.answered} of ${comp.total} answered</span>`;
+    const edited = r.updatedAt - r.createdAt > 1500 && mfRespSource(r) !== 'table';
+    html += `
+    <div class="mf-resp-item ${r.id === mfActiveResponseId ? 'active' : ''}${isNew ? ' mf-is-new' : ''}" onclick="mfLoadResponse('${r.id}')">
+      <div class="mf-resp-row">
+        <div class="mf-resp-avatar" style="background:${mfRespAvatarColor(id.name)}">${mfEsc(mfRespInitials(id.name, id.hasName))}</div>
+        <div class="mf-resp-main">
+          <div class="mf-resp-toprow"><span class="mf-resp-item-title">${mfEsc(id.name)}</span>${isNew ? '<span class="mf-resp-newtag">New</span>' : ''}</div>
+          ${id.sub ? `<div class="mf-resp-sub">${mfEsc(id.sub)}</div>` : ''}
+        </div>
+      </div>
+      <div class="mf-resp-badges">
+        <span class="mf-rb mf-rb-${mfRespSource(r)}" title="${mfEsc(src.long)}">${src.label}</span>
+        ${compBadge}
+        ${sg.signed ? '<span class="mf-rb mf-rb-sign">Signed</span>' : ''}${sg.pdf ? '<span class="mf-rb mf-rb-sign">PDF attached</span>' : ''}
+      </div>
+      <div class="mf-resp-item-meta" title="${mfEsc(mfRespFull(r.createdAt))}">#${number[r.id]} · ${mfRespDayStart(r.createdAt) === mfRespDayStart(Date.now()) ? mfEsc(mfRespAgo(r.createdAt)) + ' · ' : ''}${mfEsc(mfRespClock(r.createdAt))}${edited ? ' · edited' : ''}</div>
       <div class="mf-resp-item-btns">
-        <button onclick="event.stopPropagation();mfLoadResponse('${r.id}')">Edit</button>
+        <button onclick="event.stopPropagation();mfLoadResponse('${r.id}')">Open</button>
         ${sg.pdf ? `<button onclick="mfSigDownloadResponse('${r.id}', event)">Get PDF</button>` : ''}
         <button onclick="sarvarcGateExport(function(){mfExportSingleResponsePDF('${r.id}', event)})">PDF</button>
         <button class="mf-danger" onclick="mfDeleteResponse('${r.id}', event)">Delete</button>
       </div>
-    </div>
-  `; }).join('');
+    </div>`;
+  });
+  list.innerHTML = html;
+}
+
+// One readable question-and-answer sheet for the response that is open, shown above the form.
+function mfRespAnswerHtml(fl, v) {
+  if (fl.type === 'signature') {
+    const sv = (typeof SarvarcSign !== 'undefined') ? SarvarcSign.parse(v) : null;
+    if (sv && sv.image && /^data:image\//.test(sv.image)) return `<img class="mf-rd-sig" src="${sv.image}" alt="Signature">`;
+    if (sv && sv.file) return `<span class="mf-rd-yes">Signed</span> <span class="mf-rd-muted">file: ${mfEsc(sv.file.name || 'attached')}</span>`;
+    return null;
+  }
+  if (!mfRespHasAnswer(fl, v) && fl.type !== 'checkbox') return null;
+  if (fl.type === 'checkbox') return mfRespHasAnswer(fl, v) ? '<span class="mf-rd-yes">Yes</span>' : '<span class="mf-rd-muted">No</span>';
+  if (fl.type === 'rating') {
+    const max = Math.min(10, Math.max(3, parseInt(fl.max, 10) || 5));
+    const n = Math.max(0, Math.min(max, parseInt(v, 10) || 0));
+    return `<span class="mf-rd-stars">${'★'.repeat(n)}<i>${'★'.repeat(max - n)}</i></span> <span class="mf-rd-muted">${n} of ${max}</span>`;
+  }
+  return `<span class="mf-rd-text">${mfEsc(String(v))}</span>`;
+}
+
+function mfRenderRespDetail() {
+  const el = document.getElementById('mfRespDetail');
+  if (!el) return;
+  const f = mfGetCurrentForm();
+  const r = (f && mfActiveResponseId) ? mfGetResponses(f).find(x => x.id === mfActiveResponseId) : null;
+  if (!r) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const id = mfRespIdentity(f, r);
+  const comp = mfRespCompletion(f, r);
+  const srcKey = mfRespSource(r), src = MF_RESP_SOURCES[srcKey];
+  const edited = r.updatedAt - r.createdAt > 1500 && srcKey !== 'table';
+  let status;
+  if (comp.reqMissing > 0) status = `<span class="mf-rd-bad">${comp.reqMissing} required question${comp.reqMissing > 1 ? 's' : ''} left blank</span>`;
+  else if (comp.req) status = 'All required questions answered';
+  else status = 'No required questions on this form';
+  let rows = '';
+  (f.fields || []).forEach(fl => {
+    if (fl.type === 'heading') { rows += `<div class="mf-rd-section">${mfEsc(fl.label || 'Section')}</div>`; return; }
+    const ans = mfRespAnswerHtml(fl, r.values && r.values[fl.id]);
+    const blank = ans == null;
+    const missing = blank && fl.required;
+    rows += `<div class="mf-rd-row${missing ? ' mf-rd-missing' : ''}">
+      <div class="mf-rd-q">${mfEsc(fl.label || 'Untitled question')}${fl.required ? '<b title="Required">*</b>' : ''}</div>
+      <div class="mf-rd-a">${blank ? `<span class="mf-rd-blank">${missing ? 'Required, left blank' : 'Not answered'}</span>` : ans}</div>
+    </div>`;
+  });
+  el.innerHTML = `
+    <details class="mf-rd" open>
+      <summary>
+        <div class="mf-resp-avatar lg" style="background:${mfRespAvatarColor(id.name)}">${mfEsc(mfRespInitials(id.name, id.hasName))}</div>
+        <div class="mf-rd-who"><div class="mf-rd-name">${mfEsc(id.name)}</div><div class="mf-rd-email">${mfEsc(id.email || id.sub || '')}</div></div>
+        <span class="mf-rb mf-rb-${srcKey}">${src.label}</span>
+        <span class="mf-rd-chev" aria-hidden="true"></span>
+      </summary>
+      <div class="mf-rd-facts">
+        <div><label>Received</label><span>${mfEsc(mfRespFull(r.createdAt))} <em>(${mfEsc(mfRespAgo(r.createdAt))})</em></span></div>
+        <div><label>Source</label><span>${mfEsc(src.long)}</span></div>
+        <div><label>Answered</label><span>${comp.answered} of ${comp.total} questions · ${status}</span></div>
+        ${edited ? `<div><label>Last edited</label><span>${mfEsc(mfRespFull(r.updatedAt))}</span></div>` : ''}
+      </div>
+      <div class="mf-rd-bar" title="${comp.pct}% answered"><i style="width:${comp.pct}%"></i></div>
+      <div class="mf-rd-answers">${rows}</div>
+      ${srcKey === 'online' ? '<div class="mf-rd-note">This is your copy. Changes you make here stay in your workspace, the original submission is kept online.</div>' : ''}
+    </details>`;
 }
 
 async function mfRasterizePreviewCanvas() {
@@ -5155,6 +5447,11 @@ window.mfSwitchMode = mfSwitchMode;
 window.mfNewResponseDraft = mfNewResponseDraft;
 window.mfClearDraft = mfClearDraft;
 window.mfLoadResponse = mfLoadResponse;
+window.mfRespSetFilter = mfRespSetFilter;
+window.mfRespSetQuery = mfRespSetQuery;
+window.mfRespClearFilters = mfRespClearFilters;
+window.mfRespMarkAllRead = mfRespMarkAllRead;
+window.mfRespCopyLink = mfRespCopyLink;
 window.mfSaveResponse = mfSaveResponse;
 window.mfSigOpen = mfSigOpen;
 window.mfSigClear = mfSigClear;
