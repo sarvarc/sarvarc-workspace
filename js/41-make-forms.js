@@ -3238,6 +3238,7 @@ function mfRenderResponsesList() {
     return mfRespMatches(f, r, mfRespQuery);
   });
   mfRenderRespEmpty(f, all.length, shown.length);
+  mfRenderRespCircles(shown, number);
   if (!shown.length) { list.innerHTML = ''; return; }
 
   let lastDay = null, html = '';
@@ -5515,5 +5516,47 @@ mfRenderFormsGrid();
 if (typeof mfReconcilePublishState === 'function') mfReconcilePublishState();
 
 window.mfReconcilePublishState = mfReconcilePublishState;
+
+// ─── RESPONSES: initials circle row + collapsible side panels ───
+var mfRespCirclesAll = false;
+function mfRenderRespCircles(shown, number) {
+  const box = document.getElementById('mfRespCircles'); if (!box) return;
+  const f = mfGetCurrentForm(); if (!f) return;
+  const LIMIT = 10;
+  const showN = mfRespCirclesAll ? shown.length : Math.min(shown.length, LIMIT);
+  let html = '';
+  shown.slice(0, showN).forEach(r => {
+    const id = mfRespIdentity(f, r);
+    html += `<button type="button" class="mf-circ${r.id === mfActiveResponseId ? ' active' : ''}" style="background:${mfRespAvatarColor(id.name)}" title="${mfEsc(id.name)} · #${number[r.id]}" onclick="mfRespPickCircle('${r.id}')">${mfEsc(mfRespInitials(id.name, id.hasName))}${mfRespIsNew(r) ? '<span class="mf-circ-dot"></span>' : ''}</button>`;
+  });
+  if (!mfRespCirclesAll && shown.length > LIMIT) html += `<button type="button" class="mf-circ mf-circ-more" onclick="mfRespToggleCircles()">+${shown.length - LIMIT}</button>`;
+  box.innerHTML = html;
+  box.classList.toggle('mf-all', mfRespCirclesAll);
+  const tg = document.getElementById('mfRespCirclesToggle');
+  if (tg) { tg.textContent = mfRespCirclesAll ? 'Scroll row' : 'Show all'; tg.style.display = shown.length > LIMIT ? '' : 'none'; }
+}
+function mfRespToggleCircles() { mfRespCirclesAll = !mfRespCirclesAll; mfRenderResponsesList(); }
+function mfRespPickCircle(id) {
+  mfLoadResponse(id);
+  const list = document.getElementById('mfRespList');
+  const el = list && list.querySelector('.mf-resp-item.active');
+  if (el) list.scrollTo({ top: list.scrollTop + el.getBoundingClientRect().top - list.getBoundingClientRect().top - 8, behavior: 'smooth' });
+}
+function mfToggleFillLeft() {
+  const body = document.getElementById('mfEditorBodyFill'); if (!body) return;
+  const c = body.classList.toggle('mf-left-collapsed');
+  const ic = document.getElementById('mfEdgeLeftIcon');
+  if (ic) ic.innerHTML = c ? '<polyline points="9 18 15 12 9 6"/>' : '<polyline points="15 18 9 12 15 6"/>';
+}
+function mfToggleFillRight() {
+  const body = document.getElementById('mfEditorBodyFill'); if (!body) return;
+  const c = body.classList.toggle('mf-right-collapsed');
+  const ic = document.getElementById('mfEdgeRightIcon');
+  if (ic) ic.innerHTML = c ? '<polyline points="15 18 9 12 15 6"/>' : '<polyline points="9 18 15 12 9 6"/>';
+}
+window.mfRespToggleCircles = mfRespToggleCircles;
+window.mfRespPickCircle = mfRespPickCircle;
+window.mfToggleFillLeft = mfToggleFillLeft;
+window.mfToggleFillRight = mfToggleFillRight;
 
 })();
