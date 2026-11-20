@@ -2274,15 +2274,23 @@ const SARVARC_FORMS_PUBLIC_BASE_URL = 'https://forms.sarvarc.com';
 // The public link for a published form. A Flow form carries &style=guided in the
 // link itself, so respondents get the one-question-at-a-time layout even when the
 // Worker does not return form_style yet. Standard forms keep the plain link.
-function mfShareLink(f) {
+function mfLongShareLink(f) {
   const slug = (f && f.shareSlug) || '';
   const tpl = (f && f.formStyle === 'guided' && f.formTemplate && /^[a-z0-9-]+$/.test(f.formTemplate)) ? '&tpl=' + f.formTemplate : '';
   return `${SARVARC_FORMS_PUBLIC_BASE_URL}/?f=${slug}` + (f && f.formStyle === 'guided' ? '&style=guided' : '') + tpl + ((tpl && f.tplAdapt === false) ? '&ta=0' : (tpl && f.tplAdapt === true) ? '&ta=1' : '') + ((tpl && f.tplAnim === false) ? '&an=0' : '');
 }
+// The short, brand-first link: forms.sarvarc.com/kr-estate. The look (Flow, template, match logo, animation)
+// is saved on the form and sent by the Worker, so the link no longer needs &style=...&tpl=... on the end.
+// If the database could not store the look at publish time (needsLongLink), the long link is used so nothing changes.
+function mfShareLink(f) {
+  const slug = (f && f.shareSlug) || '';
+  if (f && f.needsLongLink) return mfLongShareLink(f);
+  return `${SARVARC_FORMS_PUBLIC_BASE_URL}/${slug}`;
+}
 
 
 // ---- Custom link name -------------------------------------------------------
-// The owner can type their own words for the public link (forms.sarvarc.com/?f=smart-house-enquiry).
+// The owner can type their own words for the public link (forms.sarvarc.com/smart-house-enquiry).
 // Left blank, the link keeps the random code. Run supabase/16-form-link-name.sql once so the
 // database refuses two forms with the same name.
 function mfLinkNameClean(v) {
@@ -2312,7 +2320,7 @@ function mfRenderLinkName() {
   const prev = document.getElementById('mfLinkNamePreview');
   const stat = document.getElementById('mfLinkNameStatus');
   const slug = name && !err ? name : (f.shareSlug || 'a-random-code');
-  if (prev) prev.textContent = SARVARC_FORMS_PUBLIC_BASE_URL + '/?f=' + slug;
+  if (prev) prev.textContent = SARVARC_FORMS_PUBLIC_BASE_URL.replace(/^https?:\/\//, '') + '/' + slug;
   if (stat) {
     stat.style.color = err ? 'var(--danger, #d33)' : 'var(--text3)';
     stat.textContent = err || (f.publishedId && name && name !== f.shareSlug
@@ -2366,7 +2374,7 @@ async function mfPublishForm() {
   const mfNameErr = mfLinkNameError(mfWantSlug);
   if (mfNameErr) { toast('Link name: ' + mfNameErr, 'error'); return; }
   if (f.publishedId && mfWantSlug && mfWantSlug !== f.shareSlug) {
-    if (!confirm('Change the link to ".../?f=' + mfWantSlug + '"?\n\nThe old link will stop working, so anyone who has it will need the new one.')) return;
+    if (!confirm('Change the link to "' + SARVARC_FORMS_PUBLIC_BASE_URL.replace(/^https?:\/\//, '') + '/' + mfWantSlug + '"?\n\nThe old link will stop working, so anyone who has it will need the new one.')) return;
   }
   const btn = document.getElementById('mfPublishBtn');
   const label = document.getElementById('mfPublishBtnLabel');
@@ -2434,6 +2442,9 @@ async function mfPublishForm() {
       form_style: f.formStyle === 'guided' ? 'guided' : 'standard',
       // Flow template id (see js/74-make-forms-templates.js). Empty = the form's own accent colour.
       form_template: (f.formStyle === 'guided' && f.formTemplate) ? f.formTemplate : null,
+      // Match-logo and animation switches of the Flow template (null = the default). Needs supabase/17-form-look-flags.sql.
+      tpl_adapt: (f.formStyle === 'guided' && f.formTemplate && typeof f.tplAdapt === 'boolean') ? f.tplAdapt : null,
+      tpl_anim: (f.formStyle === 'guided' && f.formTemplate && f.tplAnim === false) ? false : null,
       // Owner-added company/personal social links — rendered as an icon row
       // on the published form (see socialLinksHtml on the respondent page).
       social_links: f.socialLinks || {},
@@ -2471,14 +2482,22 @@ async function mfPublishForm() {
     }
     // A database that has not run supabase/11-form-style.sql yet has no form_style
     // column. Publishing still works, in Standard style.
+    f.needsLongLink = false;
+    if (res.error && /tpl_adapt|tpl_anim/i.test(res.error.message || '')) {
+      delete payload.tpl_adapt; delete payload.tpl_anim;
+      f.needsLongLink = true;   // the database cannot store these two switches yet, so the link carries them
+      res = await mfWrite(payload);
+    }
     if (res.error && /form_style/i.test(res.error.message || '')) {
       delete payload.form_style;
+      f.needsLongLink = true;
       res = await mfWrite(payload);
       if (!res.error && f.formStyle === 'guided') toast('Published in Standard style. Run supabase/11-form-style.sql once to turn Flow on.', 'info');
     }
     // Same for supabase/12-form-template.sql (forms.form_template). The link still carries &tpl=.
     if (res.error && /form_template/i.test(res.error.message || '')) {
       delete payload.form_template;
+      f.needsLongLink = true;
       res = await mfWrite(payload);
     }
     // Same for supabase/15-form-gallery.sql (forms.gallery): publish still works, without the gallery.
