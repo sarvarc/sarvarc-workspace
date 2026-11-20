@@ -3478,7 +3478,10 @@ function mfExportResponsesToDA(target, opts) {
     if (fl.type === 'checkbox') return v ? 'Yes' : 'No';
     return v == null ? '' : String(v);
   }));
-  daAddDataset(mfDaUniqueName(mfDaBaseName(f)), [headers, ...rows]);
+  // structured:true = every answer already sits under its own question, so Data
+  // Arrangement must keep each answer exactly as typed. Without it the "smart
+  // fix" read a budget like "₹1 crore to ₹2 crore" as an amount and cut it to "₹1.00".
+  daAddDataset(mfDaUniqueName(mfDaBaseName(f)), [headers, ...rows], undefined, { structured: true });
   if (!opts.noNavigate) {
     if (typeof daWorkspaceRefreshVisibility === 'function') daWorkspaceRefreshVisibility();
     if (typeof daRenderTabs === 'function') daRenderTabs();

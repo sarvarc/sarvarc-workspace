@@ -2047,9 +2047,46 @@ function daFindDate(v) {
   }
   return null;
 }
-function daFindAmount(v) {
+// ── Money that is NOT one plain amount ───────────────────────────────────────
+// A budget typed as "₹1 crore to ₹2 crore", "$1.5 million", "$5k - $10k", "Under
+// AED 2M", "~₹75 lakh" or "₹1,000 per sqft" is a sentence or a range, not one amount.
+// The Amount code used to grab the first figure ("₹1") and rewrite the whole cell as
+// "₹1.00", or move the cell into another column. Rule now: a cell is only treated as
+// an amount when it is clearly ONE plain figure. Anything else stays exactly as typed.
+const DA_CCY_CODES = 'INR|USD|EUR|GBP|JPY|CNY|RMB|AED|SAR|QAR|KWD|BHD|OMR|CAD|AUD|NZD|SGD|HKD|CHF|SEK|NOK|DKK|PLN|CZK|HUF|RON|TRY|RUB|UAH|ZAR|NGN|KES|EGP|MAD|GHS|BRL|MXN|ARS|CLP|COP|PEN|KRW|THB|VND|IDR|MYR|PHP|PKR|BDT|LKR|NPR|ILS|TWD';
+// Magnitude words that always mean "this is a size, not a plain number": thousand,
+// million, billion, trillion, lakh, crore and their short forms (k, m, mn, bn, Mio, Mrd ...).
+const DA_AMT_MAGNITUDE_RE = /\d\s*(?:k|m|mm|mn|mln|mil|mill|mio|mrd|mld|mia|tsd|b|bn|bln|bil|t|tn|trn|thou|thousands?|hundreds?|millions?|billions?|trillions?|lakhs?|lacs?|lk|crores?)\b/i;
+// Short forms that are also bank-statement markers (Cr = credit): only a magnitude
+// when the cell also carries a currency sign or code.
+const DA_AMT_MAGSHORT_RE = /\d\s*(?:cr|crs|l|lc|ls)\b/i;
+const DA_CCY_MARK_RE = new RegExp('\\p{Sc}|\\b(?:' + DA_CCY_CODES + ')\\b|\\bRs\\b', 'u');
+const DA_MONEY_FIGURE_RE = new RegExp('(?:\\p{Sc}|\\b(?:' + DA_CCY_CODES + ')\\b|\\bRs\\.?)\\s?\\d', 'gu');
+// Words that turn a figure into a sentence: ranges, limits, estimates, units.
+const DA_QUALIFIER_RE = /\b(?:to|and|between|from|till|until|upto|up\s*to|under|below|above|over|around|approx|approximately|about|roughly|nearly|min|max|minimum|maximum|less|more|than|least|most|plus|onwards?|negotiable|flexible|tbd|per|each|monthly|yearly|annual|annually|sqft|sq\.?\s*ft|sqm|acre|acres)\b/i;
+function daAmountIsWordsOrRange(t) {
+  t = String(t || '');
+  if (DA_AMT_MAGNITUDE_RE.test(t)) return true;
+  if (DA_AMT_MAGSHORT_RE.test(t) && DA_CCY_MARK_RE.test(t)) return true;
+  if ((t.match(DA_MONEY_FIGURE_RE) || []).length >= 2) return true;
+  if (DA_QUALIFIER_RE.test(t)) return true;
+  if (/[~≈<>±]|\d\s*\+/.test(t)) return true;
+  // number - number (a range). Dates and phone numbers are not amounts either.
+  if (/\d[\d,.]*\s*[-–—]\s*(?:\p{Sc}|\b(?:INR|USD|EUR|GBP|JPY|AED|CAD|AUD|SGD|CHF)\b|Rs\.?)?\s?\d/u.test(t)) return true;
+  return false;
+}
+function daFindAmount(v, isSelf) {
   const t = v.trim();
   if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return { match: t, remainder: '' };
+  // Sitting in its own Amount column: it belongs there, keep the whole cell as typed
+  // (the formatter below leaves it alone). Found in some OTHER column: not an amount.
+  if (daAmountIsWordsOrRange(t)) {
+    // Only a cell that really carries money (a currency sign or code, or crore/lakh/million
+    // style words) is kept in place. A stray date, phone number or plain "10-20" is NOT
+    // money, so it keeps the old behaviour and the realigner can still move it.
+    const moneyish = DA_CCY_MARK_RE.test(t) || DA_AMT_MAGNITUDE_RE.test(t);
+    return (isSelf && /\d/.test(t) && moneyish) ? { match: t, remainder: '' } : null;
+  }
   // A whole-cell number with thousands grouping and NO currency symbol --
   // "1,20,000" (Indian lakh grouping), "450,000", "(45,000)" or "45,000-"
   // (accounting negatives). Before this, none of these matched, so the
@@ -2066,7 +2103,7 @@ function daFindAmount(v) {
   // decimal-amount pattern below. The `(?!\s*%)` guard on that pattern
   // closes that specific hole even in a row this fix doesn't otherwise
   // reach (a header whose name doesn't happen to hint "percent").
-  const m = /\p{Sc}\s?\d[\d,.\s]*|\d[\d,]*\.\d+(?!\s*%)/u.exec(t);
+  const m = new RegExp('(?:\\p{Sc}|\\b(?:' + DA_CCY_CODES + ')\\b|\\bRs\\.?)\\s?\\d[\\d,.\\s\']*|\\d[\\d,.\\s\']*\\s?(?:\\p{Sc}|\\b(?:' + DA_CCY_CODES + ')\\b)(?![A-Za-z])|\\d[\\d,]*\\.\\d+(?!\\s*%)', 'u').exec(t);
   if (m) {
     const match = m[0].trim();
     const remainder = (t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length)).trim();
@@ -2172,8 +2209,15 @@ function daNormalizeDateValue(raw) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-// Maps a currency symbol to the locale used to group/format its digits.
-const DA_CURRENCY_LOCALE = { '₹': 'en-IN', '$': 'en-US', '€': 'de-DE', '£': 'en-GB', '¥': 'ja-JP' };
+// Maps a currency sign or code to the locale used to group/format its digits.
+const DA_CURRENCY_LOCALE = { '₹': 'en-IN', '$': 'en-US', '€': 'de-DE', '£': 'en-GB', '¥': 'ja-JP',
+  'R$': 'pt-BR', '₩': 'ko-KR', '₽': 'ru-RU', '₺': 'tr-TR', '₦': 'en-NG', '₱': 'en-PH', '฿': 'th-TH', '₫': 'vi-VN', '₪': 'he-IL', '₴': 'uk-UA', '₸': 'kk-KZ', '₨': 'en-IN',
+  INR: 'en-IN', USD: 'en-US', EUR: 'de-DE', GBP: 'en-GB', JPY: 'ja-JP', CNY: 'zh-CN', RMB: 'zh-CN', AED: 'en-AE', SAR: 'en-SA', QAR: 'en-QA', KWD: 'en-KW', BHD: 'en-BH', OMR: 'en-OM',
+  CAD: 'en-CA', AUD: 'en-AU', NZD: 'en-NZ', SGD: 'en-SG', HKD: 'en-HK', CHF: 'de-CH', SEK: 'sv-SE', NOK: 'nb-NO', DKK: 'da-DK', PLN: 'pl-PL', CZK: 'cs-CZ', HUF: 'hu-HU', RON: 'ro-RO',
+  TRY: 'tr-TR', RUB: 'ru-RU', UAH: 'uk-UA', ZAR: 'en-ZA', NGN: 'en-NG', KES: 'en-KE', EGP: 'ar-EG', MAD: 'fr-MA', GHS: 'en-GH', BRL: 'pt-BR', MXN: 'es-MX', ARS: 'es-AR', CLP: 'es-CL', COP: 'es-CO',
+  PEN: 'es-PE', KRW: 'ko-KR', THB: 'th-TH', VND: 'vi-VN', IDR: 'id-ID', MYR: 'ms-MY', PHP: 'en-PH', PKR: 'en-PK', BDT: 'bn-BD', LKR: 'si-LK', NPR: 'ne-NP', ILS: 'he-IL', TWD: 'zh-TW', Rs: 'en-IN' };
+// Currencies that write 1.234,56 (dot for thousands, comma for decimals).
+const DA_COMMA_DECIMAL_CCY = /^(?:€|R\$|₺|₫|₽|₴|EUR|BRL|TRY|VND|RUB|UAH|PLN|CZK|HUF|RON|SEK|NOK|DKK|IDR|ARS|CLP|COP|CHF)$/;
 
 // Given a column header like "Unit Price (₹)" or "Amount (USD)", returns the
 // currency symbol it names, or null if the header gives no hint. Used only
@@ -2188,36 +2232,60 @@ function daHeaderCurrencySymbol(header) {
   return null;
 }
 
+// Reads the digits of ONE plain amount in either house style: 1,234.56 / 1,20,000 /
+// 1.234,56 / 1 234,56 / 1'234.50. Returns { num, decimals } or null when the digits
+// are not clearly one number (then the cell is left exactly as it was).
+function daParseAmountDigits(body, commaDecimal) {
+  const s = String(body).replace(/[\s']/g, '');
+  if (!/[0-9]/.test(s)) return null;
+  let m;
+  if (/^\d+$/.test(s)) return { num: parseFloat(s), decimals: 0 };
+  if (/^\d+\.\d+$/.test(s)) {
+    if (commaDecimal && /^\d{1,3}\.\d{3}$/.test(s)) return { num: parseFloat(s.replace('.', '')), decimals: 0 };
+    return { num: parseFloat(s), decimals: s.split('.')[1].length };
+  }
+  if (/^\d{1,3}(,\d{2,3})+$/.test(s)) return { num: parseFloat(s.replace(/,/g, '')), decimals: 0 };
+  if ((m = /^(\d{1,3}(?:,\d{2,3})+)\.(\d+)$/.exec(s))) return { num: parseFloat(m[1].replace(/,/g, '') + '.' + m[2]), decimals: m[2].length };
+  if (/^\d{1,3}(\.\d{3}){2,}$/.test(s)) return { num: parseFloat(s.replace(/\./g, '')), decimals: 0 };
+  if ((m = /^(\d{1,3}(?:\.\d{3})+),(\d+)$/.exec(s))) return { num: parseFloat(m[1].replace(/\./g, '') + '.' + m[2]), decimals: m[2].length };
+  if ((m = /^(\d+),(\d{1,2})$/.exec(s)) && commaDecimal) return { num: parseFloat(m[1] + '.' + m[2]), decimals: m[2].length };
+  return null;
+}
+
+// Tidies a cell ONLY when it is one plain amount: an optional currency sign or code
+// in front or behind, then one figure. "1 crore to 2 crore", "$1.5 million", "₹1,000
+// per sqft", "$5k - $10k" and anything else that is words or a range comes back
+// untouched, character for character.
 function daNormalizeAmountValue(raw, header) {
   const t = raw.trim();
   if (/^(n\/a|na|\[blank\]|-|—|--)$/i.test(t)) return 'N/A';
-  // Preserve whichever currency the value actually came in as, instead of
-  // hardcoding '$' onto every amount — a ₹-formatted figure was previously
-  // reformatted as a dollar amount here even after being correctly
-  // identified, which is its own silent-corruption bug on top of the
-  // matching one above.
-  // When the cell itself carries no symbol at all (common with tables
-  // imported from a screenshot/photo, where only the header names the
-  // currency, e.g. "Unit Price (₹)"), fall back to what the header says
-  // instead of silently defaulting to '$'.
-  let symbol;
-  if (/₹/.test(t)) symbol = '₹';
-  else if (/€/.test(t)) symbol = '€';
-  else if (/£/.test(t)) symbol = '£';
-  else if (/¥/.test(t)) symbol = '¥';
-  else if (/\$/.test(t)) symbol = '$';
-  else {
-    // No symbol in the cell and none named by the header: keep the value
-    // exactly as it came. Stamping '$' on it turned rupee figures such as
-    // "1,20,000" into "$120,000.00", which is wrong data, not formatting.
-    symbol = daHeaderCurrencySymbol(header);
-    if (!symbol) return raw;
+  if (daAmountIsWordsOrRange(t)) return raw;
+  const TOK = '(?:[A-Z]{1,2}\\$|\\p{Sc}|' + DA_CCY_CODES + '|Rs\\.?)';
+  const m = new RegExp('^(-?)\\s*(' + TOK + ')?\\s*(-?)\\s*([0-9OoIl][0-9OoIl,.\\s\']*)\\s*(' + TOK + ')?$', 'u').exec(t);
+  if (!m) return raw;
+  const neg = (m[1] || m[3]) ? '-' : '';
+  let prefix = m[2] || '', suffix = m[5] || '';
+  if (prefix && suffix) return raw;
+  let token = prefix || suffix;
+  let body = m[4].trim();
+  // OCR digit swaps (O->0, l/I->1) only when the figure is otherwise digits.
+  if (/[OoIl]/.test(body) && !/^[0-9OoIl,.\s']+$/.test(body)) return raw;
+  body = DA_OCR_DIGIT_LENIENT(body);
+  if (!token) {
+    token = daHeaderCurrencySymbol(header);
+    if (!token) return raw;   // no sign, none named by the header: keep exactly as typed
+    prefix = token;
   }
-  const cleaned = DA_OCR_DIGIT_LENIENT(t).replace(/[$₹€£¥,\s]/g, '');
-  const num = parseFloat(cleaned);
-  if (isNaN(num)) return raw;
-  const locale = DA_CURRENCY_LOCALE[symbol] || 'en-US';
-  return symbol + num.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const key = token.replace(/\.$/, '');
+  const parsed = daParseAmountDigits(body, DA_COMMA_DECIMAL_CCY.test(key));
+  if (!parsed || !isFinite(parsed.num)) return raw;
+  const locale = DA_CURRENCY_LOCALE[key] || 'en-US';
+  const frac = Math.min(Math.max(parsed.decimals, 2), 6);
+  let out;
+  try { out = parsed.num.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: frac }); } catch (e) { return raw; }
+  const isCode = /^[A-Za-z]+$/.test(key);
+  if (prefix) return neg + prefix + (isCode ? ' ' : '') + out;
+  return neg + out + ' ' + suffix;
 }
 
 function daNormalizePercentValue(raw) {
@@ -2309,11 +2377,28 @@ function daSmartTypeRealign(headers, rows) {
     if (own > 0 && inPlace === 0 && elsewhere === 0) headerTypes[i] = 'text';
   });
 
+  // SAFETY 1b -- headers such as "Invoice No", "Order No", "Ref No" or "Flat No" end in "No", so
+  // they were guessed as a plain-number column. Their real values are identifier CODES
+  // (INV-001, ORD1234, A-101). A code never matches a plain number, so the realigner "repaired"
+  // a table that was already perfect: it pulled INV-001 out and glued it onto the next column
+  // ("INV-001 Shah Traders"). If EVERY filled cell under a number-style header is a code (letters
+  // and digits in one token), the header was a false alarm: treat the column as plain text.
+  const DA_CODE_TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9][A-Za-z0-9\-\/_.#]*$/;
+  headerTypes.forEach((t, i) => {
+    if (t !== 'number') return;
+    const own = rows.map(row => String(row[i] !== undefined && row[i] !== null ? row[i] : '').trim()).filter(Boolean);
+    if (own.length && own.every(v => DA_CODE_TOKEN.test(v))) headerTypes[i] = 'text';
+  });
+
   // SAFETY 2 -- realigning exists to repair rows whose cells slid sideways
   // (OCR, PDF text, messy pastes). A table whose typed columns already hold the
   // right kind of value in (nearly) every filled cell is NOT messy, so no cell
   // is moved. Values are still tidied into one consistent format in place.
-  const typedNow = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t !== 'text');
+  // Phone / PAN / GSTIN / account-style columns are never moved by the realigner, so they must not
+  // vote on whether the table is messy either. A real phone number ("+91 98765 43210",
+  // "079-26581234") never looks like a plain integer, so a clean table was being judged messy
+  // and a blank cell then slid every later value one column left.
+  const typedNow = headerTypes.map((t, i) => ({ t, i })).filter(x => x.t !== 'text' && !DA_PROTECTED_HEADER_RE.test(String(headers[x.i] || '')));
   const looksAligned = typedNow.every(({ t, i }) => {
     let own = 0, ok = 0;
     rows.forEach(row => {
