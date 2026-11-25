@@ -688,6 +688,29 @@ function daComputedRowsForExport(ds) {
   }));
 }
 
+// The rows the person can SEE right now: the search box and the Filter Rows popover applied,
+// exactly the same test daRenderTable uses to draw the grid. Returns row positions in ds.rows.
+// Anything that leaves the grid on the person's behalf (Push to Diagrams) must use this, so a
+// table filtered down to 15 of 50 rows pushes 15 rows, not 50. The search box belongs to the tab
+// on screen, so it only counts when ds is that tab.
+function daVisibleRowIndices(ds) {
+  if (!ds || !ds.rows) return [];
+  const active = (typeof daGetActive === 'function') ? daGetActive() : null;
+  const box = (active && active.id === ds.id) ? document.getElementById('daSearchInput') : null;
+  const query = ((box && box.value) || '').trim().toLowerCase();
+  ds._calcCache = new Map();
+  const rules = daFilterActiveRules(ds);
+  const filterActive = rules.length > 0;
+  const matchAll = daFilterGetState(ds).match !== 'any';
+  const out = [];
+  ds.rows.forEach((r, i) => {
+    if (query && !r.some(c => String(c ?? '').toLowerCase().includes(query))) return;
+    if (filterActive && !daFilterRowPasses(ds, i, rules, matchAll)) return;
+    out.push(i);
+  });
+  return out;
+}
+
 // ─── INTERCONNECT TABLES (opt-in switch) ────────────────────────────────
 // OFF (default): tabs are independent, exactly as before. ON: formulas may
 // reach into other tabs ('Table'!B2, Orders!D2:D50), lookups work across

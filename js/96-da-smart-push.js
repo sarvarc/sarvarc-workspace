@@ -103,12 +103,14 @@ function daSpAggregate(list, how) {
 function daSpRound(n) { return Math.round(n * 1e6) / 1e6; }
 
 // headers: [..], rows: [[..]] of computed (plain) cell values. Returns null when the old push is fine.
-function daSpPlan(headers, rows) {
+function daSpPlan(headers, rows, opts) {
   if (!headers || !rows || rows.length < 2) return null;
   const cols = headers.map((_, i) => daSpColumn(headers, rows, i));
   const measures = cols.filter(c => c.kind === 'measure');
   const blocked = cols.filter(c => c.kind === 'yearsum');
-  if (!measures.length) return null;
+  // No real number column (a leads list, survey answers, a status sheet): the honest chart is
+  // "how many rows fall in each group", not one bar per person.
+  if (!measures.length) return daSpCountPlan(headers, rows, cols, opts);
   const textCols = cols.filter(c => c.kind === 'text' && c.distinct >= 2 && c.repeats);
   const yearCols = cols.filter(c => c.kind === 'year');
   const primary = measures[0];
@@ -201,9 +203,72 @@ function daSpPlan(headers, rows) {
     droppedGroups: dropped, blockedColumns: blocked.map(b => b.name) };
 }
 
+// ── Count mode ─────────────────────────────────────────────────────────────────────────────
+// A table with no real number column (a buyer-enquiry list, survey answers, a task list) used to be
+// charted one bar per ROW, with digits dragged out of text ("₹50-75L" became 5075, "3 BHK" became 3,
+// "DEMO-0003" became 3). What the person wants from such a table is "how many in each group".
+// This builds that: one bar per group, bar = number of rows. Pure logic, no DOM.
+const DA_SP_UNIT_LAKH = { cr: 100, crore: 100, crores: 100, l: 1, lac: 1, lacs: 1, lakh: 1, lakhs: 1, k: 0.01, thousand: 0.01, m: 10, mn: 10, million: 10, bn: 10000, b: 10000, billion: 10000 };
+const DA_SP_BAND_RE = /(\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)\s*(crores?|cr|lakhs?|lacs?|million|thousand|billion|mn|bn|l|k|m|b)?(?![a-z])/gi;
+
+// Where a band label like "₹75L–1Cr", "₹30–50L", "Below ₹30L", "3 BHK" sits on a number line, so
+// the bars can run low to high instead of biggest first. Returns NaN when the label has no number.
+function daSpBandKey(label) {
+  const t = String(label == null ? '' : label);
+  const hits = []; let m; DA_SP_BAND_RE.lastIndex = 0;
+  while ((m = DA_SP_BAND_RE.exec(t)) !== null) hits.push({ n: parseFloat(/^\d{1,3}(,\d{2,3})+/.test(m[1]) ? m[1].replace(/,/g, '') : m[1].replace(',', '.')), u: m[2] ? m[2].toLowerCase() : '' });
+  if (!hits.length) return NaN;
+  // A bare number ("30" in "30-50L") takes the unit written after the range.
+  const lastUnit = hits.slice().reverse().map(h => h.u).find(Boolean) || '';
+  const first = hits[0]; const unit = first.u || lastUnit;
+  let key = first.n * (DA_SP_UNIT_LAKH[unit] || 1);
+  if (/^\s*(below|under|less|up to|upto|<)/i.test(t)) key -= 0.001;
+  return key;
+}
+
+function daSpCountPlan(headers, rows, cols, opts) {
+  const prefer = opts && opts.preferCol >= 0 ? cols[opts.preferCol] : null;
+  let pick = null;
+  if (prefer && (prefer.kind === 'text' || prefer.kind === 'year') && prefer.filled > 0) pick = prefer;   // the person chose it
+  if (!pick) {
+    // A good axis: text, a handful of groups, and the groups repeat (so there is something to count).
+    const cands = cols.filter(c => c.kind === 'text' && c.distinct >= 2 && c.distinct <= 30 && c.repeats && c.distinct <= c.filled * 0.8);
+    if (!cands.length) return null;
+    cands.sort((a, b) => (Math.abs(a.distinct - 5) - Math.abs(b.distinct - 5)) || (a.idx - b.idx));
+    pick = cands[0];
+  }
+  const order = []; const bucket = new Map(); let blank = 0;
+  rows.forEach(r => {
+    const raw = String(r && r[pick.idx] != null ? r[pick.idx] : '').trim();
+    if (!raw) { blank++; return; }
+    const k = raw.toLowerCase();
+    if (!bucket.has(k)) { bucket.set(k, { label: raw, n: 0 }); order.push(k); }
+    bucket.get(k).n++;
+  });
+  let groups = order.map(k => bucket.get(k));
+  if (!groups.length) return null;
+  const withNum = groups.filter(g => !isNaN(daSpBandKey(g.label))).length;
+  if (pick.kind === 'year') groups.sort((a, b) => Number(a.label) - Number(b.label));
+  else if (withNum / groups.length >= 0.8) groups.sort((a, b) => (daSpBandKey(a.label) - daSpBandKey(b.label)) || (b.n - a.n));
+  else groups.sort((a, b) => (b.n - a.n) || a.label.localeCompare(b.label));
+  const LIMIT = 40;
+  if (groups.length > LIMIT) {
+    const top = groups.slice(0, LIMIT - 1), rest = groups.slice(LIMIT - 1);
+    groups = top.concat([{ label: 'Other (' + rest.length + ')', n: rest.reduce((t, g) => t + g.n, 0) }]);
+  }
+  const total = rows.length - blank;
+  const aoa = [[pick.name, 'Records']].concat(groups.map(g => [g.label, g.n]));
+  const notes = ['Counted rows by ' + pick.name + ' (' + total + ' rows, each bar is how many rows are in that group)'];
+  if (blank) notes.push(blank + ' rows with no ' + pick.name + ' left out');
+  if (groups.length === 1) notes.push('All pushed rows share the same ' + pick.name + ', so pick another column in the grid to see a spread');
+  const title = 'Records by ' + pick.name;
+  return { aoa, name: title.replace(/\./g, ''), title, mode: 'count', groupName: pick.name, measure: 'Records',
+    notes, chartType: null, droppedGroups: [], blockedColumns: [] };
+}
+
 // Used by daPushToDiagrams (js/32). ds = the active table; rows = its computed values.
-function daSmartPushPlan(ds, computedRows) {
-  try { return daSpPlan(ds.headers.map(daSpClean), computedRows); }
+function daSmartPushPlan(ds, computedRows, opts) {
+  try { return daSpPlan(ds.headers.map(daSpClean), computedRows, opts); }
   catch (e) { console.warn('[Smart push] fell back to plain push', e); return null; }
 }
 // Runs right after the chart has been built from the plan.

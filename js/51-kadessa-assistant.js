@@ -2179,7 +2179,8 @@
     rows.forEach(function(r){
       var k = String(r[gi] == null ? '' : r[gi]).trim();
       if (!k) return;
-      var v = daFilterNum(r[mi]);
+      // mi < 0 means "no number column": every row counts as 1, so the answer is a row count.
+      var v = mi < 0 ? 1 : daFilterNum(r[mi]);
       if (isNaN(v)) return;
       if (!map[k]){ map[k] = { k: k, sum: 0, n: 0 }; order.push(k); }
       map[k].sum += v; map[k].n++;
@@ -2187,8 +2188,15 @@
     return order.map(function(k){ var g = map[k]; g.avg = g.n ? g.sum / g.n : 0; return g; });
   }
   function kdaAnalyseGroup(rows, headers, prof, a){
-    var gi = kdaCol(headers, a.group_by, 'the group'), mi = kdaCol(headers, a.measure, 'the measure');
+    var gi = kdaCol(headers, a.group_by, 'the group');
     var how = String(a.agg || '').toLowerCase();
+    // No measure given (a leads list, survey answers, a table with no number column), or the
+    // measure is not a real column and the ask is a count: count the rows in each group.
+    var wantsMeasure = !!(a.measure && String(a.measure).trim() && !/^(undefined|null|none)$/i.test(String(a.measure).trim()));
+    var mi = -1;
+    if (wantsMeasure && how !== 'count') mi = kdaCol(headers, a.measure, 'the measure');
+    // Counting rows never needs a number column, so a count ignores the measure (it may be text).
+    if (mi < 0 || how === 'count') { mi = -1; how = 'count'; }
     if (how !== 'sum' && how !== 'average' && how !== 'count') how = (prof[mi] && prof[mi].combine) || 'sum';
     var list = kdaGroup(rows, gi, mi);
     if (!list.length) return null;
@@ -2197,7 +2205,7 @@
     var cur = how === 'count' ? '' : kdaCur(prof, mi);
     var total = list.reduce(function(t, g){ return t + val(g); }, 0);
     var top = Math.max(1, Math.min(Number(a.top) || 5, 8));
-    var out = [headers[mi] + ' by ' + headers[gi] + ' (' + (how === 'count' ? 'number of rows' : how === 'average' ? 'average' : 'total') + '):'];
+    var out = [(mi < 0 ? 'Rows' : headers[mi]) + ' by ' + headers[gi] + ' (' + (how === 'count' ? 'number of rows' : how === 'average' ? 'average' : 'total') + '):'];
     list.slice(0, top).forEach(function(g){
       out.push('- ' + g.k + ': ' + kdaMoney(val(g), cur) + (how === 'sum' && total > 0 ? ' (' + kdaPct(val(g) / total * 100) + ')' : ''));
     });

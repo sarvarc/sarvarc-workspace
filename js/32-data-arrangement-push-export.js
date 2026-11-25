@@ -136,10 +136,25 @@ function daPushToDiagrams(triggerEl) {
   // Smart push (js/96): read the table the way an analyst would (what is being counted, which
   // column is the real axis, which numbers must never be added) and hand the chart builder a
   // clean, grouped table. Returns null when the table is already chart-ready: plain push then.
-  const computedRows = daComputedRowsForExport(ds);
-  const smart = (typeof daSmartPushPlan === 'function') ? daSmartPushPlan(ds, computedRows) : null;
+  // Only the rows the person can see: if the table is filtered (or searched) down to 15 of 50 rows,
+  // 15 rows go to the chart. Formulas are worked out on the whole table first, then the visible
+  // rows are picked, so a formula that reads other rows still gets the right answer.
+  const visibleIdx = (typeof daVisibleRowIndices === 'function') ? daVisibleRowIndices(ds) : ds.rows.map((_, i) => i);
+  if (!visibleIdx.length) { toast('No rows match your filter, so there is nothing to chart. Clear the filter or change it.', 'info'); return; }
+  const allComputed = daComputedRowsForExport(ds);
+  const computedRows = visibleIdx.map(i => allComputed[i]);
+  const filteredNote = visibleIdx.length < ds.rows.length ? ('Charted the ' + visibleIdx.length + ' rows you filtered (of ' + ds.rows.length + ')') : '';
+  // One column picked in the grid = the person wants THAT column charted.
+  let preferCol = -1;
+  try {
+    if (typeof daSelection !== 'undefined' && daSelection && daSelection.cols && daSelection.cols.size === 1 && daSelectionDsId === ds.id) preferCol = Array.from(daSelection.cols)[0];
+  } catch (e) { preferCol = -1; }
+  const smart = (typeof daSmartPushPlan === 'function') ? daSmartPushPlan(ds, computedRows, { preferCol }) : null;
+  if (smart && filteredNote) smart.notes = [filteredNote].concat(smart.notes || []);
   const aoa = smart ? smart.aoa : [ds.headers.slice(), ...computedRows];
   const name = smart ? smart.name : (ds.name || 'Table data');
+  // The smart push already tells the person what it did. A plain push says nothing, so say it here.
+  if (!smart && filteredNote) setTimeout(() => toast(filteredNote, 'info'), 600);
 
   // If Diagrams & Graphs already has a real chart loaded (not just the
   // default placeholder), ask before overwriting instead of silently

@@ -4684,6 +4684,15 @@ function dgParseNumericCell(v) {
     return isNaN(n) ? NaN : (negative && n > 0 ? -n : n);
   }
 
+  // A RANGE is not a number. "₹50-75L", "3-6 months", "1 to 2 Cr", "75L-1Cr" used to lose every
+  // non-digit and glue the two ends together (50-75L became 5075). Such a cell is a label, so it is
+  // not numeric. Dates (2024-01-15) keep their old behaviour, and "45,000-" (a trailing minus)
+  // and "-20" have no digit on both sides of the dash, so they are not touched.
+  // Currency words can repeat on both ends ("USD 50,000 - USD 70,000", "Rs. 50 - Rs. 70 lakh"), so they are
+  // taken out of a COPY first. Joiners: a dash, "to", or "and" ("between 50 and 70 lakhs").
+  const rangeText = s.replace(/\b(?:rs|inr|usd|aud|cad|eur|gbp|nzd|sgd|aed|chf|rupees?|dollars?)\b\.?/gi, ' ');
+  if (!/^\d{4}-\d{1,2}-\d{1,2}/.test(s) && /\d\s*[A-Za-z]{0,10}\.?\s*(?:-|\bto\b|\band\b)\s*\d/i.test(rangeText)) return NaN;
+
   // "1.5K" → 1,500 · "2M" → 2,000,000 · "1.2 Cr" → 12,000,000. Previously the letter was
   // stripped and the value silently came out 1000x / 1,000,000x too small.
   let mult = 1;
@@ -4976,10 +4985,12 @@ function dgBucketDateRows(parsed, maxPoints) {
 
 // Columns that are numbers on paper but never a measure worth plotting: note / serial / reference
 // numbers, and personal identifiers (mobile, PAN, GSTIN, Aadhaar, account numbers, PIN codes).
-const DG_NON_MEASURE_HEADER_RE = /^(notes?(\s*(no|number|ref))?|sr\.?\s*no|s\.?\s*no|sl\.?\s*no|serial(\s*(no|number))?|ref(erence)?(\s*(no|number|id))?|schedule|id|mobile|phone|contact|pan|gstin|gst\s*(no|number)|aadhaar|aadhar|uan|ifsc|pin\s*code|pincode|zip(\s*code)?|postal\s*code|account\s*(no|number)|folio|#)(\s*\(.*\))?$/i;
+const DG_NON_MEASURE_HEADER_RE = /^(notes?(\s*(no|number|ref))?|sr\.?\s*no|s\.?\s*no|sl\.?\s*no|serial(\s*(no|number))?|ref(erence)?(\s*(no|number|id))?|schedule|id|mobile(\s*(no|number))?|phone(\s*(no|number))?|contact(\s*(no|number))?|pan|gstin|gst\s*(no|number)|aadhaar|aadhar|uan|ifsc|pin\s*code|pincode|zip(\s*code)?|postal\s*code|account\s*(no|number)|folio|#)(\s*\(.*\))?$/i;
 // "ABCDE1234F" (a PAN) or "24ABCDE1234F1Z5" (a GSTIN): letters on both sides of a run of digits.
 // dgParseNumericCell strips the letters and reads these as 1234, which is not a number at all.
 const DG_ID_CODE_RE = /[A-Za-z]\d+[A-Za-z]/;
+// A code made of a word then digits (DEMO-0003, INV001, EMP_12): never a measure.
+const DG_PREFIX_CODE_RE = /^(?!(?:rs|inr|usd|aud|cad|eur|gbp|nzd|sgd|aed|chf)(?![a-z]))(?:[A-Za-z]{2,}[-_]\d+|[A-Za-z]{3,}\d+)$/i;
 const DG_LONG_DIGITS_RE = /^\+?\d{10,}$/;
 
 function dgColumnIsNumeric(colIdx) {
@@ -5010,7 +5021,7 @@ function dgColumnIsNumeric(colIdx) {
     const s = String(v ?? '').trim();
     if (s === '') return;
     total++;
-    if (DG_ID_CODE_RE.test(s)) return; // identifier code, not a number
+    if (DG_ID_CODE_RE.test(s) || DG_PREFIX_CODE_RE.test(s)) return; // identifier code, not a number
     if (typeof v !== 'number' && DG_LONG_DIGITS_RE.test(s.replace(/[\s-]/g, ''))) idLike++; // phone / account-length digit run
     if (!isNaN(dgParseNumericCell(v))) numeric++;
   });
