@@ -22,6 +22,7 @@
     try { localStorage.setItem(USE_KEY, JSON.stringify(p)); } catch (e) {}
     bkToggleRefresh();
     if (scope === 'forms' && on && typeof window.mfRefreshBrandKit === 'function') { try { window.mfRefreshBrandKit(); } catch (e) {} }
+    if (scope === 'forms' && !on && typeof window.mfRemoveBrandKit === 'function') { try { window.mfRemoveBrandKit(); } catch (e) {} }
   };
   // true only when the person ticked it AND a kit exists
   window.bkActive = function (scope) { return window.bkUseGet(scope) && hasKit(); };
@@ -37,6 +38,22 @@
     return out;
   };
 
+
+  // Letterhead (Kadessa, pdfed_create_letterhead): what the kit offers when "Kadessa follows my Brand Kit" is ON.
+  // logo + business name, tagline, contact line and address, so a letterhead never needs the logo attached again.
+  // Returns null when the switch is off or the kit is empty.
+  window.bkLetterheadKit = function () {
+    if (!window.bkActive('kadessa')) return null;
+    var k = kitRead();
+    var site = String(k.website || '').replace(/^\s*https?:\/\//i, '').replace(/^www\./i, '').replace(/\/+$/, '');
+    return {
+      logo: k.logo || null,
+      title: k.company || '',
+      subheading: k.tagline || '',
+      contact: [k.phone, k.email, site].filter(Boolean).join(' · '),
+      address: k.address || ''
+    };
+  };
   window.bkOpenSettings = function () {
     try { if (typeof navigate === 'function') navigate('settings'); if (typeof stgTab === 'function') stgTab('brand'); } catch (e) {}
   };

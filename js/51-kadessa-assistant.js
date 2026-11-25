@@ -3930,7 +3930,7 @@
     pdfed_create_letterhead: {
       risk: 'safe',
       run: async function(p){ return await pdfedCreateEmptyLetterhead(p || {}); },
-      label: function(){ return 'Create a blank, watermarked letterhead from your logo.'; }
+      label: function(){ return 'Create a blank, watermarked letterhead from your logo (or your saved Brand Kit).'; }
     },
 
     // ── DAILY-USE RIBBON ACTIONS ─────────────────────────────────────────

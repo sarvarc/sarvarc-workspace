@@ -2033,22 +2033,31 @@ function mfApplyBrandKit(f, opts) {
   try { kit = (typeof bkLoad === 'function') ? bkLoad() : null; } catch (e) { kit = null; }
   if (!kit || (typeof bkActive === 'function' && !bkActive('forms'))) return null;
   let changed = false, logoAdded = false;
+  // The form remembers exactly what the kit put in (f.bkAdded), so switching the kit OFF can take out only that.
+  if (!f.bkAdded) f.bkAdded = { social: {} };
+  if (!f.bkAdded.social) f.bkAdded.social = {};
   if (!f.logoDataUrl && kit.logo) {
     f.logoDataUrl = kit.logo;
+    f.bkAdded.logo = mfBkSig(kit.logo);
+    f.bkAdded.watermark = [f.watermarkOn, f.watermarkOpacity];   // what they were before, to put back
     if (f.watermarkOn == null) f.watermarkOn = true;
     if (f.watermarkOpacity == null) f.watermarkOpacity = 8;
     changed = true; logoAdded = true;
   }
   const kitLinks = mfBrandKitSocials();
   if (!f.socialLinks) f.socialLinks = {};
-  Object.keys(kitLinks).forEach(k => { if (!f.socialLinks[k]) { f.socialLinks[k] = kitLinks[k]; changed = true; } });
+  Object.keys(kitLinks).forEach(k => {
+    if (!f.socialLinks[k]) { f.socialLinks[k] = kitLinks[k]; f.bkAdded.social[k] = kitLinks[k]; changed = true; }
+  });
   f.bkApplied = true;
   // Accent colour from the logo (same colour reading the logo upload uses). Only for a new form, so a colour the
   // person already chose on an older form is left alone. It finishes a moment later and then refreshes the screen.
   if (logoAdded && opts && opts.accent && typeof pdfedExtractLogoColors === 'function') {
+    const before = f.accentColor;
     pdfedExtractLogoColors(f.logoDataUrl).then(cols => {
-      if (!cols || !cols.length) return;
+      if (!cols || !cols.length || !f.bkAdded || !f.bkAdded.logo) return;   // switched off in the meantime
       f.accentColor = cols[0];
+      f.bkAdded.accent = { from: before, to: cols[0] };
       // a waiting empty draft must still count as untouched
       if (f._draft && f._draftSig) f._draftSig = mfFormSig(f);
       if (!f._draft) mfPersist();
@@ -2056,6 +2065,43 @@ function mfApplyBrandKit(f, opts) {
     }).catch(() => {});
   }
   return changed;
+}
+
+// Short fingerprint of a picture, so a form can tell "the kit's logo" from a logo the person uploaded later.
+function mfBkSig(str) {
+  str = String(str || '');
+  let h = 0;
+  for (let i = 0; i < str.length; i += 7) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return str.length + ':' + h;
+}
+
+// The "Make Forms" switch was turned OFF: take back what the kit added to every form, and ONLY that.
+// A logo, link or colour the person put in or changed themselves is left exactly as it is.
+function mfRemoveBrandKit() {
+  let touched = 0;
+  (mfState.forms || []).forEach(f => {
+    if (!f || f.kind === 'canvas' || !f.bkAdded) return;
+    const a = f.bkAdded;
+    if (a.logo && f.logoDataUrl && mfBkSig(f.logoDataUrl) === a.logo) {
+      f.logoDataUrl = null;
+      if (a.watermark) { f.watermarkOn = a.watermark[0]; f.watermarkOpacity = a.watermark[1]; }
+    }
+    Object.keys(a.social || {}).forEach(k => {
+      if (f.socialLinks && f.socialLinks[k] === a.social[k]) delete f.socialLinks[k];
+    });
+    if (a.accent && f.accentColor === a.accent.to) f.accentColor = a.accent.from || '#0073E6';
+    delete f.bkAdded;
+    f.bkApplied = false;          // switching it back ON fills the form again the next time it is opened
+    if (f._draft && f._draftSig) f._draftSig = mfFormSig(f);
+    else f.updatedAt = Date.now();
+    touched++;
+  });
+  if (touched) mfPersist();
+  const cur = mfGetCurrentForm();
+  if (cur && cur.kind !== 'canvas' && document.getElementById('mfLogoThumb')) {
+    mfRenderLogoThumb(); mfRenderWatermarkControls(); mfRenderSocialLinks(); mfRenderAccentSwatches(); mfRenderPreview();
+  }
+  return touched;
 }
 
 // Old forms get the kit once, the first time they are opened. After that the form is left alone,
@@ -5489,6 +5535,7 @@ window.mfSetLogoFromDataUrl = mfSetLogoFromDataUrl;
 window.mfSetBannerFromDataUrl = mfSetBannerFromDataUrl;
 window.mfRenderSocialLinks = mfRenderSocialLinks;
 window.mfRefreshBrandKit = mfRefreshBrandKit;
+window.mfRemoveBrandKit = mfRemoveBrandKit;
 window.mfDuplicateForm = mfDuplicateForm;
 window.mfDuplicateCurrent = mfDuplicateCurrent;
 window.mfDeleteForm = mfDeleteForm;

@@ -4136,8 +4136,26 @@ async function pdfedRunRefineReportAuto(overrides) {
 // mark, same pattern as bk_set_brand_kit's use_attached_logo check above.
 async function pdfedCreateEmptyLetterhead(p) {
   p = p || {};
-  const logo = (typeof pdfedRefineState !== 'undefined') ? pdfedRefineState.logoDataUrl : null;
-  if (!logo) throw new Error('no logo is attached yet -- ask the person to attach one using the paperclip in my chat, then try again');
+  let logo = (typeof pdfedRefineState !== 'undefined') ? pdfedRefineState.logoDataUrl : null;
+  // Brand Kit (Settings > Brand Kit, "Kadessa follows my Brand Kit" ON): when no logo was attached in chat,
+  // the saved kit logo is used, and the kit's name, slogan, contact and address fill the header lines the
+  // person did not give. Anything attached or typed in chat always wins over the kit.
+  const bk = (typeof bkLetterheadKit === 'function') ? bkLetterheadKit() : null;
+  if (!logo && bk && bk.logo) {
+    logo = bk.logo;
+    pdfedRefineState.logoDataUrl = logo;
+    let colors = [];
+    try { colors = await pdfedExtractLogoColors(logo); } catch (err) { console.error('Logo color extraction failed', err); }
+    pdfedRefineState.logoColors = colors;
+    pdfedRefineState.logoAccent = colors[0] || null;
+  }
+  if (!logo) throw new Error('no logo is attached yet and none is saved in the Brand Kit -- ask the person to attach one using the paperclip in my chat, or save one in Settings > Brand Kit, then try again');
+  if (bk) {
+    if (p.header_title == null && bk.title) p.header_title = bk.title;
+    if (p.header_subheading == null && bk.subheading) p.header_subheading = bk.subheading;
+    if (p.header_contact == null && bk.contact) p.header_contact = bk.contact;
+    if (p.header_address == null && bk.address) p.header_address = bk.address;
+  }
   if (!pdfed.pages.length) {
     // position omitted (not 'end') so this also works as the very first
     // page of a brand-new, currently-empty document -- isNewDoc inside
