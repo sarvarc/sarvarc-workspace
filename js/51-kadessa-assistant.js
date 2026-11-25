@@ -908,7 +908,7 @@
     // Settings > Brand Kit > "Kadessa follows my Brand Kit": hand her the saved business details for every turn.
     try {
       const bk = (typeof bkKadessaContext === 'function') ? bkKadessaContext() : null;
-      if (bk && out && out.activePanel) out = Object.assign({}, out, { brandKit: bk });
+      if (bk) out = Object.assign({}, out || {}, { brandKit: bk });   // also on Settings and other screens that send no panel context
     } catch (e) { /* never let this break a chat turn */ }
     // Build 245: every form in the session (ids, titles, response counts,
     // field labels, published state, whether its table is already in Data
