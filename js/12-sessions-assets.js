@@ -818,11 +818,11 @@ function smPresentModules(snapshot) {
 // captured at save time from a different tab).
 const SM_MODULE_TILE_COLOR = {
   workspace: '#2f6fed', dataarrange: '#1f9d63', makeforms: '#8b5cf6',
-  diagrams: '#e08a2c', extract: '#00b3c6', redact: '#e0473f'
+  diagrams: '#e08a2c', extract: '#00b3c6', redact: '#e0473f', brandkit: '#c2410c'
 };
 const SM_MODULE_TILE_LABEL = {
   workspace: 'PDF', dataarrange: 'TABLE', makeforms: 'FORM',
-  diagrams: 'CHART', extract: 'IMAGE', redact: 'REDACT'
+  diagrams: 'CHART', extract: 'IMAGE', redact: 'REDACT', brandkit: 'BRAND'
 };
 
 // Synthesizes a small preview of a table straight from its real headers and
@@ -930,8 +930,11 @@ async function smModuleTileImage(key) {
       const pg = rdxState.docs[0].pages && rdxState.docs[0].pages[0];
       if (pg && pg.canvas) return pg.canvas.toDataURL('image/jpeg', 0.8);
     }
+    if (key === 'brandkit') {
+      const bk = smSafeParse(localStorage.getItem('sarvarc_brand_kit_v1'));
+      return (bk && typeof bk.logo === 'string' && bk.logo.indexOf('data:image') === 0) ? bk.logo : null;
+    }
     if (key === 'diagrams') {
-      const cv = document.getElementById('dgCanvas');
       if (cv && cv.width && cv.height) return cv.toDataURL('image/jpeg', 0.8);
     }
     if (key === 'dataarrange' && typeof daState !== 'undefined' && daState.datasets && daState.datasets.length) {
@@ -981,6 +984,8 @@ async function smDrawTile(ctx, key, x, y, w, h) {
 // everything that's actually in that checkpoint at a glance instead of
 // just whichever module happened to be open when it was saved.
 async function smComposeThumbnail(presentModules) {
+  const work = presentModules.filter(function (k) { return k !== 'brandkit'; });
+  if (work.length) presentModules = work;
   if (!presentModules.length) return null;
   const W = 320, H = 240;
   const can = document.createElement('canvas');
@@ -1736,6 +1741,17 @@ const SM_MODULE_MANIFEST = [
       const n = d && Array.isArray(d.docs) ? d.docs.length : 0;
       return { present: n > 0, detail: n > 0 ? (n + (n === 1 ? ' document' : ' documents')) : 'no data' };
     }
+  },
+  {
+    key: 'brandkit', label: 'Brand Kit',
+    icon: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+    check: function (snap) {
+      const k = smSafeParse(snap.ls && snap.ls['sarvarc_brand_kit_v1']);
+      if (!k || typeof k !== 'object') return { present: false, detail: 'no data' };
+      const soc = k.social && Object.keys(k.social).length;
+      const has = !!(k.logo || k.company || k.tagline || k.address || k.phone || k.email || k.website || k.gst || soc);
+      return { present: has, detail: has ? (k.company ? String(k.company).slice(0, 24) : (k.logo ? 'logo' : 'saved')) : 'no data' };
+    }
   }
 ];
 
@@ -1748,7 +1764,10 @@ const SM_MODULE_STORAGE = {
   makeforms:   { ls:  ['sarvarcForms', 'sarvarcSignDocs'], idb: ['sarvarcFormsAttachments', 'sarvarcSignDocFiles'] },
   diagrams:    { ls:  ['sarvarcDgHistory_v1', 'sarvarcDgState_v1', 'sarvarcDgFlowState_v1'] },
   extract:     { idb: ['sarvarcExtractState_v1'] },
-  redact:      { idb: ['sarvarcRedactState_v1'] }
+  redact:      { idb: ['sarvarcRedactState_v1'] },
+  // Brand Kit belongs to the SESSION (project), not the account: it is saved in the
+  // session snapshot, synced to Drive with it, restored on load, and wiped by New Project.
+  brandkit:    { ls:  ['sarvarc_brand_kit_v1', 'sarvarc_brand_use_v1'] }
 };
 
 // One checkbox pill per module. Ticked by default when the module has data
@@ -2364,6 +2383,78 @@ function smQuickSave() {
   smOpenSessionsPage();
 }
 
+// ─── Brand Kit <-> session ──────────────────────────────────────────────────
+// The kit lives inside each session snapshot (module 'brandkit'). These two helpers
+// let Settings > Brand Kit keep the CURRENT session's copy (local + Google Drive) up to
+// date the moment the kit is saved, without rewriting that session's other modules.
+
+// The one saved session the live work belongs to (same rule Save Your Workflow uses to
+// decide "update" vs "new"), or null when there isn't a single obvious one.
+function smSingleLinkedSessionId() {
+  const links = smGetActiveLinks();
+  const ids = Object.keys(SM_MODULE_STORAGE).filter(function (mk) { return mk !== 'brandkit'; })
+    .map(function (mk) { return links[mk]; });
+  const first = ids[0];
+  return (first && ids.every(function (x) { return x === first; })) ? first : null;
+}
+
+// Writes the live Brand Kit into session `id` and mirrors that session to Drive.
+// Returns { rec, drive } where drive is 'synced' | 'local' | 'failed', or null when the
+// session is gone or locked.
+async function smUpdateSessionBrandKit(id) {
+  const db = await idbKvOpen();
+  const existing = await new Promise(function (resolve, reject) {
+    const tx = db.transaction('sessions', 'readonly');
+    const req = tx.objectStore('sessions').get(id);
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { reject(req.error); };
+  });
+  if (!existing) return null;
+  const access = await smCheckSessionAccess(existing);
+  if (!access.ok) { smShowLockedMessage(access); return null; }
+
+  const snapshot = { ls: Object.assign({}, (existing.snapshot && existing.snapshot.ls) || {}), idb: (existing.snapshot && existing.snapshot.idb) || {} };
+  SM_MODULE_STORAGE.brandkit.ls.forEach(function (k) {
+    const v = localStorage.getItem(k);
+    if (v !== null) snapshot.ls[k] = v; else delete snapshot.ls[k];
+  });
+  let size = 0;
+  try { size = JSON.stringify(snapshot).length; } catch (e) {}
+  const rec = Object.assign({}, existing, { savedAt: Date.now(), size, snapshot });
+  await new Promise(function (resolve, reject) {
+    const tx = db.transaction('sessions', 'readwrite');
+    tx.objectStore('sessions').put(rec);
+    tx.oncomplete = resolve;
+    tx.onerror = function () { reject(tx.error); };
+  });
+  smNotifyOtherTabs('update', id);
+
+  let drive = 'local';
+  try {
+    if (typeof sarvarcDriveAvailable === 'function' && await sarvarcDriveAvailable()) {
+      const driveFileId = await sarvarcDriveSaveSession(rec);
+      window.sarvarcLastDriveMirror = { ok: true, at: Date.now() };
+      drive = 'synced';
+      if (!rec.driveFileId) {
+        rec.driveFileId = driveFileId;
+        await new Promise(function (resolve2) {
+          const tx2 = db.transaction('sessions', 'readwrite');
+          tx2.objectStore('sessions').put(rec);
+          tx2.oncomplete = resolve2;
+          tx2.onerror = function () { resolve2(); };
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[Sessions] Brand Kit Drive mirror failed', e);
+    window.sarvarcLastDriveMirror = { ok: false, at: Date.now() };
+    drive = 'failed';
+  }
+  return { rec: rec, drive: drive };
+}
+window.smSingleLinkedSessionId = smSingleLinkedSessionId;
+window.smUpdateSessionBrandKit = smUpdateSessionBrandKit;
+
 // ─── Single workspace-wide "Save Your Workflow" button (top nav) ──────────
 // Captures everything — Workspace document, Extraction, Data Arrangement,
 // Make Forms, Diagrams & Graphs, and Redact PII — into one named session in
@@ -2394,7 +2485,7 @@ async function smSaveWorkflow() {
     // new session as before, since there's no single obvious one to update.
     const allModuleKeys = Object.keys(SM_MODULE_STORAGE);
     const links = smGetActiveLinks();
-    const linkedIds = allModuleKeys.map(function (mk) { return links[mk]; });
+    const linkedIds = allModuleKeys.filter(function (mk) { return mk !== 'brandkit'; }).map(function (mk) { return links[mk]; });
     const candidateId = linkedIds[0];
     const allLinkedToSame = !!candidateId && linkedIds.every(function (lid) { return lid === candidateId; });
 
@@ -2476,7 +2567,7 @@ window.smClearAllModuleStorageSilently = smClearAllModuleStorageSilently;
 async function smNewProject() {
   const proceed = confirm(
     'Start a new project?\n\n' +
-    'This clears your current work in every module — Workspace document, Extraction, Data Arrangement, Make Forms, Diagrams & Graphs, and Redact PII — in this browser.\n\n' +
+    'This clears your current work in every module — Workspace document, Extraction, Data Arrangement, Make Forms, Diagrams & Graphs, Redact PII and your Brand Kit — in this browser.\n\n' +
     'Your saved sessions are not affected, but anything not already saved will be lost. Use "Save Your Workflow" first if you want to keep it.'
   );
   if (!proceed) return;

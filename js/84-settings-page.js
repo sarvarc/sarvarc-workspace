@@ -120,6 +120,7 @@
     stgBkRender();
     var st = $('stgBkStatus');
     if (st) st.textContent = (kit.logo || kit.company || Object.keys(soc).length) ? 'Saved' : '';
+    if (typeof bkSessionPanelRefresh === 'function') bkSessionPanelRefresh();
   };
 
   window.stgBkRender = function () {
@@ -170,12 +171,14 @@
     catch (e) { if (typeof toast === 'function') toast('Could not save, the logo may be too large', 'error'); return; }
     var st = $('stgBkStatus'); if (st) st.textContent = 'Saved';
     stgUseSync();
-    if (typeof toast === 'function') toast('Brand Kit saved', 'success');
+    if (typeof bkSessionOnKitSaved === 'function') bkSessionOnKitSaved();
+    else if (typeof toast === 'function') toast('Brand Kit saved', 'success');
   };
 
   window.stgBkClear = function () {
     try { localStorage.removeItem(BK_KEY); } catch (e) {}
     stgBkFill();
+    if (typeof bkSessionOnKitSaved === 'function') bkSessionOnKitSaved();
     if (typeof toast === 'function') toast('Brand Kit cleared', 'info');
   };
 

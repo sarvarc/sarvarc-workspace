@@ -1942,7 +1942,7 @@
       // Tag it with whichever module actually has content in this snapshot
       // (the same detection smComposeThumbnail uses), falling back to
       // 'workspace' for an empty/blank save so the insert never 23502s.
-      const primaryModule = smPresentModules(rec.snapshot)[0] || 'workspace';
+      const primaryModule = smPresentModules(rec.snapshot).filter(function (k) { return k !== 'brandkit'; })[0] || 'workspace';
       const { error: rowErr } = await sarvarcSupabase.from('team_projects').upsert({
         id: rec.id, team_id: sarvarcTeamActiveId, name, module: primaryModule,
         owner_id: user.id, updated_by: user.id, updated_at: new Date().toISOString()
