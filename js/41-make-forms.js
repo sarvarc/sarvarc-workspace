@@ -818,7 +818,7 @@ function mfCreateFromTemplate(key, opts) {
     watermarkOpacity: 8,
     bannerImageDataUrl: null,
     bannerImageOpacity: 15,
-    socialLinks: mfBrandKitSocials(),   // new forms start with the links saved in Settings > Brand Kit
+    socialLinks: {},
     expiryMode: 'never',
     expiryValue: 1,
     expiryUnit: 'days',
@@ -826,6 +826,7 @@ function mfCreateFromTemplate(key, opts) {
     translations: {},
     updatedAt: Date.now()
   };
+  mfApplyBrandKit(form, { accent: true });   // logo, watermark, social links and brand colour from Settings > Brand Kit
   if (asDraft) form._draft = true;
   mfState.forms.push(form);
   if (!asDraft) mfPersist();
@@ -943,6 +944,7 @@ function mfOpenEditor(id) {
   if (f.expiryMode == null) f.expiryMode = 'never';
   if (f.expiryValue == null) f.expiryValue = 1;
   if (f.expiryUnit == null) f.expiryUnit = 'days';
+  mfApplyBrandKitOnOpen(f);   // Brand Kit fills what is empty, once per form
   mfState.currentId = id;
   mfMode = 'design';
   mfActiveResponseId = null;
@@ -2019,20 +2021,59 @@ function mfBrandKitSocials() {
   return out;
 }
 
-// "Use Brand Kit links" button: fills only the boxes that are still empty, never overwrites what was typed.
-function mfFillSocialsFromBrandKit(manual) {
-  const f = mfGetCurrentForm(); if (!f) return;
-  const kitLinks = mfBrandKitSocials();
-  const keys = Object.keys(kitLinks);
-  if (!keys.length) {
-    if (manual && typeof toast === 'function') toast('No social links in your Brand Kit yet. Add them in Settings > Brand Kit.', 'info');
-    return;
+// ── Brand Kit auto-apply (no button needed) ──
+// When "Make Forms" is switched ON in Settings > Brand Kit, the whole kit goes into the form by itself:
+//   logo (in the logo holder) + the centered watermark that comes with it, every social link and the website,
+//   and, for a brand-new form, the accent colour matched to the logo.
+// It only fills what is still EMPTY, so anything the person typed or uploaded is never overwritten.
+// Returns null when the switch is off or there is no kit, otherwise true/false for "something was added".
+function mfApplyBrandKit(f, opts) {
+  if (!f || f.kind === 'canvas') return null;
+  let kit = null;
+  try { kit = (typeof bkLoad === 'function') ? bkLoad() : null; } catch (e) { kit = null; }
+  if (!kit || (typeof bkActive === 'function' && !bkActive('forms'))) return null;
+  let changed = false, logoAdded = false;
+  if (!f.logoDataUrl && kit.logo) {
+    f.logoDataUrl = kit.logo;
+    if (f.watermarkOn == null) f.watermarkOn = true;
+    if (f.watermarkOpacity == null) f.watermarkOpacity = 8;
+    changed = true; logoAdded = true;
   }
+  const kitLinks = mfBrandKitSocials();
   if (!f.socialLinks) f.socialLinks = {};
-  let added = 0;
-  keys.forEach(k => { if (!f.socialLinks[k]) { f.socialLinks[k] = kitLinks[k]; added++; } });
-  if (added) { mfTouch(f); mfRenderSocialLinks(); mfRenderPreview(); }
-  if (manual && typeof toast === 'function') toast(added ? 'Added ' + added + ' link' + (added === 1 ? '' : 's') + ' from your Brand Kit' : 'Already filled in', added ? 'success' : 'info');
+  Object.keys(kitLinks).forEach(k => { if (!f.socialLinks[k]) { f.socialLinks[k] = kitLinks[k]; changed = true; } });
+  f.bkApplied = true;
+  // Accent colour from the logo (same colour reading the logo upload uses). Only for a new form, so a colour the
+  // person already chose on an older form is left alone. It finishes a moment later and then refreshes the screen.
+  if (logoAdded && opts && opts.accent && typeof pdfedExtractLogoColors === 'function') {
+    pdfedExtractLogoColors(f.logoDataUrl).then(cols => {
+      if (!cols || !cols.length) return;
+      f.accentColor = cols[0];
+      // a waiting empty draft must still count as untouched
+      if (f._draft && f._draftSig) f._draftSig = mfFormSig(f);
+      if (!f._draft) mfPersist();
+      if (mfGetCurrentForm() === f) { mfRenderAccentSwatches(); mfRenderPreview(); }
+    }).catch(() => {});
+  }
+  return changed;
+}
+
+// Old forms get the kit once, the first time they are opened. After that the form is left alone,
+// so a logo the person removes on purpose does not come back.
+function mfApplyBrandKitOnOpen(f) {
+  if (!f || f.bkApplied) return;
+  if (mfApplyBrandKit(f) === true) mfTouch(f);
+  else if (f.bkApplied) mfPersist();
+}
+
+// The "Make Forms" switch was just turned ON while a form is open: bring the kit in right away.
+function mfRefreshBrandKit() {
+  const f = mfGetCurrentForm();
+  if (!f || f.kind === 'canvas') return;
+  if (mfApplyBrandKit(f, { accent: true }) === true) {
+    mfTouch(f);
+    mfRenderLogoThumb(); mfRenderWatermarkControls(); mfRenderSocialLinks(); mfRenderPreview();
+  }
 }
 
 function mfSetSocialLink(key, value) {
@@ -5447,7 +5488,7 @@ window.mfRenderPreview = mfRenderPreview;
 window.mfSetLogoFromDataUrl = mfSetLogoFromDataUrl;
 window.mfSetBannerFromDataUrl = mfSetBannerFromDataUrl;
 window.mfRenderSocialLinks = mfRenderSocialLinks;
-window.mfFillSocialsFromBrandKit = mfFillSocialsFromBrandKit;
+window.mfRefreshBrandKit = mfRefreshBrandKit;
 window.mfDuplicateForm = mfDuplicateForm;
 window.mfDuplicateCurrent = mfDuplicateCurrent;
 window.mfDeleteForm = mfDeleteForm;

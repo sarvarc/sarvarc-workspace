@@ -14,13 +14,14 @@
   function prefs() { try { return JSON.parse(localStorage.getItem(USE_KEY)) || {}; } catch (e) { return {}; } }
 
   // scope: 'workstyle' | 'templates' | 'forms' | 'kadessa'. Default is ON.
-  //   forms   : Make Forms starts new forms with the kit's social links and website
+  //   forms   : Make Forms puts the whole kit in by itself: logo, watermark, social links, website and brand colour
   //   kadessa : Kadessa follows the kit for every form or document she makes
   window.bkUseGet = function (scope) { return prefs()[scope] !== false; };
   window.bkUseSet = function (scope, on) {
     var p = prefs(); p[scope] = !!on;
     try { localStorage.setItem(USE_KEY, JSON.stringify(p)); } catch (e) {}
     bkToggleRefresh();
+    if (scope === 'forms' && on && typeof window.mfRefreshBrandKit === 'function') { try { window.mfRefreshBrandKit(); } catch (e) {} }
   };
   // true only when the person ticked it AND a kit exists
   window.bkActive = function (scope) { return window.bkUseGet(scope) && hasKit(); };
