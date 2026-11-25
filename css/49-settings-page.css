@@ -162,3 +162,60 @@
   .stg-field-pair { grid-template-columns: 1fr; }
   .stg-logo-row { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Brand Kit: social links (bar folds into a brand icon once a link is entered) ── */
+.stg-soc { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.stg-soc-item { position: relative; display: flex; align-items: center; min-width: 0; transition: flex-basis .28s cubic-bezier(.4,0,.2,1); }
+.stg-soc-chip {
+  position: relative; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 9px;
+  height: 46px; padding: 0 14px 0 6px; border-radius: 999px; color: var(--text2);
+  background: var(--surface); border: 1px solid var(--border);
+  transition: padding .28s cubic-bezier(.4,0,.2,1), border-color .18s, box-shadow .18s, transform .18s, background .18s;
+}
+.stg-soc-chip:hover { border-color: var(--blue); color: var(--text); transform: translateY(-1px); }
+.stg-soc-ico { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--bg3); filter: grayscale(1); opacity: .55; transition: filter .25s, opacity .25s, transform .28s; }
+.stg-soc-ico svg { width: 20px; height: 20px; }
+.stg-soc-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; max-width: 90px; overflow: hidden; transition: max-width .28s, opacity .2s; }
+.stg-soc-plus { font-size: 16px; line-height: 1; color: var(--blue); transition: opacity .2s; }
+.stg-soc-check { position: absolute; right: -2px; top: -2px; width: 15px; height: 15px; border-radius: 50%; background: #22C55E; box-shadow: 0 0 0 2px var(--bg2); opacity: 0; transform: scale(.4); transition: opacity .25s, transform .25s cubic-bezier(.3,1.6,.5,1); }
+.stg-soc-check::after { content: ''; position: absolute; left: 4.5px; top: 2.5px; width: 3.5px; height: 6.5px; border: solid #fff; border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); }
+.stg-soc-bar { max-width: 0; opacity: 0; overflow: hidden; flex: 1 1 auto; min-width: 0; transition: max-width .3s cubic-bezier(.4,0,.2,1), opacity .2s, margin .3s; }
+.stg-soc-x { position: absolute; right: -6px; bottom: -6px; width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; font-size: 13px; line-height: 1; color: var(--text2); background: var(--bg3); box-shadow: 0 0 0 1px var(--border); opacity: 0; pointer-events: none; transition: opacity .15s, color .15s; }
+.stg-soc-x:hover { color: #fff; background: #EF4444; }
+
+/* open: the chip keeps only its icon and the bar slides out */
+.stg-soc-item.open { flex: 1 1 100%; }
+.stg-soc-item.open .stg-soc-chip { padding-right: 6px; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,194,255,0.14); cursor: default; transform: none; }
+.stg-soc-item.open .stg-soc-ico { filter: none; opacity: 1; }
+.stg-soc-item.open .stg-soc-name, .stg-soc-item.open .stg-soc-plus { max-width: 0; opacity: 0; margin: 0; }
+.stg-soc-item.open .stg-soc-bar { max-width: 100%; opacity: 1; margin-left: 10px; }
+
+/* set: a link is saved, so it shows as a coloured icon chip only */
+.stg-soc-item.set:not(.open) .stg-soc-chip { padding: 0 6px 0 6px; border-color: rgba(34,197,94,0.35); background: var(--surface2); }
+.stg-soc-item.set:not(.open) .stg-soc-ico { filter: none; opacity: 1; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+.stg-soc-item.set:not(.open) .stg-soc-name, .stg-soc-item.set:not(.open) .stg-soc-plus { max-width: 0; opacity: 0; display: none; }
+.stg-soc-item.set:not(.open) .stg-soc-check { opacity: 1; transform: scale(1); }
+.stg-soc-item.set:not(.open):hover .stg-soc-x { opacity: 1; pointer-events: auto; }
+.stg-soc-item.set:not(.open):hover .stg-soc-ico { transform: scale(1.06); }
+@media (prefers-reduced-motion: reduce) { .stg-soc-item, .stg-soc-chip, .stg-soc-bar, .stg-soc-ico { transition: none; } }
+
+/* ── Brand Kit: "Use my Brand Kit in" checklist ── */
+.stg-use { display: flex; flex-direction: column; margin-top: 8px; }
+.stg-use-row { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.stg-use-row:last-child { border-bottom: none; }
+.stg-use-ico { width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--blue); background: var(--surface2); box-shadow: inset 0 0 0 1px var(--border); }
+.stg-use-row[data-use="kadessa"] .stg-use-ico { color: #fff; background: linear-gradient(135deg, #00C2FF, #0073E6); box-shadow: 0 4px 14px rgba(0,150,255,0.35); }
+.stg-use-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.stg-use-txt b { font-size: 14px; font-weight: 600; color: var(--text); }
+.stg-use-txt i { font-style: normal; font-size: 12.5px; color: var(--text2); }
+.stg-switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+.stg-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.stg-switch-track { position: absolute; inset: 0; border-radius: 999px; background: var(--bg3); box-shadow: inset 0 0 0 1px var(--border2); transition: background .2s, box-shadow .2s; }
+.stg-switch-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3); transition: transform .22s cubic-bezier(.3,1.4,.5,1); }
+.stg-switch input:checked + .stg-switch-track { background: linear-gradient(135deg, #00C2FF, #0073E6); box-shadow: none; }
+.stg-switch input:checked + .stg-switch-track::after { transform: translateX(18px); }
+.stg-switch input:focus-visible + .stg-switch-track { box-shadow: 0 0 0 3px rgba(0,194,255,0.3); }
+.stg-switch input:disabled { cursor: not-allowed; }
+.stg-switch input:disabled + .stg-switch-track { opacity: .45; }
+.stg-use.stg-use-off .stg-use-row { opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .stg-switch-track, .stg-switch-track::after { transition: none; } }
