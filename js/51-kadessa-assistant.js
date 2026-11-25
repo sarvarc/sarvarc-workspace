@@ -2338,7 +2338,17 @@
     });
     var prod = pick(/^product(\s*name)?$|product|item/i, ['category', 'text'], cats);
     if (prod !== -1 && prof[prod].distinct > 80) prod = -1;
-    if (rev === -1) return { plan: [], need: 'a sales or revenue column' };
+    if (rev === -1) {
+      // No sales or revenue column (a leads list, survey answers, a task list): the useful read is
+      // "how many rows in each group", for up to 4 columns that have a handful of groups.
+      var countPlan = [];
+      for (var ci = 0; ci < headers.length && countPlan.length < 4; ci++) {
+        var pc = prof[ci];
+        if (pc && pc.kind === 'category' && pc.distinct >= 2) countPlan.push({ kind: 'group', group_by: headers[ci], agg: 'count' });
+      }
+      if (countPlan.length) return { plan: countPlan };
+      return { plan: [], need: 'a sales or revenue column' };
+    }
     cats.slice(0, 4).forEach(function(i){ plan.push({ kind: 'group', group_by: headers[i], measure: headers[rev], agg: 'sum' }); });
     if (prod !== -1 && pro !== -1){
       plan.push({ kind: 'group', group_by: headers[prod], measure: headers[pro], agg: 'sum' });
