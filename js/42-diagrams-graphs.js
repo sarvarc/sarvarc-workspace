@@ -10396,6 +10396,10 @@ window.sarvarcDashDrawChart = function (canvas, h) {
   window.dgAutoShowStateMap = dgAutoShowStateMap;
   window.dgMaybeSuggestMultiChart = dgMaybeSuggestMultiChart;
   window.dgComputeStats = dgComputeStats;
+  // Push to Diagrams count choices (js/96): draw the card thumbnails and fill the gallery.
+  window.dgDrawChartSpec = dgDrawChartSpec;
+  window.dgRenderMultiChartGallery = dgRenderMultiChartGallery;
+  window.dgSetMultiCharts = function (arr) { dgMultiCharts = arr; };
 })();
 
 })();

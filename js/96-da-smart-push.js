@@ -226,17 +226,17 @@ function daSpBandKey(label) {
   return key;
 }
 
-function daSpCountPlan(headers, rows, cols, opts) {
-  const prefer = opts && opts.preferCol >= 0 ? cols[opts.preferCol] : null;
-  let pick = null;
-  if (prefer && (prefer.kind === 'text' || prefer.kind === 'year') && prefer.filled > 0) pick = prefer;   // the person chose it
-  if (!pick) {
-    // A good axis: text, a handful of groups, and the groups repeat (so there is something to count).
-    const cands = cols.filter(c => c.kind === 'text' && c.distinct >= 2 && c.distinct <= 30 && c.repeats && c.distinct <= c.filled * 0.8);
-    if (!cands.length) return null;
-    cands.sort((a, b) => (Math.abs(a.distinct - 5) - Math.abs(b.distinct - 5)) || (a.idx - b.idx));
-    pick = cands[0];
-  }
+// A good axis for counting: text, a handful of groups, and the groups repeat (so there is something to count).
+// Best first (closest to 5 groups).
+function daSpCountCandidates(cols) {
+  const cands = cols.filter(c => c.kind === 'text' && c.distinct >= 2 && c.distinct <= 30 && c.repeats && c.distinct <= c.filled * 0.8);
+  cands.sort((a, b) => (Math.abs(a.distinct - 5) - Math.abs(b.distinct - 5)) || (a.idx - b.idx));
+  return cands;
+}
+
+// Counts the rows in each group of ONE column. Budget bands run low to high, years oldest first,
+// everything else biggest first. Past 40 groups the rest are rolled into "Other (n)".
+function daSpCountBuild(pick, rows) {
   const order = []; const bucket = new Map(); let blank = 0;
   rows.forEach(r => {
     const raw = String(r && r[pick.idx] != null ? r[pick.idx] : '').trim();
@@ -256,14 +256,33 @@ function daSpCountPlan(headers, rows, cols, opts) {
     const top = groups.slice(0, LIMIT - 1), rest = groups.slice(LIMIT - 1);
     groups = top.concat([{ label: 'Other (' + rest.length + ')', n: rest.reduce((t, g) => t + g.n, 0) }]);
   }
-  const total = rows.length - blank;
-  const aoa = [[pick.name, 'Records']].concat(groups.map(g => [g.label, g.n]));
+  const title = 'Records by ' + pick.name;
+  return { idx: pick.idx, name: title.replace(/\./g, ''), title, groupName: pick.name, groups, blank,
+    total: rows.length - blank, aoa: [[pick.name, 'Records']].concat(groups.map(g => [g.label, g.n])) };
+}
+
+function daSpCountPlan(headers, rows, cols, opts) {
+  const prefer = opts && opts.preferCol >= 0 ? cols[opts.preferCol] : null;
+  const cands = daSpCountCandidates(cols);
+  let pick = null;
+  if (prefer && (prefer.kind === 'text' || prefer.kind === 'year') && prefer.filled > 0) pick = prefer;   // the person chose it
+  const chosenByPerson = !!pick;
+  if (!pick) {
+    if (!cands.length) return null;
+    pick = cands[0];
+  }
+  const built = daSpCountBuild(pick, rows);
+  if (!built) return null;
+  const groups = built.groups, blank = built.blank, total = built.total;
   const notes = ['Counted rows by ' + pick.name + ' (' + total + ' rows, each bar is how many rows are in that group)'];
   if (blank) notes.push(blank + ' rows with no ' + pick.name + ' left out');
   if (groups.length === 1) notes.push('All pushed rows share the same ' + pick.name + ', so pick another column in the grid to see a spread');
-  const title = 'Records by ' + pick.name;
-  return { aoa, name: title.replace(/\./g, ''), title, mode: 'count', groupName: pick.name, measure: 'Records',
-    notes, chartType: null, droppedGroups: [], blockedColumns: [] };
+  // Every column that could be counted (the pick first), so Diagrams & Graphs can offer the choice again.
+  const countOptions = [built];
+  cands.forEach(c => { if (c.idx !== pick.idx && countOptions.length < 8) { const b = daSpCountBuild(c, rows); if (b && b.groups.length >= 2) countOptions.push(b); } });
+  return { aoa: built.aoa, name: built.name, title: built.title, mode: 'count', groupName: pick.name, measure: 'Records',
+    notes, chartType: null, droppedGroups: [], blockedColumns: [],
+    rowCount: rows.length, columnCount: headers.length, chosenByPerson, countOptions };
 }
 
 // Used by daPushToDiagrams (js/32). ds = the active table; rows = its computed values.
@@ -280,6 +299,95 @@ function daSmartPushAfter(plan) {
       setTimeout(() => toast('Smart chart: ' + plan.notes.join(' \u00b7 '), 'info'), 600);
     }
   } catch (e) { console.warn('[Smart push] after-step failed', e); }
+  // A table with no number column is charted as counts. Ask again how the person wants to see it,
+  // the same way "How would you like to see your data?" always has for tables with numbers.
+  try { if (plan.mode === 'count') { plan.pushedAt = Date.now(); daSpShowCountChoices(plan); } }
+  catch (e) { console.warn('[Smart push] count choices failed', e); }
+}
+
+// ── "How would you like to see your data?" for count-mode pushes ──────────────────────────────
+// Re-uses the popup Diagrams & Graphs already has (dgMultiSuggestOverlay). Cards: the column that was
+// charted (Recommended, already on screen), up to two other columns to count by, and one chart per
+// column. Not shown when the person picked ONE column in the grid before pushing (they already chose),
+// or when there is only one column worth counting.
+function daSpShowCountChoices(plan) {
+  const opts = (plan && plan.countOptions) || [];
+  if (opts.length < 2 || plan.chosenByPerson) return;
+  const overlay = document.getElementById('dgMultiSuggestOverlay');
+  const body = document.getElementById('dgMultiSuggestBody');
+  if (!overlay || !body) return;
+  const statsEl = document.getElementById('dgMultiSuggestStats');
+  const subEl = document.getElementById('dgMultiSuggestSub');
+  const titleEl = document.getElementById('dgMultiSuggestTitle');
+  if (titleEl) titleEl.textContent = 'How would you like to see your data?';
+  if (subEl) subEl.textContent = 'This table has no number column, so each chart counts how many rows fall in each group.';
+  if (statsEl) {
+    statsEl.innerHTML = '<div class="dg-multi-suggest-stat"><b>' + plan.rowCount + '</b><span>Rows</span></div>' +
+      '<div class="dg-multi-suggest-stat"><b>' + opts.length + '</b><span>Columns to count by</span></div>' +
+      '<div class="dg-multi-suggest-stat"><b>' + plan.columnCount + '</b><span>Total columns</span></div>';
+  }
+  const scheme = (typeof dgCurrentScheme === 'function') ? dgCurrentScheme() : ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const specOf = (o, type) => ({ title: o.title, type: type || 'bar', format: null, formatSymbol: null,
+    rows: o.groups.map((g, i) => ({ label: g.label, value: g.n, color: scheme[i % scheme.length] })) });
+  const cards = [];
+  opts.slice(0, 3).forEach((o, i) => {
+    const top = o.groups.slice().sort((a, b) => b.n - a.n)[0];
+    cards.push({ title: 'Count by ' + o.groupName, recommended: i === 0, spec: specOf(o),
+      text: o.groups.length + ' groups, most rows in ' + top.label + ' (' + top.n + ').' + (i === 0 ? ' Already built.' : ''),
+      run: () => (i === 0 ? null : daSpApplyCountColumn(plan, o)) });
+  });
+  if (opts.length >= 2) {
+    cards.push({ title: 'One chart per column (' + opts.length + ')', recommended: false, spec: specOf(opts[1]),
+      text: 'Every column gets its own count chart, all in the gallery.',
+      run: () => daSpApplyCountGallery(opts, specOf) });
+  }
+  body.innerHTML = '';
+  body.style.setProperty('--dg-cols', Math.min(4, cards.length));
+  cards.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dg-suggest-card' + (c.recommended ? ' recommended' : '');
+    btn.onclick = () => { if (typeof dgDismissMultiSuggest === 'function') dgDismissMultiSuggest(); c.run(); };
+    const thumb = document.createElement('div');
+    thumb.className = 'dg-suggest-thumb';
+    const cv = document.createElement('canvas');
+    cv.width = 480; cv.height = 270;
+    thumb.appendChild(cv);
+    try { dgDrawChartSpec(cv, Object.assign({}, c.spec, { title: '' })); }
+    catch (e) { console.warn('[count choices thumb]', e); thumb.classList.add('empty'); }
+    if (c.recommended) { const bd = document.createElement('span'); bd.className = 'dg-suggest-badge'; bd.textContent = 'Recommended'; thumb.appendChild(bd); }
+    const h = document.createElement('h4'); h.textContent = c.title;
+    const pp = document.createElement('p'); pp.textContent = c.text;
+    btn.appendChild(thumb); btn.appendChild(h); btn.appendChild(pp);
+    body.appendChild(btn);
+  });
+  overlay.classList.add('open');
+}
+
+// Count by a different column: swap the chart that was just pushed for the new one (and its history
+// entry, so Charts & Diagrams on the Dashboard does not count the same push twice).
+function daSpApplyCountColumn(plan, opt) {
+  try {
+    const hist = (typeof dgChartHistory !== 'undefined') ? dgChartHistory : null;
+    if (hist && hist.length && plan.pushedAt && hist[0].savedAt >= plan.pushedAt) hist.shift();
+    dgOnUploadParsed(opt.aoa, opt.name);
+    const t = document.getElementById('dgTitleInput');
+    if (t) t.value = opt.title;
+    if (typeof dgRender === 'function') dgRender();
+    if (typeof dgSaveCurrentToHistory === 'function') dgSaveCurrentToHistory();
+    if (typeof toast === 'function') toast('Counted rows by ' + opt.groupName + ' (' + opt.total + ' rows)', 'success');
+  } catch (e) { console.warn('[count choices] column swap failed', e); }
+}
+
+// One count chart for every column worth counting, in the Diagrams & Graphs gallery.
+function daSpApplyCountGallery(opts, specOf) {
+  try {
+    const type = (typeof dgState !== 'undefined' && dgState.type) ? dgState.type : 'bar';
+    const charts = opts.map(o => specOf(o, type));
+    dgSetMultiCharts(charts);   // dgMultiCharts lives inside js/42, so it is set through this bridge
+    dgRenderMultiChartGallery();
+    if (typeof toast === 'function') toast('Built ' + charts.length + ' charts, one per column', 'success');
+  } catch (e) { console.warn('[count choices] gallery failed', e); }
 }
 
 // "Add summary" guard: adding up (or averaging) years gives a number that means nothing
