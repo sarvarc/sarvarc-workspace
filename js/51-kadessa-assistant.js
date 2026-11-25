@@ -905,6 +905,11 @@
     let out = ctx;
     if (pending) out = Object.assign({}, out || {}, { pendingAttachments: pending });
     if (recent && recent.length) out = Object.assign({}, out || {}, { recentFiles: recent });
+    // Settings > Brand Kit > "Kadessa follows my Brand Kit": hand her the saved business details for every turn.
+    try {
+      const bk = (typeof bkKadessaContext === 'function') ? bkKadessaContext() : null;
+      if (bk && out && out.activePanel) out = Object.assign({}, out, { brandKit: bk });
+    } catch (e) { /* never let this break a chat turn */ }
     // Build 245: every form in the session (ids, titles, response counts,
     // field labels, published state, whether its table is already in Data
     // Arrangement), so Kadessa can tell WHICH form's responses are meant, from
@@ -2557,6 +2562,17 @@
     return out.length >= 2 ? out : null;
   }
 
+  // Brand Kit logo (and its matching accent) on a form Kadessa just made, when she follows the Brand Kit.
+  // Runs BEFORE her own look is applied, so a look she chooses on purpose still wins. Returns a promise or null.
+  function kmfBrandKitLogo(f){
+    try {
+      if (!f || f.logoDataUrl || typeof bkActive !== 'function' || !bkActive('kadessa')) return null;
+      const kit = bkLoad();
+      if (!kit || !kit.logo) return null;
+      return mfSetLogoFromDataUrl(kit.logo).catch(function(){ /* a bad saved logo must not stop the form */ });
+    } catch (e) { return null; }
+  }
+
   function kmfApplyLook(f, look){
     const p = look || {};
     if (!f) throw new Error('no form is open to style');
@@ -3101,6 +3117,8 @@
         mfTouch(f);
         mfRenderFieldList();
         mfRenderPreview();
+        const brandP = kmfBrandKitLogo(f);
+        if (brandP) return brandP.then(function(){ if (p.look) return kmfApplyLook(f, p.look); });
         if (p.look) return kmfApplyLook(f, p.look); // v67: style + template chosen from the business, same call
       },
       label: function(p){
@@ -3129,6 +3147,9 @@
           return { say: 'I did not have a ready-made form for that, so I started a blank one.' };
         }
         mfCreateFromTemplate(p.template);
+        const tf = mfGetCurrentForm();
+        const brandT = kmfBrandKitLogo(tf);
+        if (brandT) return brandT.then(function(){ if (p.look) return kmfApplyLook(mfGetCurrentForm(), p.look); });
         if (p.look) return kmfApplyLook(mfGetCurrentForm(), p.look); // v67
       },
       label: function(p){

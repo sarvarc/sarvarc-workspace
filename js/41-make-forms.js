@@ -818,7 +818,7 @@ function mfCreateFromTemplate(key, opts) {
     watermarkOpacity: 8,
     bannerImageDataUrl: null,
     bannerImageOpacity: 15,
-    socialLinks: {},
+    socialLinks: mfBrandKitSocials(),   // new forms start with the links saved in Settings > Brand Kit
     expiryMode: 'never',
     expiryValue: 1,
     expiryUnit: 'days',
@@ -1990,6 +1990,49 @@ function mfRenderSocialLinks() {
     const input = document.getElementById(MF_SOCIAL_FIELD_MAP[key]);
     if (input) input.value = links[key] || '';
   });
+}
+
+// ── Brand Kit social links ──
+// Settings > Brand Kit saves kit.social = { instagram, linkedin, whatsapp, x, youtube } and kit.website.
+// This turns them into real links for the published form (the live page uses each value as an href,
+// so "www.site.com" or "@name" would break; they are completed here).
+function mfBrandKitSocials() {
+  let kit = null;
+  try { kit = (typeof bkLoad === 'function') ? bkLoad() : null; } catch (e) { kit = null; }
+  const out = {};
+  if (!kit) return out;
+  if (typeof bkUseGet === 'function' && !bkUseGet('forms')) return out;   // switched off in Settings > Brand Kit
+  const soc = kit.social || {};
+  const full = v => /^(https?:)?\/\//i.test(v) ? v : 'https://' + v.replace(/^\/+/, '');
+  const handle = (v, base) => /^@?[A-Za-z0-9._]+$/.test(v) ? base + v.replace(/^@/, '') : full(v);
+  Object.keys(MF_SOCIAL_FIELD_MAP).forEach(key => {
+    let v = String(key === 'website' ? (kit.website || '') : (soc[key] || '')).trim();
+    if (!v) return;
+    if (key === 'whatsapp') {
+      const digits = v.replace(/[^\d]/g, '');
+      v = (/^[+\d][\d\s\-()]+$/.test(v) && digits.length >= 8) ? 'https://wa.me/' + digits : full(v);
+    } else if (key === 'instagram') v = handle(v, 'https://instagram.com/');
+    else if (key === 'x') v = handle(v, 'https://x.com/');
+    else v = full(v);
+    out[key] = v;
+  });
+  return out;
+}
+
+// "Use Brand Kit links" button: fills only the boxes that are still empty, never overwrites what was typed.
+function mfFillSocialsFromBrandKit(manual) {
+  const f = mfGetCurrentForm(); if (!f) return;
+  const kitLinks = mfBrandKitSocials();
+  const keys = Object.keys(kitLinks);
+  if (!keys.length) {
+    if (manual && typeof toast === 'function') toast('No social links in your Brand Kit yet. Add them in Settings > Brand Kit.', 'info');
+    return;
+  }
+  if (!f.socialLinks) f.socialLinks = {};
+  let added = 0;
+  keys.forEach(k => { if (!f.socialLinks[k]) { f.socialLinks[k] = kitLinks[k]; added++; } });
+  if (added) { mfTouch(f); mfRenderSocialLinks(); mfRenderPreview(); }
+  if (manual && typeof toast === 'function') toast(added ? 'Added ' + added + ' link' + (added === 1 ? '' : 's') + ' from your Brand Kit' : 'Already filled in', added ? 'success' : 'info');
 }
 
 function mfSetSocialLink(key, value) {
@@ -5404,6 +5447,7 @@ window.mfRenderPreview = mfRenderPreview;
 window.mfSetLogoFromDataUrl = mfSetLogoFromDataUrl;
 window.mfSetBannerFromDataUrl = mfSetBannerFromDataUrl;
 window.mfRenderSocialLinks = mfRenderSocialLinks;
+window.mfFillSocialsFromBrandKit = mfFillSocialsFromBrandKit;
 window.mfDuplicateForm = mfDuplicateForm;
 window.mfDuplicateCurrent = mfDuplicateCurrent;
 window.mfDeleteForm = mfDeleteForm;

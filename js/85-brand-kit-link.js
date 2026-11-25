@@ -10,10 +10,12 @@
   var USE_KEY = 'sarvarc_brand_use_v1';
 
   function kitRead() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
-  function hasKit(k) { k = k || kitRead(); return !!(k.logo || k.company || k.tagline || k.address || k.phone || k.email || k.website || k.gst); }
+  function hasKit(k) { k = k || kitRead(); return !!(k.logo || k.company || k.tagline || k.address || k.phone || k.email || k.website || k.gst || (k.social && Object.keys(k.social).length)); }
   function prefs() { try { return JSON.parse(localStorage.getItem(USE_KEY)) || {}; } catch (e) { return {}; } }
 
-  // scope: 'workstyle' | 'templates'. Default is ON.
+  // scope: 'workstyle' | 'templates' | 'forms' | 'kadessa'. Default is ON.
+  //   forms   : Make Forms starts new forms with the kit's social links and website
+  //   kadessa : Kadessa follows the kit for every form or document she makes
   window.bkUseGet = function (scope) { return prefs()[scope] !== false; };
   window.bkUseSet = function (scope, on) {
     var p = prefs(); p[scope] = !!on;
@@ -22,6 +24,17 @@
   };
   // true only when the person ticked it AND a kit exists
   window.bkActive = function (scope) { return window.bkUseGet(scope) && hasKit(); };
+
+  // What Kadessa is told when "Kadessa follows my Brand Kit" is on (see kadessaDecorateContext in js/51).
+  // The logo picture itself is never sent, only whether one exists. Returns null when off or no kit.
+  window.bkKadessaContext = function () {
+    if (!window.bkActive('kadessa')) return null;
+    var k = kitRead(), out = { rule: 'The person switched ON \"Kadessa follows my Brand Kit\" in Settings. For every form or document you create or fill in, use these saved business details (and the saved logo, which the app applies for you) instead of inventing any. Do not ask the person for them again. Anything the person types in this chat wins over the kit.' };
+    ['company', 'tagline', 'address', 'phone', 'email', 'website', 'gst'].forEach(function (f) { if (k[f]) out[f] = k[f]; });
+    if (k.social && Object.keys(k.social).length) out.social = k.social;
+    out.hasLogo = !!k.logo;
+    return out;
+  };
 
   window.bkOpenSettings = function () {
     try { if (typeof navigate === 'function') navigate('settings'); if (typeof stgTab === 'function') stgTab('brand'); } catch (e) {}

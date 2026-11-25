@@ -55,18 +55,71 @@
   var draftLogo = null;
   var BK_FIELDS = { stgBkName: 'company', stgBkSlogan: 'tagline', stgBkAddress: 'address', stgBkPhone: 'phone', stgBkEmail: 'email', stgBkWeb: 'website', stgBkGst: 'gst' };
 
+  // Social links ride along in the kit as kit.social = { instagram, linkedin, whatsapp, x, youtube }.
+  // The kit's Website field (above) is used as the website icon, so it is not repeated here.
+  var BK_SOCIAL = { stgBkInstagram: 'instagram', stgBkLinkedin: 'linkedin', stgBkWhatsapp: 'whatsapp', stgBkX: 'x', stgBkYoutube: 'youtube' };
+
   function bkRead() {
     try { return JSON.parse(localStorage.getItem(BK_KEY)) || {}; } catch (e) { return {}; }
   }
   function val(id) { var el = $(id); return el ? el.value.trim() : ''; }
 
+  // ── Social links: the bar folds into the platform icon once a link is entered ──
+  function socItem(key) { return document.querySelector('#stgSoc .stg-soc-item[data-key="' + key + '"]'); }
+  function socInput(key) { var it = socItem(key); return it ? it.querySelector('input') : null; }
+  // "Use my Brand Kit in" checklist: tick boxes live in js/85 (bkUseGet / bkUseSet); this keeps them and the hint in step.
+  window.stgUseSync = function () {
+    if (typeof bkToggleRefresh === 'function') bkToggleRefresh();
+    var k = bkRead();
+    var has = !!(k.logo || k.company || k.tagline || k.address || k.phone || k.email || k.website || k.gst || (k.social && Object.keys(k.social).length));
+    var box = $('stgUse'), hint = $('stgUseHint');
+    if (box) box.classList.toggle('stg-use-off', !has);
+    if (hint) hint.textContent = has ? 'Tick a module and it fills your Brand Kit in for you. Untick it to build for someone else.' : 'Save your Brand Kit first, then these switches turn on.';
+  };
+  window.stgSocSync = function () {
+    document.querySelectorAll('#stgSoc .stg-soc-item').forEach(function (it) {
+      var inp = it.querySelector('input'), v = inp ? inp.value.trim() : '';
+      it.classList.remove('open');
+      it.classList.toggle('set', !!v);
+      var chip = it.querySelector('.stg-soc-chip');
+      if (chip) chip.title = v ? (chip.getAttribute('aria-label') + ': ' + v + ' (click to edit)') : chip.getAttribute('aria-label');
+    });
+  };
+  window.stgSocOpen = function (key) {
+    var it = socItem(key), inp = socInput(key); if (!it || !inp) return;
+    it.classList.add('open');
+    inp.focus();                                  // right away, so fast typing is not lost
+    setTimeout(function () { inp.focus(); inp.select(); }, 60);
+  };
+  window.stgSocDone = function (key) {
+    var it = socItem(key), inp = socInput(key); if (!it || !inp) return;
+    inp.value = inp.value.trim();
+    it.classList.remove('open');
+    it.classList.toggle('set', !!inp.value);
+    var chip = it.querySelector('.stg-soc-chip');
+    if (chip) chip.title = inp.value ? (chip.getAttribute('aria-label') + ': ' + inp.value + ' (click to edit)') : chip.getAttribute('aria-label');
+  };
+  window.stgSocKey = function (e, key) {
+    if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+    else if (e.key === 'Escape') { e.target.blur(); }
+  };
+  window.stgSocRemove = function (key) {
+    var inp = socInput(key); if (!inp) return;
+    inp.value = '';
+    stgSocDone(key);
+  };
+
   window.stgBkFill = function () {
     var kit = bkRead();
     Object.keys(BK_FIELDS).forEach(function (id) { var el = $(id); if (el) el.value = kit[BK_FIELDS[id]] || ''; });
+    var soc = kit.social || {};
+    Object.keys(BK_SOCIAL).forEach(function (id) { var el = $(id); if (el) el.value = soc[BK_SOCIAL[id]] || ''; });
     draftLogo = kit.logo || null;
+    stgSocSync();
+    stgUseSync();
     stgBkRender();
     var st = $('stgBkStatus');
-    if (st) st.textContent = (kit.logo || kit.company) ? 'Saved' : '';
+    if (st) st.textContent = (kit.logo || kit.company || Object.keys(soc).length) ? 'Saved' : '';
   };
 
   window.stgBkRender = function () {
@@ -110,9 +163,13 @@
     var kit = bkRead();
     Object.keys(BK_FIELDS).forEach(function (id) { kit[BK_FIELDS[id]] = val(id); });
     kit.logo = draftLogo;
+    var social = {};
+    Object.keys(BK_SOCIAL).forEach(function (id) { var v = val(id); if (v) social[BK_SOCIAL[id]] = v; });
+    kit.social = social;
     try { localStorage.setItem(BK_KEY, JSON.stringify(kit)); }
     catch (e) { if (typeof toast === 'function') toast('Could not save, the logo may be too large', 'error'); return; }
     var st = $('stgBkStatus'); if (st) st.textContent = 'Saved';
+    stgUseSync();
     if (typeof toast === 'function') toast('Brand Kit saved', 'success');
   };
 
