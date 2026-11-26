@@ -769,6 +769,12 @@
     })();
   }
   function curKind() { return STY.tab + (STY.set === 'cls' ? 'c' : ''); }
+  // Draws every thumbnail ahead of time, one at a time, so the Styles panel opens already full. Called quietly while the splash screen is up.
+  function warm() {
+    var jobs = [];
+    ['bg', 'fr', 'bgc', 'frc'].forEach(function (k) { listOf(k).forEach(function (_, i) { if (!THUMB[k + i]) jobs.push([k, i]); }); });
+    (function step() { var j = jobs.shift(); if (!j) return; try { thumbUri(j[0], j[1]); } catch (e) {} setTimeout(step, 30); })();
+  }
   function fillThumbs(host, tab) {
     if (!host) return;
     var bg = !isFr(tab), list = listOf(tab);
@@ -857,6 +863,6 @@
       return { kind: isFr(c.k) ? 'frame' : 'background', set: c.k.length > 2 ? 'classic' : 'premium', index: c.i, name: it.n, seed: c.seed, isDefaultLook: c.seed === it.seed, tweaks: c.opts || null };
     } catch (e) { return null; }
   }
-  window.pdfedCanvasStyles = { current: current, normOpts: normOpts, bg: BG, frames: FR, classicBg: BGC, classicFrames: FRC, renderers: R, paint: paintStyle, bgCanvas: bgCanvas, frameThumb: frameThumb, drawSlot: drawSlot, slotGeom: slotGeom, slotInset: slotInset, textPlan: textPlan,
-    rngOf: rngOf, noiseFn: noiseFn, lutOf: lutOf, apply: applyStyle };
+  window.pdfedCanvasStyles = { warm: warm, current: current, normOpts: normOpts, bg: BG, frames: FR, classicBg: BGC, classicFrames: FRC, renderers: R, paint: paintStyle, bgCanvas: bgCanvas, frameThumb: frameThumb, drawSlot: drawSlot, slotGeom: slotGeom, slotInset: slotInset, textPlan: textPlan,
+    rngOf: rngOf, noiseFn: noiseFn, lutOf: lutOf, apply: applyStyle, snap: snap, restore: restore };
 })();
