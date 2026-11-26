@@ -32,3 +32,26 @@
 .cp-nav:disabled { opacity: 0; pointer-events: none; }
 @media (pointer: coarse) { .cp-nav { display: none; } .cp-track { scroll-snap-type: x proximity; cursor: auto; } .cp-rt { scroll-snap-align: start; scroll-margin-left: 40px; } }
 @media (prefers-reduced-motion: reduce) { .cp-th, .cp-rt, .cp-nav { transition: none; } }
+
+/* Empty screen: two quiet shortcut pills under the rail (Templates, Canvas Styles). Icons are CSS masks so they follow the text colour. */
+.cp-quick { display: flex; justify-content: center; gap: 8px; margin-top: 2px; }
+.cp-q { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 14px 0 12px; border-radius: 999px; border: 1px solid var(--border2, rgba(128,128,128,.3)); background: transparent; color: var(--text2, inherit); font: 600 11.5px 'Inter', sans-serif; letter-spacing: .01em; cursor: pointer; transition: background .18s, border-color .18s, color .18s; }
+.cp-q:hover { background: var(--surface, rgba(128,128,128,.12)); color: var(--text, inherit); border-color: var(--cyan, #38bdf8); }
+.cp-q:active { background: var(--surface, rgba(128,128,128,.18)); }
+.cp-q:focus-visible { outline: 2px solid var(--cyan, #38bdf8); outline-offset: 2px; }
+.cp-qi { width: 13px; height: 13px; background: currentColor; opacity: .85; -webkit-mask: var(--cp-ico) center / contain no-repeat; mask: var(--cp-ico) center / contain no-repeat; }
+.cp-qi-tpl { --cp-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cpath d='M3 9h18M9 21V9'/%3E%3C/svg%3E"); }
+.cp-qi-sty { --cp-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 3v18' /%3E%3Cpath d='M12 3a9 9 0 0 1 0 18z' fill='%23000'/%3E%3C/svg%3E"); }
+@media (prefers-reduced-motion: reduce) { .cp-q { transition: none; } }
+
+/* Soft open (set by the two shortcut buttons for ~1.6s): the panel widens first, then its content rises in, template cards one after another. */
+@keyframes cpRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.cp-open .slt-rail.on .slt-rail-body,
+.cp-open .pdfed-right-panel.studio-on .pdfed-studio { animation: cpRise .5s cubic-bezier(.16, 1, .3, 1) .14s both; }
+.cp-open .slt-list > .slt-card { animation: cpRise .55s cubic-bezier(.16, 1, .3, 1) both; animation-delay: .5s; }
+.cp-open .slt-list > .slt-card:nth-child(1) { animation-delay: .2s; }
+.cp-open .slt-list > .slt-card:nth-child(2) { animation-delay: .26s; }
+.cp-open .slt-list > .slt-card:nth-child(3) { animation-delay: .32s; }
+.cp-open .slt-list > .slt-card:nth-child(4) { animation-delay: .38s; }
+.cp-open .slt-list > .slt-card:nth-child(5) { animation-delay: .44s; }
+@media (prefers-reduced-motion: reduce) { .cp-open .slt-rail.on .slt-rail-body, .cp-open .pdfed-right-panel.studio-on .pdfed-studio, .cp-open .slt-list > .slt-card { animation: none; } }
