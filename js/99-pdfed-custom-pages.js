@@ -342,24 +342,40 @@
     prev.addEventListener('click', function () { page(-1); });
     next.addEventListener('click', function () { page(1); });
 
-    function refresh() { measure(); if (track.scrollLeft > MAX) track.scrollLeft = MAX; paint(); }
-    if (window.ResizeObserver) { try { new ResizeObserver(function () { refresh(); }).observe(track); } catch (e) {} }
-    else window.addEventListener('resize', refresh);
+    // True edge to edge: the canvas has side padding of its own, so the rail takes the canvas scroll area's full width.
+    function fit() {
+      var box = track.closest ? track.closest('.cp-start') : null, sc = document.getElementById('pdfedCanvasScroll');
+      if (box && sc && sc.clientWidth > 0) { var w = sc.clientWidth + 'px'; if (box.style.width !== w) box.style.width = w; }
+    }
+    function refresh() { fit(); measure(); if (track.scrollLeft > MAX) track.scrollLeft = MAX; paint(); }
+    if (window.ResizeObserver) {
+      try {
+        var ro = new ResizeObserver(function () { refresh(); }); ro.observe(track);
+        var sc0 = document.getElementById('pdfedCanvasScroll'); if (sc0) ro.observe(sc0);   // panels opening or closing resize the canvas
+      } catch (e) {}
+    } else window.addEventListener('resize', refresh);
     requestAnimationFrame(refresh);
   }
 
 
   // Two quiet shortcuts under the rail: open the Templates panel (left) or the Canvas Styles studio (right), so nobody has to hunt for them.
-  // They only call what the app already has (sltOpen in js/77, pdfedStudioOpen in js/80); a missing function simply does nothing.
+  // They only call what the app already has (sltSetMode in js/77, pdfedStudioOpen in js/80); a missing function simply does nothing.
+  // Soft open: the layout gets .cp-open for a moment, so the panel widens first and its content rises in after it (see css/59).
+  var softTimer = 0;
+  function softOpen(run) {
+    var L = document.getElementById('pdfedLayout');
+    if (L) { L.classList.add('cp-open'); clearTimeout(softTimer); softTimer = setTimeout(function () { L.classList.remove('cp-open'); }, 1600); }
+    run();
+  }
   function quick() {
     var row = document.createElement('div'); row.className = 'cp-quick';
     function btn(icon, label, tip, run) {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'cp-q'; b.title = tip;
       b.innerHTML = '<i class="cp-qi cp-qi-' + icon + '" aria-hidden="true"></i>' + label;
-      b.onclick = function () { try { run(); } catch (e) { console.warn('[custom pages] shortcut', e); } };
+      b.onclick = function () { try { softOpen(run); } catch (e) { console.warn('[custom pages] shortcut', e); } };
       row.appendChild(b);
     }
-    btn('tpl', 'Templates', 'Browse slide, carousel, proposal and quotation templates', function () { if (typeof sltOpen === 'function') sltOpen(); });
+    btn('tpl', 'Templates', 'Browse slide, carousel, proposal and quotation templates', function () { if (typeof sltSetMode === 'function') sltSetMode('templates'); });
     btn('sty', 'Canvas Styles', 'Open canvas colours, styles and ready pages', function () { if (typeof pdfedStudioOpen === 'function') pdfedStudioOpen('canvas'); });
     return row;
   }
