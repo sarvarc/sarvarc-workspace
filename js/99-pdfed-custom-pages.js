@@ -348,12 +348,28 @@
     requestAnimationFrame(refresh);
   }
 
+
+  // Two quiet shortcuts under the rail: open the Templates panel (left) or the Canvas Styles studio (right), so nobody has to hunt for them.
+  // They only call what the app already has (sltOpen in js/77, pdfedStudioOpen in js/80); a missing function simply does nothing.
+  function quick() {
+    var row = document.createElement('div'); row.className = 'cp-quick';
+    function btn(icon, label, tip, run) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'cp-q'; b.title = tip;
+      b.innerHTML = '<i class="cp-qi cp-qi-' + icon + '" aria-hidden="true"></i>' + label;
+      b.onclick = function () { try { run(); } catch (e) { console.warn('[custom pages] shortcut', e); } };
+      row.appendChild(b);
+    }
+    btn('tpl', 'Templates', 'Browse slide, carousel, proposal and quotation templates', function () { if (typeof sltOpen === 'function') sltOpen(); });
+    btn('sty', 'Canvas Styles', 'Open canvas colours, styles and ready pages', function () { if (typeof pdfedStudioOpen === 'function') pdfedStudioOpen('canvas'); });
+    return row;
+  }
+
   // Place 1: the empty editor screen
   function injectEmpty() {
     var ph = document.getElementById('pdfedPlaceholder'); if (!ph || document.getElementById('cpStart')) return;
     var box = document.createElement('div'); box.id = 'cpStart'; box.className = 'cp-start';
     box.innerHTML = '<div class="cp-or"><span>Or start from a ready page</span></div>';
-    box.appendChild(rail()); ph.appendChild(box);
+    box.appendChild(rail()); box.appendChild(quick()); ph.appendChild(box);
   }
   // Place 2: right panel, Canvas tab, under Styles
   function injectPanel() {
