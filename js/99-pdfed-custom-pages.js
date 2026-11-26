@@ -217,12 +217,143 @@
   }
   function grid(cls) { var g = document.createElement('div'); g.className = 'cp-grid ' + (cls || ''); LAYOUTS.forEach(function (_, i) { g.appendChild(tile(i)); }); return g; }
 
+
+  // ─── Empty screen: one smooth sideways rail (replaces the old scrolling grid) ───
+  // Wheel / trackpad moves it back and forth (vertical wheel is turned sideways), mouse drag glides with a little momentum,
+  // and it always settles on a tile. Tiles near either edge tuck in (smaller, softer) and ease out again as they come in.
+  // Touch uses the browser's own scrolling + CSS snap. The rail bleeds to both edges of the canvas; the edges fade.
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function navBtn(dir) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'cp-nav cp-' + dir; b.tabIndex = -1;
+    b.setAttribute('aria-label', dir === 'prev' ? 'Previous pages' : 'Next pages');
+    b.innerHTML = '<i></i>'; return b;
+  }
+  function rail() {
+    var wrap = document.createElement('div'); wrap.className = 'cp-rail';
+    var track = document.createElement('div'); track.className = 'cp-track'; track.tabIndex = 0;
+    track.setAttribute('role', 'region'); track.setAttribute('aria-label', 'Ready-made pages. Scroll sideways to browse.');
+    LAYOUTS.forEach(function (_, i) { var t = tile(i, 'cp-rt'); t.draggable = false; track.appendChild(t); });
+    var prev = navBtn('prev'), next = navBtn('next');
+    wrap.appendChild(track); wrap.appendChild(prev); wrap.appendChild(next);
+    try { railMotion(track, prev, next); } catch (e) { console.warn('[custom pages] rail', e); }
+    return wrap;
+  }
+  function railMotion(track, prev, next) {
+    var tiles = Array.prototype.slice.call(track.querySelectorAll('.cp-rt'));
+    var mq = function (q) { return !!(window.matchMedia && window.matchMedia(q).matches); };
+    var reduce = mq('(prefers-reduced-motion: reduce)'), coarse = mq('(pointer: coarse)');
+    var geo = [], padL = 40, W = 0, MAX = 0, STEP = 126;
+    var pos = 0, target = 0, raf = 0, last = 0, paintQ = 0, idle = 0;
+    var dragging = false, moved = false, sx = 0, s0 = 0, lx = 0, lt = 0, vx = 0, swallow = false;
+
+    function measure() {
+      W = track.clientWidth; MAX = Math.max(0, track.scrollWidth - W);
+      padL = parseFloat(getComputedStyle(track).paddingLeft) || 0;
+      geo = tiles.map(function (t) { return { l: t.offsetLeft, w: t.offsetWidth }; });
+      if (tiles.length > 1) STEP = Math.max(1, tiles[1].offsetLeft - tiles[0].offsetLeft);
+    }
+    function clamp(v) { return v < 0 ? 0 : v > MAX ? MAX : v; }
+    function stops() { return geo.map(function (g) { return clamp(g.l - padL); }); }
+    function nearestIdx(v) { var s = stops(), b = 0; for (var i = 1; i < s.length; i++) if (Math.abs(s[i] - v) < Math.abs(s[b] - v)) b = i; return b; }
+    function nearest(v) { return stops()[nearestIdx(v)] || 0; }
+
+    // Edge tuck: a tile is full size while it sits inside the padding; as it slides past an edge it shrinks and softens.
+    function paint() {
+      paintQ = 0; if (!W) return;
+      var sl = track.scrollLeft, h, l, r, f;
+      track.style.setProperty('--fl', Math.min(56, sl * .7).toFixed(1) + 'px');
+      track.style.setProperty('--fr', Math.min(56, (MAX - sl) * .7).toFixed(1) + 'px');
+      for (var i = 0; i < tiles.length; i++) {
+        h = geo[i].w / 2; l = geo[i].l - sl; r = l + geo[i].w;
+        f = Math.min(clamp01((l + h) / (padL + h)), clamp01((W - r + h) / (padL + h)));
+        f = f * f * (3 - 2 * f);
+        tiles[i].style.transform = f > .999 ? '' : 'scale(' + (.86 + .14 * f).toFixed(3) + ')';
+        tiles[i].style.opacity = f > .999 ? '' : (.4 + .6 * f).toFixed(3);
+      }
+      prev.disabled = sl < 2; next.disabled = sl > MAX - 2;
+    }
+    function queuePaint() { if (!paintQ) paintQ = requestAnimationFrame(paint); }
+
+    // One glide at a time. Easing is time based, so it feels the same on 60Hz and 120Hz screens.
+    function step(now) {
+      var dt = Math.min(48, now - last); last = now;
+      pos += (target - pos) * (1 - Math.exp(-dt / 95));
+      if (Math.abs(target - pos) < .4) pos = target;
+      track.scrollLeft = pos;
+      raf = pos === target ? 0 : requestAnimationFrame(step);
+    }
+    function glide(t) {
+      target = clamp(t);
+      if (reduce) { track.scrollLeft = target; return; }
+      if (!raf) { pos = track.scrollLeft; last = performance.now(); raf = requestAnimationFrame(step); }
+    }
+    function settleSoon() { clearTimeout(idle); idle = setTimeout(function () { glide(nearest(target)); }, 130); }
+    function stop() { if (raf) { cancelAnimationFrame(raf); raf = 0; } clearTimeout(idle); }
+    function base() { return raf ? target : track.scrollLeft; }
+
+    track.addEventListener('scroll', queuePaint, { passive: true });
+
+    // wheel / trackpad: sideways, soft, ends hand the scroll back to the page
+    track.addEventListener('wheel', function (e) {
+      if (e.ctrlKey || !MAX) return;
+      var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (e.deltaMode === 1) d *= 16; else if (e.deltaMode === 2) d *= W;
+      if (!d) return;
+      var b = base();
+      if ((d < 0 && b <= 0) || (d > 0 && b >= MAX)) return;
+      e.preventDefault(); glide(b + d * 1.1); settleSoon();
+    }, { passive: false });
+
+    // mouse drag with momentum (touch keeps native scrolling)
+    track.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'touch' || e.button !== 0 || !MAX) return;
+      stop(); dragging = true; moved = false; sx = lx = e.clientX; s0 = track.scrollLeft; lt = e.timeStamp; vx = 0;
+    });
+    track.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - sx;
+      if (!moved) { if (Math.abs(dx) < 5) return; moved = true; track.classList.add('cp-grab'); try { track.setPointerCapture(e.pointerId); } catch (x) {} }
+      var dt = Math.max(1, e.timeStamp - lt); vx = vx * .75 + (-(e.clientX - lx) / dt) * .25; lx = e.clientX; lt = e.timeStamp;
+      track.scrollLeft = clamp(s0 - dx);
+    });
+    function release(e) {
+      if (!dragging) return; dragging = false; track.classList.remove('cp-grab');
+      try { track.releasePointerCapture(e.pointerId); } catch (x) {}
+      if (moved) { swallow = true; setTimeout(function () { swallow = false; }, 0); glide(nearest(track.scrollLeft + vx * 260)); }
+    }
+    track.addEventListener('pointerup', release); track.addEventListener('pointercancel', release);
+    track.addEventListener('click', function (e) { if (swallow) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+    // keyboard + focus: arrows move one tile; a tabbed-to tile is brought fully into view
+    track.addEventListener('keydown', function (e) {
+      var k = e.key, i = nearestIdx(base()), n = tiles.length - 1, s = stops();
+      if (k === 'ArrowRight') i = Math.min(n, i + 1); else if (k === 'ArrowLeft') i = Math.max(0, i - 1);
+      else if (k === 'Home') i = 0; else if (k === 'End') i = n; else return;
+      e.preventDefault(); glide(s[i]);
+    });
+    track.addEventListener('focusin', function (e) {
+      var i = tiles.indexOf(e.target); if (i < 0) return;
+      var l = geo[i].l - track.scrollLeft, r = l + geo[i].w;
+      if (l < padL) glide(geo[i].l - padL); else if (r > W - padL) glide(geo[i].l + geo[i].w - W + padL);
+    });
+
+    // arrows: one "page" of tiles, always landing on a tile
+    function page(dir) { var per = Math.max(1, Math.floor((W - padL * 2) / STEP) - 1), s = stops(), i = nearestIdx(base()); glide(s[Math.max(0, Math.min(s.length - 1, i + dir * per))]); }
+    prev.addEventListener('click', function () { page(-1); });
+    next.addEventListener('click', function () { page(1); });
+
+    function refresh() { measure(); if (track.scrollLeft > MAX) track.scrollLeft = MAX; paint(); }
+    if (window.ResizeObserver) { try { new ResizeObserver(function () { refresh(); }).observe(track); } catch (e) {} }
+    else window.addEventListener('resize', refresh);
+    requestAnimationFrame(refresh);
+  }
+
   // Place 1: the empty editor screen
   function injectEmpty() {
     var ph = document.getElementById('pdfedPlaceholder'); if (!ph || document.getElementById('cpStart')) return;
     var box = document.createElement('div'); box.id = 'cpStart'; box.className = 'cp-start';
     box.innerHTML = '<div class="cp-or"><span>Or start from a ready page</span></div>';
-    box.appendChild(grid('cp-4')); ph.appendChild(box);
+    box.appendChild(rail()); ph.appendChild(box);
   }
   // Place 2: right panel, Canvas tab, under Styles
   function injectPanel() {
