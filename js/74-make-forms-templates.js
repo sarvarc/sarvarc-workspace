@@ -1,11 +1,10 @@
 // ─── MAKE FORMS: GUIDED TEMPLATES ───
-// 20 ready-made looks for Flow forms (colours + animated background + how each
+// 24 ready-made looks for Flow forms (20 moods + 4 quiz and fun) (colours + animated background + how each
 // question screen enters). The choice is saved on the form as f.formTemplate and
 // travels with the public link as &tpl=<id>. "Brand colour" (no template) keeps the
 // form's own accent colour, exactly as before.
 // The same table lives in forms-page/index.html (the respondent page): keep them in step.
 var MF_TEMPLATES = [
-  {"id":"splitwipe","name":"Split Wipe","c1":"#0d3a22","c2":"#19b35a","fx":"sweep","tr":"fade","k1":"rgba(255,255,255,.2)","k2":"rgba(255,255,255,.1)","bl":"soft","bs":1,"b1":"#3ddc84","b2":"#ffb02e","b3":"#38b6ff","sp":1},
   {"id":"aurora","name":"Aurora","c1":"#061a2b","c2":"#0f766e","fx":"aurora","tr":"up","k1":"rgba(94,234,212,.38)","k2":"rgba(167,139,250,.38)","bl":"morph","bs":1,"b1":"#2dd4bf","b2":"#818cf8","b3":"#34d399"},
   {"id":"midnight","name":"Midnight","c1":"#050816","c2":"#1e2a78","fx":"stars","tr":"fade","k1":"rgba(99,102,241,.30)","k2":"rgba(56,189,248,.20)","bl":"orbit","bs":1.1,"b1":"#6366f1","b2":"#38bdf8","b3":"#a78bfa"},
   {"id":"sunset","name":"Sunset","c1":"#4a1233","c2":"#d9480f","fx":"sweep","tr":"up","k1":"rgba(251,191,36,.35)","k2":"rgba(236,72,153,.35)","bl":"soft","bs":1,"b1":"#fb923c","b2":"#f43f5e","b3":"#fbbf24"},
@@ -25,7 +24,12 @@ var MF_TEMPLATES = [
   {"id":"citrus","name":"Citrus","c1":"#422006","c2":"#4d7c0f","fx":"stripes","tr":"up","k1":"rgba(250,204,21,.30)","k2":"rgba(163,230,53,.30)","bl":"morph","bs":0.85,"b1":"#facc15","b2":"#a3e635","b3":"#fb923c"},
   {"id":"cyber","name":"Cyber","c1":"#00121a","c2":"#0e7490","fx":"scan","tr":"slide","k1":"rgba(34,211,238,.35)","k2":"rgba(52,211,153,.25)","bl":"ring","bs":0.9,"b1":"#22d3ee","b2":"#34d399","b3":"#0ea5e9"},
   {"id":"coral","name":"Coral Reef","c1":"#7c2d12","c2":"#0f766e","fx":"beams","tr":"up","k1":"rgba(251,146,60,.30)","k2":"rgba(45,212,191,.30)","bl":"float","bs":1,"b1":"#fb923c","b2":"#2dd4bf","b3":"#f87171"},
-  {"id":"monsoon","name":"Monsoon","c1":"#0b1220","c2":"#1e3a5f","fx":"rain","tr":"fade","k1":"rgba(125,211,252,.25)","k2":"rgba(148,163,184,.25)","bl":"ring","bs":1.1,"b1":"#7dd3fc","b2":"#94a3b8","b3":"#38bdf8"}
+  {"id":"monsoon","name":"Monsoon","c1":"#0b1220","c2":"#1e3a5f","fx":"rain","tr":"fade","k1":"rgba(125,211,252,.25)","k2":"rgba(148,163,184,.25)","bl":"ring","bs":1.1,"b1":"#7dd3fc","b2":"#94a3b8","b3":"#38bdf8"},
+  // Quiz and fun (v5): fixed colours (never recoloured from a logo), own skin, own font. See CHANGES-flow-fun-themes.md
+  {"id":"arcade","name":"Arcade","c1":"#070314","c2":"#1d0b45","fx":"pixels","tr":"slide","k1":"rgba(255,46,147,.28)","k2":"rgba(34,230,255,.20)","bl":"none","bs":1,"b1":"#ff2e93","b2":"#22e6ff","b3":"#ffe600","sk":"d","fixed":1,"fn":"Pixelify+Sans:wght@500;700"},
+  {"id":"chalk","name":"Chalkboard","c1":"#0f2e28","c2":"#1d4c3e","fx":"chalk","tr":"fade","k1":"rgba(255,255,255,.07)","k2":"rgba(247,224,122,.12)","bl":"none","bs":1,"b1":"#f7e07a","b2":"#ffb4c6","b3":"#9fd8ff","sk":"d","fixed":1,"fn":"Caveat+Brush&family=Patrick+Hand"},
+  {"id":"popquiz","name":"Pop Quiz","c1":"#fff3d1","c2":"#ffe2a3","fx":"paper","tr":"up","k1":"rgba(255,150,100,.26)","k2":"rgba(255,255,255,.6)","bl":"none","bs":1,"b1":"#ff4d3d","b2":"#3a5bff","b3":"#ffe14d","sk":"l","fixed":1,"fn":"Fraunces:wght@700;900"},
+  {"id":"comic","name":"Comic Pop","c1":"#ffd60a","c2":"#ffbe0b","fx":"halftone","tr":"pop","k1":"rgba(255,59,48,.25)","k2":"rgba(26,107,255,.22)","bl":"none","bs":1,"b1":"#ff3b30","b2":"#1a6bff","b3":"#ffffff","sk":"l","fixed":1,"fn":"Bangers"}
 ];
 
 function mfTplGet(id) { return MF_TEMPLATES.find(function (t) { return t.id === id; }) || null; }
@@ -64,7 +68,7 @@ function mfTplCols(f) {
   return out;
 }
 // The template as it should look for this form (recoloured when matching is on).
-function mfTplEff(t, f) { return (t && mfTplAdaptOn(f)) ? mfTplPalette(t, mfTplCols(f)) : t; }
+function mfTplEff(t, f) { return (t && !t.fixed && mfTplAdaptOn(f)) ? mfTplPalette(t, mfTplCols(f)) : t; }
 
 // Reads the logo's colours once per logo (works for every way a logo can be set) and refreshes the look.
 var mfTplBusy = '';
@@ -86,11 +90,12 @@ function mfGdTplApply(ov, f) {
   var t = mfTplEff(mfTplGet(f && f.formTemplate), f);
   mfTplEnsureColors(f);
   if (!t) {
-    ['data-tpl', 'data-fx', 'data-tr', 'data-bl', 'data-an'].forEach(function (a) { ov.removeAttribute(a); });
+    ['data-tpl', 'data-fx', 'data-tr', 'data-bl', 'data-an', 'data-sk'].forEach(function (a) { ov.removeAttribute(a); });
     ['--fx1', '--fx2', '--b1', '--b2', '--b3', '--bs'].forEach(function (v) { ov.style.removeProperty(v); });
     return;
   }
   ov.setAttribute('data-tpl', t.id);
+  if (t.sk) { ov.setAttribute('data-sk', t.sk); mfTplFonts(t); } else ov.removeAttribute('data-sk');
   if (mfTplAnimOn(f)) { ov.removeAttribute('data-an'); ov.setAttribute('data-fx', t.fx); ov.setAttribute('data-tr', t.tr); ov.setAttribute('data-bl', t.bl); }
   else { ov.setAttribute('data-an', 'off'); ['data-fx', 'data-tr', 'data-bl'].forEach(function (a) { ov.removeAttribute(a); }); }
   ov.style.setProperty('--b1', t.b1); ov.style.setProperty('--b2', t.b2); ov.style.setProperty('--b3', t.b3); ov.style.setProperty('--bs', t.bs);
@@ -98,15 +103,27 @@ function mfGdTplApply(ov, f) {
   ov.style.setProperty('--fx1', t.k1); ov.style.setProperty('--fx2', t.k2);
 }
 
-var MF_TPL_FX_LABEL = { aurora: 'Aurora glow', stars: 'Twinkling stars', bubbles: 'Rising bubbles', snow: 'Falling snow', rain: 'Rain', grid: 'Moving grid', dots: 'Dot sheet', beams: 'Light beams', waves: 'Rolling waves', sweep: 'Light sweep', confetti: 'Confetti', pulse: 'Soft pulse', embers: 'Rising embers', fireflies: 'Fireflies', ripple: 'Ripples', petals: 'Falling petals', diamonds: 'Diamond lattice', stripes: 'Moving stripes', scan: 'Scan lines', bokeh: 'Bokeh lights' };
-var MF_TPL_BL_LABEL = { soft: 'dreamy glows', morph: 'morphing blobs', orbit: 'orbiting blobs', ring: 'glowing rings', float: 'floating orbs' };
+var MF_TPL_FX_LABEL = { aurora: 'Aurora glow', stars: 'Twinkling stars', bubbles: 'Rising bubbles', snow: 'Falling snow', rain: 'Rain', grid: 'Moving grid', dots: 'Dot sheet', beams: 'Light beams', waves: 'Rolling waves', sweep: 'Light sweep', confetti: 'Confetti', pulse: 'Soft pulse', embers: 'Rising embers', fireflies: 'Fireflies', ripple: 'Ripples', petals: 'Falling petals', diamonds: 'Diamond lattice', stripes: 'Moving stripes', scan: 'Scan lines', bokeh: 'Bokeh lights',
+  pixels: 'Pixel stars', chalk: 'Chalk doodles and dust', paper: 'Notebook page and doodles', halftone: 'Comic print dots' };
+var MF_TPL_BL_LABEL = { soft: 'dreamy glows', morph: 'morphing blobs', orbit: 'orbiting blobs', ring: 'glowing rings', float: 'floating orbs', none: '' };
+// "dreamy glows + aurora glow" for the mood looks, just the effect for the quiz and fun ones.
+function mfTplSub(t) { var b = MF_TPL_BL_LABEL[t.bl] || '', x = MF_TPL_FX_LABEL[t.fx] || ''; return b ? b + ' + ' + x.toLowerCase() : x; }
+// Quiz and fun looks bring their own fonts. Loaded once, only when one of them is used (the link is a normal Google Fonts stylesheet).
+function mfTplFonts(t) {
+  if (!t || !t.fn) return;
+  var id = 'mfTplFont-' + t.id; if (document.getElementById(id)) return;
+  var l = document.createElement('link'); l.id = id; l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=' + t.fn + '&display=swap';
+  document.head.appendChild(l);
+}
 
 function mfTplCard(t, on, brand, anim) {
   var style = t ? '--gd1:' + t.c1 + ';--gd2:' + t.c2 + ';--fx1:' + t.k1 + ';--fx2:' + t.k2 : brand;
   var attrs = t ? (anim === false ? ' data-tpl="' + t.id + '" data-an="off"' : ' data-tpl="' + t.id + '" data-fx="' + t.fx + '" data-tr="' + t.tr + '" data-bl="' + t.bl + '"') : '';
   if (t) style += ';--b1:' + t.b1 + ';--b2:' + t.b2 + ';--b3:' + t.b3 + ';--bs:' + t.bs;
+  if (t && t.sk) { attrs += ' data-sk="' + t.sk + '"'; mfTplFonts(t); }
   var name = t ? t.name : 'Brand colour';
-  var sub = t ? (t.sp ? 'Split screen, images wipe, colours follow' : (MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase()) : 'Your own accent colour';
+  var sub = t ? mfTplSub(t) : 'Your own accent colour';
   return '<button type="button" class="mf-tpl-card' + (on ? ' on' : '') + '" data-tid="' + (t ? t.id : '') + '">' +
     '<div class="mf-gd mf-tpl-thumb"' + attrs + ' style="' + style + '"><div class="gdx-blobs" aria-hidden="true"><i></i><i></i><i></i></div><b>Aa</b><i></i><u></u></div>' +
     '<span>' + mfEsc(name) + '<small>' + mfEsc(sub) + '</small></span></button>';
@@ -156,7 +173,11 @@ function mfTplDraw() {
     '<button type="button" class="mf-tpl-x" data-tclose aria-label="Close">×</button></div>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tadapt' + (on ? ' checked' : '') + '><span><b>Match my logo colours</b><small>' + mfEsc(note) + '</small></span>' + dots + '</label>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tanim' + (anim ? ' checked' : '') + '><span><b>Animation</b><small>' + (anim ? 'Moving background and question effects are on' : 'Off: only the chosen colours, calm and static') + '</small></span></label>' +
-    '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) + MF_TEMPLATES.map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div></div>';
+    '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) +
+    '<div class="mf-tpl-group">Quiz and fun <span style="text-transform:none;letter-spacing:0;font-weight:500">(keep their own colours)</span></div>' +
+    MF_TEMPLATES.filter(function (t) { return t.sk; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') +
+    '<div class="mf-tpl-group">Moods</div>' +
+    MF_TEMPLATES.filter(function (t) { return !t.sk; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div></div>';
   var g2 = m.querySelector('.mf-tpl-grid'); if (g2) g2.scrollTop = keep;
 }
 function mfTplEsc(e) { if (e.key === 'Escape') mfTplClose(); }
@@ -189,7 +210,7 @@ function mfLookSync() {
   var t = mfTplEff(mfTplGet(f.formTemplate), f), sw, name, sub;
   if (t) {
     sw = 'linear-gradient(135deg,' + t.c1 + ',' + t.c2 + ')'; name = t.name;
-    sub = t.sp ? 'Split screen + image wipe' : (MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase();
+    sub = mfTplSub(t);
   } else {
     var acc = f.accentColor || '#0073E6';
     sw = 'linear-gradient(135deg,' + mixHex(acc, 55, '#0b1020') + ',' + acc + ')'; name = 'Brand colour'; sub = 'Your own accent colour';

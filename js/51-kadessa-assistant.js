@@ -170,7 +170,7 @@
   //     navigated toward. See mfCreateFromTemplate() client-side: it now
   //     switches the top-level section to Make Forms itself before
   //     building, so this is safe to call from anywhere.
-  //   mf_set_look {style?, template?, business?, animation?, match_logo?, accent?}   (v67: Flow/Standard + one of 20 templates; template 'auto' scores the business words)
+  //   mf_set_look {style?, template?, business?, animation?, match_logo?, accent?}   (v67: Flow/Standard + one of 24 templates; template 'auto' scores the business words)
   //   mf_create_form / mf_create_from_template also take look {same fields} so one call builds a finished form.
   //   mf_create_from_template {template}
   //     -- Starts from one of SARVARC's own pre-built templates instead of
@@ -2528,6 +2528,11 @@
   // question labels against each template's mood, and a serious-sounding business is never given a loud template.
   // Ids must match MF_TEMPLATES in js/74-make-forms-templates.js.
   const KMF_LOOK_WORDS = [
+    // quiz and fun looks first, so they win ties against the mood rows (ids must match js/74 too)
+    ['chalk',    /quiz.*(school|class|student)|(school|class|student|tuition|coaching).*quiz|classroom|teacher|exam prep|mock test|homework|worksheet/],
+    ['arcade',   /quiz.*(tech|code|coding|developer|gaming|gamer|geek|anime)|(tech|code|coding|developer|gaming|gamer|geek|anime).*quiz|retro|arcade|8.?bit|pixel/],
+    ['comic',    /meme|giveaway|campus|college fest|freshers|teen|social media contest|roast|poll|would you rather/],
+    ['popquiz',  /quiz|personality|knowledge test|which .* are you|brain teaser|riddle|how well do you know/],
     ['slate',    /law|legal|advoc|attorney|account|audit|tax|consult|corporate|hr\b|human resource|recruit|hiring|real estate|property|broker|agency|b2b|compliance|kyc|insurance agent|professional/],
     ['monsoon',  /insur|bank|loan|credit|finance|universit|college|utility|complaint|grievance|trust|nbfc|mutual fund/],
     ['mint',     /clinic|dental|dentist|doctor|hospital|pharma|health|medical|physio|wellness|spa\b|skin|dermat|hygiene|organic|nurs/],
@@ -2549,7 +2554,7 @@
     ['midnight', /conference|meetup|launch|night|summit|expo|premium event|networking|after.?party|webinar/],
   ];
   const KMF_SERIOUS = /law|legal|advoc|account|audit|tax|bank|loan|finance|insur|medical|clinic|hospital|doctor|health|hr\b|recruit|hiring|complaint|grievance|compliance|kyc|government|court/;
-  const KMF_LOUD = ['neongrid', 'candy', 'ember', 'cyber'];
+  const KMF_LOUD = ['neongrid', 'candy', 'ember', 'cyber', 'arcade', 'chalk', 'popquiz', 'comic'];
   function kmfPickTemplate(text){
     const t = String(text || '').toLowerCase();
     let best = null, bestN = 0;
@@ -3175,7 +3180,7 @@
         return 'Start a new form from the "' + (tpl ? tpl.name : p.template) + '" template.';
       }
     },
-    // v67: Kadessa chooses the look of the open form (Flow or Standard, one of the 20 templates, animation, logo colours,
+    // v67: Kadessa chooses the look of the open form (Flow or Standard, one of the 24 templates, animation, logo colours,
     // accent). The same code runs when she passes a `look` on mf_create_form / mf_create_from_template.
     mf_set_look: {
       risk: 'safe',
