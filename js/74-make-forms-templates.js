@@ -5,6 +5,7 @@
 // form's own accent colour, exactly as before.
 // The same table lives in forms-page/index.html (the respondent page): keep them in step.
 var MF_TEMPLATES = [
+  {"id":"splitwipe","name":"Split Wipe","c1":"#0d3a22","c2":"#19b35a","fx":"sweep","tr":"fade","k1":"rgba(255,255,255,.2)","k2":"rgba(255,255,255,.1)","bl":"soft","bs":1,"b1":"#3ddc84","b2":"#ffb02e","b3":"#38b6ff","sp":1},
   {"id":"aurora","name":"Aurora","c1":"#061a2b","c2":"#0f766e","fx":"aurora","tr":"up","k1":"rgba(94,234,212,.38)","k2":"rgba(167,139,250,.38)","bl":"morph","bs":1,"b1":"#2dd4bf","b2":"#818cf8","b3":"#34d399"},
   {"id":"midnight","name":"Midnight","c1":"#050816","c2":"#1e2a78","fx":"stars","tr":"fade","k1":"rgba(99,102,241,.30)","k2":"rgba(56,189,248,.20)","bl":"orbit","bs":1.1,"b1":"#6366f1","b2":"#38bdf8","b3":"#a78bfa"},
   {"id":"sunset","name":"Sunset","c1":"#4a1233","c2":"#d9480f","fx":"sweep","tr":"up","k1":"rgba(251,191,36,.35)","k2":"rgba(236,72,153,.35)","bl":"soft","bs":1,"b1":"#fb923c","b2":"#f43f5e","b3":"#fbbf24"},
@@ -107,7 +108,7 @@ var MF_TPL_FX_LABEL = { aurora: 'Aurora glow', stars: 'Twinkling stars', bubbles
   pixels: 'Pixel stars', chalk: 'Chalk doodles and dust', paper: 'Notebook page and doodles', halftone: 'Comic print dots' };
 var MF_TPL_BL_LABEL = { soft: 'dreamy glows', morph: 'morphing blobs', orbit: 'orbiting blobs', ring: 'glowing rings', float: 'floating orbs', none: '' };
 // "dreamy glows + aurora glow" for the mood looks, just the effect for the quiz and fun ones.
-function mfTplSub(t) { var b = MF_TPL_BL_LABEL[t.bl] || '', x = MF_TPL_FX_LABEL[t.fx] || ''; return b ? b + ' + ' + x.toLowerCase() : x; }
+function mfTplSub(t) { if (t.sp) return 'Split screen, images wipe, colours follow'; var b = MF_TPL_BL_LABEL[t.bl] || '', x = MF_TPL_FX_LABEL[t.fx] || ''; return b ? b + ' + ' + x.toLowerCase() : x; }
 // Quiz and fun looks bring their own fonts. Loaded once, only when one of them is used (the link is a normal Google Fonts stylesheet).
 function mfTplFonts(t) {
   if (!t || !t.fn) return;
@@ -174,10 +175,11 @@ function mfTplDraw() {
     '<label class="mf-tpl-match"><input type="checkbox" data-tadapt' + (on ? ' checked' : '') + '><span><b>Match my logo colours</b><small>' + mfEsc(note) + '</small></span>' + dots + '</label>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tanim' + (anim ? ' checked' : '') + '><span><b>Animation</b><small>' + (anim ? 'Moving background and question effects are on' : 'Off: only the chosen colours, calm and static') + '</small></span></label>' +
     '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) +
+    MF_TEMPLATES.filter(function (t) { return t.sp; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') +
     '<div class="mf-tpl-group">Quiz and fun <span style="text-transform:none;letter-spacing:0;font-weight:500">(keep their own colours)</span></div>' +
     MF_TEMPLATES.filter(function (t) { return t.sk; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') +
     '<div class="mf-tpl-group">Moods</div>' +
-    MF_TEMPLATES.filter(function (t) { return !t.sk; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div></div>';
+    MF_TEMPLATES.filter(function (t) { return !t.sk && !t.sp; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div></div>';
   var g2 = m.querySelector('.mf-tpl-grid'); if (g2) g2.scrollTop = keep;
 }
 function mfTplEsc(e) { if (e.key === 'Escape') mfTplClose(); }
@@ -210,7 +212,7 @@ function mfLookSync() {
   var t = mfTplEff(mfTplGet(f.formTemplate), f), sw, name, sub;
   if (t) {
     sw = 'linear-gradient(135deg,' + t.c1 + ',' + t.c2 + ')'; name = t.name;
-    sub = mfTplSub(t);
+    sub = t.sp ? 'Split screen + image wipe' : mfTplSub(t);
   } else {
     var acc = f.accentColor || '#0073E6';
     sw = 'linear-gradient(135deg,' + mixHex(acc, 55, '#0b1020') + ',' + acc + ')'; name = 'Brand colour'; sub = 'Your own accent colour';
