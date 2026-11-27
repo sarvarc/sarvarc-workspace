@@ -30,6 +30,13 @@ function spwColorOf(it, cb) {
       }
       it.col = spwMkCol(r / w, g / w, b / w);
     } catch (e) { it.col = spwMkCol(40, 190, 100); }
+    // tiny copy of the picture (aspect kept): enlarged behind the real picture it becomes a soft blurred backdrop, with no live blur filter
+    try {
+      var iw = im.naturalWidth || 1, ih = im.naturalHeight || 1, sc = 48 / Math.max(iw, ih);
+      var tw = Math.max(8, Math.round(iw * sc)), th = Math.max(8, Math.round(ih * sc));
+      var tc = document.createElement('canvas'); tc.width = tw; tc.height = th;
+      tc.getContext('2d').drawImage(im, 0, 0, tw, th); it.thumb = tc.toDataURL('image/jpeg', .7);
+    } catch (e2) { it.thumb = ''; }
     cb();
   };
   im.onerror = function () { it.col = spwMkCol(40, 190, 100); cb(); };
@@ -69,8 +76,13 @@ function spwMount(root, items, o) {
     return d;
   }
   function slide(i) {
+    // Every picture is shown WHOLE (never cropped): the real picture sits centred (contain) over a soft enlarged copy of itself.
     var d = document.createElement('div'); d.className = 'spw-s' + (still ? '' : ' kb');
-    d.style.backgroundImage = 'url("' + list[i].src + '")'; return d;
+    var bd = document.createElement('div'); bd.className = 'spw-bd';
+    bd.style.backgroundColor = list[i].col ? list[i].col.b : '#06180e';
+    if (list[i].thumb) bd.style.backgroundImage = 'url("' + list[i].thumb + '")';
+    var fg = document.createElement('div'); fg.className = 'spw-fg'; fg.style.backgroundImage = 'url("' + list[i].src + '")';
+    d.appendChild(bd); d.appendChild(fg); return d;
   }
   function paint(i) {
     capEl.textContent = list[i].cap || '';
