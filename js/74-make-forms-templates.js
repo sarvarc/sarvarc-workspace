@@ -5,6 +5,7 @@
 // form's own accent colour, exactly as before.
 // The same table lives in forms-page/index.html (the respondent page): keep them in step.
 var MF_TEMPLATES = [
+  {"id":"splitwipe","name":"Split Wipe","c1":"#0d3a22","c2":"#19b35a","fx":"sweep","tr":"fade","k1":"rgba(255,255,255,.2)","k2":"rgba(255,255,255,.1)","bl":"soft","bs":1,"b1":"#3ddc84","b2":"#ffb02e","b3":"#38b6ff","sp":1},
   {"id":"aurora","name":"Aurora","c1":"#061a2b","c2":"#0f766e","fx":"aurora","tr":"up","k1":"rgba(94,234,212,.38)","k2":"rgba(167,139,250,.38)","bl":"morph","bs":1,"b1":"#2dd4bf","b2":"#818cf8","b3":"#34d399"},
   {"id":"midnight","name":"Midnight","c1":"#050816","c2":"#1e2a78","fx":"stars","tr":"fade","k1":"rgba(99,102,241,.30)","k2":"rgba(56,189,248,.20)","bl":"orbit","bs":1.1,"b1":"#6366f1","b2":"#38bdf8","b3":"#a78bfa"},
   {"id":"sunset","name":"Sunset","c1":"#4a1233","c2":"#d9480f","fx":"sweep","tr":"up","k1":"rgba(251,191,36,.35)","k2":"rgba(236,72,153,.35)","bl":"soft","bs":1,"b1":"#fb923c","b2":"#f43f5e","b3":"#fbbf24"},
@@ -105,7 +106,7 @@ function mfTplCard(t, on, brand, anim) {
   var attrs = t ? (anim === false ? ' data-tpl="' + t.id + '" data-an="off"' : ' data-tpl="' + t.id + '" data-fx="' + t.fx + '" data-tr="' + t.tr + '" data-bl="' + t.bl + '"') : '';
   if (t) style += ';--b1:' + t.b1 + ';--b2:' + t.b2 + ';--b3:' + t.b3 + ';--bs:' + t.bs;
   var name = t ? t.name : 'Brand colour';
-  var sub = t ? ((MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase()) : 'Your own accent colour';
+  var sub = t ? (t.sp ? 'Split screen, images wipe, colours follow' : (MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase()) : 'Your own accent colour';
   return '<button type="button" class="mf-tpl-card' + (on ? ' on' : '') + '" data-tid="' + (t ? t.id : '') + '">' +
     '<div class="mf-gd mf-tpl-thumb"' + attrs + ' style="' + style + '"><div class="gdx-blobs" aria-hidden="true"><i></i><i></i><i></i></div><b>Aa</b><i></i><u></u></div>' +
     '<span>' + mfEsc(name) + '<small>' + mfEsc(sub) + '</small></span></button>';
@@ -188,7 +189,7 @@ function mfLookSync() {
   var t = mfTplEff(mfTplGet(f.formTemplate), f), sw, name, sub;
   if (t) {
     sw = 'linear-gradient(135deg,' + t.c1 + ',' + t.c2 + ')'; name = t.name;
-    sub = (MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase();
+    sub = t.sp ? 'Split screen + image wipe' : (MF_TPL_BL_LABEL[t.bl] || '') + ' + ' + (MF_TPL_FX_LABEL[t.fx] || '').toLowerCase();
   } else {
     var acc = f.accentColor || '#0073E6';
     sw = 'linear-gradient(135deg,' + mixHex(acc, 55, '#0b1020') + ',' + acc + ')'; name = 'Brand colour'; sub = 'Your own accent colour';

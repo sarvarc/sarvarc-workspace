@@ -176,8 +176,10 @@
 
   function active(f) {
     var g = G(f);
-    return !!(f && f.formStyle === 'guided' && g && g.on !== false && g.items.some(function (i) { return blobs[i.id]; }) && !(window.mfGd && window.mfGd.fill));
+    return !!(f && f.formStyle === 'guided' && g && g.on !== false && g.items.some(function (i) { return blobs[i.id]; }) && !(window.mfGd && window.mfGd.fill) && !(window.mfSplitOn && window.mfSplitOn(f)));
   }
+  // Split Wipe theme (js/100) shows the same images beside the questions.
+  window.mfGalItems = function (f) { var g = G(f); return (g && g.on !== false) ? items(f) : []; };
   function items(f) {
     return G(f).items.filter(function (i) { return blobs[i.id]; }).map(function (i) { return { src: blobs[i.id], cap: i.cap || '', r: i.r || 0.8 }; });
   }

@@ -92,7 +92,7 @@ function mfGdRender() {
   // The blob layer is created once and kept, so its animation keeps running when the question changes.
   let blobs = ov.querySelector(':scope > .gdx-blobs');
   if (!blobs) { ov.insertAdjacentHTML('afterbegin', '<div class="gdx-blobs" aria-hidden="true"><i></i><i></i><i></i></div>'); blobs = ov.firstElementChild; }
-  Array.from(ov.children).forEach(c => { if (c !== blobs && !c.classList.contains('gx-amb') && !c.classList.contains('gx-dock')) c.remove(); });
+  Array.from(ov.children).forEach(c => { if (c !== blobs && !c.classList.contains('gx-amb') && !c.classList.contains('gx-dock') && !c.classList.contains('spw-l') && !c.classList.contains('spw-r') && !c.classList.contains('spw-sp')) c.remove(); });
   ov.insertAdjacentHTML('beforeend', `${banner}<div class="mf-gd-bar"><i style="width:${pct}%"></i></div>${logo}${body}`);
   ov.querySelectorAll('canvas[data-sig]').forEach(c => {
     const saved = mfGd.a[c.dataset.sig];
