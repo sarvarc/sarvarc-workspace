@@ -1,0 +1,39 @@
+/* Kadessa stage: premium centred chat card on the empty PDF Editor canvas (js/102-kadessa-stage.js).
+   Same panel as the corner chat; only skin and position change. Falls back to the corner box when a file is open. */
+#kadessa-panel.kadessa-stage { right: auto; bottom: auto; left: var(--ks-l); top: var(--ks-t); width: var(--ks-w); height: var(--ks-h); max-width: none; max-height: none;
+  border-radius: 22px; border: 1px solid rgba(0,194,255,.26); transition: none;
+  background: linear-gradient(180deg, rgba(20,30,52,.94), rgba(11,17,32,.97));
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 30px 80px rgba(0,0,0,.55), 0 0 0 6px rgba(0,194,255,.05), 0 0 70px rgba(0,194,255,.10);
+  animation: ksIn .42s cubic-bezier(.2,.7,.2,1) both; }
+#kadessa-panel.kadessa-stage #kadessa-head { background: none; color: var(--text, #E8F4FF); padding: 16px 18px 14px 22px; border-bottom: 1px solid rgba(128,150,175,.16); }
+#kadessa-panel.kadessa-stage #kadessa-head strong { font-size: 15px; letter-spacing: -.01em; }
+#kadessa-panel.kadessa-stage #kadessa-head #kadessa-avatar { width: 38px; height: 38px; box-shadow: 0 0 0 1px rgba(0,194,255,.45), 0 6px 22px rgba(0,160,240,.35); }
+#kadessa-panel.kadessa-stage #kadessa-head #kadessa-status { color: var(--text2, #7BA8C4); }
+#kadessa-panel.kadessa-stage #kadessa-head #kadessa-status::before { background: var(--cyan, #00C2FF); opacity: .7; }
+#kadessa-panel.kadessa-stage .kadessa-head-btn, #kadessa-panel.kadessa-stage #kadessa-head #kadessa-close { color: var(--text2, #7BA8C4); background: rgba(128,150,175,.12); }
+#kadessa-panel.kadessa-stage .kadessa-head-btn:hover, #kadessa-panel.kadessa-stage #kadessa-head #kadessa-close:hover { color: var(--text, #E8F4FF); background: rgba(0,194,255,.16); }
+#kadessa-panel.kadessa-stage #kadessa-expand, #kadessa-panel.kadessa-stage #kadessa-scope { display: none; }   /* already roomy; the scope strip is noise here */
+#kadessa-panel.kadessa-stage #kadessa-thread { background: none; padding: 22px 30px 8px; gap: 14px; scrollbar-width: thin; }
+#kadessa-panel.kadessa-stage .kadessa-msg { max-width: 80%; font-size: 14px; line-height: 1.6; padding: 11px 15px; border-radius: 16px; }
+#kadessa-panel.kadessa-stage .kadessa-msg.user { background: linear-gradient(135deg, rgba(0,194,255,.20), rgba(0,115,230,.18)); border: 1px solid rgba(0,194,255,.32); border-bottom-right-radius: 5px; }
+#kadessa-panel.kadessa-stage .kadessa-msg.kadessa { background: rgba(255,255,255,.04); border: 1px solid rgba(128,150,175,.20); border-left: 1px solid rgba(128,150,175,.20); border-bottom-left-radius: 5px; }
+#kadessa-panel.kadessa-stage #kadessa-mode-tag { background: none; }
+#kadessa-panel.kadessa-stage #kadessa-form { background: none; border-top: 0; padding: 8px 22px 6px; }
+#kadessa-panel.kadessa-stage #kadessa-form-row { align-items: flex-end; gap: 8px; padding: 7px 8px 7px 10px; border-radius: 18px; background: rgba(255,255,255,.045); border: 1px solid rgba(128,150,175,.26); transition: border-color .2s, box-shadow .2s; }
+#kadessa-panel.kadessa-stage #kadessa-form-row:focus-within { border-color: rgba(0,194,255,.55); box-shadow: 0 0 0 4px rgba(0,194,255,.09); }
+#kadessa-panel.kadessa-stage #kadessa-input, #kadessa-panel.kadessa-stage #kadessa-input:focus { background: none; border: 0; box-shadow: none; padding: 7px 4px; font-size: 14px; max-height: 120px; }
+#kadessa-panel.kadessa-stage #kadessa-attach-btn { border: 0; background: none; }
+#kadessa-panel.kadessa-stage #kadessa-send { border-radius: 12px; padding: 0 18px; height: 36px; box-shadow: 0 6px 18px rgba(0,140,230,.32); }
+#kadessa-panel.kadessa-stage #kadessa-legal-note { background: none !important; padding-bottom: 12px !important; }
+[data-theme="light"] #kadessa-panel.kadessa-stage { background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,248,252,.98)); border-color: rgba(0,120,200,.25);
+  box-shadow: inset 0 1px 0 #fff, 0 30px 70px rgba(0,60,120,.20), 0 0 0 6px rgba(0,150,230,.06); }
+[data-theme="light"] #kadessa-panel.kadessa-stage .kadessa-msg.kadessa { background: rgba(0,60,120,.035); border-color: rgba(0,60,120,.14); }
+[data-theme="light"] #kadessa-panel.kadessa-stage #kadessa-form-row { background: #fff; border-color: rgba(0,60,120,.18); }
+
+/* The goals answers step aside while she has the stage, and come back when she closes or falls back to the corner. */
+.pg-goals { transition: opacity .25s ease, visibility .25s; }
+body.kad-stage .pg-goals { opacity: 0; visibility: hidden; pointer-events: none; }
+
+@keyframes ksIn { from { opacity: 0; transform: translateY(14px) scale(.972); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #kadessa-panel.kadessa-stage { animation: none; } .pg-goals { transition: none; } }
