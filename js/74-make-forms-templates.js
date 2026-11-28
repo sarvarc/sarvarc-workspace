@@ -84,7 +84,7 @@ function mfTplEnsureColors(f) {
   pdfedExtractLogoColors(f.logoDataUrl).then(function (cols) {
     f.logoColors = (cols || []).slice(0, 3); f.logoColorsSig = sig; mfTouch(f);
     if (document.getElementById('mfGdOverlay') && mfGetCurrentForm() === f) mfGdRender();
-    if (document.getElementById('mfTplModal')) mfTplDraw();
+    if (document.getElementById('mfTplInline')) mfTplDraw();
     mfLookSync();
   }).catch(function () { f.logoColorsSig = sig; });
 }
@@ -134,48 +134,56 @@ function mfTplCard(t, on, brand, anim) {
     '<span>' + mfEsc(name) + '<small>' + mfEsc(sub) + '</small></span></button>';
 }
 
+// The picker opens INSIDE the Look panel (no popup), so the form preview stays visible next to it
+// and every click on a card changes the preview right away.
 function mfTplOpen() {
   var f = mfGetCurrentForm(); if (!f) return;
   // Templates only apply to Flow forms: opening them from a Standard form switches it to Flow first.
   if (f.formStyle !== 'guided' && typeof mfSetFormStyle === 'function') mfSetFormStyle('guided');
-  mfTplClose();
-  var m = document.createElement('div');
-  m.id = 'mfTplModal'; m.className = 'mf-tpl-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Choose a template');
-  m.addEventListener('click', function (e) {
-    if (e.target === m || e.target.closest('[data-tclose]')) { mfTplClose(); return; }
-    var c = e.target.closest('.mf-tpl-card'); if (!c) return;
-    mfTplSet(c.dataset.tid);
-    m.querySelectorAll('.mf-tpl-card').forEach(function (x) { x.classList.toggle('on', x === c); });
-  });
-  m.addEventListener('change', function (e) {
-    var isAnim = e.target.matches('[data-tanim]');
-    if (!isAnim && !e.target.matches('[data-tadapt]')) return;
-    var g = mfGetCurrentForm(); if (!g) return;
-    if (isAnim) g.tplAnim = !!e.target.checked; else g.tplAdapt = !!e.target.checked;
-    mfTouch(g);
-    if (isAnim && g.publishedId && typeof toast === 'function') toast('Animation setting changed. Press Update Link and share the new link.', 'info');
-    if (document.getElementById('mfGdOverlay')) mfGdRender();
-    mfTplDraw();
-  });
-  document.body.appendChild(m);
-  document.addEventListener('keydown', mfTplEsc);
+  if (typeof mfRailOpen === 'function') mfRailOpen('look');
+  var card = document.getElementById('mfLookCard'); if (!card) return;
+  var box = document.getElementById('mfTplInline');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'mfTplInline'; box.className = 'mf-tpl-inline'; box.setAttribute('aria-label', 'Choose a template');
+    box.addEventListener('click', function (e) {
+      if (e.target.closest('[data-tclose]')) { mfTplClose(); return; }
+      var c = e.target.closest('.mf-tpl-card'); if (!c) return;
+      mfTplSet(c.dataset.tid);
+      box.querySelectorAll('.mf-tpl-card').forEach(function (x) { x.classList.toggle('on', x === c); });
+    });
+    box.addEventListener('change', function (e) {
+      var isAnim = e.target.matches('[data-tanim]');
+      if (!isAnim && !e.target.matches('[data-tadapt]')) return;
+      var g = mfGetCurrentForm(); if (!g) return;
+      if (isAnim) g.tplAnim = !!e.target.checked; else g.tplAdapt = !!e.target.checked;
+      mfTouch(g);
+      if (isAnim && g.publishedId && typeof toast === 'function') toast('Animation setting changed. Press Update Link and share the new link.', 'info');
+      if (document.getElementById('mfGdOverlay')) mfGdRender();
+      mfTplDraw();
+    });
+    card.appendChild(box);
+  }
   mfTplEnsureColors(f);
   mfTplDraw();
+  mfLookSync();
+  try { box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
 }
+function mfTplToggle() { if (document.getElementById('mfTplInline')) mfTplClose(); else mfTplOpen(); }
 
 // (Re)draws the picker contents, e.g. after the match switch or once the logo colours are read.
 function mfTplDraw() {
-  var f = mfGetCurrentForm(), m = document.getElementById('mfTplModal'); if (!f || !m) return;
-  var grid = m.querySelector('.mf-tpl-grid'), keep = grid ? grid.scrollTop : 0;
+  var f = mfGetCurrentForm(), m = document.getElementById('mfTplInline'); if (!f || !m) return;
+  var sc = m.closest('.mf-fields-panel'), keep = sc ? sc.scrollTop : 0;
   var acc = f.accentColor || '#0073E6';
   var lum = 0; var rgb = (typeof hexToRgbStr === 'function') ? hexToRgbStr(acc) : null;
   if (rgb) { var p = rgb.split(',').map(Number); lum = (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255; }
   var brand = '--gd1:' + (lum > 0.6 ? mixHex(acc, 25, '#0b1020') : mixHex(acc, 55, '#0b1020')) + ';--gd2:' + (lum > 0.6 ? mixHex(acc, 55, '#0b1020') : acc);
   var cur = f.formTemplate || '', on = mfTplAdaptOn(f), anim = mfTplAnimOn(f), hasLogo = !!f.logoDataUrl;
   var dots = on ? mfTplCols(f).map(function (c) { return '<i class="mf-tpl-dot" style="background:' + mfEsc(c) + '"></i>'; }).join('') : '';
-  var note = hasLogo ? (on ? 'Using your logo colours' : 'Using each template\'s own colours') : 'No logo yet. Upload one in Design and the templates recolour to match it. Switch on to use your accent colour.';
-  m.innerHTML = '<div class="mf-tpl-panel"><div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Changes the look of your Flow form: colours, moving background and how questions appear. Hover a card to see it move.</p></div>' +
-    '<button type="button" class="mf-tpl-x" data-tclose aria-label="Close">×</button></div>' +
+  var note = hasLogo ? (on ? 'Using your logo colours' : 'Using each template\'s own colours') : 'No logo yet. Upload one in Brand and the templates recolour to match it. Switch on to use your accent colour.';
+  m.innerHTML = '<div class="mf-tpl-head"><div><h3>Choose a template</h3><p>Click a card and your form changes on the right. Hover a card to see it move.</p></div>' +
+    '<button type="button" class="mf-tpl-x" data-tclose aria-label="Hide templates" title="Hide templates">×</button></div>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tadapt' + (on ? ' checked' : '') + '><span><b>Match my logo colours</b><small>' + mfEsc(note) + '</small></span>' + dots + '</label>' +
     '<label class="mf-tpl-match"><input type="checkbox" data-tanim' + (anim ? ' checked' : '') + '><span><b>Animation</b><small>' + (anim ? 'Moving background and question effects are on' : 'Off: only the chosen colours, calm and static') + '</small></span></label>' +
     '<div class="mf-tpl-grid">' + mfTplCard(null, !cur, brand) +
@@ -183,13 +191,12 @@ function mfTplDraw() {
     '<div class="mf-tpl-group">Quiz and fun <span style="text-transform:none;letter-spacing:0;font-weight:500">(keep their own colours)</span></div>' +
     MF_TEMPLATES.filter(function (t) { return t.sk && !t.sp; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') +
     '<div class="mf-tpl-group">Moods</div>' +
-    MF_TEMPLATES.filter(function (t) { return !t.sk && !t.sp; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div></div>';
-  var g2 = m.querySelector('.mf-tpl-grid'); if (g2) g2.scrollTop = keep;
+    MF_TEMPLATES.filter(function (t) { return !t.sk && !t.sp; }).map(function (t) { return mfTplCard(mfTplEff(t, f), cur === t.id, '', anim); }).join('') + '</div>';
+  if (sc) sc.scrollTop = keep;
 }
-function mfTplEsc(e) { if (e.key === 'Escape') mfTplClose(); }
 function mfTplClose() {
-  var m = document.getElementById('mfTplModal'); if (m) m.remove();
-  document.removeEventListener('keydown', mfTplEsc);
+  var m = document.getElementById('mfTplInline'); if (m) m.remove();
+  if (typeof mfLookSync === 'function') mfLookSync();
 }
 
 function mfTplSet(id) {
@@ -205,12 +212,12 @@ function mfTplSet(id) {
 // Shows which style is on (Standard | Flow tiles) and the template in use with a Browse button.
 function mfLookSync() {
   var card = document.getElementById('mfLookCard'), f = mfGetCurrentForm(); if (!card || !f) return;
-  var guided = f.formStyle === 'guided';
+  var guided = f.formStyle === 'guided', isOpen = !!document.getElementById('mfTplInline');
   card.querySelectorAll('.mf-look-tile').forEach(function (b) { b.classList.toggle('on', b.dataset.s === (guided ? 'guided' : 'standard')); });
   var box = document.getElementById('mfLookTpl'); if (!box) return;
   if (!guided) {
     box.innerHTML = '<span class="mf-look-note">Flow forms can use ready-made templates: colours, moving backgrounds and animations.</span>' +
-      '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplOpen()">Try templates</button>';
+      '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplToggle()">' + (isOpen ? 'Hide templates' : 'Try templates') + '</button>';
     return;
   }
   var t = mfTplEff(mfTplGet(f.formTemplate), f), sw, name, sub;
@@ -223,5 +230,5 @@ function mfLookSync() {
   }
   box.innerHTML = '<span class="mf-look-sw" style="background:' + sw + '"></span>' +
     '<span class="mf-look-tn"><b>' + mfEsc(name) + '</b><small>' + mfEsc(sub) + '</small></span>' +
-    '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplOpen()">Browse templates</button>';
+    '<button type="button" class="btn-secondary mf-look-btn" onclick="mfTplToggle()">' + (isOpen ? 'Hide templates' : 'Browse templates') + '</button>';
 }
