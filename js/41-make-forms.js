@@ -1948,6 +1948,9 @@ function mfRenderAttachments() {
       ? folders.map(folder => mfAttachFolderMarkup(folder, true)).join('')
       : `<div class="mf-fill-attach-empty">No attachments on this form yet.</div>`;
   }
+  // The client view (Standard strip, Flow intro pills) shows the same files.
+  mfRenderClientStrip();
+  if (typeof window.mfGdSync === 'function') { try { window.mfGdSync(); } catch (e) {} }
 }
 
 // ─── BRANDING: ACCENT COLOR ───
@@ -2129,6 +2132,8 @@ function mfSetSocialLink(key, value) {
   if (trimmed) f.socialLinks[key] = trimmed;
   else delete f.socialLinks[key];
   mfTouch(f);
+  mfRenderClientStrip();
+  if (typeof window.mfGdSync === 'function') { try { window.mfGdSync(); } catch (e) {} }
 }
 
 // Converts "#rgb" / "#rrggbb" to an "r, g, b" string for rgba(var(...), alpha).
@@ -2175,6 +2180,87 @@ function mfPvMoveControls(fl, idx, total) {
     `<button type="button" title="Move up" aria-label="Move field up" onclick="mfMoveField('${fl.id}',-1)" ${idx === 0 ? 'disabled' : ''}>&#8593;</button>` +
     `<button type="button" title="Move down" aria-label="Move field down" onclick="mfMoveField('${fl.id}',1)" ${idx === total - 1 ? 'disabled' : ''}>&#8595;</button>` +
     `</div>`;
+}
+
+// ─── CLIENT VIEW: what the online form shows that the A4 sheet does not ───
+// The published form (forms-page/index.html) also shows a question count, the
+// owner's social icons and the Attachments card, and the Flow style adds a
+// "N questions · about M min" line. None of that belongs on the A4 sheet (it is
+// captured for PDF / Word / Image / Push / Print), so Standard forms show it in a
+// separate strip ABOVE the sheet (#mfClientStrip, outside #mfPreviewPage, so
+// pagination and exports never see it). Flow forms show the same things inside
+// the Flow preview itself (js/73). Keep the markup in step with forms-page/index.html.
+const MF_CV_SOCIALS = [
+  { key: 'instagram', label: 'Instagram', icon: '<svg viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="#E1306C"/><rect x="7" y="7" width="10" height="10" rx="3.2" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="16.6" cy="7.4" r="1.15" fill="#fff"/></svg>' },
+  { key: 'linkedin', label: 'LinkedIn', icon: '<svg viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#0A66C2"/><circle cx="8.1" cy="8.3" r="1.35" fill="#fff"/><rect x="7" y="10.8" width="2.2" height="6.9" rx="0.4" fill="#fff"/><path d="M11.6 10.8h2.1v1.15c.5-.78 1.35-1.35 2.55-1.35 1.95 0 3.15 1.28 3.15 3.7v4.4h-2.2v-4.05c0-1.1-.45-1.85-1.5-1.85-.83 0-1.3.55-1.5 1.1-.08.2-.1.47-.1.75v4.05h-2.2c.03-.7.03-6.2 0-6.9Z" fill="#fff"/></svg>' },
+  { key: 'whatsapp', label: 'WhatsApp', icon: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" fill="#25D366"/><path d="M12 5.3a6.7 6.7 0 0 0-5.7 10.2L5.6 18.4l3-.8A6.7 6.7 0 1 0 12 5.3Z" fill="#fff"/><path d="M12 6.6a5.4 5.4 0 0 0-4.6 8.2l.2.3-.7 2.5 2.6-.7.3.2A5.4 5.4 0 1 0 12 6.6Z" fill="#25D366"/><path d="M9.6 9.1c-.16-.35-.33-.36-.48-.36h-.4c-.14 0-.37.05-.56.27-.19.22-.74.72-.74 1.75 0 1.03.76 2.02.86 2.16.1.14 1.47 2.35 3.63 3.2 1.8.71 2.16.57 2.55.53.39-.04 1.26-.51 1.44-1.01.18-.5.18-.93.13-1.02-.05-.09-.19-.14-.4-.25-.21-.1-1.26-.62-1.45-.69-.19-.07-.34-.1-.48.1-.14.21-.55.69-.68.83-.12.14-.25.16-.46.05-.21-.1-.9-.33-1.71-1.05-.63-.56-1.06-1.26-1.18-1.47-.12-.21-.01-.32.09-.43.09-.09.21-.24.31-.36.1-.12.14-.21.21-.34.07-.14.03-.26-.02-.36-.05-.1-.44-1.11-.62-1.51Z" fill="#fff"/></svg>' },
+  { key: 'x', label: 'X', icon: '<svg viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="#0B0B0F"/><path d="M7 7l10 10M17 7L7 17" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>' },
+  { key: 'youtube', label: 'YouTube', icon: '<svg viewBox="0 0 24 24" fill="none"><rect x="2" y="5.5" width="20" height="13" rx="4.2" fill="#FF0000"/><path d="M10.4 9.4v5.2l4.6-2.6Z" fill="#fff"/></svg>' },
+  { key: 'website', label: 'Website', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--mf-accent,#0073E6)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18a13.5 13.5 0 0 1 0-18Z"/></svg>' },
+];
+function mfCvSocialsHtml(f, cls) {
+  const links = (f && f.socialLinks) || {};
+  const items = MF_CV_SOCIALS.filter(p => links[p.key]).map(p =>
+    `<span class="mf-cv-soc-i" title="${p.label}" aria-label="${p.label}">${p.icon}</span>`).join('');
+  return items ? `<div class="${cls || 'mf-cv-social'}">${items}</div>` : '';
+}
+function mfCvSize(n) {
+  if (!n) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return Math.round(n / 1024) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+function mfCvFolders(f) {
+  return ((f && f.attachmentFolders) || []).filter(x => x.files && x.files.length);
+}
+// Same count the live page uses: real questions (not headings or text blocks) plus name and email when asked for.
+function mfCvQuestionCount(f) {
+  const real = ((f && f.fields) || []).filter(x => x.type !== 'heading' && x.type !== 'label' && x.type !== 'gallery').length;
+  return (f && f.requireIdentity ? 2 : 0) + real;
+}
+function mfCvMinutes(n) { return Math.max(1, Math.ceil(n * 0.4)); }
+function mfCvMetaText(f) {
+  const n = mfCvQuestionCount(f);
+  return n ? `${n} ${n === 1 ? 'question' : 'questions'} \u00B7 about ${mfCvMinutes(n)} min` : '';
+}
+function mfCvAttachPills(f) {
+  const folders = mfCvFolders(f);
+  if (!folders.length) return '';
+  return `<div class="mf-gd-files">${folders.map(fo => (fo.name ? `<div class="mf-gd-hint">${mfEsc(fo.name)}</div>` : '') +
+    fo.files.map(fi => `<span class="mf-gd-file">${mfEsc(fi.name)}${fi.size ? ' (' + mfCvSize(fi.size) + ')' : ''}</span>`).join('')).join('')}</div>`;
+}
+function mfCvAttachCard(f) {
+  const folders = mfCvFolders(f);
+  if (!folders.length) return '';
+  return `<div class="mf-cv-card mf-cv-attach"><div class="mf-cv-attach-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attachments</div>` +
+    folders.map(fo => `<div class="mf-cv-folder">${fo.name ? `<div class="mf-cv-folder-name">${mfEsc(fo.name)}</div>` : ''}` +
+      fo.files.map(fi => `<div class="mf-cv-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="mf-cv-file-name">${mfEsc(fi.name)}</span>${fi.size ? `<span class="mf-cv-file-size">${mfCvSize(fi.size)}</span>` : ''}</div>`).join('') + `</div>`).join('') + `</div>`;
+}
+function mfRenderClientStrip() {
+  const f = mfGetCurrentForm();
+  const panel = document.getElementById('mfPreviewPanel');
+  if (!panel) return;
+  let strip = document.getElementById('mfClientStrip');
+  if (!f || f.formStyle === 'guided') { if (strip) strip.style.display = 'none'; return; }
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.id = 'mfClientStrip';
+    strip.className = 'mf-cv';
+    strip.setAttribute('data-html2canvas-ignore', 'true');
+    panel.insertBefore(strip, panel.firstChild);
+  }
+  const n = mfCvQuestionCount(f);
+  const pill = n ? `<span class="mf-cv-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>${n} question${n === 1 ? '' : 's'}</span>` : '';
+  const soc = mfCvSocialsHtml(f, 'mf-cv-social');
+  const attach = mfCvAttachCard(f);
+  if (!pill && !soc && !attach) { strip.style.display = 'none'; return; }
+  const acc = f.accentColor || '#0073E6';
+  const rgb = hexToRgbStr(acc);
+  strip.style.setProperty('--mf-accent', acc);
+  if (rgb) strip.style.setProperty('--mf-accent-rgb', rgb);
+  strip.style.display = '';
+  strip.innerHTML = `<div class="mf-cv-cap">What clients also see on the online form <span>(not part of the A4 sheet, PDF or print)</span></div>` +
+    ((pill || soc) ? `<div class="mf-cv-card mf-cv-head">${pill}${soc}</div>` : '') + attach;
 }
 
 function mfRenderPreview() {
@@ -2310,6 +2396,7 @@ function mfRenderPreview() {
   });
   page.innerHTML = watermarkHtml + `<div class="mf-pv-content">${html}</div>`;
   mfUpdatePreviewPagination();
+  mfRenderClientStrip();
   // Keep the Flow (one-question-at-a-time) preview in step with every edit.
   // Defined in js/73-make-forms-guided.js; must never break the normal preview.
   if (typeof window.mfGdSync === 'function') { try { window.mfGdSync(); } catch (e) {} }
@@ -5693,5 +5780,7 @@ window.mfRespToggleCircles = mfRespToggleCircles;
 window.mfRespPickCircle = mfRespPickCircle;
 window.mfToggleFillLeft = mfToggleFillLeft;
 window.mfToggleFillRight = mfToggleFillRight;
+// Shared with js/73-make-forms-guided.js so the Flow preview shows what the live Flow page shows.
+window.mfClientParts = { meta: mfCvMetaText, files: mfCvAttachPills, socials: mfCvSocialsHtml };
 
 })();

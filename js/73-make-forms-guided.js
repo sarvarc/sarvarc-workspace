@@ -76,9 +76,14 @@ function mfGdRender() {
   if (mfGd.done && mfGd.fill) {
     body = `<div class="mf-gd-screen"><div class="mf-gd-big">✓</div><h2>All questions answered</h2><p>Save this as a response, or go back to review the answers.</p><div><button class="mf-gd-btn" data-go="save">Save Response</button> <button class="mf-gd-btn ghost" data-go="review">Review answers</button></div></div>`;
   } else if (mfGd.done) {
-    body = `<div class="mf-gd-screen"><div class="mf-gd-big">✓</div><h2>Thank you</h2><p>Your response has been recorded.</p><div><button class="mf-gd-btn ghost" data-go="again">Start over</button></div></div>`;
+    // Same wording and social icons as the live page's "Response received" screen (forms-page/index.html).
+    const cp = window.mfClientParts || {};
+    body = `<div class="mf-gd-screen"><div class="mf-gd-big">✓</div><h2>Response received</h2><p>Thank you. Your response to <strong>${mfEsc(f.title || 'this form')}</strong> has been sent.</p><p>You can safely close this page.</p>${cp.socials ? cp.socials(f, 'mf-gd-social') : ''}<div><button class="mf-gd-btn ghost" data-go="again">Start over</button></div></div>`;
   } else if (i === 0 || n === 0) {
-    body = `<div class="mf-gd-screen"><h1>${mfEsc(f.title || 'Untitled Form')}</h1><p>${mfEsc(f.desc || '')}</p><div><button class="mf-gd-btn" data-go="next">${n === 0 ? (mfGd.fill ? 'Finish' : 'Submit') : 'Start →'}</button> <span class="mf-gd-hint">press Enter</span></div></div>`;
+    // The live Flow page opens with "N questions · about M min" above the title and lists the owner's attachments under the description.
+    const cp = window.mfClientParts || {};
+    const metaTxt = (cp.meta && n > 0) ? cp.meta(f) : '';
+    body = `<div class="mf-gd-screen">${metaTxt ? `<div class="mf-gd-meta">${mfEsc(metaTxt)}</div>` : ''}<h1>${mfEsc(f.title || 'Untitled Form')}</h1><p>${mfEsc(f.desc || '')}</p>${cp.files ? cp.files(f) : ''}<div><button class="mf-gd-btn" data-go="next">${n === 0 ? (mfGd.fill ? 'Finish' : 'Submit') : 'Start →'}</button> <span class="mf-gd-hint">press Enter</span></div></div>`;
   } else {
     const isSec = s.t === 'heading' || s.t === 'label';
     const isQ = x => x.t !== 'intro' && x.t !== 'heading' && x.t !== 'label' && x.t !== 'gallery';
