@@ -6,16 +6,22 @@
   var panel = document.getElementById('kadessa-panel'), ph = document.getElementById('pdfedPlaceholder'),
       sec = document.getElementById('sec-pdfeditor'), lay = document.getElementById('pdfedLayout');
   if (!panel || !ph) return;
-  var MIN_W = 560, MIN_H = 380, raf = 0;
+  var raf = 0;
+  // The chat opens IN PLACE of the "Chat with Kadessa" card: same left edge and width, growing downward over the ready pages.
+  // The goals above stay where they are. No card to anchor to, a file open, a phone, or a squeezed canvas = the normal corner box.
   function want() {
     if (!panel.classList.contains('open')) return null;
     if (sec && !sec.classList.contains('active')) return null;
-    if (window.innerWidth <= 760) return null;                    // phones keep the normal box
+    if (window.innerWidth <= 760) return null;
     if (ph.style.display === 'none' || !ph.offsetParent) return null;   // a file is open: she goes back to her corner
-    var r = ph.getBoundingClientRect(), sc = document.getElementById('pdfedCanvasScroll'), v = sc ? sc.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
-    var top = Math.max(r.top, v.top, 0), bot = Math.min(r.bottom, v.bottom, window.innerHeight);   // only the part you can actually see
-    if (r.width < MIN_W || bot - top < MIN_H) return null;        // a panel squeezes the canvas
-    return { left: r.left, width: r.width, top: top, height: bot - top };
+    var kad = ph.querySelector('.pg-kad'); if (!kad) return null;
+    var k = kad.getBoundingClientRect(); if (k.height < 120 || k.width < 420) return null;   // goals are tucked (a side panel is open)
+    var sc = document.getElementById('pdfedCanvasScroll'), v = sc ? sc.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    var bottom = Math.min(v.bottom, window.innerHeight) - 14, top = Math.max(k.top, v.top + 8, 8);
+    var h = Math.min(560, bottom - top);
+    if (h < 380) { top = Math.max(v.top + 8, bottom - 420); h = bottom - top; }   // not enough room below: lift it a little
+    if (h < 320) return null;
+    return { left: k.left, width: k.width, top: top, height: h };
   }
   function apply() {
     raf = 0;
@@ -24,10 +30,8 @@
       if (on) { panel.classList.remove('kadessa-stage'); document.body.classList.remove('kad-stage'); clear(); }
       return;
     }
-    var w = Math.min(760, r.width - 48), h = Math.min(600, r.height - 40);
-    var l = Math.round(r.left + (r.width - w) / 2), t = Math.round(r.top + (r.height - h) / 2);
-    panel.style.setProperty('--ks-l', l + 'px'); panel.style.setProperty('--ks-t', t + 'px');
-    panel.style.setProperty('--ks-w', Math.round(w) + 'px'); panel.style.setProperty('--ks-h', Math.round(h) + 'px');
+    panel.style.setProperty('--ks-l', Math.round(r.left) + 'px'); panel.style.setProperty('--ks-t', Math.round(r.top) + 'px');
+    panel.style.setProperty('--ks-w', Math.round(r.width) + 'px'); panel.style.setProperty('--ks-h', Math.round(r.height) + 'px');
     if (!on) { panel.classList.add('kadessa-stage'); document.body.classList.add('kad-stage'); }
   }
   function clear() { ['--ks-l', '--ks-t', '--ks-w', '--ks-h'].forEach(function (v) { panel.style.removeProperty(v); }); }

@@ -128,7 +128,6 @@
       var w = ph.getBoundingClientRect().width;
       if (w < 100) return;                    // hidden (a document is open)
       var open = lay && !lay.classList.contains('left-collapsed') && !lay.classList.contains('right-collapsed');
-      var kp = document.getElementById('kadessa-panel'); open = open || !!(kp && kp.classList.contains('open'));   // anything opening folds the box away
       var narrow = box.classList.contains('pg-mini') ? w < 640 : w < 620;
       setMini(box, window.innerWidth > 760 && (open || narrow), first); first = false;
     }
