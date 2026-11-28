@@ -56,28 +56,16 @@
   }
   function kadessaBox(speak) {
     var core = document.getElementById('kadessa-launcher-core'), card = document.createElement('div'); card.className = 'pg-kad';
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     card.innerHTML = '<span class="pg-kav">' + (core && core.src ? '<img alt="" src="' + core.src + '">' : 'K') + '</span>' +
-      '<div class="pg-kt">Chat with Kadessa</div><div class="pg-ks">Your workspace copilot \u2014 get things done, faster.</div>' +
+      '<div class="pg-kt">Chat with Kadessa</div><div class="pg-ks">Kadessa knows your workspace. Ask her to get the work done.</div>' +
       '<div class="pg-krow"><input class="pg-kin" type="text" autocomplete="off" aria-label="Ask Kadessa anything" placeholder="Ask Kadessa anything\u2026">' +
       '<button type="button" class="pg-kic pg-kat" title="Attach files" aria-label="Attach files">' + ic('<path d="M21.4 11l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>') + '</button>' +
-      (SR ? '<button type="button" class="pg-kic pg-kmic" title="Speak" aria-label="Speak">' + ic('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>') + '</button>' : '') +
       '<button type="button" class="pg-kgo" title="Ask Kadessa" aria-label="Ask Kadessa">' + ic('<path d="M5 12h14M13 6l6 6-6 6"/>') + '</button></div>';
     var inp = card.querySelector('.pg-kin');
     function go() { var t = inp.value.trim(); inp.value = ''; inp.blur(); try { askKadessa(t); } catch (e) { console.warn('[goals] kadessa', e); } }
     card.querySelector('.pg-kgo').onclick = go;
     card.querySelector('.pg-kat').onclick = function () {   // open her, then her own file picker
       try { askKadessa(''); var f = document.getElementById('kadessa-attach-input'); if (f) f.click(); } catch (e) { console.warn('[goals] attach', e); }
-    };
-    var mic = card.querySelector('.pg-kmic');
-    if (mic) mic.onclick = function () {
-      try {
-        var r = new SR(); r.lang = document.documentElement.lang || 'en-IN'; r.interimResults = false;
-        mic.classList.add('pg-live');
-        r.onresult = function (ev) { inp.value = (inp.value + ' ' + ev.results[0][0].transcript).trim(); };
-        r.onend = r.onerror = function () { mic.classList.remove('pg-live'); inp.focus(); };
-        r.start();
-      } catch (e) { mic.classList.remove('pg-live'); }
     };
     inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } };
     inp.onfocus = card.onmouseenter = function () { speak(KAD_SAY); };
