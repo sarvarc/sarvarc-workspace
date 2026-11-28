@@ -11,9 +11,11 @@
     if (!panel.classList.contains('open')) return null;
     if (sec && !sec.classList.contains('active')) return null;
     if (window.innerWidth <= 760) return null;                    // phones keep the normal box
-    var r = ph.getBoundingClientRect();
-    if (r.width < MIN_W || r.height < MIN_H) return null;         // a document is open (placeholder hidden) or a panel squeezes the canvas
-    return r;
+    if (ph.style.display === 'none' || !ph.offsetParent) return null;   // a file is open: she goes back to her corner
+    var r = ph.getBoundingClientRect(), sc = document.getElementById('pdfedCanvasScroll'), v = sc ? sc.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    var top = Math.max(r.top, v.top, 0), bot = Math.min(r.bottom, v.bottom, window.innerHeight);   // only the part you can actually see
+    if (r.width < MIN_W || bot - top < MIN_H) return null;        // a panel squeezes the canvas
+    return { left: r.left, width: r.width, top: top, height: bot - top };
   }
   function apply() {
     raf = 0;
@@ -34,10 +36,12 @@
     if (window.MutationObserver) {
       new MutationObserver(soon).observe(panel, { attributes: true, attributeFilter: ['class'] });
       if (lay) new MutationObserver(soon).observe(lay, { attributes: true, attributeFilter: ['class'] });
+      new MutationObserver(soon).observe(ph, { attributes: true, attributeFilter: ['style', 'class'] });
       if (sec) new MutationObserver(soon).observe(sec, { attributes: true, attributeFilter: ['class'] });
     }
     if (window.ResizeObserver) new ResizeObserver(soon).observe(ph);
     window.addEventListener('resize', soon);
+    document.addEventListener('scroll', soon, true);
     soon();
   } catch (e) { console.warn('[kadessa-stage] setup', e); }
 })();
