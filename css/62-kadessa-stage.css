@@ -31,11 +31,12 @@
 [data-theme="light"] #kadessa-panel.kadessa-stage .kadessa-msg.kadessa { background: rgba(0,60,120,.035); border-color: rgba(0,60,120,.14); }
 [data-theme="light"] #kadessa-panel.kadessa-stage #kadessa-form-row { background: #fff; border-color: rgba(0,60,120,.18); }
 
-/* The goals answers step aside while she has the stage, and come back when she closes or falls back to the corner. */
-.pg-goals { transition: opacity .25s ease, visibility .25s; }
-/* One Kadessa on screen: her corner button hides while the centre card is open and returns when she falls back. */
+/* One Kadessa on screen: her corner button hides while the card is open, and the portal card underneath hides (it is what the chat grew out of). Both return when she falls back or closes. */
 body.kad-stage #kadessa-launcher { display: none !important; }
-body.kad-stage .pg-goals { opacity: 0; visibility: hidden; pointer-events: none; }
+body.kad-stage .pg-kad { visibility: hidden; }
+
+/* Coming from the corner (a file closed), the JS glides her over; the fresh-open fade is skipped. */
+#kadessa-panel.kadessa-stage.ks-glide { animation: none; }
 
 @keyframes ksIn { from { opacity: 0; transform: translateY(14px) scale(.972); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { #kadessa-panel.kadessa-stage { animation: none; } .pg-goals { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #kadessa-panel.kadessa-stage { animation: none; } }
